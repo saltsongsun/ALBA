@@ -33,7 +33,7 @@ GitHub → Vercel(자동 배포) → Supabase(Postgres) 구성입니다.
 
 ### 1) Supabase
 1. [Supabase 대시보드](https://supabase.com/dashboard) → New project → 이름 `socket-alba`, 지역 **Northeast Asia (Seoul)**
-2. SQL Editor에 [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) 내용을 붙여넣고 Run
+2. SQL Editor에 [`supabase/migrations/`](supabase/migrations/) 안의 SQL 파일을 번호 순서대로(`0001_…`, `0002_…`) 붙여넣고 Run
 3. Project Settings → API에서 **Project URL**과 **secret(service_role) 키**를 복사
 
 ### 2) 비밀 값 만들기
