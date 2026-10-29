@@ -1,12 +1,12 @@
 'use client'
 
-import { useActionState, useMemo, useState } from 'react'
-import { resetPin, revealRrn, saveSettings, saveTemplate, updateWorker } from '@/app/actions/admin'
+import { useActionState, useMemo, useOptimistic, useState } from 'react'
+import { rateWorker, resetPin, revealRrn, saveSettings, saveTemplate, updateWorker } from '@/app/actions/admin'
 import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
 import { DocBody } from './DocSheet'
-import { FormMessage, keepInputs, SubmitButton } from './ui'
+import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
 export function RevealRrn({ userId, masked }: { userId: string; masked: string | null }) {
   const [state, action] = useActionState(revealRrn.bind(null, userId), null)
@@ -240,6 +240,82 @@ export function SettingsForm({ s }: { s: Settings }) {
       </section>
       <FormMessage state={state} />
       <SubmitButton>설정 저장</SubmitButton>
+    </form>
+  )
+}
+
+/** 출퇴근 화면의 빠른 평가: 별을 누르면 바로 채워지고 저장됨 (다시 누르면 바뀜) */
+export function QuickRate({ action, score }: { action: (form: FormData) => Promise<void>; score: number | null }) {
+  const [shown, setShown] = useOptimistic(score)
+  return (
+    <form
+      action={async (form) => {
+        setShown(Number(form.get('score')))
+        haptic(8)
+        await action(form)
+      }}
+      className="inline-flex items-center"
+    >
+      {[1, 2, 3, 4, 5].map((n) => (
+        <button
+          key={n}
+          name="score"
+          value={n}
+          aria-label={`${n}점`}
+          className={`px-0.5 text-lg leading-none transition duration-150 active:scale-75 ${n <= (shown ?? 0) ? 'text-amber-400' : 'text-line hover:text-amber-200'}`}
+        >
+          ★
+        </button>
+      ))}
+    </form>
+  )
+}
+
+const SCORE_LABELS = ['', '아쉬워요', '조금 아쉬워요', '보통이에요', '좋아요', '최고예요']
+
+/** 근무자 정보 화면의 평가 쓰기 (관리자끼리만 봄) */
+export function RatingForm({ userId, jobs }: { userId: string; jobs: { id: string; title: string }[] }) {
+  const [state, action] = useActionState(rateWorker.bind(null, userId), null)
+  const [score, setScore] = useState(0)
+  const [hover, setHover] = useState(0)
+  const show = hover || score
+  return (
+    <form action={action} onReset={keepInputs} className="space-y-3">
+      <div className="flex items-center gap-0.5" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((n) => (
+          <button
+            key={n}
+            type="button"
+            aria-label={`${n}점`}
+            aria-pressed={score === n}
+            onClick={() => {
+              setScore(n)
+              haptic(8)
+            }}
+            onMouseEnter={() => setHover(n)}
+            className={`px-0.5 text-3xl leading-none transition duration-150 active:scale-75 ${n <= show ? 'scale-110 text-amber-400' : 'text-line'}`}
+          >
+            ★
+          </button>
+        ))}
+        <span className="ml-2 text-sm font-semibold text-sub">{SCORE_LABELS[show]}</span>
+      </div>
+      <input type="hidden" name="score" value={score} />
+      <div className="grid gap-2 sm:grid-cols-[1fr_2fr]">
+        <select name="job_id" className="input py-2 text-sm" defaultValue={jobs[0]?.id ?? ''}>
+          <option value="">공고 없이 메모</option>
+          {jobs.map((j) => (
+            <option key={j.id} value={j.id}>
+              {j.title}
+            </option>
+          ))}
+        </select>
+        <textarea name="comment" className="input py-2 text-sm" rows={2} maxLength={500} placeholder="예) 시간 약속 잘 지킴, 관람객 안내 능숙" />
+      </div>
+      <FormMessage state={state} />
+      <SubmitButton className="btn-primary btn-sm" pendingText="저장 중…">
+        평가 저장
+      </SubmitButton>
     </form>
   )
 }

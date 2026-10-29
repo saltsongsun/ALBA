@@ -33,14 +33,14 @@ export type AppRow = Application & { user: WorkerLite }
 const STATUS_LABEL: Record<Job['status'], string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료' }
 
 export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
   if (!isUuid(id)) notFound()
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
   const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder'
-  const [job, settings, origin, apps, atts, docs, allTemplates] = await Promise.all([
+  const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
     getJob(id),
     getSettings(),
     siteOrigin(),
@@ -63,6 +63,13 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       .order('created_at')
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'user_id' | 'template_id' | 'title' | 'status' | 'signed_at' | 'created_at'>[]),
     db().from('doc_templates').select('id, title').then((r) => must(r) as { id: string; title: string }[]),
+    // 내가 이 공고 근무자들에게 매긴 별점 (출퇴근 화면의 빠른 평가)
+    db()
+      .from('worker_ratings')
+      .select('user_id, score')
+      .eq('job_id', id)
+      .eq('rater_id', admin.id)
+      .then((r) => must(r) as { user_id: string; score: number }[]),
   ])
   if (!job) notFound()
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id))
@@ -171,7 +178,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       </div>
 
       {tab === 'apps' && <AppsTab job={job} apps={apps} />}
-      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} />}
+      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
     </div>

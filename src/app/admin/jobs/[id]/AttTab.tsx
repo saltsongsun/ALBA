@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
@@ -18,6 +19,7 @@ export default function AttTab({
   users,
   date,
   dates,
+  myScores,
 }: {
   job: Job
   apps: AppRow[]
@@ -25,6 +27,7 @@ export default function AttTab({
   users: Map<string, WorkerLite>
   date: string
   dates: string[]
+  myScores: Record<string, number>
 }) {
   const dayAtts = atts.filter((a) => a.work_date === date)
   const byUser = new Map(dayAtts.map((a) => [a.user_id, a]))
@@ -139,8 +142,13 @@ export default function AttTab({
                 </div>
               </div>
 
-              <div className="mt-2">
+              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                 <ContactButtons phone={u?.phone} name={u?.name} />
+                {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) */}
+                <span className="inline-flex items-center gap-1 text-xs text-mute">
+                  평가
+                  <QuickRate action={rateQuick.bind(null, uid, job.id)} score={myScores[uid] ?? null} />
+                </span>
               </div>
 
               {a ? (

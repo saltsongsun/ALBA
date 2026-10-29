@@ -1,24 +1,27 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
+import { deleteRating } from '@/app/actions/admin'
+import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
 import { ContactButtons } from '@/components/Contact'
+import { StarAvg, StarRow } from '@/components/Stars'
+import { ConfirmSubmit } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
-import type { Application, Attendance, Job, SignedDoc, UserRow } from '@/lib/types'
+import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
 export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   if (!isUuid(id)) notFound()
-  const [{ data }, apps, atts, docs] = await Promise.all([
+  const [{ data }, apps, atts, docs, ratings] = await Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
     db()
       .from('applications')
@@ -33,6 +36,18 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       .eq('user_id', id)
       .order('created_at', { ascending: false })
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title' | 'status' | 'signed_at'>[]),
+    db()
+      .from('worker_ratings')
+      .select('id, job_id, rater_id, score, comment, updated_at, job:jobs(title), rater:users!worker_ratings_rater_id_fkey(name)')
+      .eq('user_id', id)
+      .order('updated_at', { ascending: false })
+      .then(
+        (r) =>
+          must(r) as unknown as (Pick<WorkerRating, 'id' | 'job_id' | 'rater_id' | 'score' | 'comment' | 'updated_at'> & {
+            job: { title: string } | null
+            rater: { name: string } | null
+          })[],
+      ),
   ])
   const u = data as UserRow | null
   if (!u) notFound()
@@ -104,6 +119,41 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           />
         </section>
       </div>
+
+      <section className="card space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-bold">
+            관리자 평가 <span className="text-xs font-medium text-mute">근무자에게는 보이지 않아요</span>
+          </h2>
+          <StarAvg scores={ratings.map((r) => r.score)} />
+        </div>
+        {ratings.length > 0 && (
+          <ul className="stagger divide-y divide-line">
+            {ratings.map((r) => (
+              <li key={r.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <p>
+                    <StarRow score={r.score} /> <span className="ml-1 font-semibold">{r.job?.title ?? '일반 메모'}</span>
+                  </p>
+                  {r.comment && <p className="mt-0.5 whitespace-pre-wrap text-sub">{r.comment}</p>}
+                  <p className="mt-0.5 text-xs text-mute">
+                    {r.rater?.name ?? '관리자'} · {fmtDate(kstDate(r.updated_at))}
+                  </p>
+                </div>
+                {r.rater_id === admin.id && (
+                  <form action={deleteRating.bind(null, r.id, u.id)}>
+                    <ConfirmSubmit className="text-xs font-semibold text-mute underline" confirmText="지울까요?">
+                      지우기
+                    </ConfirmSubmit>
+                  </form>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        <RatingForm userId={u.id} jobs={[...jobs.values()].filter(Boolean).map((j) => ({ id: j.id, title: j.title }))} />
+        <p className="hint">개인정보 열람 요청이 오면 보여 줘야 할 수 있으니 사실 위주로 적어 주세요.</p>
+      </section>
 
       <section>
         <h2 className="section-title">근무 이력</h2>

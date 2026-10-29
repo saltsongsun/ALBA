@@ -3,6 +3,7 @@ import { addWorkerToJob, approveAllApplied, decideApplication } from '@/app/acti
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import { APP_STATUS } from '@/components/JobCard'
+import { scoresByUser, StarAvg } from '@/components/Stars'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { ageOn, fmtDate, kstDateTime } from '@/lib/time'
@@ -12,12 +13,23 @@ import type { AppRow } from './page'
 export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] }) {
   const ids = apps.map((a) => a.user_id)
   // 다른 행사 근무 이력 (몇 개 행사에서 일했는지)
-  const history = ids.length
-    ? (must(await db().from('attendance').select('user_id, job_id').in('user_id', ids).neq('job_id', job.id)) as {
-        user_id: string
-        job_id: string
-      }[])
-    : []
+  const [history, ratings] = ids.length
+    ? await Promise.all([
+        db()
+          .from('attendance')
+          .select('user_id, job_id')
+          .in('user_id', ids)
+          .neq('job_id', job.id)
+          .then((r) => must(r) as { user_id: string; job_id: string }[]),
+        // 관리자 평가 평균 (근무자에게는 보이지 않음)
+        db()
+          .from('worker_ratings')
+          .select('user_id, score')
+          .in('user_id', ids)
+          .then((r) => must(r) as { user_id: string; score: number }[]),
+      ])
+    : [[], []]
+  const scores = scoresByUser(ratings)
   const jobsWorked: Record<string, Set<string>> = {}
   for (const h of history) (jobsWorked[h.user_id] ??= new Set()).add(h.job_id)
   const waiting = apps.filter((a) => a.status === 'applied').length
@@ -72,6 +84,11 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
                         {a.user.name}
                       </Link>
                       {age != null && <span className="ml-1 text-xs text-mute">만 {age}세</span>}
+                      {scores[a.user_id] && (
+                        <span className="ml-1">
+                          <StarAvg scores={scores[a.user_id]} />
+                        </span>
+                      )}
                       {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
                     </td>
                     <td className="whitespace-nowrap">

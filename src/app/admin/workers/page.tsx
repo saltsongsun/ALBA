@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ContactButtons } from '@/components/Contact'
+import { StarAvg } from '@/components/Stars'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, kstDate } from '@/lib/time'
@@ -17,6 +18,7 @@ type Row = {
   bank_account_enc: string | null
   created_at: string
   attendance: { work_date: string }[] | null
+  ratings: { score: number }[] | null
 }
 
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
@@ -26,7 +28,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   // 근무일수·최근 근무를 세기 위해 출퇴근 날짜도 같이 읽음
   let query = db()
     .from('users')
-    .select('id, name, phone, role, birth_date, active, bank_account_enc, created_at, attendance(work_date)')
+    .select('id, name, phone, role, birth_date, active, bank_account_enc, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
     .order('created_at', { ascending: false })
     .limit(300)
   if (q) {
@@ -57,6 +59,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   }
   const roleBadges = (u: Row) => (
     <>
+      <StarAvg scores={(u.ratings ?? []).map((r) => r.score)} />
       {u.role === 'admin' && <span className="badge bg-ink text-white">관리자</span>}
       {!u.active && <span className="badge bg-gray-100 text-mute">탈퇴·정지</span>}
     </>

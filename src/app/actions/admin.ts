@@ -522,3 +522,48 @@ export async function saveSettings(_: FormState, form: FormData): Promise<FormSt
   revalidatePath('/admin/settings')
   return { ok: '저장했습니다.' }
 }
+
+// ───────────── 관리자 평점 (근무자에게는 보이지 않음) ─────────────
+
+const SCORE_RANGE = (n: number) => n >= 1 && n <= 5
+
+/** 출퇴근 화면에서 별 하나 눌러 바로 매기기 (같은 공고·같은 관리자는 다시 누르면 바뀜, 메모는 그대로) */
+export async function rateQuick(userId: string, jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  const score = int(form, 'score', 0)
+  if (!isUuid(userId) || !isUuid(jobId) || !SCORE_RANGE(score)) return
+  must(
+    await db()
+      .from('worker_ratings')
+      .upsert({ user_id: userId, job_id: jobId, rater_id: admin.id, score }, { onConflict: 'user_id,job_id,rater_id' }),
+  )
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath(`/admin/workers/${userId}`)
+}
+
+/** 근무자 정보 화면에서 별점·메모 저장 (공고를 고르지 않으면 일반 메모로 새로 추가) */
+export async function rateWorker(userId: string, _: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
+  const score = int(form, 'score', 0)
+  if (!SCORE_RANGE(score)) return { error: '별점을 골라 주세요.' }
+  const jobId = str(form, 'job_id')
+  must(
+    await db()
+      .from('worker_ratings')
+      .upsert(
+        { user_id: userId, job_id: isUuid(jobId) ? jobId : null, rater_id: admin.id, score, comment: optStr(form, 'comment', 500) },
+        { onConflict: 'user_id,job_id,rater_id' },
+      ),
+  )
+  revalidatePath(`/admin/workers/${userId}`)
+  return { ok: '평가를 저장했습니다.' }
+}
+
+/** 내가 쓴 평가만 지울 수 있음 */
+export async function deleteRating(ratingId: string, userId: string) {
+  const admin = await requireAdmin()
+  if (!isUuid(ratingId)) return
+  must(await db().from('worker_ratings').delete().eq('id', ratingId).eq('rater_id', admin.id))
+  revalidatePath(`/admin/workers/${userId}`)
+}
