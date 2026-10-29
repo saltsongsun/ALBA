@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next'
+import { Suspense } from 'react'
+import NavProgress from '@/components/NavProgress'
 import './globals.css'
 
 // 모든 화면이 로그인 상태·DB를 읽으므로 빌드 시 미리 만들지 않습니다.
@@ -27,6 +29,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
           precedence="default"
         />
+        <Suspense fallback={null}>
+          <NavProgress />
+        </Suspense>
         {children}
       </body>
     </html>

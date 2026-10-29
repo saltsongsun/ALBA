@@ -36,11 +36,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
-  const job = isUuid(id) ? await getJob(id) : null
-  if (!job) notFound()
+  if (!isUuid(id)) notFound()
 
+  // 공고와 지원·출퇴근·서류를 한 번에 읽음
   const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder'
-  const [settings, origin, apps, atts, docs, templates] = await Promise.all([
+  const [job, settings, origin, apps, atts, docs, allTemplates] = await Promise.all([
+    getJob(id),
     getSettings(),
     siteOrigin(),
     db()
@@ -61,10 +62,10 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       .eq('job_id', id)
       .order('created_at')
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'user_id' | 'template_id' | 'title' | 'status' | 'signed_at' | 'created_at'>[]),
-    job.required_docs.length
-      ? db().from('doc_templates').select('id, title').in('id', job.required_docs).then((r) => must(r) as { id: string; title: string }[])
-      : [],
+    db().from('doc_templates').select('id, title').then((r) => must(r) as { id: string; title: string }[]),
   ])
+  if (!job) notFound()
+  const templates = allTemplates.filter((t) => job.required_docs.includes(t.id))
 
   // 출퇴근 기록은 있는데 지원 내역이 없는 사람(관리자 직접 등록 등)도 정산에 포함
   const known = new Set(apps.map((a) => a.user_id))

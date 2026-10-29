@@ -43,10 +43,9 @@ function Row({ k, children }: { k: string; children: React.ReactNode }) {
 export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const { id } = await props.params
   const sp = await props.searchParams
-  const job = await load(id)
+  const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const user = await getUser()
   const [counts, app, docs] = await Promise.all([
     approvedCounts([job.id]),
     user

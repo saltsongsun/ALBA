@@ -1,4 +1,4 @@
-import type { Job, Settings } from './types'
+import type { CompanySettings, Job } from './types'
 import { phoneFmt, won } from './format'
 import { breakDescription, taxDescription } from './pay'
 import { fmtDateLong, fmtDateRange, hhmm, kstDate } from './time'
@@ -23,7 +23,7 @@ export function scheduleText(job: Job): string {
 export function buildDocVars(
   job: Job,
   person: DocPerson,
-  settings: Settings,
+  settings: CompanySettings,
   signedOn: string = kstDate(),
 ): Record<string, string> {
   const place = [job.location_name, job.address].filter(Boolean).join(' / ')

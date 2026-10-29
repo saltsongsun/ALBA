@@ -104,9 +104,8 @@ function coords(lat: unknown, lng: unknown): { lat: number; lng: number } | null
 }
 
 export async function clockIn(jobId: string, lat: number | null, lng: number | null): Promise<ClockResult> {
-  const user = await requireUser()
+  const [user, job] = await Promise.all([requireUser(), isUuid(jobId) ? getJob(jobId) : null])
   if (!isUuid(jobId)) return { error: '잘못된 요청입니다.' }
-  const job = await getJob(jobId)
   if (!job) return { error: '공고를 찾을 수 없습니다.' }
   const today = kstDate()
   if (today < job.start_date || today > job.end_date) return { error: '오늘은 이 행사의 근무일이 아닙니다.' }
@@ -154,16 +153,18 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
 }
 
 export async function clockOut(attendanceId: string, lat: number | null, lng: number | null): Promise<ClockResult> {
-  const user = await requireUser()
+  // 로그인 확인과 기록 조회(행사장 좌표 포함)를 함께 하고, 본인 기록인지는 아래에서 확인
+  const [user, { data }] = await Promise.all([
+    requireUser(),
+    isUuid(attendanceId)
+      ? db().from('attendance').select('user_id, clock_out, job:jobs(lat, lng)').eq('id', attendanceId).maybeSingle()
+      : { data: null },
+  ])
   if (!isUuid(attendanceId)) return { error: '잘못된 요청입니다.' }
-  const { data: att } = await db()
-    .from('attendance')
-    .select('id, user_id, job_id, clock_out')
-    .eq('id', attendanceId)
-    .maybeSingle()
+  const att = data as { user_id: string; clock_out: string | null; job: { lat: number | null; lng: number | null } | null } | null
   if (!att || att.user_id !== user.id) return { error: '근무 기록을 찾을 수 없습니다.' }
   if (att.clock_out) return { error: '이미 종료된 근무입니다.' }
-  const job = await getJob(att.job_id)
+  const job = att.job
   const pos = coords(lat, lng)
   const distance = pos && job?.lat != null && job?.lng != null ? distanceM(pos.lat, pos.lng, job.lat, job.lng) : null
   must(
@@ -198,7 +199,7 @@ export async function signDocument(docId: string, _: FormState, form: FormData):
 
   const [job, settings, { data: tpl }, { data: me }] = await Promise.all([
     getJob(d.job_id),
-    getSettings(),
+    getSettings({ seal: true }),
     db().from('doc_templates').select('*').eq('id', d.template_id).maybeSingle(),
     db().from('users').select('name, phone, birth_date, address').eq('id', user.id).single(),
   ])

@@ -2,13 +2,12 @@ import Link from 'next/link'
 import { decideApplication } from '@/app/actions/admin'
 import Flash from '@/components/Flash'
 import { SubmitButton } from '@/components/ui'
-import { approvedCounts, getSettings } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { phoneFmt } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
-import type { Job } from '@/lib/types'
 
 function Stat({ label, value, href, tone = '' }: { label: string; value: number; href: string; tone?: string }) {
   return (
@@ -23,15 +22,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   await requireAdmin()
   const sp = await props.searchParams
   const today = kstDate()
-  const [settings, activeJobs, pending, working, pendingDocs, workerCount] = await Promise.all([
+  const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount] = await Promise.all([
     getSettings(),
+    hasSeal(),
     db()
       .from('jobs')
-      .select('*')
+      .select(JOB_WITH_APP_STATUS)
       .in('status', ['open', 'closed'])
       .gte('end_date', today)
       .order('start_date')
-      .then((r) => must(r) as Job[]),
+      .then((r) => must(r) as JobWithAppStatus[]),
     db()
       .from('applications')
       .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date)')
@@ -53,7 +53,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true),
   ])
-  const counts = await approvedCounts(activeJobs.map((j) => j.id))
+  const counts = countApps(activeJobs, 'approved')
   const todayJobs = activeJobs.filter((j) => j.start_date <= today && j.end_date >= today)
   const workingBy: Record<string, number> = {}
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
@@ -61,7 +61,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const setupTodo = [
     !settings.business_no && '사업자등록번호',
     !settings.company_address && '회사 주소',
-    !settings.seal_image && '직인 이미지',
+    !sealSet && '직인 이미지',
     !settings.contact_phone && '문의 연락처',
   ].filter(Boolean)
 

@@ -1,35 +1,39 @@
 import Link from 'next/link'
 import Flash from '@/components/Flash'
 import JobCard from '@/components/JobCard'
-import { approvedCounts, getSettings } from '@/lib/data'
+import { countApps, getSettings, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { getUser } from '@/lib/session'
 import { kstDate } from '@/lib/time'
-import type { Job } from '@/lib/types'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
   const today = kstDate()
-  const [user, settings, jobs] = await Promise.all([
+  const [user, settings, jobs, myApps] = await Promise.all([
     getUser(),
     getSettings(),
     db()
       .from('jobs')
-      .select('*')
+      .select(JOB_WITH_APP_STATUS)
       .in('status', ['open', 'closed'])
       .gte('end_date', today)
       .order('start_date')
       .limit(50)
-      .then((r) => must(r) as Job[]),
+      .then((r) => must(r) as JobWithAppStatus[]),
+    // 내 지원 상태도 공고 목록과 함께 읽음
+    getUser().then((u) =>
+      u
+        ? db()
+            .from('applications')
+            .select('job_id, status')
+            .eq('user_id', u.id)
+            .then((r) => must(r) as { job_id: string; status: string }[])
+        : [],
+    ),
   ])
-  const counts = await approvedCounts(jobs.map((j) => j.id))
+  const counts = countApps(jobs, 'approved')
   const mine: Record<string, string> = {}
-  if (user && jobs.length) {
-    const rows = must(
-      await db().from('applications').select('job_id, status').eq('user_id', user.id).in('job_id', jobs.map((j) => j.id)),
-    ) as { job_id: string; status: string }[]
-    for (const r of rows) mine[r.job_id] = r.status
-  }
+  for (const r of myApps) mine[r.job_id] = r.status
 
   return (
     <>

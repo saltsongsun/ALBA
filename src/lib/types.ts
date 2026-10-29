@@ -155,6 +155,9 @@ export type Settings = {
   workplace_5plus: boolean
 }
 
+/** 직인 이미지를 뺀 회사 정보 (대부분의 화면은 이것만 읽음) */
+export type CompanySettings = Omit<Settings, 'seal_image'>
+
 export type CompanySnapshot = Pick<
   Settings,
   'company_name' | 'ceo_name' | 'business_no' | 'company_address' | 'company_phone'

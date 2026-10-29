@@ -11,8 +11,8 @@ export const metadata: Metadata = { title: '로그인' }
 export default async function LoginPage(props: PageProps<'/login'>) {
   const sp = await props.searchParams
   const next = safePath(sp.next, '')
-  if (await getUser()) redirect(next || '/me')
-  const settings = await getSettings()
+  const [user, settings] = await Promise.all([getUser(), getSettings()])
+  if (user) redirect(next || '/me')
   return (
     <div className="pt-6">
       <h1 className="mb-1 text-2xl font-extrabold">로그인</h1>

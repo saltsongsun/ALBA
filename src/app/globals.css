@@ -79,6 +79,27 @@
   }
 }
 
+/* 화면 이동 중 맨 위 진행 막대 (NavProgress) */
+.nav-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 50;
+  width: 100%;
+  height: 3px;
+  background: var(--color-brand-600);
+  transform-origin: left;
+  animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+@keyframes nav-progress {
+  from {
+    transform: scaleX(0.05);
+  }
+  to {
+    transform: scaleX(0.9);
+  }
+}
+
 /* 인쇄: 서류만 A4로 */
 @media print {
   @page {

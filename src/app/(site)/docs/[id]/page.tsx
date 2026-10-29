@@ -6,7 +6,7 @@ import { PrintButton } from '@/components/ui'
 import { SignForm } from '@/components/worker'
 import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
-import { buildDocVars, renderTemplate } from '@/lib/docs'
+import { buildDocVars, renderTemplate, type DocPerson } from '@/lib/docs'
 import { phoneFmt } from '@/lib/format'
 import { requireUser } from '@/lib/session'
 import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
@@ -16,17 +16,20 @@ export const metadata: Metadata = { title: '서류' }
 
 export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   const { id } = await props.params
-  const user = await requireUser(`/docs/${id}`)
-  if (!isUuid(id)) notFound()
-  const { data } = await db().from('signed_docs').select('*').eq('id', id).maybeSingle()
-  const doc = data as SignedDoc | null
+  // 로그인 확인과 서류 조회를 함께 하고, 본인·관리자 여부는 아래에서 확인
+  const [user, doc] = await Promise.all([
+    requireUser(`/docs/${id}`),
+    isUuid(id)
+      ? db()
+          .from('signed_docs')
+          .select('*, worker:users(name, phone, birth_date, address)')
+          .eq('id', id)
+          .maybeSingle()
+          .then((r) => r.data as (SignedDoc & { worker: DocPerson | null }) | null)
+      : null,
+  ])
   if (!doc || (doc.user_id !== user.id && user.role !== 'admin')) notFound()
-
-  const { data: worker } = await db()
-    .from('users')
-    .select('name, phone, birth_date, address')
-    .eq('id', doc.user_id)
-    .single()
+  const worker = doc.worker
   if (!worker) notFound()
 
   let body = doc.body ?? ''
@@ -35,7 +38,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   if (doc.status !== 'signed') {
     const [job, settings, { data: tpl }] = await Promise.all([
       getJob(doc.job_id),
-      getSettings(),
+      getSettings({ seal: true }),
       doc.template_id ? db().from('doc_templates').select('*').eq('id', doc.template_id).maybeSingle() : { data: null },
     ])
     if (!job || !tpl) {

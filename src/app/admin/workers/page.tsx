@@ -16,15 +16,17 @@ type Row = {
   active: boolean
   bank_account_enc: string | null
   created_at: string
+  attendance: { work_date: string }[] | null
 }
 
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   await requireAdmin()
   const sp = await props.searchParams
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
+  // 근무일수·최근 근무를 세기 위해 출퇴근 날짜도 같이 읽음
   let query = db()
     .from('users')
-    .select('id, name, phone, role, birth_date, active, bank_account_enc, created_at')
+    .select('id, name, phone, role, birth_date, active, bank_account_enc, created_at, attendance(work_date)')
     .order('created_at', { ascending: false })
     .limit(300)
   if (q) {
@@ -33,15 +35,13 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
   }
   const users = must(await query) as Row[]
-  const ids = users.map((u) => u.id)
-  const atts = ids.length
-    ? (must(await db().from('attendance').select('user_id, work_date').in('user_id', ids)) as { user_id: string; work_date: string }[])
-    : []
   const stat: Record<string, { days: number; last: string }> = {}
-  for (const a of atts) {
-    const s = (stat[a.user_id] ??= { days: 0, last: '' })
-    s.days++
-    if (a.work_date > s.last) s.last = a.work_date
+  for (const u of users) {
+    for (const a of u.attendance ?? []) {
+      const s = (stat[u.id] ??= { days: 0, last: '' })
+      s.days++
+      if (a.work_date > s.last) s.last = a.work_date
+    }
   }
   const today = kstDate()
 

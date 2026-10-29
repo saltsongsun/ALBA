@@ -30,7 +30,7 @@ export async function loadWorkerPay(viewer: SessionUser, jobId: string, userId: 
   if (viewer.id !== userId && viewer.role !== 'admin') return null
   const [job, settings, { data: worker }, rows] = await Promise.all([
     getJob(jobId),
-    getSettings(),
+    getSettings({ seal: true }),
     db()
       .from('users')
       .select('id, name, phone, birth_date, address, bank_name, bank_account_enc, account_holder')

@@ -14,20 +14,18 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
   await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
-  const job = isUuid(id) ? await getJob(id) : null
-  if (!job) notFound()
-  const [settings, templates] = await Promise.all([
+  if (!isUuid(id)) notFound()
+  const [job, settings, allTemplates] = await Promise.all([
+    getJob(id),
     getSettings(),
     db()
       .from('doc_templates')
       .select('id, title, kind, is_default, active')
       .order('created_at')
-      .then((r) =>
-        (must(r) as { id: string; title: string; kind: string; is_default: boolean; active: boolean }[]).filter(
-          (t) => t.active || job.required_docs.includes(t.id),
-        ),
-      ),
+      .then((r) => must(r) as { id: string; title: string; kind: string; is_default: boolean; active: boolean }[]),
   ])
+  if (!job) notFound()
+  const templates = allTemplates.filter((t) => t.active || job.required_docs.includes(t.id))
   return (
     <div className="mx-auto max-w-3xl">
       <Flash m={sp.m} />

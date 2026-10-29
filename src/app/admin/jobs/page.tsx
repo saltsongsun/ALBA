@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Flash from '@/components/Flash'
-import { approvedCounts } from '@/lib/data'
+import { countApps, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
@@ -22,20 +22,13 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
   const sp = await props.searchParams
   const tab = sp.tab === 'past' ? 'past' : sp.tab === 'draft' ? 'draft' : 'active'
   const today = kstDate()
-  let q = db().from('jobs').select('*')
+  let q = db().from('jobs').select(JOB_WITH_APP_STATUS)
   if (tab === 'active') q = q.in('status', ['open', 'closed']).gte('end_date', today).order('start_date')
   else if (tab === 'draft') q = q.eq('status', 'draft').order('created_at', { ascending: false })
   else q = q.or(`status.eq.done,end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false }).limit(100)
-  const jobs = must(await q) as Job[]
-  const ids = jobs.map((j) => j.id)
-  const [counts, waiting] = await Promise.all([
-    approvedCounts(ids),
-    ids.length
-      ? db().from('applications').select('job_id').in('job_id', ids).eq('status', 'applied').then((r) => must(r) as { job_id: string }[])
-      : [],
-  ])
-  const waitingBy: Record<string, number> = {}
-  for (const w of waiting) waitingBy[w.job_id] = (waitingBy[w.job_id] ?? 0) + 1
+  const jobs = must(await q) as JobWithAppStatus[]
+  const counts = countApps(jobs, 'approved')
+  const waitingBy = countApps(jobs, 'applied')
 
   return (
     <div className="space-y-4">
