@@ -1,9 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { useEffect, useRef, useState } from 'react'
 import { CopyButton } from './ui'
 
-// 홈 화면 앱(PWA) 설치 안내. 휴대폰으로 처음 들어오면 아래에서 올라오고, "나중에"를 누르면 7일 동안 숨깁니다.
+// 홈 화면 앱(PWA) 설치 안내. 휴대폰으로 홈·내 근무 화면에 처음 들어오면 아래에서 올라오고,
+// "나중에"를 누르면 7일 동안 숨깁니다. 가입·지원·서명 화면에서는 버튼을 가리지 않도록 저절로 띄우지 않습니다.
 
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
 type Env = 'kakao' | 'inapp' | 'ios' | 'android' | 'desktop'
@@ -11,6 +13,7 @@ type Env = 'kakao' | 'inapp' | 'ios' | 'android' | 'desktop'
 const HIDE_KEY = 'alba_install_hide_until'
 const OPEN_EVENT = 'alba:install'
 const HIDE_DAYS = 7
+const AUTO_PATHS = ['/', '/me']
 
 function detect(): Env {
   const ua = navigator.userAgent
@@ -19,6 +22,14 @@ function detect(): Env {
   if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return 'ios'
   if (/Android/i.test(ua)) return 'android'
   return 'desktop'
+}
+
+function snoozed(): boolean {
+  try {
+    return Number(localStorage.getItem(HIDE_KEY)) > Date.now()
+  } catch {
+    return false
+  }
 }
 
 function installed(): boolean {
@@ -46,26 +57,20 @@ export function InstallButton({ className = 'btn-gray btn-sm' }: { className?: s
 }
 
 export default function InstallGuide() {
+  const pathname = usePathname()
   const [env, setEnv] = useState<Env | null>(null)
   const [open, setOpen] = useState(false)
   const [prompt, setPrompt] = useState<InstallPromptEvent | null>(null)
+  const autoShown = useRef(false)
 
   useEffect(() => {
     navigator.serviceWorker?.register('/sw.js').catch(() => {})
     if (installed()) return
-    const e = detect()
-    setEnv(e)
-    let snoozed = false
-    try {
-      snoozed = Number(localStorage.getItem(HIDE_KEY)) > Date.now()
-    } catch {}
-    // 휴대폰은 들어오자마자, 컴퓨터는 브라우저가 설치를 지원할 때만 안내
-    if (!snoozed && e !== 'desktop') setOpen(true)
+    setEnv(detect())
 
     const onPrompt = (ev: Event) => {
       ev.preventDefault()
       setPrompt(ev as InstallPromptEvent)
-      if (!snoozed) setOpen(true)
     }
     const onInstalled = () => {
       setOpen(false)
@@ -81,6 +86,14 @@ export default function InstallGuide() {
       window.removeEventListener(OPEN_EVENT, onOpen)
     }
   }, [])
+
+  // 홈·내 근무 화면에서 한 번만 저절로 (컴퓨터는 브라우저가 설치를 지원할 때만)
+  useEffect(() => {
+    if (!env || autoShown.current || !AUTO_PATHS.includes(pathname)) return
+    if (env === 'desktop' && !prompt) return
+    autoShown.current = true
+    if (!snoozed()) setOpen(true)
+  }, [env, pathname, prompt])
 
   if (!open || !env) return null
 
@@ -146,21 +159,25 @@ export default function InstallGuide() {
   }
 
   return (
-    <div role="dialog" aria-label="앱 설치 안내" className="no-print fixed inset-x-0 bottom-0 z-40 p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96 sm:p-0">
-      <div className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line">
-        <div className="mb-3 flex items-start gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/icons/icon-192.png" alt="" className="size-11 rounded-xl" />
-          <div className="min-w-0 flex-1">
-            <p className="font-bold">소켓 알바를 앱으로 설치하세요</p>
-            <p className="text-[13px] text-mute">홈 화면에서 바로 열고 출퇴근 버튼을 빨리 누를 수 있어요.</p>
+    <>
+      {/* 안내창에 가려지는 만큼 아래 여백을 두어 맨 아래 버튼까지 스크롤할 수 있게 */}
+      <div aria-hidden className="no-print h-80" />
+      <div role="dialog" aria-label="앱 설치 안내" className="no-print fixed inset-x-0 bottom-0 z-40 p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96 sm:p-0">
+        <div className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line">
+          <div className="mb-3 flex items-start gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icons/icon-192.png" alt="" className="size-11 rounded-xl" />
+            <div className="min-w-0 flex-1">
+              <p className="font-bold">소켓 알바를 앱으로 설치하세요</p>
+              <p className="text-[13px] text-mute">홈 화면에서 바로 열고 출퇴근 버튼을 빨리 누를 수 있어요.</p>
+            </div>
           </div>
+          {body}
+          <button type="button" onClick={later} className="mt-2 w-full py-2 text-sm font-semibold text-mute">
+            나중에
+          </button>
         </div>
-        {body}
-        <button type="button" onClick={later} className="mt-2 w-full py-2 text-sm font-semibold text-mute">
-          나중에
-        </button>
       </div>
-    </div>
+    </>
   )
 }

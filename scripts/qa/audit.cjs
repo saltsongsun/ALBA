@@ -42,7 +42,9 @@ const pages = [
           if (document.documentElement.scrollWidth > vw + 1) out.push(`PAGE scrollWidth ${document.documentElement.scrollWidth} > ${vw}`)
           for (const el of document.querySelectorAll('body *')) {
             const r = el.getBoundingClientRect()
-            if (!r.width || getComputedStyle(el).position === 'fixed') continue
+            const st = getComputedStyle(el)
+            // 고정 위치·애니메이션(깜빡이는 점 등)은 일부러 상자를 벗어나므로 제외
+            if (!r.width || st.position === 'fixed' || st.animationName !== 'none') continue
             // 가로 스크롤 영역 안은 의도된 것
             let p = el.parentElement, scroller = false
             while (p && p !== document.body) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { scroller = true; break } p = p.parentElement }

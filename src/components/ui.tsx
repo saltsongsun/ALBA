@@ -129,6 +129,14 @@ export function ShareButton({ title, text, path }: { title: string; text?: strin
   )
 }
 
+/**
+ * React 19는 서버 액션이 끝나면 폼 입력칸을 비우는데, 오류를 돌려준 경우에도 비워서 처음부터 다시 입력해야 합니다.
+ * useActionState 폼에 onReset={keepInputs}를 달아 입력값을 그대로 둡니다.
+ */
+export function keepInputs(e: React.FormEvent<HTMLFormElement>) {
+  e.preventDefault()
+}
+
 export function FormMessage({ state }: { state?: { error?: string; ok?: string } | null }) {
   if (!state?.error && !state?.ok) return null
   return (

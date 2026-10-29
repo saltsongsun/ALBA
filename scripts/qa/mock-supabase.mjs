@@ -4,6 +4,8 @@ import http from 'node:http'
 
 const LAT = Number(process.env.LAT ?? 40)
 const PORT = Number(process.env.PORT ?? 54321)
+// SCENARIO=working: 서류 서명 끝, 근무 중 / SCENARIO=fresh: 서류 서명 끝, 아직 출근 전 (기본: 서명 대기 1건 + 근무 중)
+const SCENARIO = process.env.SCENARIO ?? 'default'
 const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
 
 const ADMIN = 'aaaaaaaa-0000-4000-8000-000000000001'
@@ -52,7 +54,7 @@ const tables = {
     id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null,
     message: '열심히', admin_memo: null, decided_at: null, created_at: '2026-10-01T00:00:00Z', job: jobLite, user: workerLite,
   }],
-  attendance: [{
+  attendance: SCENARIO === 'fresh' ? [] : [{
     id: ATT, job_id: JOB, user_id: WORKER, work_date: today, clock_in: new Date().toISOString(), clock_out: null,
     in_lat: null, in_lng: null, out_lat: null, out_lng: null, in_distance_m: null, out_distance_m: null, adj_in: null,
     adj_out: null, break_override: null, extra_pay: 0, deduction: 0, note: null, source: 'app', confirmed: false,
@@ -67,7 +69,7 @@ const tables = {
       signature: null, seal_image: null, company_snapshot: { company_name: '주식회사 테스트', ceo_name: null, business_no: null, company_address: null, company_phone: null },
       signed_at: '2026-10-01T00:00:00Z', signed_ip: '1.1.1.1', signed_ua: 'x', status: 'signed',
       created_at: '2026-10-01T00:00:00Z', worker: { name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울' } },
-  ],
+  ].map((d) => (SCENARIO === 'default' ? d : { ...d, status: 'signed', signed_at: '2026-10-01T00:00:00Z' })),
   doc_templates: [{ id: TPL, kind: 'contract', title: '근로계약서', body: '# 계약서\n\n{{근로자명}}', is_default: true, active: true, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' }],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
 }
@@ -143,4 +145,4 @@ const server = http.createServer(async (req, res) => {
   }
   send(200, out)
 })
-server.listen(PORT, () => console.log(`mock supabase :${PORT} latency ${LAT}ms`))
+server.listen(PORT, () => console.log(`mock supabase :${PORT} latency ${LAT}ms scenario ${SCENARIO}`))

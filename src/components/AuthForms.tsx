@@ -4,23 +4,38 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
-import { FormMessage, SubmitButton } from './ui'
+import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
   const el = e.currentTarget
   el.value = el.value.replace(/\D/g, '')
 }
 
+/** 숫자만 남기고, 칸을 다 채우면 data-next 칸으로 넘어감 (주민번호 앞→뒤, 비밀번호→확인) */
+const digitsThenNext = (e: React.FormEvent<HTMLInputElement>) => {
+  digitsOnly(e)
+  const el = e.currentTarget
+  if (el.dataset.next && el.value.length === el.maxLength) (el.form?.elements.namedItem(el.dataset.next) as HTMLElement | null)?.focus()
+}
+
+/** 휴대폰 번호를 010-1234-5678 꼴로 (끝에서 입력할 때만 바꿔 커서가 튀지 않게) */
+const formatPhone = (e: React.FormEvent<HTMLInputElement>) => {
+  const el = e.currentTarget
+  if (el.selectionStart !== el.value.length) return
+  const d = el.value.replace(/\D/g, '').slice(0, 11)
+  el.value = d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
+}
+
 export function LoginForm({ next }: { next: string }) {
   const [state, action] = useActionState(login, null)
   return (
-    <form action={action} className="space-y-4">
+    <form action={action} onReset={keepInputs} className="space-y-4">
       <input type="hidden" name="next" value={next} />
       <div>
         <label className="label" htmlFor="phone">
           휴대폰 번호
         </label>
-        <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" required />
+        <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
       </div>
       <div>
         <label className="label" htmlFor="pin">
@@ -53,7 +68,7 @@ export function LoginForm({ next }: { next: string }) {
 export function SignupForm({ next }: { next: string }) {
   const [state, action] = useActionState(signup, null)
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} onReset={keepInputs} className="space-y-5">
       <input type="hidden" name="next" value={next} />
       <section className="card space-y-4">
         <h2 className="font-bold">기본 정보 <span className="text-sm font-medium text-rose-500">필수</span></h2>
@@ -66,7 +81,7 @@ export function SignupForm({ next }: { next: string }) {
         <div>
           <label className="label">주민등록번호</label>
           <div className="flex items-center gap-2">
-            <input name="rrn1" className="input min-w-0 text-center" inputMode="numeric" maxLength={6} placeholder="앞 6자리" onInput={digitsOnly} required />
+            <input name="rrn1" className="input min-w-0 text-center" inputMode="numeric" maxLength={6} placeholder="앞 6자리" onInput={digitsThenNext} data-next="rrn2" required />
             <span className="text-mute">-</span>
             <input
               name="rrn2"
@@ -76,7 +91,8 @@ export function SignupForm({ next }: { next: string }) {
               maxLength={7}
               placeholder="뒤 7자리"
               autoComplete="off"
-              onInput={digitsOnly}
+              onInput={digitsThenNext}
+              data-next="phone"
               required
             />
           </div>
@@ -86,7 +102,7 @@ export function SignupForm({ next }: { next: string }) {
           <label className="label" htmlFor="phone">
             휴대폰 번호
           </label>
-          <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" required />
+          <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
           <p className="hint">로그인 아이디로 쓰여요.</p>
         </div>
         <div className="grid grid-cols-2 gap-3">
@@ -103,7 +119,8 @@ export function SignupForm({ next }: { next: string }) {
               maxLength={6}
               placeholder="숫자 6자리"
               autoComplete="new-password"
-              onInput={digitsOnly}
+              onInput={digitsThenNext}
+              data-next="pin2"
               required
             />
           </div>
@@ -188,7 +205,7 @@ export function SignupForm({ next }: { next: string }) {
 export function SetupForm() {
   const [state, action] = useActionState(setupAdmin, null)
   return (
-    <form action={action} className="card space-y-4">
+    <form action={action} onReset={keepInputs} className="card space-y-4">
       <div>
         <label className="label">설치 코드</label>
         <input name="code" className="input" placeholder="ADMIN_SETUP_CODE 값" required />

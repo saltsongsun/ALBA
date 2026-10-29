@@ -11,7 +11,7 @@ import {
   type ClockResult,
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
-import { FormMessage, SubmitButton } from './ui'
+import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 function getPosition(): Promise<{ lat: number; lng: number } | null> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
@@ -43,12 +43,29 @@ export function ClockPanel({
   const [result, setResult] = useState<ClockResult | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const [step, setStep] = useState('')
+  // 시작 직후 같은 자리의 버튼이 '근무 종료'로 바뀌므로, 두 번 눌러야 종료되게 해서 실수를 막음
+  const [confirmOut, setConfirmOut] = useState(false)
+
+  useEffect(() => {
+    if (!confirmOut) return
+    const t = setTimeout(() => setConfirmOut(false), 4000)
+    return () => clearTimeout(t)
+  }, [confirmOut])
 
   useEffect(() => {
     if (!open) return
     const t = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(t)
   }, [open])
+
+  const press = () => {
+    if (open && !confirmOut) {
+      setConfirmOut(true)
+      return
+    }
+    setConfirmOut(false)
+    run()
+  }
 
   const run = () =>
     start(async () => {
@@ -81,14 +98,19 @@ export function ClockPanel({
       )}
       <button
         type="button"
-        onClick={run}
+        onClick={press}
         disabled={pending}
         className={`w-full rounded-2xl py-5 text-xl font-extrabold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-60 ${
-          open ? 'bg-rose-500 shadow-rose-200 hover:bg-rose-600' : 'bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600'
+          !open
+            ? 'bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600'
+            : confirmOut
+              ? 'bg-rose-700 shadow-rose-300'
+              : 'bg-rose-500 shadow-rose-200 hover:bg-rose-600'
         }`}
       >
-        {pending ? step || '처리 중…' : open ? '근무 종료' : '근무 시작'}
+        {pending ? step || '처리 중…' : !open ? '근무 시작' : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}
       </button>
+      {confirmOut && !pending && <p className="text-center text-sm font-semibold text-rose-600">실수로 끝나지 않도록 한 번 더 눌러야 종료돼요.</p>}
       {useLocation && !result && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치를 함께 기록합니다.</p>}
       <FormMessage state={result} />
     </div>
@@ -186,7 +208,7 @@ export function SignaturePad({ name }: { name: string }) {
 export function SignForm({ docId, title }: { docId: string; title: string }) {
   const [state, action] = useActionState(signDocument.bind(null, docId), null)
   return (
-    <form action={action} className="card no-print space-y-4">
+    <form action={action} onReset={keepInputs} className="card no-print space-y-4">
       <h2 className="font-bold">근로자 서명</h2>
       <SignaturePad name="signature" />
       <label className="flex items-start gap-2.5 text-sm">
@@ -208,7 +230,7 @@ export function ProfileForm({
 }) {
   const [state, action] = useActionState(updateProfile, null)
   return (
-    <form action={action} className="card space-y-4">
+    <form action={action} onReset={keepInputs} className="card space-y-4">
       <h2 className="font-bold">급여 계좌 · 연락 정보</h2>
       <div className="grid grid-cols-[1fr_1.2fr] gap-3">
         <select name="bank_name" className="input" defaultValue={initial.bank_name}>
@@ -231,7 +253,7 @@ export function ProfileForm({
 export function PinForm() {
   const [state, action] = useActionState(changePin, null)
   return (
-    <form action={action} className="card space-y-3">
+    <form action={action} onReset={keepInputs} className="card space-y-3">
       <h2 className="font-bold">비밀번호 변경</h2>
       <input name="current" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="현재 비밀번호" required />
       <div className="grid grid-cols-2 gap-3">
@@ -247,7 +269,7 @@ export function PinForm() {
 export function WithdrawForm() {
   const [state, action] = useActionState(withdraw, null)
   return (
-    <form action={action} className="card space-y-3">
+    <form action={action} onReset={keepInputs} className="card space-y-3">
       <h2 className="font-bold">회원 탈퇴</h2>
       <p className="text-sm text-sub">
         근무 기록이 없으면 정보가 즉시 삭제됩니다. 근무 기록이 있으면 근로기준법에 따라 근로계약서·임금 기록을 3년간 보관한 뒤 파기하며,

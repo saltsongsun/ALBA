@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { decideApplication } from '@/app/actions/admin'
+import AutoRefresh from '@/components/AutoRefresh'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import { SubmitButton } from '@/components/ui'
@@ -74,7 +75,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </Link>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold">{fmtDate(today)} 현황</h1>
+        <div className="space-y-1">
+          <h1 className="text-2xl font-extrabold">{fmtDate(today)} 현황</h1>
+          <AutoRefresh />
+        </div>
         <Link href="/admin/jobs/new" className="btn-primary">
           + 새 공고 등록
         </Link>

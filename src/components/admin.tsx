@@ -6,12 +6,12 @@ import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
 import { DocBody } from './DocSheet'
-import { FormMessage, SubmitButton } from './ui'
+import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 export function RevealRrn({ userId, masked }: { userId: string; masked: string | null }) {
   const [state, action] = useActionState(revealRrn.bind(null, userId), null)
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form action={action} onReset={keepInputs} className="flex flex-wrap items-center gap-2">
       <span className="font-mono">{state?.ok ?? masked ?? '미등록'}</span>
       {!state?.ok && masked && <SubmitButton className="btn-gray btn-sm">전체 보기 (기록됨)</SubmitButton>}
       {state?.error && <span className="text-xs text-rose-600">{state.error}</span>}
@@ -22,7 +22,7 @@ export function RevealRrn({ userId, masked }: { userId: string; masked: string |
 export function ResetPin({ userId }: { userId: string }) {
   const [state, action] = useActionState(resetPin.bind(null, userId), null)
   return (
-    <form action={action} className="space-y-2">
+    <form action={action} onReset={keepInputs} className="space-y-2">
       {state?.ok ? (
         <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
           임시 비밀번호 <b className="font-mono text-lg tracking-widest">{state.ok}</b> — 근무자에게 알려 주고 로그인 후 바꾸도록 안내하세요. (이 화면을 벗어나면 다시 볼 수 없습니다)
@@ -44,7 +44,7 @@ export function WorkerEditForm({
 }) {
   const [state, action] = useActionState(updateWorker.bind(null, userId), null)
   return (
-    <form action={action} className="space-y-3">
+    <form action={action} onReset={keepInputs} className="space-y-3">
       <div className="grid gap-3 sm:grid-cols-2">
         <label>
           <span className="label">이름</span>
@@ -108,7 +108,7 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
   const [body, setBody] = useState(tpl?.body ?? '# 제목\n\n## 1. 항목\n- 내용')
   const preview = useMemo(() => renderTemplate(body, SAMPLE), [body])
   return (
-    <form action={action} className="grid gap-4 lg:grid-cols-2">
+    <form action={action} onReset={keepInputs} className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-3">
         <div className="card space-y-3">
           <div className="grid grid-cols-[1fr_auto] gap-3">
@@ -167,7 +167,7 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
 export function SettingsForm({ s }: { s: Settings }) {
   const [state, action] = useActionState(saveSettings, null)
   return (
-    <form action={action} className="space-y-5">
+    <form action={action} onReset={keepInputs} className="space-y-5">
       <section className="card space-y-4">
         <h2 className="font-bold">사업주 정보 (근로계약서·임금명세서에 표시)</h2>
         <div className="grid gap-4 sm:grid-cols-2">

@@ -6,7 +6,7 @@ import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { minutesText } from '@/lib/time'
 import type { Job } from '@/lib/types'
-import { FormMessage, SubmitButton } from './ui'
+import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 type Tpl = { id: string; title: string; kind: string; is_default: boolean }
 
@@ -86,7 +86,7 @@ export default function JobForm({
   }
 
   return (
-    <form ref={formRef} action={action} onChange={() => setEst(preview(formRef.current))} className="space-y-5">
+    <form ref={formRef} action={action} onReset={keepInputs} onChange={() => setEst(preview(formRef.current))} className="space-y-5">
       <section className="card space-y-4">
         <h2 className="font-bold">기본 정보</h2>
         <Field label="공고 제목 *">

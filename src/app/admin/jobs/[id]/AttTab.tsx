@@ -1,11 +1,12 @@
 import Link from 'next/link'
 import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, saveAttendance } from '@/app/actions/admin'
+import AutoRefresh from '@/components/AutoRefresh'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { won } from '@/lib/format'
 import { calcDay } from '@/lib/pay'
-import { fmtDate, kstAt, kstTime, minutesText, toKstInput } from '@/lib/time'
+import { fmtDate, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 
@@ -31,6 +32,8 @@ export default function AttTab({
     ...dayAtts.map((a) => a.user_id),
   ].filter((v, i, arr) => arr.indexOf(v) === i)
   const notScheduled = apps.filter((a) => !roster.includes(a.user_id))
+  const absent = roster.filter((u) => !byUser.has(u))
+  const today = kstDate()
   const working = dayAtts.filter((a) => !a.clock_out).length
   const done = dayAtts.filter((a) => a.clock_out).length
 
@@ -53,11 +56,23 @@ export default function AttTab({
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm">
-          <span className="font-bold text-emerald-600">근무 중 {working}</span> · 종료 {done} · 미출근{' '}
-          {roster.filter((u) => !byUser.has(u)).length} <span className="text-mute">/ 명단 {roster.length}명</span>
-        </p>
-        <GroupContact phones={roster.map((u) => users.get(u)?.phone)} label={`이날 명단 ${roster.length}명에게 문자`} body={`[${job.title}] `} />
+        <div className="space-y-1">
+          <p className="text-sm">
+            <span className="font-bold text-emerald-600">근무 중 {working}</span> · 종료 {done} · 미출근 {absent.length}{' '}
+            <span className="text-mute">/ 명단 {roster.length}명</span>
+          </p>
+          {date === today && <AutoRefresh />}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {date <= today && absent.length > 0 && (
+            <GroupContact
+              phones={absent.map((u) => users.get(u)?.phone)}
+              label={`미출근 ${absent.length}명에게 문자`}
+              body={`[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`}
+            />
+          )}
+          <GroupContact phones={roster.map((u) => users.get(u)?.phone)} label={`명단 ${roster.length}명에게 문자`} body={`[${job.title}] `} />
+        </div>
         <div className="flex gap-2">
           {working > 0 && (
             <form action={bulkClockOut.bind(null, job.id, date)}>

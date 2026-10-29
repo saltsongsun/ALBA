@@ -18,4 +18,5 @@ node scripts/qa/audit.cjs http://127.0.0.1:3002 /tmp/shots
 ```
 
 가짜 데이터: 관리자 1명, 근무자 1명, 오늘 진행하는 공고 1개, 출근 기록·서류·서식 각 1개.
+`SCENARIO=working`(서류 서명 끝·근무 중), `SCENARIO=fresh`(서류 서명 끝·출근 전)로 다른 상황도 볼 수 있습니다.
 가짜 서버는 PostgREST의 단순 필터(eq, is, in)만 흉내 내므로, 새 조회 문법은 실제 DB에서 따로 확인하세요.
