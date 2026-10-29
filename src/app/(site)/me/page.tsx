@@ -207,9 +207,14 @@ export default async function MePage(props: PageProps<'/me'>) {
 
       {history.length > 0 && (
         <section>
-          <h2 className="section-title">근무 내역 · 급여</h2>
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-[17px] font-bold">근무 내역 · 급여</h2>
+            <Link href="/me/history" className="text-sm font-semibold text-brand-600">
+              지난 근무 전체 →
+            </Link>
+          </div>
           <div className="stagger space-y-2">
-            {history.map(({ job, s, paid }) => (
+            {history.slice(0, 3).map(({ job, s, paid }) => (
               <div key={job.id} className="card space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>

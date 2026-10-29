@@ -13,7 +13,7 @@ const TABS: { href: string; label: string; on: (path: string) => boolean; icon: 
   {
     href: '/me',
     label: '내 근무',
-    on: (p) => p === '/me' || p.startsWith('/docs') || p.startsWith('/print'),
+    on: (p) => p === '/me' || p.startsWith('/me/history') || p.startsWith('/docs') || p.startsWith('/print'),
     icon: (
       <>
         <rect x="3" y="7" width="18" height="13" rx="2.5" />
