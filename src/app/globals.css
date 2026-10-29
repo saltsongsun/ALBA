@@ -22,6 +22,13 @@
   body {
     @apply bg-bg text-ink antialiased;
     font-family: var(--font-sans);
+    /* 한글은 단어(띄어쓰기) 단위로 줄바꿈, 칸보다 긴 주소·숫자만 끊음 */
+    word-break: keep-all;
+    overflow-wrap: anywhere;
+  }
+  h1,
+  h2 {
+    text-wrap: balance;
   }
   input,
   select,

@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
 import InstallGuide from '@/components/InstallGuide'
 import NavProgress from '@/components/NavProgress'
+// Pretendard 가변 폰트를 앱에 포함 (외부 CDN 없이, 화면에 쓰인 글자 묶음만 내려받음)
+import '@/fonts/pretendard/pretendardvariable-dynamic-subset.css'
 import './globals.css'
 
 // 모든 화면이 로그인 상태·DB를 읽으므로 빌드 시 미리 만들지 않습니다.
@@ -25,11 +27,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body className="min-h-dvh">
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-          precedence="default"
-        />
         <Suspense fallback={null}>
           <NavProgress />
         </Suspense>

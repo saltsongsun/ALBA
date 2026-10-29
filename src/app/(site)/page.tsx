@@ -43,7 +43,7 @@ export default async function HomePage(props: PageProps<'/'>) {
         <h1 className="mt-1 text-2xl leading-tight font-extrabold">
           행사 단기 알바,
           <br />
-          지원부터 정산까지 한 번에
+          지원부터 정산까지 한&nbsp;번에
         </h1>
         <p className="mt-2 text-sm opacity-90">한 번 가입하면 출퇴근 버튼만 누르면 됩니다. 근로계약서와 급여명세서도 여기서 받아요.</p>
         {!user && (
