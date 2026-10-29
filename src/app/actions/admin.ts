@@ -10,7 +10,7 @@ import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { estimateDay, MIN_WAGE_2026 } from '@/lib/pay'
 import { requireAdmin } from '@/lib/session'
 import { fromKstInput, kstAt } from '@/lib/time'
-import type { Job } from '@/lib/types'
+import type { Job, JobCondition } from '@/lib/types'
 import {
   bool,
   formatRrn,
@@ -31,6 +31,22 @@ function back(path: string, msg: string): never {
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n))
 
 // ───────────── 공고 ─────────────
+
+/** 근무 조건: 화면에서 보낸 JSON 목록에서 빈 줄은 버리고 길이·개수를 제한 (형식이 틀리면 null) */
+function parseConditions(raw: string): JobCondition[] | null {
+  if (!raw) return []
+  let data: unknown
+  try {
+    data = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!Array.isArray(data)) return null
+  return data
+    .map((c) => ({ label: String(c?.label ?? '').trim().slice(0, 20), value: String(c?.value ?? '').trim().slice(0, 100) }))
+    .filter((c) => c.label && c.value)
+    .slice(0, 15)
+}
 
 function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error?: string } {
   const title = str(form, 'title', 100)
@@ -58,6 +74,8 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
   const tax_type = (['daily', 'business', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily'
   const round = int(form, 'round_unit', 1)
   const status = (['draft', 'open', 'closed', 'done'] as const).find((m) => m === str(form, 'status')) ?? 'open'
+  const conditions = parseConditions(str(form, 'conditions', 5000))
+  if (!conditions) return { error: '근무 조건을 다시 입력해 주세요.' }
 
   const row = {
     title,
@@ -96,6 +114,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
     required_docs: form.getAll('required_docs').map(String).filter(isUuid),
     auto_approve: bool(form, 'auto_approve'),
     status,
+    conditions,
   } satisfies Omit<Job, 'id' | 'created_at'>
 
   // 최저임금 확인

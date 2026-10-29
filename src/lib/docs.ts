@@ -82,6 +82,7 @@ export function recruitText(job: Job, url: string, companyName: string): string 
     `■ 인원: ${job.headcount}명`,
     job.task ? `■ 업무: ${job.task}` : null,
     job.dress_code ? `■ 복장: ${job.dress_code}` : null,
+    ...(job.conditions ?? []).map((c) => `■ ${c.label}: ${c.value}`),
     '',
     '👉 지원하기 (간편가입 후 바로 지원)',
     url,

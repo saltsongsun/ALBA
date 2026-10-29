@@ -6,6 +6,7 @@ import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import { APP_STATUS, wageBadge } from '@/components/JobCard'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
+import VenueMap from '@/components/VenueMap'
 import { approvedCounts, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
@@ -62,11 +63,6 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const ended = job.end_date < kstDate()
   const canApply = job.status === 'open' && !ended
   const path = `/jobs/${job.id}`
-  const mapUrl = job.lat != null && job.lng != null
-    ? `https://map.kakao.com/link/map/${encodeURIComponent(job.location_name ?? '행사장')},${job.lat},${job.lng}`
-    : job.address
-      ? `https://map.kakao.com/link/search/${encodeURIComponent(job.address)}`
-      : null
 
   return (
     <>
@@ -100,14 +96,6 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {(job.location_name || job.address) && (
             <Row k="장소">
               {[job.location_name, job.address].filter(Boolean).join('\n')}
-              {mapUrl && (
-                <>
-                  {'\n'}
-                  <a href={mapUrl} target="_blank" rel="noreferrer" className="text-sm font-semibold text-brand-600">
-                    지도 보기 →
-                  </a>
-                </>
-              )}
             </Row>
           )}
           {job.meeting_point && <Row k="집결">{job.meeting_point}</Row>}
@@ -126,6 +114,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {job.pay_day && <Row k="지급일">{job.pay_day}</Row>}
           {job.dress_code && <Row k="복장">{job.dress_code}</Row>}
           {job.supplies && <Row k="준비물">{job.supplies}</Row>}
+          {job.conditions.map((c, i) => (
+            <Row key={i} k={c.label}>
+              {c.value}
+            </Row>
+          ))}
           {job.manager_name && (
             <Row k="담당자">
               {job.manager_name}
@@ -139,6 +132,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {docs.length > 0 && <Row k="서류">{docs.map((d) => d.title).join(', ')} (확정 후 앱에서 전자서명)</Row>}
         </dl>
         {job.description && <p className="mt-3 rounded-xl bg-bg p-4 text-[15px] whitespace-pre-wrap text-sub">{job.description}</p>}
+        {(job.address || job.lat != null) && (
+          <div className="mt-4">
+            <h2 className="mb-2 text-sm font-bold text-sub">찾아오는 길</h2>
+            <VenueMap name={job.location_name} address={job.address} lat={job.lat} lng={job.lng} />
+          </div>
+        )}
       </div>
 
       <div className="mt-4 space-y-3">

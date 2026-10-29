@@ -32,6 +32,9 @@ export type BreakMode = 'auto' | 'fixed' | 'none'
 export type TaxType = 'daily' | 'business' | 'none'
 export type JobStatus = 'draft' | 'open' | 'closed' | 'done'
 
+/** 공고마다 넣고 빼는 근무 조건 (예: 식사 · 점심 도시락 제공) */
+export type JobCondition = { label: string; value: string }
+
 export type Job = {
   id: string
   title: string
@@ -70,6 +73,7 @@ export type Job = {
   required_docs: string[]
   auto_approve: boolean
   status: JobStatus
+  conditions: JobCondition[]
   created_at: string
 }
 
@@ -162,3 +166,27 @@ export type CompanySnapshot = Pick<
   Settings,
   'company_name' | 'ceo_name' | 'business_no' | 'company_address' | 'company_phone'
 >
+
+/** 문의 채팅 (근무자 한 명당 대화방 하나, thread_user_id = 그 근무자) */
+export type Message = {
+  id: number
+  thread_user_id: string
+  sender_id: string | null
+  from_admin: boolean
+  job_id: string | null
+  body: string
+  read_at: string | null
+  created_at: string
+}
+
+/** 관리자끼리만 보는 근무자 평점 */
+export type WorkerRating = {
+  id: string
+  user_id: string
+  job_id: string | null
+  rater_id: string | null
+  score: number
+  comment: string | null
+  created_at: string
+  updated_at: string
+}

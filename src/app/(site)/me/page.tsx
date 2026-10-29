@@ -8,6 +8,7 @@ import { APP_STATUS } from '@/components/JobCard'
 import { ClockPanel } from '@/components/worker'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
+import { mapLinks } from '@/lib/map'
 import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
@@ -113,6 +114,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               const open = openAtt?.job_id === job.id ? openAtt : null
               const docsLeft = pendingDocs.filter((d) => d.job_id === job.id).length
               const notChosen = a.available_dates && !a.available_dates.includes(today)
+              const map = mapLinks({ name: job.location_name, address: job.address, lat: job.lat, lng: job.lng })
               return (
                 <div key={a.id} className="card space-y-4">
                   <div>
@@ -122,10 +124,19 @@ export default async function MePage(props: PageProps<'/me'>) {
                       {scheduleText(job)} · {job.location_name}
                     </p>
                     {job.meeting_point && <p className="text-sm text-sub">집결: {job.meeting_point}</p>}
-                    {job.manager_phone && (
+                    {(job.manager_phone || map) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                        <span className="text-sub">현장 담당 {job.manager_name}</span>
-                        <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} showNumber={false} />
+                        {job.manager_phone && (
+                          <>
+                            <span className="text-sub">현장 담당 {job.manager_name}</span>
+                            <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} showNumber={false} />
+                          </>
+                        )}
+                        {map && (
+                          <a href={map.route ?? map.kakao} target="_blank" rel="noreferrer" className="contact-btn bg-bg text-sub hover:bg-line">
+                            📍 {map.route ? '길찾기' : '지도'}
+                          </a>
+                        )}
                       </div>
                     )}
                     {notChosen && <p className="mt-1 text-xs text-amber-600">오늘은 근무 가능일로 고르지 않은 날이에요. 담당자 안내에 따라 주세요.</p>}

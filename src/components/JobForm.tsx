@@ -1,14 +1,111 @@
 'use client'
 
-import { useActionState, useRef, useState } from 'react'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { minutesText } from '@/lib/time'
-import type { Job } from '@/lib/types'
+import { mapLinks } from '@/lib/map'
+import type { Job, JobCondition } from '@/lib/types'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 type Tpl = { id: string; title: string; kind: string; is_default: boolean }
+
+// 자주 쓰는 근무 조건 (누르면 바로 한 줄 추가, 회색 글씨는 예시)
+const CONDITION_PRESETS: { label: string; hint: string }[] = [
+  { label: '휴게 시간', hint: '12:00~13:00 점심, 15:00 10분' },
+  { label: '식사', hint: '점심 도시락 제공' },
+  { label: '교통', hint: '셔틀버스 08:00 OO역 2번 출구' },
+  { label: '주차', hint: '행사장 주차 가능 (무료)' },
+  { label: '숙박', hint: '2인 1실 제공' },
+  { label: '우천 시', hint: '취소되면 전날 문자로 안내' },
+  { label: '우대', hint: '행사 스태프 경험자' },
+  { label: '나이', hint: '만 18세 이상' },
+]
+
+type ConditionRow = JobCondition & { key: number; hint?: string }
+
+/** 공고마다 필요한 조건만 넣고 빼는 목록 (저장할 때 빈 줄은 빠짐) */
+function ConditionsEditor({ initial }: { initial: JobCondition[] }) {
+  const [rows, setRows] = useState<ConditionRow[]>(() => initial.map((c, i) => ({ ...c, key: i })))
+  const nextKey = useRef(initial.length)
+  const focusRef = useRef<string | null>(null)
+
+  // 새 줄을 넣으면 바로 입력할 수 있게 (예시 조건은 내용 칸, 직접 추가는 이름 칸)
+  useEffect(() => {
+    if (!focusRef.current) return
+    document.querySelector<HTMLInputElement>(focusRef.current)?.focus()
+    focusRef.current = null
+  }, [rows])
+
+  const add = (label = '', hint = '') => {
+    const key = nextKey.current++
+    focusRef.current = `[data-cond="${key}-${label ? 'value' : 'label'}"]`
+    setRows((r) => [...r, { key, label, value: '', hint }])
+  }
+  const change = (key: number, field: 'label' | 'value', v: string) => setRows((r) => r.map((x) => (x.key === key ? { ...x, [field]: v } : x)))
+  const used = new Set(rows.map((r) => r.label.trim()))
+  const saved = rows.map((r) => ({ label: r.label.trim(), value: r.value.trim() })).filter((c) => c.label && c.value)
+
+  return (
+    <section className="card space-y-4">
+      <div>
+        <h2 className="font-bold">근무 조건</h2>
+        <p className="hint">필요한 조건만 넣고 빼세요. 공고 화면과 단톡방 모집 문구에 그대로 나옵니다.</p>
+      </div>
+      {rows.length > 0 && (
+        <ul className="space-y-2">
+          {rows.map((r) => (
+            <li key={r.key} className="flex animate-pop items-center gap-2">
+              <input
+                aria-label="조건 이름"
+                data-cond={`${r.key}-label`}
+                className="input w-24 shrink-0 py-2 text-sm font-semibold sm:w-32"
+                value={r.label}
+                maxLength={20}
+                placeholder="조건"
+                onChange={(e) => change(r.key, 'label', e.target.value)}
+              />
+              <input
+                aria-label={`${r.label || '조건'} 내용`}
+                data-cond={`${r.key}-value`}
+                className="input flex-1 py-2 text-sm"
+                value={r.value}
+                maxLength={100}
+                placeholder={r.hint || '내용'}
+                onChange={(e) => change(r.key, 'value', e.target.value)}
+              />
+              <button
+                type="button"
+                aria-label={`${r.label || '조건'} 빼기`}
+                className="grid size-9 shrink-0 place-items-center rounded-lg text-mute transition hover:bg-rose-50 hover:text-rose-600 active:scale-90"
+                onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="flex flex-wrap gap-1.5">
+        {CONDITION_PRESETS.filter((p) => !used.has(p.label)).map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            className="rounded-full border border-line px-3 py-1.5 text-[13px] font-semibold text-sub transition hover:border-brand-500 hover:text-brand-700 active:scale-95"
+            onClick={() => add(p.label, p.hint)}
+          >
+            ＋ {p.label}
+          </button>
+        ))}
+        <button type="button" className="rounded-full bg-brand-50 px-3 py-1.5 text-[13px] font-semibold text-brand-700 transition active:scale-95" onClick={() => add()}>
+          ＋ 직접 추가
+        </button>
+      </div>
+      <input type="hidden" name="conditions" value={JSON.stringify(saved)} />
+    </section>
+  )
+}
 
 function Field({ label, children, hint, className = '' }: { label: string; children: React.ReactNode; hint?: string; className?: string }) {
   return (
@@ -73,6 +170,7 @@ export default function JobForm({
   const [breakMode, setBreakMode] = useState(job?.break_mode ?? 'auto')
   const [taxType, setTaxType] = useState(job?.tax_type ?? 'daily')
   const [locMsg, setLocMsg] = useState('')
+  const [mapSrc, setMapSrc] = useState<string | null>(null)
   const latRef = useRef<HTMLInputElement>(null)
   const lngRef = useRef<HTMLInputElement>(null)
 
@@ -173,6 +271,26 @@ export default function JobForm({
         <p className="hint">
           {locMsg || '구글 지도에서 행사장을 오른쪽 클릭하면 나오는 좌표(예: 35.1890, 128.0814)를 위도 칸에 붙여넣으면 두 칸이 한 번에 채워집니다.'}
         </p>
+        {/* 넣은 주소·좌표가 맞는지 지도로 확인 (근무자 공고 화면에 나오는 지도와 같음) */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            className="btn-gray btn-sm"
+            onClick={() => {
+              const f = formRef.current!
+              const v = (n: string) => (f.elements.namedItem(n) as HTMLInputElement).value.trim()
+              const lat = Number(v('lat'))
+              const lng = Number(v('lng'))
+              const point = v('lat') && v('lng') && Number.isFinite(lat) && Number.isFinite(lng)
+              const links = mapLinks({ name: v('location_name') || null, address: v('address') || null, lat: point ? lat : null, lng: point ? lng : null })
+              setMapSrc(links?.embed ?? null)
+              if (!links) setLocMsg('주소나 위도·경도를 먼저 넣어 주세요.')
+            }}
+          >
+            지도로 확인
+          </button>
+          {mapSrc && <iframe title="행사장 지도 미리보기" src={mapSrc} loading="lazy" className="block h-56 w-full animate-pop rounded-xl border border-line bg-bg" />}
+        </div>
         <Check
           name="gps_required"
           label="현장에서만 근무 시작 가능"
@@ -309,6 +427,8 @@ export default function JobForm({
           </Field>
         </div>
       </section>
+
+      <ConditionsEditor initial={job?.conditions ?? []} />
 
       <section className="card space-y-3">
         <h2 className="font-bold">확정 후 서명받을 서류</h2>
