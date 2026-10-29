@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { rerequestDoc, voidDoc } from '@/app/actions/admin'
+import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import type { Job, SignedDoc } from '@/lib/types'
@@ -13,12 +14,14 @@ export default function DocsTab({
   docs,
   templates,
   users,
+  origin,
 }: {
   job: Job
   approved: AppRow[]
   docs: DocLite[]
   templates: { id: string; title: string }[]
   users: Map<string, WorkerLite>
+  origin: string
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -27,6 +30,7 @@ export default function DocsTab({
     ? templates
     : [...new Map(live.map((d) => [d.template_id ?? d.title, { id: d.template_id ?? d.title, title: d.title }])).values()]
   const signedCount = live.filter((d) => d.status === 'signed').length
+  const unsigned = [...new Set(live.filter((d) => d.status === 'pending').map((d) => d.user_id))]
 
   return (
     <div className="space-y-4">
@@ -34,9 +38,16 @@ export default function DocsTab({
         <p className="text-sm text-sub">
           서명 완료 <b className="text-ink">{signedCount}</b> / {live.length}건
         </p>
-        <Link href={`/admin/jobs/${job.id}/edit`} className="btn-gray btn-sm">
-          필요 서류 바꾸기
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <GroupContact
+            phones={unsigned.map((u) => users.get(u)?.phone)}
+            label={`서명 안 한 ${unsigned.length}명에게 문자`}
+            body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
+          />
+          <Link href={`/admin/jobs/${job.id}/edit`} className="btn-gray btn-sm">
+            필요 서류 바꾸기
+          </Link>
+        </div>
       </div>
       {cols.length === 0 ? (
         <div className="card py-10 text-center text-mute">이 공고에는 서명받을 서류가 지정되어 있지 않습니다.</div>

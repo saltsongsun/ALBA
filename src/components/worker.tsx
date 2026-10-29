@@ -210,7 +210,7 @@ export function ProfileForm({
   return (
     <form action={action} className="card space-y-4">
       <h2 className="font-bold">급여 계좌 · 연락 정보</h2>
-      <div className="grid grid-cols-[1fr_1.4fr] gap-3">
+      <div className="grid grid-cols-[1fr_1.2fr] gap-3">
         <select name="bank_name" className="input" defaultValue={initial.bank_name}>
           <option value="">은행 선택</option>
           {BANKS.map((b) => (

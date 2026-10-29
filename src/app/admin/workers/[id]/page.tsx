@@ -2,9 +2,10 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
+import { ContactButtons } from '@/components/Contact'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
-import { phoneFmt, won } from '@/lib/format'
+import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
@@ -66,7 +67,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>
             <dd>
-              <a href={`tel:${u.phone}`}>{phoneFmt(u.phone)}</a>
+              <ContactButtons phone={u.phone} name={u.name} />
             </dd>
             <dt className="text-mute">주민등록번호</dt>
             <dd>
@@ -82,7 +83,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               {recentBankChange && <span className="badge ml-1 bg-amber-50 text-amber-700">최근 변경 {fmtDate(kstDate(u.bank_changed_at!))}</span>}
             </dd>
             <dt className="text-mute">비상연락처</dt>
-            <dd>{u.emergency_phone ? phoneFmt(u.emergency_phone) : '-'}</dd>
+            <dd>{u.emergency_phone ? <ContactButtons phone={u.emergency_phone} name={`${u.name} 비상연락처`} /> : '-'}</dd>
             <dt className="text-mute">가입</dt>
             <dd>
               {kstDateTime(u.created_at)} · 개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}

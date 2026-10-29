@@ -2,13 +2,14 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { applyJob, cancelApplication } from '@/app/actions/worker'
+import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import { APP_STATUS, wageBadge } from '@/components/JobCard'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import { approvedCounts, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
-import { phoneFmt, won } from '@/lib/format'
+import { won } from '@/lib/format'
 import { breakDescription, estimateDay, TAX_LABEL } from '@/lib/pay'
 import { getUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, minutesText } from '@/lib/time'
@@ -127,7 +128,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {job.supplies && <Row k="준비물">{job.supplies}</Row>}
           {job.manager_name && (
             <Row k="담당자">
-              {job.manager_name} {job.manager_phone && <a href={`tel:${job.manager_phone}`} className="text-brand-600">{phoneFmt(job.manager_phone)}</a>}
+              {job.manager_name}
+              {job.manager_phone && (
+                <div className="mt-1">
+                  <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} />
+                </div>
+              )}
             </Row>
           )}
           {docs.length > 0 && <Row k="서류">{docs.map((d) => d.title).join(', ')} (확정 후 앱에서 전자서명)</Row>}

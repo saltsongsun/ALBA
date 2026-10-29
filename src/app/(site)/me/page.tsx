@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
+import { InstallButton } from '@/components/InstallGuide'
 import { APP_STATUS } from '@/components/JobCard'
 import { ClockPanel } from '@/components/worker'
 import { db, must } from '@/lib/db'
@@ -120,6 +122,12 @@ export default async function MePage(props: PageProps<'/me'>) {
                       {scheduleText(job)} · {job.location_name}
                     </p>
                     {job.meeting_point && <p className="text-sm text-sub">집결: {job.meeting_point}</p>}
+                    {job.manager_phone && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+                        <span className="text-sub">현장 담당 {job.manager_name}</span>
+                        <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} showNumber={false} />
+                      </div>
+                    )}
                     {notChosen && <p className="mt-1 text-xs text-amber-600">오늘은 근무 가능일로 고르지 않은 날이에요. 담당자 안내에 따라 주세요.</p>}
                   </div>
                   {docsLeft > 0 ? (
@@ -243,6 +251,10 @@ export default async function MePage(props: PageProps<'/me'>) {
           </div>
         </section>
       )}
+
+      <div className="flex justify-center">
+        <InstallButton />
+      </div>
     </div>
   )
 }

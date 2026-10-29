@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ContactButtons } from '@/components/Contact'
 import { db, must } from '@/lib/db'
-import { phoneFmt } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, kstDate } from '@/lib/time'
 
@@ -45,21 +45,62 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   }
   const today = kstDate()
 
+  const ageBadges = (u: Row) => {
+    if (!u.birth_date) return null
+    const age = ageOn(u.birth_date, today)
+    return (
+      <>
+        <span className="text-sm text-mute">{age}세</span>
+        {age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
+      </>
+    )
+  }
+  const roleBadges = (u: Row) => (
+    <>
+      {u.role === 'admin' && <span className="badge bg-ink text-white">관리자</span>}
+      {!u.active && <span className="badge bg-gray-100 text-mute">탈퇴·정지</span>}
+    </>
+  )
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold">근무자 {users.length}명</h1>
-        <div className="flex gap-2">
-          <form className="flex gap-1">
-            <input name="q" defaultValue={q} className="input w-48 py-2 text-sm" placeholder="이름 또는 번호 검색" />
+        <div className="flex w-full gap-2 sm:w-auto">
+          <form className="flex min-w-0 flex-1 gap-1 sm:flex-none">
+            <input name="q" defaultValue={q} className="input py-2 text-sm sm:w-48" placeholder="이름 또는 번호 검색" />
             <button className="btn-gray btn-sm">검색</button>
           </form>
           <a href="/admin/export/workers" className="btn-soft btn-sm">
-            근로자 명부 CSV
+            명부 CSV
           </a>
         </div>
       </div>
-      <div className="card overflow-x-auto p-0">
+
+      {/* 휴대폰: 카드 목록 */}
+      <div className="space-y-2 sm:hidden">
+        {users.map((u) => (
+          <div key={u.id} className={`card p-4 ${u.active ? '' : 'opacity-50'}`}>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Link href={`/admin/workers/${u.id}`} className="text-[17px] font-bold">
+                {u.name}
+              </Link>
+              {ageBadges(u)}
+              {roleBadges(u)}
+            </div>
+            <div className="mt-2">
+              <ContactButtons phone={u.phone} name={u.name} />
+            </div>
+            <p className="mt-2 text-xs text-mute">
+              근무 {stat[u.id]?.days ?? 0}일{stat[u.id]?.last && ` · 최근 ${fmtDate(stat[u.id].last)}`} · 계좌{' '}
+              {u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>} · 가입 {fmtDate(kstDate(u.created_at))}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* 넓은 화면: 표 */}
+      <div className="card hidden overflow-x-auto p-0 sm:block">
         <table className="table">
           <thead>
             <tr>
@@ -76,20 +117,22 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
             {users.map((u) => (
               <tr key={u.id} className={u.active ? '' : 'opacity-50'}>
                 <td className="whitespace-nowrap">
-                  <Link href={`/admin/workers/${u.id}`} className="font-semibold hover:text-brand-600">
-                    {u.name}
-                  </Link>
-                  {u.role === 'admin' && <span className="badge ml-1 bg-ink text-white">관리자</span>}
-                  {!u.active && <span className="badge ml-1 bg-gray-100 text-mute">탈퇴·정지</span>}
+                  <div className="flex items-center gap-1">
+                    <Link href={`/admin/workers/${u.id}`} className="font-semibold hover:text-brand-600">
+                      {u.name}
+                    </Link>
+                    {roleBadges(u)}
+                  </div>
                 </td>
                 <td>
-                  {u.birth_date ? `${ageOn(u.birth_date, today)}세` : '-'}
-                  {u.birth_date && ageOn(u.birth_date, today) < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
+                  <div className="flex items-center gap-1 whitespace-nowrap">{ageBadges(u) ?? '-'}</div>
                 </td>
-                <td className="whitespace-nowrap">{phoneFmt(u.phone)}</td>
-                <td>{stat[u.id]?.days ?? 0}일</td>
+                <td className="whitespace-nowrap">
+                  <ContactButtons phone={u.phone} name={u.name} />
+                </td>
+                <td className="whitespace-nowrap">{stat[u.id]?.days ?? 0}일</td>
                 <td className="whitespace-nowrap">{stat[u.id]?.last ? fmtDate(stat[u.id].last) : '-'}</td>
-                <td>{u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>}</td>
+                <td className="whitespace-nowrap">{u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>}</td>
                 <td className="whitespace-nowrap text-mute">{fmtDate(kstDate(u.created_at))}</td>
               </tr>
             ))}

@@ -202,8 +202,8 @@ export function SettingsForm({ s }: { s: Settings }) {
           ) : (
             <div className="grid size-24 place-items-center rounded-xl border-2 border-dashed border-line text-xs text-mute">없음</div>
           )}
-          <div className="space-y-2 text-sm">
-            <input type="file" name="seal" accept="image/png,image/jpeg,image/webp" className="block text-sm" />
+          <div className="min-w-0 flex-1 space-y-2 text-sm">
+            <input type="file" name="seal" accept="image/png,image/jpeg,image/webp" className="block w-full text-sm" />
             <p className="hint">배경이 투명한 PNG(400KB 이하)를 권장합니다. 서명 시점의 직인이 서류에 함께 보관됩니다.</p>
             {s.seal_image && (
               <label className="flex items-center gap-2">

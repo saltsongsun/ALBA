@@ -1,11 +1,11 @@
 import Link from 'next/link'
 import { decideApplication } from '@/app/actions/admin'
+import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import { SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
-import { phoneFmt } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 
@@ -132,10 +132,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                         {p.user.name}
                       </Link>
                       {p.user.birth_date && <span className="ml-1 text-xs text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-                      <br />
-                      <a href={`tel:${p.user.phone}`} className="text-xs text-sub">
-                        {phoneFmt(p.user.phone)}
-                      </a>
+                      <div className="mt-1">
+                        <ContactButtons phone={p.user.phone} name={p.user.name} />
+                      </div>
                     </td>
                     <td>
                       <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">

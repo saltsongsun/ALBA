@@ -130,7 +130,7 @@ export function SignupForm({ next }: { next: string }) {
         <h2 className="font-bold">
           급여 받을 계좌 <span className="text-sm font-medium text-mute">선택 · 나중에 입력해도 돼요</span>
         </h2>
-        <div className="grid grid-cols-[1fr_1.4fr] gap-3">
+        <div className="grid grid-cols-[1fr_1.2fr] gap-3">
           <select name="bank_name" className="input" defaultValue="">
             <option value="">은행 선택</option>
             {BANKS.map((b) => (

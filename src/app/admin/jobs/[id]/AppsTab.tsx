@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { addWorkerToJob, approveAllApplied, decideApplication } from '@/app/actions/admin'
+import { ContactButtons } from '@/components/Contact'
+import { GroupContact } from '@/components/GroupContact'
 import { APP_STATUS } from '@/components/JobCard'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
-import { phoneFmt } from '@/lib/format'
 import { ageOn, fmtDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
@@ -20,6 +21,7 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
   const jobsWorked: Record<string, Set<string>> = {}
   for (const h of history) (jobsWorked[h.user_id] ??= new Set()).add(h.job_id)
   const waiting = apps.filter((a) => a.status === 'applied').length
+  const approved = apps.filter((a) => a.status === 'approved')
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   const sorted = [...apps].sort((a, b) => order[a.status] - order[b.status])
 
@@ -27,8 +29,9 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
-          확정 <b className="text-ink">{apps.filter((a) => a.status === 'approved').length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명
+          확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명
         </p>
+        <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`[${job.title}] `} />
         <div className="flex flex-wrap gap-2">
           {waiting > 0 && (
             <form action={approveAllApplied.bind(null, job.id)}>
@@ -72,7 +75,7 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
                       {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
                     </td>
                     <td className="whitespace-nowrap">
-                      <a href={`tel:${a.user.phone}`}>{phoneFmt(a.user.phone)}</a>
+                      <ContactButtons phone={a.user.phone} name={a.user.name} />
                     </td>
                     <td className="max-w-xs text-xs text-sub">
                       {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}

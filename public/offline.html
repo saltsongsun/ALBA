@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#2557e8" />
+    <title>인터넷 연결 없음 · 소켓 알바</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        background: #f2f4f6;
+        color: #191f28;
+        font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+      }
+      main {
+        width: min(100% - 32px, 360px);
+        padding: 28px 24px;
+        border-radius: 20px;
+        background: #fff;
+        text-align: center;
+      }
+      img {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+      }
+      h1 {
+        margin: 16px 0 6px;
+        font-size: 20px;
+      }
+      p {
+        margin: 0;
+        color: #4e5968;
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      button {
+        margin-top: 20px;
+        width: 100%;
+        padding: 14px;
+        border: 0;
+        border-radius: 12px;
+        background: #2557e8;
+        color: #fff;
+        font-size: 16px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="/icons/icon-192.png" alt="" />
+      <h1>인터넷에 연결되어 있지 않아요</h1>
+      <p>와이파이나 데이터를 켠 뒤 다시 시도해 주세요.<br />출퇴근 기록은 연결된 뒤에 눌러야 저장됩니다.</p>
+      <button type="button" onclick="location.reload()">다시 시도</button>
+    </main>
+  </body>
+</html>

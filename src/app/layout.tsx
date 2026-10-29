@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
+import InstallGuide from '@/components/InstallGuide'
 import NavProgress from '@/components/NavProgress'
 import './globals.css'
 
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <NavProgress />
         </Suspense>
         {children}
+        <InstallGuide />
       </body>
     </html>
   )

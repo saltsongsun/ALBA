@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, saveAttendance } from '@/app/actions/admin'
+import { ContactButtons } from '@/components/Contact'
+import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { phoneFmt, won } from '@/lib/format'
+import { won } from '@/lib/format'
 import { calcDay } from '@/lib/pay'
 import { fmtDate, kstAt, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
@@ -55,6 +57,7 @@ export default function AttTab({
           <span className="font-bold text-emerald-600">근무 중 {working}</span> · 종료 {done} · 미출근{' '}
           {roster.filter((u) => !byUser.has(u)).length} <span className="text-mute">/ 명단 {roster.length}명</span>
         </p>
+        <GroupContact phones={roster.map((u) => users.get(u)?.phone)} label={`이날 명단 ${roster.length}명에게 문자`} body={`[${job.title}] `} />
         <div className="flex gap-2">
           {working > 0 && (
             <form action={bulkClockOut.bind(null, job.id, date)}>
@@ -81,16 +84,13 @@ export default function AttTab({
           return (
             <div key={uid} className="card p-4">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <span
                     className={`size-2.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`}
                   />
                   <Link href={`/admin/workers/${uid}`} className="font-bold">
                     {u?.name ?? '알 수 없음'}
                   </Link>
-                  <a href={`tel:${u?.phone}`} className="text-xs text-mute">
-                    {phoneFmt(u?.phone)}
-                  </a>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5 text-sm">
                   {!a && <span className="text-mute">미출근</span>}
@@ -118,6 +118,10 @@ export default function AttTab({
                     </>
                   )}
                 </div>
+              </div>
+
+              <div className="mt-2">
+                <ContactButtons phone={u?.phone} name={u?.name} />
               </div>
 
               {a ? (

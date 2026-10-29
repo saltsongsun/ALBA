@@ -196,9 +196,9 @@ export default function JobForm({
           <Field label="일급(원)" className={payType === 'daily' ? '' : 'hidden'}>
             <input type="number" name="daily_wage" className="input" defaultValue={job?.daily_wage || 100_000} step={1000} />
           </Field>
-          <Field label="휴게시간">
+          <Field label="휴게시간" hint={breakMode === 'auto' ? '4시간 이상 30분, 8시간 이상 1시간' : undefined}>
             <select name="break_mode" className="input" value={breakMode} onChange={(e) => setBreakMode(e.target.value as Job['break_mode'])}>
-              <option value="auto">법정 자동 (4h→30분, 8h→1시간)</option>
+              <option value="auto">법정 자동</option>
               <option value="fixed">직접 지정</option>
               <option value="none">없음</option>
             </select>
@@ -208,9 +208,9 @@ export default function JobForm({
               <input type="number" name="break_minutes" className="input" defaultValue={job?.break_minutes || 60} min={0} max={240} step={10} />
             </Field>
           ) : (
-            <Field label="근무시간 절사">
+            <Field label="근무시간 절사" hint="단위 미만은 버림 (1분이면 그대로)">
               <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 1}>
-                <option value={1}>1분 단위 (절사 없음)</option>
+                <option value={1}>1분 단위</option>
                 <option value={10}>10분 단위</option>
                 <option value={15}>15분 단위</option>
                 <option value={30}>30분 단위</option>
@@ -219,9 +219,9 @@ export default function JobForm({
           )}
         </div>
         {breakMode === 'fixed' && (
-          <Field label="근무시간 절사" className="sm:w-1/4">
+          <Field label="근무시간 절사" hint="단위 미만은 버림 (1분이면 그대로)" className="sm:w-1/4">
             <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 1}>
-              <option value={1}>1분 단위 (절사 없음)</option>
+              <option value={1}>1분 단위</option>
               <option value={10}>10분 단위</option>
               <option value={15}>15분 단위</option>
               <option value={30}>30분 단위</option>

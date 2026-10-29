@@ -30,6 +30,22 @@
   }
 }
 
+/* iOS 사파리: 날짜·시간 칸이 고유 너비 때문에 칸 밖으로 넘치고, 비어 있으면 높이가 줄어드는 문제 */
+@supports (-webkit-touch-callout: none) {
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'],
+  input[type='month'] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    min-height: 2.875rem;
+  }
+  ::-webkit-date-and-time-value {
+    text-align: left;
+  }
+}
+
 @utility card {
   @apply rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)];
 }
@@ -49,13 +65,17 @@
   @apply btn bg-rose-50 text-rose-600 hover:bg-rose-100;
 }
 @utility btn-sm {
-  @apply rounded-lg px-3 py-1.5 text-sm;
+  @apply rounded-lg px-3 py-1.5 text-sm whitespace-nowrap;
+}
+/* 전화·문자 바로가기 (components/Contact.tsx) */
+@utility contact-btn {
+  @apply inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-semibold whitespace-nowrap transition active:scale-[0.97];
 }
 @utility label {
   @apply mb-1.5 block text-sm font-semibold text-sub;
 }
 @utility input {
-  @apply w-full rounded-xl border border-line bg-white px-3.5 py-2.5 text-ink outline-none transition placeholder:text-mute focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+  @apply w-full min-w-0 rounded-xl border border-line bg-white px-3.5 py-2.5 text-ink outline-none transition placeholder:text-mute focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
 }
 @utility hint {
   @apply mt-1 text-xs text-mute;
