@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { db, must } from './db'
 import { clientInfo } from './session'
 import type { Application, CompanySettings, Job, Settings } from './types'
@@ -99,3 +100,24 @@ export async function audit(
   const { ip } = await clientInfo()
   await db().from('audit_logs').insert({ actor_id: actorId, action, target_user_id: targetUserId, detail, ip })
 }
+
+/** 근무자가 아직 안 읽은 담당자 답장 수 (머리글·아래 탭이 같은 요청에서 한 번만 읽도록) */
+export const unreadForWorker = cache(async (userId: string): Promise<number> => {
+  const { count } = await db()
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('thread_user_id', userId)
+    .eq('from_admin', true)
+    .is('read_at', null)
+  return count ?? 0
+})
+
+/** 관리자가 아직 안 읽은 근무자 문의 수 */
+export const unreadForAdmins = cache(async (): Promise<number> => {
+  const { count } = await db()
+    .from('messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('from_admin', false)
+    .is('read_at', null)
+  return count ?? 0
+})

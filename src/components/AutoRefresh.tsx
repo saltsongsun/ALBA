@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react'
  * 화면을 보고 있는 동안 몇 초마다 서버 데이터를 새로 받아 옵니다 (행사 당일 출퇴근 현황 등).
  * 입력칸에 쓰는 중이면 건너뛰고, 다른 앱에 갔다가 돌아오면 바로 새로 받습니다.
  */
-export default function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
+export default function AutoRefresh({ seconds = 30, quiet = false }: { seconds?: number; quiet?: boolean }) {
   const router = useRouter()
   const [at, setAt] = useState<string | null>(null)
 
@@ -27,6 +27,7 @@ export default function AutoRefresh({ seconds = 30 }: { seconds?: number }) {
     }
   }, [router, seconds])
 
+  if (quiet) return null
   return (
     <span className="inline-flex items-center gap-1.5 text-xs text-mute">
       <span className="relative flex size-2">

@@ -6,7 +6,7 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
 import { SubmitButton } from '@/components/ui'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
@@ -51,7 +51,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   await requireAdmin()
   const sp = await props.searchParams
   const today = kstDate()
-  const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount] = await Promise.all([
+  const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount, unreadChats] = await Promise.all([
     getSettings(),
     hasSeal(),
     db()
@@ -81,6 +81,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     db().from('attendance').select('job_id').is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
     db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
     db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true),
+    unreadForAdmins(),
   ])
   const counts = countApps(activeJobs, 'approved')
   const todayJobs = activeJobs.filter((j) => j.start_date <= today && j.end_date >= today)
@@ -97,6 +98,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
+      {unreadChats > 0 && (
+        <Link href="/admin/chat" className="flex animate-slide-down items-center justify-between rounded-2xl bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700 transition active:scale-[0.99]">
+          <span>💬 새 문의 {unreadChats}건이 있어요</span>
+          <span>답장하기 →</span>
+        </Link>
+      )}
       {setupTodo.length > 0 && (
         <Link href="/admin/settings" className="block rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800">
           <b>회사 설정을 마무리해 주세요:</b> {setupTodo.join(', ')} — 근로계약서·임금명세서에 들어갑니다. →

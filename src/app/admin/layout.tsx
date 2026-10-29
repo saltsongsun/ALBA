@@ -1,13 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { logout } from '@/app/actions/auth'
+import { unreadForAdmins } from '@/lib/data'
 import { requireAdmin } from '@/lib/session'
 import AdminNav from './AdminNav'
 
 export const metadata: Metadata = { title: { default: '관리자', template: '%s · 소켓 알바 관리자' } }
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const admin = await requireAdmin()
+  const [admin, unread] = await Promise.all([requireAdmin(), unreadForAdmins()])
   return (
     <>
       <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
@@ -26,7 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </form>
           </div>
         </div>
-        <AdminNav />
+        <AdminNav unread={unread} />
       </header>
       <main className="mx-auto max-w-6xl px-4 pt-5 pb-20">{children}</main>
     </>

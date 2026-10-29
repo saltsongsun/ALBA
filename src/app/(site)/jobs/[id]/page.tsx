@@ -209,7 +209,13 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </form>
           )
         )}
-        <div className="flex justify-center">
+        <div className="flex flex-wrap justify-center gap-2">
+          <Link
+            href={user ? `/me/chat?job=${job.id}` : `/login?next=${encodeURIComponent(`/me/chat?job=${job.id}`)}`}
+            className="btn-gray btn-sm"
+          >
+            💬 이 공고 문의하기
+          </Link>
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>
       </div>

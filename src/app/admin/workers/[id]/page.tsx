@@ -66,8 +66,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           </div>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>
-            <dd>
+            <dd className="flex flex-wrap items-center gap-1.5">
               <ContactButtons phone={u.phone} name={u.name} />
+              <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
+                앱 메시지
+              </Link>
             </dd>
             <dt className="text-mute">주민등록번호</dt>
             <dd>

@@ -22,6 +22,12 @@ const TABS: { href: string; label: string; on: (path: string) => boolean; icon: 
     ),
   },
   {
+    href: '/me/chat',
+    label: '문의',
+    on: (p) => p.startsWith('/me/chat'),
+    icon: <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />,
+  },
+  {
     href: '/me/profile',
     label: '내 정보',
     on: (p) => p.startsWith('/me/profile'),
@@ -35,11 +41,11 @@ const TABS: { href: string; label: string; on: (path: string) => boolean; icon: 
 ]
 
 /** 휴대폰 아래쪽 탭 (로그인한 근무자). 앱으로 설치했을 때 주소창 없이도 오가기 쉽게 */
-export default function BottomNav() {
+export default function BottomNav({ unread = 0 }: { unread?: number }) {
   const path = usePathname()
   return (
     <nav aria-label="주요 메뉴" data-bottom-nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-      <div className="mx-auto grid max-w-xl grid-cols-3">
+      <div className="mx-auto grid max-w-xl grid-cols-4">
         {TABS.map((t) => {
           const active = t.on(path)
           return (
@@ -49,7 +55,13 @@ export default function BottomNav() {
               aria-current={active ? 'page' : undefined}
               className={`group flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
             >
-              <span className={`grid h-7 w-12 place-items-center rounded-full transition duration-200 group-active:scale-90 ${active ? 'bg-brand-50' : ''}`}>
+              <span className={`relative grid h-7 w-12 place-items-center rounded-full transition duration-200 group-active:scale-90 ${active ? 'bg-brand-50' : ''}`}>
+                {/* 안 읽은 담당자 답장 */}
+                {t.href === '/me/chat' && unread > 0 && (
+                  <span className="absolute -top-1 right-1 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 text-[10px] leading-none font-bold text-white">
+                    {unread > 9 ? '9+' : unread}
+                  </span>
+                )}
                 {/* 활성 탭이 바뀌면 아이콘이 톡 튀어나옴 */}
                 <svg
                   key={String(active)}
