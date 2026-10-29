@@ -163,7 +163,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           <Link
             key={k}
             href={`/admin/jobs/${job.id}?tab=${k}${k === 'att' ? `&date=${date}` : ''}`}
-            className={`shrink-0 border-b-2 px-4 py-2.5 ${tab === k ? 'border-ink text-ink' : 'border-transparent text-mute'}`}
+            className={`shrink-0 border-b-2 px-4 py-2.5 transition-colors duration-200 ${tab === k ? 'border-ink text-ink' : 'border-transparent text-mute hover:text-sub'}`}
           >
             {label}
           </Link>

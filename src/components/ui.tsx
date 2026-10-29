@@ -1,7 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
+
+/** 안드로이드 휴대폰을 짧게 진동 (아이폰·컴퓨터는 지원하지 않아 무시됨) */
+export function haptic(pattern: number | number[] = 12) {
+  try {
+    navigator.vibrate?.(pattern)
+  } catch {}
+}
+
+function Spinner() {
+  return <span aria-hidden className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent" />
+}
 
 export function SubmitButton({
   children,
@@ -18,8 +29,15 @@ export function SubmitButton({
 }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" className={className} disabled={pending} name={name} value={value}>
-      {pending ? pendingText : children}
+    <button type="submit" className={className} disabled={pending} aria-busy={pending} name={name} value={value}>
+      {pending ? (
+        <>
+          <Spinner />
+          {pendingText}
+        </>
+      ) : (
+        children
+      )}
     </button>
   )
 }
@@ -49,6 +67,7 @@ export function ConfirmSubmit({
       value={value}
       onClick={() => {
         if (!armed) {
+          haptic(10)
           setArmed(true)
           setTimeout(() => setArmed(false), 4000)
         }
@@ -92,11 +111,12 @@ export function CopyButton({
           document.execCommand('copy')
           ta.remove()
         }
+        haptic(12)
         setDone(true)
         setTimeout(() => setDone(false), 1800)
       }}
     >
-      {done ? '복사됨 ✓' : label}
+      {done ? <span className="animate-pop">복사됨 ✓</span> : label}
     </button>
   )
 }
@@ -137,16 +157,38 @@ export function keepInputs(e: React.FormEvent<HTMLFormElement>) {
   e.preventDefault()
 }
 
+/** 처리 결과 안내. 성공이면 체크가 그려지고, 오류면 흔들림 (같은 오류가 반복돼도 다시 흔들림) */
 export function FormMessage({ state }: { state?: { error?: string; ok?: string } | null }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !state) return
+    const cls = state.error ? 'animate-shake' : 'animate-pop'
+    el.classList.remove(cls)
+    void el.offsetWidth // 애니메이션 다시 시작
+    el.classList.add(cls)
+    haptic(state.error ? [18, 60, 18] : 15)
+  }, [state])
   if (!state?.error && !state?.ok) return null
   return (
     <p
+      ref={ref}
       role="status"
-      className={`rounded-xl px-3.5 py-2.5 text-sm font-medium ${
+      className={`flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-sm font-medium ${
         state.error ? 'bg-rose-50 text-rose-700' : 'bg-emerald-50 text-emerald-700'
       }`}
     >
-      {state.error ?? state.ok}
+      {state.error ? (
+        <svg viewBox="0 0 24 24" className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round" aria-hidden>
+          <circle cx="12" cy="12" r="9.5" />
+          <path d="M12 7.5v5.5M12 16.5v.01" />
+        </svg>
+      ) : (
+        <svg viewBox="0 0 24 24" className="mt-0.5 size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+        </svg>
+      )}
+      <span>{state.error ?? state.ok}</span>
     </p>
   )
 }

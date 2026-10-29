@@ -11,7 +11,7 @@ import {
   type ClockResult,
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
-import { FormMessage, keepInputs, SubmitButton } from './ui'
+import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
 function getPosition(): Promise<{ lat: number; lng: number } | null> {
   if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
@@ -23,6 +23,13 @@ function getPosition(): Promise<{ lat: number; lng: number } | null> {
     )
   })
 }
+
+// 출퇴근 성공 때 사방으로 튀는 점 (거리 px, 색)
+const BURST = Array.from({ length: 12 }, (_, i) => {
+  const a = (i / 12) * Math.PI * 2
+  const r = 64 + (i % 3) * 14
+  return { x: Math.round(Math.cos(a) * r), y: Math.round(Math.sin(a) * r), c: ['#10b981', '#2557e8', '#f59e0b', '#f43f5e'][i % 4] }
+})
 
 function elapsedText(fromIso: string, now: number): string {
   const min = Math.max(0, Math.floor((now - new Date(fromIso).getTime()) / 60_000))
@@ -45,6 +52,7 @@ export function ClockPanel({
   const [step, setStep] = useState('')
   // 시작 직후 같은 자리의 버튼이 '근무 종료'로 바뀌므로, 두 번 눌러야 종료되게 해서 실수를 막음
   const [confirmOut, setConfirmOut] = useState(false)
+  const [celebrate, setCelebrate] = useState(0)
 
   useEffect(() => {
     if (!confirmOut) return
@@ -60,6 +68,7 @@ export function ClockPanel({
 
   const press = () => {
     if (open && !confirmOut) {
+      haptic(10)
       setConfirmOut(true)
       return
     }
@@ -80,10 +89,27 @@ export function ClockPanel({
       setResult(res)
       setStep('')
       setNow(Date.now())
+      if (res.ok) {
+        const id = Date.now()
+        setCelebrate(id)
+        setTimeout(() => setCelebrate((c) => (c === id ? 0 : c)), 1500)
+      }
     })
 
   return (
-    <div className="space-y-3">
+    <div className="relative space-y-3">
+      {celebrate > 0 && (
+        <div key={celebrate} aria-hidden className="burst">
+          {BURST.map((d, i) => (
+            <i key={i} style={{ '--x': `${d.x}px`, '--y': `${d.y}px`, background: d.c } as React.CSSProperties} />
+          ))}
+          <span className="grid size-16 animate-pop place-items-center rounded-full bg-white shadow-xl ring-4 ring-emerald-100">
+            <svg viewBox="0 0 24 24" className="size-9 text-emerald-500" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+            </svg>
+          </span>
+        </div>
+      )}
       {open && (
         <div className="flex items-center justify-between rounded-xl bg-emerald-50 px-4 py-3 text-emerald-800">
           <span className="flex items-center gap-2 font-semibold">
@@ -182,8 +208,10 @@ export function SignaturePad({ name }: { name: string }) {
             exportImage()
           }}
         />
-        {empty && (
+        {empty ? (
           <span className="pointer-events-none absolute inset-0 grid place-items-center text-mute">여기에 서명해 주세요</span>
+        ) : (
+          <span className="badge pointer-events-none absolute top-2 right-2 animate-pop bg-emerald-50 text-emerald-700">서명됨 ✓</span>
         )}
       </div>
       <div className="mt-2 flex justify-end">

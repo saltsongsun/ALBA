@@ -36,6 +36,19 @@ const pages = [
         if (vpName === 'd' && !name.startsWith('a-') && name !== 'home') continue
         await page.goto(base + path)
         await page.waitForLoadState('networkidle')
+        // 나타나는 애니메이션이 끝난 뒤 위치를 잼
+        // (시간에 따라 끝나는 것만, 스크롤에 따라 움직이는 머리글 그림자 등은 제외 · 최대 2초)
+        await page.evaluate(() =>
+          Promise.race([
+            Promise.all(
+              document
+                .getAnimations()
+                .filter((a) => a.timeline instanceof DocumentTimeline && a.effect?.getTiming().iterations !== Infinity)
+                .map((a) => a.finished.catch(() => {})),
+            ),
+            new Promise((r) => setTimeout(r, 2000)),
+          ]),
+        )
         const issues = await page.evaluate(() => {
           const vw = document.documentElement.clientWidth
           const out = []
@@ -43,8 +56,8 @@ const pages = [
           for (const el of document.querySelectorAll('body *')) {
             const r = el.getBoundingClientRect()
             const st = getComputedStyle(el)
-            // 고정 위치·애니메이션(깜빡이는 점 등)은 일부러 상자를 벗어나므로 제외
-            if (!r.width || st.position === 'fixed' || st.animationName !== 'none') continue
+            // 고정 위치·계속 반복되는 애니메이션(깜빡이는 점·떠다니는 그림)은 일부러 상자를 벗어나므로 제외
+            if (!r.width || st.position === 'fixed' || st.animationIterationCount === 'infinite') continue
             // 가로 스크롤 영역 안은 의도된 것
             let p = el.parentElement, scroller = false
             while (p && p !== document.body) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { scroller = true; break } p = p.parentElement }

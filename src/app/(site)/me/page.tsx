@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { ContactButtons } from '@/components/Contact'
+import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
-import { InstallButton } from '@/components/InstallGuide'
+import { InstallBanner } from '@/components/InstallGuide'
 import { APP_STATUS } from '@/components/JobCard'
 import { ClockPanel } from '@/components/worker'
 import { db, must } from '@/lib/db'
@@ -67,6 +68,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
+      <InstallBanner />
       <div className="flex items-end justify-between">
         <div>
           <p className="text-sm text-mute">{fmtDate(today)}</p>
@@ -78,12 +80,12 @@ export default async function MePage(props: PageProps<'/me'>) {
       </div>
 
       {pendingDocs.length > 0 && (
-        <section className="card border-2 border-amber-200 bg-amber-50/50">
+        <section className="card animate-pop border-2 border-amber-200 bg-amber-50/50">
           <h2 className="mb-2 font-bold">✍️ 서명할 서류가 {pendingDocs.length}건 있어요</h2>
           <p className="mb-3 text-sm text-sub">서명을 마쳐야 근무 시작 버튼을 누를 수 있어요.</p>
           <div className="space-y-2">
             {pendingDocs.map((d) => (
-              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between rounded-xl bg-white px-4 py-3 font-semibold">
+              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between rounded-xl bg-white px-4 py-3 font-semibold transition active:scale-[0.98]">
                 <span>
                   {d.title}
                   <span className="ml-2 text-xs font-medium text-mute">{jobsById.get(d.job_id)?.title}</span>
@@ -98,15 +100,13 @@ export default async function MePage(props: PageProps<'/me'>) {
       <section>
         <h2 className="section-title">오늘의 근무</h2>
         {todayApps.length === 0 ? (
-          <div className="card py-8 text-center text-mute">
-            오늘 예정된 근무가 없어요.
-            <br />
-            <Link href="/" className="mt-3 inline-block font-semibold text-brand-600">
+          <Empty icon="🌤️" title="오늘 예정된 근무가 없어요">
+            <Link href="/" className="font-semibold text-brand-600">
               모집 중인 알바 보기 →
             </Link>
-          </div>
+          </Empty>
         ) : (
-          <div className="space-y-3">
+          <div className="stagger space-y-3">
             {todayApps.map((a) => {
               const job = a.job
               const todayAtt = atts.find((t) => t.job_id === job.id && t.work_date === today)
@@ -161,9 +161,9 @@ export default async function MePage(props: PageProps<'/me'>) {
       {upcoming.length > 0 && (
         <section>
           <h2 className="section-title">예정된 근무</h2>
-          <div className="space-y-2">
+          <div className="stagger space-y-2">
             {upcoming.map((a) => (
-              <Link key={a.id} href={`/jobs/${a.job_id}`} className="card flex items-center justify-between py-4">
+              <Link key={a.id} href={`/jobs/${a.job_id}`} className="card-link flex items-center justify-between py-4">
                 <div>
                   <p className="font-bold">{a.job.title}</p>
                   <p className="text-sm text-sub">
@@ -180,9 +180,9 @@ export default async function MePage(props: PageProps<'/me'>) {
       {waiting.length > 0 && (
         <section>
           <h2 className="section-title">확정 대기</h2>
-          <div className="space-y-2">
+          <div className="stagger space-y-2">
             {waiting.map((a) => (
-              <Link key={a.id} href={`/jobs/${a.job_id}`} className="card flex items-center justify-between py-4">
+              <Link key={a.id} href={`/jobs/${a.job_id}`} className="card-link flex items-center justify-between py-4">
                 <div>
                   <p className="font-bold">{a.job.title}</p>
                   <p className="text-sm text-sub">{fmtDateRange(a.job.start_date, a.job.end_date)}</p>
@@ -197,7 +197,7 @@ export default async function MePage(props: PageProps<'/me'>) {
       {history.length > 0 && (
         <section>
           <h2 className="section-title">근무 내역 · 급여</h2>
-          <div className="space-y-2">
+          <div className="stagger space-y-2">
             {history.map(({ job, s, paid }) => (
               <div key={job.id} className="card space-y-3">
                 <div className="flex items-start justify-between gap-2">
@@ -251,10 +251,6 @@ export default async function MePage(props: PageProps<'/me'>) {
           </div>
         </section>
       )}
-
-      <div className="flex justify-center">
-        <InstallButton />
-      </div>
     </div>
   )
 }

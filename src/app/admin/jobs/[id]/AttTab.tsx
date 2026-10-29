@@ -3,6 +3,7 @@ import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, saveAttendan
 import AutoRefresh from '@/components/AutoRefresh'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
+import LiveNumber from '@/components/LiveNumber'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { won } from '@/lib/format'
 import { calcDay } from '@/lib/pay'
@@ -58,7 +59,10 @@ export default function AttTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">
           <p className="text-sm">
-            <span className="font-bold text-emerald-600">근무 중 {working}</span> · 종료 {done} · 미출근 {absent.length}{' '}
+            <span className="font-bold text-emerald-600">
+              근무 중 <LiveNumber value={working} />
+            </span>{' '}
+            · 종료 <LiveNumber value={done} /> · 미출근 <LiveNumber value={absent.length} />{' '}
             <span className="text-mute">/ 명단 {roster.length}명</span>
           </p>
           {date === today && <AutoRefresh />}
@@ -89,7 +93,7 @@ export default function AttTab({
         </div>
       </div>
 
-      <div className="space-y-2">
+      <div className="stagger space-y-2">
         {roster.length === 0 && <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>}
         {roster.map((uid) => {
           const u = users.get(uid)

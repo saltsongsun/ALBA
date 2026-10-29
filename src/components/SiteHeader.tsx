@@ -5,7 +5,7 @@ import { logout } from '@/app/actions/auth'
 export default async function SiteHeader() {
   const user = await getUser()
   return (
-    <header className="no-print sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur">
+    <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight">
           <span className="grid size-7 place-items-center rounded-lg bg-brand-600 text-sm text-white">S</span>
@@ -19,7 +19,8 @@ export default async function SiteHeader() {
                   관리자
                 </Link>
               )}
-              <Link href="/me" className="rounded-lg px-2.5 py-1.5 hover:bg-bg">
+              {/* 휴대폰에서는 아래 탭에 있으므로 넓은 화면에서만 */}
+              <Link href="/me" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">
                 내 근무
               </Link>
               <form action={logout}>

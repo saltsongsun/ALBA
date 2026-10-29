@@ -22,7 +22,7 @@ export default function AdminNav() {
           <Link
             key={it.href}
             href={it.href}
-            className={`shrink-0 rounded-lg px-3 py-1.5 ${active ? 'bg-ink text-white' : 'text-sub hover:bg-bg'}`}
+            className={`shrink-0 rounded-lg px-3 py-1.5 transition duration-200 active:scale-95 ${active ? 'bg-ink text-white shadow-sm' : 'text-sub hover:bg-bg'}`}
           >
             {it.label}
           </Link>

@@ -36,7 +36,7 @@ export default async function DocsPage(props: PageProps<'/admin/docs'>) {
       </p>
       <div className="grid gap-3 md:grid-cols-2">
         {tpls.map((t) => (
-          <Link key={t.id} href={`/admin/docs/${t.id}`} className={`card block hover:ring-2 hover:ring-brand-100 ${t.active ? '' : 'opacity-50'}`}>
+          <Link key={t.id} href={`/admin/docs/${t.id}`} className={`card-link block ${t.active ? '' : 'opacity-50'}`}>
             <div className="flex items-center gap-2">
               <span className="badge bg-bg text-sub">{KIND[t.kind]}</span>
               {t.is_default && <span className="badge bg-brand-50 text-brand-700">기본 체크</span>}

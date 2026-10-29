@@ -78,7 +78,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
       </div>
 
       {/* 휴대폰: 카드 목록 */}
-      <div className="space-y-2 sm:hidden">
+      <div className="stagger space-y-2 sm:hidden">
         {users.map((u) => (
           <div key={u.id} className={`card p-4 ${u.active ? '' : 'opacity-50'}`}>
             <div className="flex flex-wrap items-center gap-1.5">

@@ -13,6 +13,73 @@
   --color-mute: #8b95a1;
   --color-line: #e5e8eb;
   --color-bg: #f2f4f6;
+
+  /* 마이크로 인터랙션: 살짝 튀어 오르며 멈추는 곡선 */
+  --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-rise: rise 0.38s var(--ease-spring) both;
+  --animate-pop: pop 0.32s var(--ease-spring) both;
+  --animate-shake: shake 0.4s ease-in-out;
+  --animate-slide-up: slide-up 0.4s var(--ease-spring) both;
+  --animate-slide-down: slide-down 0.34s var(--ease-spring) both;
+  --animate-float: float 3.2s ease-in-out infinite;
+  --animate-bump: bump 0.7s var(--ease-spring);
+  --animate-grow: grow 0.7s var(--ease-spring) 0.15s both;
+}
+
+/* 애니메이션 모양 (@theme의 --animate-* 와 .stagger 등에서 사용) */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+}
+@keyframes shake {
+  20% {
+    transform: translateX(-6px);
+  }
+  40% {
+    transform: translateX(6px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+@keyframes slide-up {
+  from {
+    opacity: 0.4;
+    transform: translateY(100%);
+  }
+}
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+@keyframes float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes bump {
+  30% {
+    transform: scale(1.22);
+    color: var(--color-brand-600);
+  }
+}
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
 }
 
 @layer base {
@@ -30,11 +97,153 @@
   h2 {
     text-wrap: balance;
   }
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+  }
+  /* 체크박스·라디오를 누르면 살짝 눌림 */
+  input[type='checkbox'],
+  input[type='radio'] {
+    transition: transform 0.15s var(--ease-spring);
+  }
+  input[type='checkbox']:active,
+  input[type='radio']:active {
+    transform: scale(0.85);
+  }
+  /* 펼치기(details): 기본 삼각형 대신 돌아가는 화살표 */
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  summary::before {
+    content: '';
+    display: inline-block;
+    width: 0.4em;
+    height: 0.4em;
+    margin: 0 0.5em 0.15em 0.1em;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(-45deg);
+    transition: transform 0.2s var(--ease-spring);
+  }
+  details[open] > summary::before {
+    transform: rotate(45deg);
+  }
   input,
   select,
   textarea {
     font-size: 16px; /* iOS 확대 방지 */
   }
+}
+
+/* 펼칠 때 높이가 부드럽게 늘어남 (지원하는 브라우저만) */
+@supports (interpolate-size: allow-keywords) {
+  :root {
+    interpolate-size: allow-keywords;
+  }
+  details::details-content {
+    height: 0;
+    overflow: clip;
+    transition:
+      height 0.28s var(--ease-spring),
+      content-visibility 0.28s allow-discrete;
+  }
+  details[open]::details-content {
+    height: auto;
+  }
+}
+
+/* 스크롤하면 머리글 아래에 그림자 (지원하는 브라우저만, 자바스크립트 없이) */
+@supports (animation-timeline: scroll()) {
+  .scroll-shadow {
+    animation: header-shadow linear both;
+    animation-timeline: scroll();
+    animation-range: 0 48px;
+  }
+  @keyframes header-shadow {
+    to {
+      border-color: transparent;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    }
+  }
+}
+
+/* 체크 표시가 그려짐 (pathLength=1인 SVG 선) */
+.check-draw {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: draw 0.45s var(--ease-spring) 0.1s forwards;
+}
+@keyframes draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* 위쪽 안내가 사라질 때까지 남은 시간 (Flash) */
+.flash-timer {
+  animation: flash-timer linear forwards;
+}
+@keyframes flash-timer {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* 출퇴근 성공: 가운데 체크와 사방으로 튀는 점 (worker.tsx ClockPanel) */
+.burst {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.burst > i {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border-radius: 9999px;
+  animation: burst 0.75s var(--ease-spring) forwards;
+}
+@keyframes burst {
+  to {
+    transform: translate(var(--x), var(--y)) scale(0.3);
+    opacity: 0;
+  }
+}
+
+/* 휴대폰에서 아래 탭이 있으면 설치 안내를 탭 위로 올림 (탭을 가리지 않게) */
+@media (width < 40rem) {
+  body:has([data-bottom-nav]) .install-sheet {
+    bottom: calc(61px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 목록 항목이 차례로 떠오름 */
+.stagger > * {
+  animation: var(--animate-rise);
+}
+.stagger > :nth-child(2) {
+  animation-delay: 40ms;
+}
+.stagger > :nth-child(3) {
+  animation-delay: 80ms;
+}
+.stagger > :nth-child(4) {
+  animation-delay: 120ms;
+}
+.stagger > :nth-child(5) {
+  animation-delay: 160ms;
+}
+.stagger > :nth-child(6) {
+  animation-delay: 200ms;
+}
+.stagger > :nth-child(n + 7) {
+  animation-delay: 240ms;
 }
 
 /* iOS 사파리: 날짜·시간 칸이 고유 너비 때문에 칸 밖으로 넘치고, 비어 있으면 높이가 줄어드는 문제 */
@@ -54,10 +263,10 @@
 }
 
 @utility card {
-  @apply rounded-2xl bg-white p-5 shadow-[0_1px_2px_rgba(0,0,0,0.04)];
+  @apply rounded-2xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)];
 }
 @utility btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition duration-150 outline-none select-none focus-visible:ring-2 focus-visible:ring-brand-500/40 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
 @utility btn-primary {
   @apply btn bg-brand-600 text-white hover:bg-brand-700;
@@ -76,7 +285,11 @@
 }
 /* 전화·문자 바로가기 (components/Contact.tsx) */
 @utility contact-btn {
-  @apply inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-semibold whitespace-nowrap transition active:scale-[0.97];
+  @apply inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-semibold whitespace-nowrap transition duration-150 active:scale-[0.94];
+}
+/* 누르면 이동하는 카드: 마우스를 올리면 살짝 뜨고, 누르면 눌림 */
+@utility card-link {
+  @apply card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] active:translate-y-0 active:scale-[0.985];
 }
 @utility label {
   @apply mb-1.5 block text-sm font-semibold text-sub;
@@ -104,6 +317,9 @@
   .table td {
     @apply border-b border-line px-3 py-2.5 align-middle;
   }
+  .table tbody tr {
+    @apply transition-colors duration-150 hover:bg-[#f9fafb];
+  }
 }
 
 /* 화면 이동 중 맨 위 진행 막대 (NavProgress) */
@@ -116,7 +332,24 @@
   height: 3px;
   background: var(--color-brand-600);
   transform-origin: left;
+  box-shadow: 0 0 8px rgba(37, 87, 232, 0.5);
   animation: nav-progress 8s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+.nav-progress.done {
+  animation: nav-done 0.4s ease-out forwards;
+}
+@keyframes nav-done {
+  from {
+    transform: scaleX(0.9);
+  }
+  60% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  to {
+    transform: scaleX(1);
+    opacity: 0;
+  }
 }
 @keyframes nav-progress {
   from {
@@ -124,6 +357,19 @@
   }
   to {
     transform: scaleX(0.9);
+  }
+}
+
+/* 기기에서 '동작 줄이기'를 켰으면 움직임을 거의 없앰 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 

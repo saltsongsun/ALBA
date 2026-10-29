@@ -4,8 +4,9 @@ import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { CopyButton } from './ui'
 
-// 홈 화면 앱(PWA) 설치 안내. 휴대폰으로 홈·내 근무 화면에 처음 들어오면 아래에서 올라오고,
-// "나중에"를 누르면 7일 동안 숨깁니다. 가입·지원·서명 화면에서는 버튼을 가리지 않도록 저절로 띄우지 않습니다.
+// 홈 화면 앱(PWA) 설치 안내. 휴대폰으로 홈 화면에 처음 들어오면 아래에서 올라오고,
+// "나중에"를 누르면 7일 동안 숨깁니다. 다른 화면은 버튼(가입·지원·서명·출퇴근)을 가리지 않도록
+// 저절로 띄우지 않고, 내 근무 화면에는 위쪽에 작은 권유(InstallBanner)만 둡니다.
 
 type InstallPromptEvent = Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }> }
 type Env = 'kakao' | 'inapp' | 'ios' | 'android' | 'desktop'
@@ -13,7 +14,7 @@ type Env = 'kakao' | 'inapp' | 'ios' | 'android' | 'desktop'
 const HIDE_KEY = 'alba_install_hide_until'
 const OPEN_EVENT = 'alba:install'
 const HIDE_DAYS = 7
-const AUTO_PATHS = ['/', '/me']
+const AUTO_PATHS = ['/']
 
 function detect(): Env {
   const ua = navigator.userAgent
@@ -32,6 +33,12 @@ function snoozed(): boolean {
   }
 }
 
+function snooze() {
+  try {
+    localStorage.setItem(HIDE_KEY, String(Date.now() + HIDE_DAYS * 86_400_000))
+  } catch {}
+}
+
 function installed(): boolean {
   return matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
 }
@@ -44,15 +51,31 @@ function ShareIcon() {
   )
 }
 
-/** 설치 안내를 다시 여는 버튼 (이미 앱으로 열었으면 숨김) */
-export function InstallButton({ className = 'btn-gray btn-sm' }: { className?: string }) {
+/** 내 근무 화면 위쪽의 작은 설치 권유. 누르면 설치 안내가 열림 (이미 앱이거나 '나중에'를 눌렀으면 숨김) */
+export function InstallBanner() {
   const [show, setShow] = useState(false)
-  useEffect(() => setShow(!installed()), [])
+  useEffect(() => setShow(!installed() && !snoozed()), [])
   if (!show) return null
   return (
-    <button type="button" className={className} onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
-      홈 화면에 앱 설치
-    </button>
+    <div className="flex animate-slide-down items-center gap-3 rounded-2xl bg-brand-50 py-2.5 pr-2 pl-3">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/icons/icon-192.png" alt="" className="size-9 rounded-lg" />
+      <p className="min-w-0 flex-1 text-[13px] leading-snug font-semibold text-brand-700">홈 화면에 앱으로 설치하면 출퇴근이 더 빨라요</p>
+      <button type="button" className="btn-primary btn-sm" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
+        설치
+      </button>
+      <button
+        type="button"
+        aria-label="닫기"
+        className="rounded-lg px-1.5 py-1 text-brand-700/50 transition active:scale-90"
+        onClick={() => {
+          snooze()
+          setShow(false)
+        }}
+      >
+        ✕
+      </button>
+    </div>
   )
 }
 
@@ -98,9 +121,7 @@ export default function InstallGuide() {
   if (!open || !env) return null
 
   const later = () => {
-    try {
-      localStorage.setItem(HIDE_KEY, String(Date.now() + HIDE_DAYS * 86_400_000))
-    } catch {}
+    snooze()
     setOpen(false)
   }
   const install = async () => {
@@ -161,9 +182,9 @@ export default function InstallGuide() {
   return (
     <>
       {/* 안내창에 가려지는 만큼 아래 여백을 두어 맨 아래 버튼까지 스크롤할 수 있게 */}
-      <div aria-hidden className="no-print h-80" />
-      <div role="dialog" aria-label="앱 설치 안내" className="no-print fixed inset-x-0 bottom-0 z-40 p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96 sm:p-0">
-        <div className="rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line">
+      <div aria-hidden className="no-print h-96" />
+      <div role="dialog" aria-label="앱 설치 안내" className="install-sheet no-print fixed inset-x-0 bottom-0 z-40 p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96 sm:p-0">
+        <div className="animate-slide-up rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line">
           <div className="mb-3 flex items-start gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/icon-192.png" alt="" className="size-11 rounded-xl" />

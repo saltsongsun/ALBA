@@ -82,7 +82,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
         </div>
         <h1 className="text-[22px] leading-snug font-extrabold">{job.title}</h1>
-        <div className="mt-4 rounded-2xl bg-bg p-4">
+        <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">
           <p className="text-sm text-sub">{wageBadge(job)}</p>
           <p className="mt-0.5 text-2xl font-extrabold">
             하루 약 {won(est.gross)}
@@ -190,7 +190,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                     {dates.map((d) => (
                       <label key={d} className="cursor-pointer">
                         <input type="checkbox" name="dates" value={d} defaultChecked className="peer sr-only" />
-                        <span className="inline-block rounded-xl border border-line px-3 py-2 text-sm font-semibold text-mute peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">
+                        <span className="inline-block rounded-xl border border-line px-3 py-2 text-sm font-semibold text-mute transition duration-150 select-none active:scale-95 peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">
                           {fmtDate(d)}
                         </span>
                       </label>
