@@ -27,7 +27,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
       .eq('thread_user_id', userId)
       .order('created_at', { ascending: false })
       .limit(300)
-      .then((r) => (must(r) as unknown as ChatMessage[]).reverse()),
+      .then((r) => (must(r) as unknown as ChatMessage[]).sort((a, b) => a.created_at.localeCompare(b.created_at))),
     // 근무자 문의를 읽음으로 (어느 관리자가 보든 한 번 읽으면 읽음)
     db().from('messages').update({ read_at: new Date().toISOString() }).eq('thread_user_id', userId).eq('from_admin', false).is('read_at', null),
   ])

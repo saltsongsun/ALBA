@@ -25,7 +25,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       .eq('thread_user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(300)
-      .then((r) => (must(r) as unknown as ChatMessage[]).reverse()),
+      .then((r) => (must(r) as unknown as ChatMessage[]).sort((a, b) => a.created_at.localeCompare(b.created_at))),
     getSettings(),
     jobId ? getJob(jobId) : null,
     // 담당자 답장을 읽음으로 (보는 동안 새로 온 것도 자동 갱신 때 읽음 처리)

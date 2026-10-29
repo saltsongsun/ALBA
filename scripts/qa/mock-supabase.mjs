@@ -24,7 +24,7 @@ const user = (id, role, name, phone) => ({
   birth_date: '1990-01-01', gender: 'M', is_foreigner: false, address: '서울', bank_name: '국민',
   bank_account_enc: null, account_holder: name, bank_changed_at: null, emergency_phone: null, admin_memo: null,
   active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1,
-  created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }],
+  created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
 const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444')]
 const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자' }
@@ -72,6 +72,18 @@ const tables = {
       created_at: '2026-10-01T00:00:00Z', worker: { name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울' } },
   ].map((d) => (SCENARIO === 'default' ? d : { ...d, status: 'signed', signed_at: '2026-10-01T00:00:00Z' })),
   doc_templates: [{ id: TPL, kind: 'contract', title: '근로계약서', body: '# 계약서\n\n{{근로자명}}', is_default: true, active: true, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' }],
+  messages: [
+    { id: 1, thread_user_id: WORKER, sender_id: WORKER, from_admin: false, job_id: JOB, body: '내일 집결 장소가 어디인가요?', read_at: null,
+      created_at: new Date(Date.now() - 3600e3).toISOString(), job: { id: JOB, title: '테스트 행사 스태프' }, sender: { name: '근무자' },
+      user: { id: WORKER, name: '근무자', phone: '01033334444' } },
+    { id: 2, thread_user_id: WORKER, sender_id: ADMIN, from_admin: true, job_id: null, body: '촉석문 앞 운영본부 천막입니다.', read_at: null,
+      created_at: new Date(Date.now() - 1800e3).toISOString(), job: null, sender: { name: '관리자' },
+      user: { id: WORKER, name: '근무자', phone: '01033334444' } },
+  ],
+  worker_ratings: [
+    { id: '22222222-0000-4000-8000-000000000009', user_id: WORKER, job_id: JOB, rater_id: ADMIN, score: 4, comment: '시간 약속 잘 지킴',
+      created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', job: { title: '테스트 행사 스태프' }, rater: { name: '관리자' } },
+  ],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
 }
 

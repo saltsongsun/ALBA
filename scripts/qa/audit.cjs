@@ -14,9 +14,11 @@ const pages = [
   ['worker', 'home', '/'], ['worker', 'job', `/jobs/${J}`], ['worker', 'me', '/me'], ['worker', 'profile', '/me/profile'],
   ['worker', 'doc-pending', '/docs/dddddddd-0000-4000-8000-000000000004'], ['worker', 'payslip', `/print/payslip/${J}/${W}`],
   ['worker', 'cert', `/print/cert/${J}/${W}`],
+  ['worker', 'history', '/me/history'], ['worker', 'chat', '/me/chat'], ['worker', 'chat-job', `/me/chat?job=${J}`],
   ['admin', 'a-dash', '/admin'], ['admin', 'a-jobs', '/admin/jobs'], ['admin', 'a-job-apps', `/admin/jobs/${J}?tab=apps`],
   ['admin', 'a-job-att', `/admin/jobs/${J}?tab=att`], ['admin', 'a-job-pay', `/admin/jobs/${J}?tab=pay`],
   ['admin', 'a-job-docs', `/admin/jobs/${J}?tab=docs`], ['admin', 'a-job-edit', `/admin/jobs/${J}/edit`], ['admin', 'a-job-new', '/admin/jobs/new'],
+  ['admin', 'a-chat', '/admin/chat'], ['admin', 'a-chat-thread', `/admin/chat/${W}`],
   ['admin', 'a-workers', '/admin/workers'], ['admin', 'a-worker', `/admin/workers/${W}`], ['admin', 'a-docs', '/admin/docs'],
   ['admin', 'a-doc', '/admin/docs/ffffffff-0000-4000-8000-000000000007'], ['admin', 'a-reports', '/admin/reports'], ['admin', 'a-settings', '/admin/settings'],
 ]
