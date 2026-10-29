@@ -5,6 +5,7 @@ import { applyJob, cancelApplication } from '@/app/actions/worker'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import { APP_STATUS, wageBadge } from '@/components/JobCard'
+import StickyApply from '@/components/StickyApply'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
 import { approvedCounts, getJob } from '@/lib/data'
@@ -140,7 +141,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         )}
       </div>
 
-      <div className="mt-4 space-y-3">
+      {/* 아직 지원 전이면 휴대폰 아래에 지원 버튼을 띄움 (지원 칸이 화면 아래쪽이라) */}
+      {canApply && (!app || app.status === 'cancelled') && (
+        <StickyApply
+          targetId="apply"
+          title={job.title}
+          summary={`하루 약 ${won(est.gross)}`}
+          href={user ? undefined : `/signup?next=${encodeURIComponent(path)}`}
+          aboveTabs={!!user}
+        />
+      )}
+      <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
         {!user ? (
           canApply && (
             <div className="card space-y-3 text-center">
