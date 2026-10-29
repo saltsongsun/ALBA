@@ -150,6 +150,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       jobId={job.id}
                       open={{ id: open.id, clock_in: open.clock_in, startText: kstTime(open.clock_in) }}
                       useLocation={job.lat != null}
+                      gpsRequired={job.gps_required}
                     />
                   ) : todayAtt?.clock_out ? (
                     <div className="rounded-xl bg-bg px-4 py-3 text-center">
@@ -160,7 +161,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       </p>
                     </div>
                   ) : (
-                    <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} />
+                    <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
                   )}
                 </div>
               )

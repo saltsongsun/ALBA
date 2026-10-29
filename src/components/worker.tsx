@@ -13,15 +13,61 @@ import {
 import { BANKS } from '@/lib/privacy'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
-function getPosition(): Promise<{ lat: number; lng: number } | null> {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve(null)
+type GeoProblem = 'denied' | 'failed'
+
+/** 현재 위치. 못 얻으면 권한이 꺼진 것(denied)인지 잡지 못한 것(failed)인지 함께 알려 줌 */
+function getPosition(): Promise<{ pos: { lat: number; lng: number } | null; problem: GeoProblem | null }> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return Promise.resolve({ pos: null, problem: 'failed' })
   return new Promise((resolve) => {
     navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
-      () => resolve(null),
+      (p) => resolve({ pos: { lat: p.coords.latitude, lng: p.coords.longitude }, problem: null }),
+      (e) => resolve({ pos: null, problem: e.code === 1 ? 'denied' : 'failed' }),
       { enableHighAccuracy: true, timeout: 10_000, maximumAge: 60_000 },
     )
   })
+}
+
+/** 위치를 못 쓸 때: 지금 쓰는 휴대폰·브라우저에 맞춰 위치를 켜는 방법 */
+function LocationHelp({ problem, required }: { problem: GeoProblem; required: boolean }) {
+  const [env, setEnv] = useState<'kakao' | 'ios' | 'android' | 'other'>('other')
+  useEffect(() => {
+    const ua = navigator.userAgent
+    setEnv(/KAKAOTALK/i.test(ua) ? 'kakao' : /iPhone|iPad|iPod/.test(ua) ? 'ios' : /Android/i.test(ua) ? 'android' : 'other')
+  }, [])
+  return (
+    <div role="status" className="animate-pop space-y-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <p className="font-bold">📍 {problem === 'denied' ? '위치 권한이 꺼져 있어요' : '위치를 찾지 못했어요'}</p>
+      <p>{required ? '이 행사는 현장에서만 근무 시작을 누를 수 있어요.' : '위치 없이도 기록되지만, 켜 두면 현장 확인이 정확해요.'}</p>
+      {problem === 'failed' ? (
+        <p>건물 밖이나 창가에서 잠시 뒤 다시 눌러 주세요. 휴대폰 설정에서 위치(GPS)가 켜져 있는지도 확인해 주세요.</p>
+      ) : env === 'kakao' ? (
+        <>
+          <p>카카오톡 안에서는 위치를 쓰지 못할 수 있어요. 기본 브라우저로 열어서 눌러 주세요.</p>
+          <button
+            type="button"
+            className="btn-primary btn-sm"
+            onClick={() => (location.href = `kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}`)}
+          >
+            기본 브라우저로 열기
+          </button>
+        </>
+      ) : env === 'ios' ? (
+        <ol className="list-decimal space-y-0.5 pl-5">
+          <li>설정 앱 → 개인정보 보호 및 보안 → 위치 서비스 켜기</li>
+          <li>같은 화면 아래 Safari 웹사이트 → ‘앱을 사용하는 동안’</li>
+          <li>이 화면으로 돌아와 다시 누르고, 위치 허용을 눌러 주세요</li>
+        </ol>
+      ) : env === 'android' ? (
+        <ol className="list-decimal space-y-0.5 pl-5">
+          <li>주소창 왼쪽 아이콘(자물쇠·ⓘ) → 권한 → 위치 ‘허용’</li>
+          <li>화면 위에서 아래로 내려 ‘위치’가 켜져 있는지 확인</li>
+          <li>이 화면으로 돌아와 다시 눌러 주세요</li>
+        </ol>
+      ) : (
+        <p>브라우저 주소창의 사이트 설정에서 위치를 ‘허용’으로 바꾼 뒤 다시 눌러 주세요.</p>
+      )}
+    </div>
+  )
 }
 
 // 출퇴근 성공 때 사방으로 튀는 점 (거리 px, 색)
@@ -41,10 +87,13 @@ export function ClockPanel({
   jobId,
   open,
   useLocation,
+  gpsRequired = false,
 }: {
   jobId: string
   open: { id: string; clock_in: string; startText: string } | null
   useLocation: boolean
+  /** 현장 반경 안에서만 근무 시작 가능 */
+  gpsRequired?: boolean
 }) {
   const [pending, start] = useTransition()
   const [result, setResult] = useState<ClockResult | null>(null)
@@ -53,6 +102,25 @@ export function ClockPanel({
   // 시작 직후 같은 자리의 버튼이 '근무 종료'로 바뀌므로, 두 번 눌러야 종료되게 해서 실수를 막음
   const [confirmOut, setConfirmOut] = useState(false)
   const [celebrate, setCelebrate] = useState(0)
+  const [geo, setGeo] = useState<GeoProblem | null>(null)
+
+  // 위치 권한이 이미 꺼져 있으면 누르기 전에 미리 알려 줌 (지원하는 브라우저만)
+  useEffect(() => {
+    if (!useLocation || !navigator.permissions?.query) return
+    let status: PermissionStatus | null = null
+    navigator.permissions
+      .query({ name: 'geolocation' })
+      .then((s) => {
+        status = s
+        const sync = () => setGeo((g) => (s.state === 'denied' ? 'denied' : g === 'denied' ? null : g))
+        sync()
+        s.onchange = sync
+      })
+      .catch(() => {})
+    return () => {
+      if (status) status.onchange = null
+    }
+  }, [useLocation])
 
   useEffect(() => {
     if (!confirmOut) return
@@ -82,7 +150,9 @@ export function ClockPanel({
       let pos: { lat: number; lng: number } | null = null
       if (useLocation) {
         setStep('위치 확인 중…')
-        pos = await getPosition()
+        const r = await getPosition()
+        pos = r.pos
+        setGeo(r.problem)
       }
       setStep('기록 중…')
       const res = open ? await clockOut(open.id, pos?.lat ?? null, pos?.lng ?? null) : await clockIn(jobId, pos?.lat ?? null, pos?.lng ?? null)
@@ -137,8 +207,9 @@ export function ClockPanel({
         {pending ? step || '처리 중…' : !open ? '근무 시작' : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}
       </button>
       {confirmOut && !pending && <p className="text-center text-sm font-semibold text-rose-600">실수로 끝나지 않도록 한 번 더 눌러야 종료돼요.</p>}
-      {useLocation && !result && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치를 함께 기록합니다.</p>}
+      {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치를 함께 기록합니다.</p>}
       <FormMessage state={result} />
+      {useLocation && geo && !pending && <LocationHelp problem={geo} required={gpsRequired && !open} />}
     </div>
   )
 }
