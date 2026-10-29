@@ -1,0 +1,299 @@
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
+import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
+import { approvedCounts, ensurePendingDocs, getJob, getSettings } from '@/lib/data'
+import { db, must } from '@/lib/db'
+import { buildDocVars, renderTemplate } from '@/lib/docs'
+import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
+import { kstDate } from '@/lib/time'
+import type { Application, DocTemplate, SignedDoc, UserRow } from '@/lib/types'
+import { isDate, isPin, isUuid, normalizePhone, optStr, str } from '@/lib/validate'
+import type { FormState } from './auth'
+
+function back(path: string, msg: string): never {
+  redirect(`${path}${path.includes('?') ? '&' : '?'}m=${encodeURIComponent(msg)}`)
+}
+
+// ───────────── 지원 ─────────────
+
+export async function applyJob(jobId: string, form: FormData) {
+  const user = await requireUser(`/jobs/${jobId}`)
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job) back('/', '공고를 찾을 수 없습니다.')
+  const path = `/jobs/${jobId}`
+  if (job.status !== 'open') back(path, '모집이 마감된 공고입니다.')
+  if (job.end_date < kstDate()) back(path, '이미 끝난 행사입니다.')
+
+  const dates = form
+    .getAll('dates')
+    .map(String)
+    .filter((d) => isDate(d) && d >= job.start_date && d <= job.end_date)
+  const multiDay = job.start_date !== job.end_date
+  if (multiDay && form.has('date_choice') && !dates.length) back(path, '근무 가능한 날짜를 하나 이상 골라 주세요.')
+
+  const { data: existing } = await db()
+    .from('applications')
+    .select('id, status')
+    .eq('job_id', jobId)
+    .eq('user_id', user.id)
+    .maybeSingle()
+  if (existing && existing.status !== 'cancelled') back(path, '이미 지원한 공고입니다.')
+
+  let status: Application['status'] = 'applied'
+  if (job.auto_approve) {
+    const counts = await approvedCounts([jobId])
+    if ((counts[jobId] ?? 0) < job.headcount) status = 'approved'
+  }
+  const row = {
+    job_id: jobId,
+    user_id: user.id,
+    status,
+    available_dates: multiDay && dates.length ? dates : null,
+    message: optStr(form, 'message', 300),
+    decided_at: status === 'approved' ? new Date().toISOString() : null,
+  }
+  if (existing) must(await db().from('applications').update(row).eq('id', existing.id))
+  else must(await db().from('applications').insert(row))
+
+  if (status === 'approved') await ensurePendingDocs(job, user.id)
+  revalidatePath('/me')
+  back(path, status === 'approved' ? '근무가 확정됐어요! 내 근무에서 서류에 서명해 주세요.' : '지원이 접수됐어요. 확정되면 내 근무에 표시됩니다.')
+}
+
+export async function cancelApplication(appId: string) {
+  const user = await requireUser()
+  const { data: app } = await db()
+    .from('applications')
+    .select('id, job_id, user_id, status')
+    .eq('id', appId)
+    .maybeSingle()
+  if (!app || app.user_id !== user.id) back('/me', '지원 내역을 찾을 수 없습니다.')
+  const { count } = await db()
+    .from('attendance')
+    .select('id', { count: 'exact', head: true })
+    .eq('job_id', app.job_id)
+    .eq('user_id', user.id)
+  if (count) back('/me', '이미 근무 기록이 있어 취소할 수 없습니다. 담당자에게 문의해 주세요.')
+  must(await db().from('applications').update({ status: 'cancelled' }).eq('id', appId))
+  await db().from('signed_docs').delete().eq('job_id', app.job_id).eq('user_id', user.id).eq('status', 'pending')
+  revalidatePath('/me')
+  back(`/jobs/${app.job_id}`, '지원을 취소했어요.')
+}
+
+// ───────────── 출퇴근 ─────────────
+
+export type ClockResult = { ok?: string; error?: string }
+
+function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6_371_000
+  const rad = (d: number) => (d * Math.PI) / 180
+  const dLat = rad(lat2 - lat1)
+  const dLng = rad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2
+  return Math.round(2 * R * Math.asin(Math.sqrt(a)))
+}
+
+function coords(lat: unknown, lng: unknown): { lat: number; lng: number } | null {
+  const a = Number(lat)
+  const b = Number(lng)
+  if (lat == null || lng == null || !Number.isFinite(a) || !Number.isFinite(b)) return null
+  if (Math.abs(a) > 90 || Math.abs(b) > 180) return null
+  return { lat: a, lng: b }
+}
+
+export async function clockIn(jobId: string, lat: number | null, lng: number | null): Promise<ClockResult> {
+  const user = await requireUser()
+  if (!isUuid(jobId)) return { error: '잘못된 요청입니다.' }
+  const job = await getJob(jobId)
+  if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  const today = kstDate()
+  if (today < job.start_date || today > job.end_date) return { error: '오늘은 이 행사의 근무일이 아닙니다.' }
+
+  const [{ data: app }, { count: pendingDocs }, { data: open }] = await Promise.all([
+    db().from('applications').select('status').eq('job_id', jobId).eq('user_id', user.id).maybeSingle(),
+    db()
+      .from('signed_docs')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_id', jobId)
+      .eq('user_id', user.id)
+      .eq('status', 'pending'),
+    db().from('attendance').select('id, job_id, work_date').eq('user_id', user.id).is('clock_out', null).limit(1),
+  ])
+  if (app?.status !== 'approved') return { error: '근무가 확정된 공고만 출근할 수 있습니다.' }
+  if (pendingDocs) return { error: '근로계약서 등 서류에 먼저 서명해 주세요.' }
+  if (open?.length) return { error: '아직 종료하지 않은 근무가 있습니다. 먼저 근무 종료를 눌러 주세요.' }
+
+  const pos = coords(lat, lng)
+  let distance: number | null = null
+  if (pos && job.lat != null && job.lng != null) distance = distanceM(pos.lat, pos.lng, job.lat, job.lng)
+  if (job.gps_required && job.lat != null && job.lng != null) {
+    if (!pos) return { error: '이 행사는 현장 위치 확인이 필요합니다. 위치 권한을 허용하고 다시 눌러 주세요.' }
+    if (distance! > job.gps_radius_m) {
+      return { error: `행사장에서 약 ${distance!.toLocaleString()}m 떨어져 있어요. 현장(${job.gps_radius_m}m 이내)에서 눌러 주세요.` }
+    }
+  }
+
+  const { error } = await db()
+    .from('attendance')
+    .insert({
+      job_id: jobId,
+      user_id: user.id,
+      work_date: today,
+      clock_in: new Date().toISOString(),
+      in_lat: pos?.lat ?? null,
+      in_lng: pos?.lng ?? null,
+      in_distance_m: distance,
+    })
+  if (error) {
+    return { error: error.code === '23505' ? '오늘은 이미 출근 기록이 있습니다.' : '출근 기록 중 문제가 생겼어요. 다시 시도해 주세요.' }
+  }
+  revalidatePath('/me')
+  return { ok: '근무를 시작했어요. 오늘도 안전하게!' }
+}
+
+export async function clockOut(attendanceId: string, lat: number | null, lng: number | null): Promise<ClockResult> {
+  const user = await requireUser()
+  if (!isUuid(attendanceId)) return { error: '잘못된 요청입니다.' }
+  const { data: att } = await db()
+    .from('attendance')
+    .select('id, user_id, job_id, clock_out')
+    .eq('id', attendanceId)
+    .maybeSingle()
+  if (!att || att.user_id !== user.id) return { error: '근무 기록을 찾을 수 없습니다.' }
+  if (att.clock_out) return { error: '이미 종료된 근무입니다.' }
+  const job = await getJob(att.job_id)
+  const pos = coords(lat, lng)
+  const distance = pos && job?.lat != null && job?.lng != null ? distanceM(pos.lat, pos.lng, job.lat, job.lng) : null
+  must(
+    await db()
+      .from('attendance')
+      .update({ clock_out: new Date().toISOString(), out_lat: pos?.lat ?? null, out_lng: pos?.lng ?? null, out_distance_m: distance })
+      .eq('id', attendanceId)
+      .is('clock_out', null),
+  )
+  revalidatePath('/me')
+  return { ok: '근무를 종료했어요. 수고하셨습니다!' }
+}
+
+// ───────────── 전자서명 ─────────────
+
+const MAX_SIGNATURE = 300_000
+
+export async function signDocument(docId: string, _: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  if (!isUuid(docId)) return { error: '잘못된 요청입니다.' }
+  const signature = str(form, 'signature', MAX_SIGNATURE + 1)
+  if (!signature.startsWith('data:image/png;base64,') || signature.length > MAX_SIGNATURE) {
+    return { error: '서명란에 서명해 주세요.' }
+  }
+  if (form.get('agree') !== 'on') return { error: '내용을 확인했다는 항목에 체크해 주세요.' }
+
+  const { data: doc } = await db().from('signed_docs').select('*').eq('id', docId).maybeSingle()
+  const d = doc as SignedDoc | null
+  if (!d || d.user_id !== user.id) return { error: '서류를 찾을 수 없습니다.' }
+  if (d.status !== 'pending') return { error: '이미 서명한 서류입니다.' }
+  if (!d.template_id) return { error: '서식이 삭제된 서류입니다. 담당자에게 문의해 주세요.' }
+
+  const [job, settings, { data: tpl }, { data: me }] = await Promise.all([
+    getJob(d.job_id),
+    getSettings(),
+    db().from('doc_templates').select('*').eq('id', d.template_id).maybeSingle(),
+    db().from('users').select('name, phone, birth_date, address').eq('id', user.id).single(),
+  ])
+  if (!job || !tpl || !me) return { error: '서식을 불러오지 못했습니다. 담당자에게 문의해 주세요.' }
+
+  const today = kstDate()
+  const body = renderTemplate((tpl as DocTemplate).body, buildDocVars(job, me, settings, today))
+  const { ip, ua } = await clientInfo()
+  must(
+    await db()
+      .from('signed_docs')
+      .update({
+        body,
+        title: (tpl as DocTemplate).title,
+        signature,
+        seal_image: settings.seal_image,
+        company_snapshot: {
+          company_name: settings.company_name,
+          ceo_name: settings.ceo_name,
+          business_no: settings.business_no,
+          company_address: settings.company_address,
+          company_phone: settings.company_phone,
+        },
+        signed_at: new Date().toISOString(),
+        signed_ip: ip,
+        signed_ua: ua,
+        status: 'signed',
+      })
+      .eq('id', docId)
+      .eq('status', 'pending'),
+  )
+  revalidatePath('/me')
+  revalidatePath(`/docs/${docId}`)
+  return { ok: '서명이 완료됐어요.' }
+}
+
+// ───────────── 내 정보 ─────────────
+
+export async function updateProfile(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  const { data: cur } = await db().from('users').select('bank_name, bank_account_enc, account_holder').eq('id', user.id).single()
+  const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
+  const bankName = account ? optStr(form, 'bank_name', 30) : null
+  const holder = account ? optStr(form, 'account_holder', 30) || user.name : null
+  const prevAccount = decrypt(cur?.bank_account_enc)
+  const bankChanged = (prevAccount ?? '') !== account || (cur?.bank_name ?? null) !== bankName || (cur?.account_holder ?? null) !== holder
+  const emergency = str(form, 'emergency_phone')
+  must(
+    await db()
+      .from('users')
+      .update({
+        address: optStr(form, 'address', 200),
+        emergency_phone: emergency ? normalizePhone(emergency) ?? emergency.slice(0, 20) : null,
+        bank_name: bankName,
+        bank_account_enc: account ? encrypt(account) : null,
+        account_holder: holder,
+        ...(bankChanged ? { bank_changed_at: new Date().toISOString() } : {}),
+      })
+      .eq('id', user.id),
+  )
+  revalidatePath('/me/profile')
+  return { ok: '저장했어요.' }
+}
+
+export async function changePin(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  const cur = str(form, 'current')
+  const next = str(form, 'pin')
+  if (!isPin(next)) return { error: '새 비밀번호는 숫자 6자리로 정해 주세요.' }
+  if (next !== str(form, 'pin2')) return { error: '새 비밀번호 확인이 일치하지 않습니다.' }
+  const { data } = await db().from('users').select('pin_hash, session_version').eq('id', user.id).single()
+  const row = data as Pick<UserRow, 'pin_hash' | 'session_version'> | null
+  if (!row || !(await verifyPin(cur, row.pin_hash))) return { error: '현재 비밀번호가 맞지 않습니다.' }
+  const version = row.session_version + 1
+  must(await db().from('users').update({ pin_hash: await hashPin(next), session_version: version }).eq('id', user.id))
+  await createSession(user.id, version)
+  return { ok: '비밀번호를 바꿨어요. 다른 기기에서는 다시 로그인해야 합니다.' }
+}
+
+export async function withdraw(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  const { data } = await db().from('users').select('pin_hash').eq('id', user.id).single()
+  if (!data || !(await verifyPin(str(form, 'pin'), data.pin_hash))) return { error: '비밀번호가 맞지 않습니다.' }
+
+  const [{ count: worked }, { count: signed }] = await Promise.all([
+    db().from('attendance').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+    db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('user_id', user.id).eq('status', 'signed'),
+  ])
+  if (!worked && !signed) {
+    must(await db().from('users').delete().eq('id', user.id))
+  } else {
+    // 근로기준법상 3년 보존 대상이 있으면 계정만 막고 기록은 보관 (재가입은 관리자가 계정 복구)
+    must(await db().from('users').update({ active: false }).eq('id', user.id))
+    await db().from('applications').update({ status: 'cancelled' }).eq('user_id', user.id).in('status', ['applied'])
+  }
+  await destroySession()
+  redirect('/?m=' + encodeURIComponent('탈퇴가 완료됐습니다.'))
+}
