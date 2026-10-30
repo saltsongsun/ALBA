@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
+import { ShowMore } from '@/components/Fold'
 import { InstallBanner } from '@/components/InstallGuide'
 import { APP_STATUS } from '@/components/JobCard'
 import { ClockPanel } from '@/components/worker'
@@ -275,8 +276,12 @@ export default async function MePage(props: PageProps<'/me'>) {
       {docs.some((d) => d.status === 'signed') && (
         <section>
           <h2 className="section-title">서명한 서류</h2>
-          <div className="card divide-y divide-line py-1">
-            {docs
+          {/* 행사마다 쌓이므로 최근 4건만 펼쳐 두고 나머지는 더 보기 */}
+          <ShowMore
+            limit={4}
+            className="card divide-y divide-line py-1"
+            restClassName="divide-y divide-line border-t border-line"
+            items={docs
               .filter((d) => d.status === 'signed')
               .map((d) => (
                 <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between py-3 text-sm">
@@ -286,7 +291,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <span className="text-mute">보기 →</span>
                 </Link>
               ))}
-          </div>
+          />
         </section>
       )}
     </div>

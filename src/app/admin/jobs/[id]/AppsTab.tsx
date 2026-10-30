@@ -69,6 +69,41 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   const sorted = [...apps].sort((a, b) => order[a.status] - order[b.status])
 
+  // 휴대폰: 대기는 펼쳐 두고, 확정은 대기가 있으면 접어 둠, 미선발·취소는 접어 둠 (카드가 길어서)
+  const mobileCard = (a: AppRow) => {
+    const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
+    return (
+      <div key={a.id} className={`card space-y-2.5 p-4 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
+        <div className="flex items-center gap-3">
+          <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="lg" />
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+            <Link href={`/admin/workers/${a.user_id}`} className="text-[17px] font-bold">
+              {a.user.name}
+            </Link>
+            {age != null && <span className="text-sm text-mute">만 {age}세</span>}
+            {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
+            {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
+            <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+          </div>
+        </div>
+        <p className="text-xs text-mute">
+          {jobsWorked[a.user_id]?.size ? `행사 ${jobsWorked[a.user_id].size}회 근무` : '첫 근무'} · 지원 {kstDateTime(a.created_at)}
+        </p>
+        <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
+          <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
+          {a.message && <p className="text-ink">“{a.message}”</p>}
+        </div>
+        <ContactButtons phone={a.user.phone} name={a.user.name} />
+        <Decide a={a} wide />
+      </div>
+    )
+  }
+  const groups: [string, AppRow[], boolean][] = [
+    ['대기', apps.filter((a) => a.status === 'applied'), true],
+    ['확정', approved, waiting === 0],
+    ['미선발·취소', apps.filter((a) => a.status === 'rejected' || a.status === 'cancelled'), false],
+  ]
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -95,35 +130,22 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
       ) : (
         <>
           {/* 휴대폰: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) */}
-          <div className="stagger space-y-2 sm:hidden">
-            {sorted.map((a) => {
-              const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
-              return (
-                <div key={a.id} className={`card space-y-2.5 p-4 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
-                  <div className="flex items-center gap-3">
-                    <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="lg" />
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
-                      <Link href={`/admin/workers/${a.user_id}`} className="text-[17px] font-bold">
-                        {a.user.name}
-                      </Link>
-                      {age != null && <span className="text-sm text-mute">만 {age}세</span>}
-                      {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
-                      {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
-                      <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-mute">
-                    {jobsWorked[a.user_id]?.size ? `행사 ${jobsWorked[a.user_id].size}회 근무` : '첫 근무'} · 지원 {kstDateTime(a.created_at)}
-                  </p>
-                  <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
-                    <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
-                    {a.message && <p className="text-ink">“{a.message}”</p>}
-                  </div>
-                  <ContactButtons phone={a.user.phone} name={a.user.name} />
-                  <Decide a={a} wide />
+          <div className="space-y-2 sm:hidden">
+            {groups.map(([label, list, open]) =>
+              list.length === 0 ? null : open ? (
+                <div key={label} className="stagger space-y-2">
+                  {label !== '대기' && <h3 className="pt-2 text-sm font-bold text-sub">{label} {list.length}명</h3>}
+                  {list.map(mobileCard)}
                 </div>
-              )
-            })}
+              ) : (
+                <details key={label} className="pt-2">
+                  <summary className="cursor-pointer py-1 text-sm font-bold text-sub">
+                    {label} {list.length}명
+                  </summary>
+                  <div className="mt-2 space-y-2">{list.map(mobileCard)}</div>
+                </details>
+              ),
+            )}
           </div>
 
           <div className="card hidden overflow-x-auto p-0 sm:block">

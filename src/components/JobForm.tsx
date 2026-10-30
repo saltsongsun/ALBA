@@ -4,10 +4,11 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
-import { minutesText } from '@/lib/time'
+import { fmtDate, minutesText } from '@/lib/time'
 import { JOB_FIELDS } from '@/lib/jobFields'
 import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
+import Fold from './Fold'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 type Tpl = { id: string; title: string; kind: string; is_default: boolean }
@@ -67,11 +68,16 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
   }
 
   return (
-    <section className="card space-y-4">
-      <div>
-        <h2 className="font-bold">공고에 보일 내용</h2>
-        <p className="hint">기본 항목은 켜고 끌 수 있고, 필요한 조건은 아래에 더하세요. 공고 화면과 단톡방 모집 문구에 그대로 나옵니다.</p>
-      </div>
+    <Fold
+      title="공고에 보일 내용"
+      summary={[
+        shown.size === JOB_FIELDS.length ? '기본 항목 모두 보임' : `기본 항목 ${JOB_FIELDS.length - shown.size}개 숨김`,
+        saved.length ? `추가 조건 ${saved.map((c) => c.label).join(', ')}` : '',
+      ]
+        .filter(Boolean)
+        .join(' · ')}
+    >
+      <p className="hint">기본 항목은 켜고 끌 수 있고, 필요한 조건은 아래에 더하세요. 공고 화면과 단톡방 모집 문구에 그대로 나옵니다.</p>
 
       <ul className="divide-y divide-line rounded-xl ring-1 ring-line">
         {JOB_FIELDS.map((f) => {
@@ -153,7 +159,7 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
         </button>
       </div>
       <input type="hidden" name="conditions" value={JSON.stringify(saved)} />
-    </section>
+    </Fold>
   )
 }
 
@@ -223,6 +229,29 @@ export default function JobForm({
   const [mapSrc, setMapSrc] = useState<string | null>(null)
   const latRef = useRef<HTMLInputElement>(null)
   const lngRef = useRef<HTMLInputElement>(null)
+  // 접힌 칸 제목 옆 요약을 지금 입력값으로 (처음 그릴 때는 자리만 잡아 둠)
+  const [fd, setFd] = useState<FormData | null>(null)
+  const isNew = !job
+
+  useEffect(() => {
+    setFd(new FormData(formRef.current!))
+    // 공고 화면의 '근로계약서 지정하기'처럼 #칸이름으로 들어오면 그 칸을 펼침
+    const openHash = () => {
+      const el = location.hash && document.getElementById(decodeURIComponent(location.hash.slice(1)))
+      if (el instanceof HTMLDetailsElement) {
+        el.open = true
+        el.scrollIntoView()
+      }
+    }
+    openHash()
+    window.addEventListener('hashchange', openHash)
+    return () => window.removeEventListener('hashchange', openHash)
+  }, [])
+
+  const v = (k: string) => String(fd?.get(k) ?? '').trim()
+  const brief = (text: string) => (fd ? text : '\u00a0')
+  const docTitles = templates.filter((t) => fd?.getAll('required_docs').includes(t.id)).map((t) => t.title)
+  const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료' }
 
   const pasteCoords = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const m = e.clipboardData.getData('text').match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/)
@@ -234,9 +263,19 @@ export default function JobForm({
   }
 
   return (
-    <form ref={formRef} action={action} onReset={keepInputs} onChange={() => setEst(preview(formRef.current))} className="space-y-5">
-      <section className="card space-y-4">
-        <h2 className="font-bold">기본 정보</h2>
+    <form
+      ref={formRef}
+      action={action}
+      onReset={keepInputs}
+      onChange={() => {
+        setEst(preview(formRef.current))
+        setFd(new FormData(formRef.current!))
+      }}
+      // 접힌 칸에 빠진 필수 입력이 있으면 그 칸을 펼쳐서 바로 보이게
+      onInvalidCapture={(e) => (e.target as HTMLElement).closest('details')?.setAttribute('open', '')}
+      className="space-y-3"
+    >
+      <Fold title="기본 정보" open summary={brief(v('title') || '제목을 적어 주세요')}>
         <Field label="공고 제목 *">
           <input name="title" className="input" defaultValue={job?.title} placeholder="예) 진주남강유등축제 안내·질서 스태프" required />
         </Field>
@@ -251,10 +290,17 @@ export default function JobForm({
         <Field label="상세 설명">
           <textarea name="description" rows={4} className="input" defaultValue={job?.description ?? ''} placeholder="근무자에게 알릴 내용 (식사 제공, 우천 시 안내 등)" />
         </Field>
-      </section>
+      </Fold>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold">일정 · 인원</h2>
+      <Fold
+        title="일정 · 인원"
+        open={isNew}
+        summary={brief(
+          v('start_date')
+            ? `${fmtDate(v('start_date'))}${v('end_date') && v('end_date') !== v('start_date') ? ` ~ ${fmtDate(v('end_date'))}` : ''} ${v('start_time')}~${v('end_time')} · ${v('headcount')}명`
+            : '날짜를 정해 주세요',
+        )}
+      >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
           <Field label="시작일 *">
             <input type="date" name="start_date" className="input" defaultValue={job?.start_date} required />
@@ -272,10 +318,15 @@ export default function JobForm({
             <input type="number" name="headcount" min={1} className="input" defaultValue={job?.headcount ?? 10} required />
           </Field>
         </div>
-      </section>
+      </Fold>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold">장소 · 출퇴근 위치 확인</h2>
+      <Fold
+        title="장소 · 출퇴근 위치 확인"
+        open={isNew}
+        summary={brief(
+          [v('location_name') || v('address') || '장소 미입력', fd?.get('gps_required') ? '현장에서만 근무 시작' : '위치만 기록'].join(' · '),
+        )}
+      >
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="장소명">
             <input name="location_name" className="input" defaultValue={job?.location_name ?? ''} placeholder="진주성 일원" />
@@ -347,10 +398,15 @@ export default function JobForm({
           defaultChecked={job?.gps_required}
           hint="근무 시작 버튼을 누를 때 휴대폰 위치가 허용 반경 안이어야 합니다. 꺼 두면 위치만 기록합니다."
         />
-      </section>
+      </Fold>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold">급여</h2>
+      <Fold
+        title="급여"
+        open={isNew}
+        summary={brief(
+          `${payType === 'daily' ? `일급 ${won(Number(v('daily_wage')))}` : `시급 ${won(Number(v('hourly_wage')))}`}${est ? ` · 하루 약 ${won(est.gross)}` : ''}`,
+        )}
+      >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Field label="급여 형태">
             <select name="pay_type" className="input" value={payType} onChange={(e) => setPayType(e.target.value as Job['pay_type'])}>
@@ -426,10 +482,14 @@ export default function JobForm({
             {est.nightPay ? `, 야간 ${won(est.nightPay)}` : ''}) · 세전
           </div>
         )}
-      </section>
+      </Fold>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold">세금 · 보험 공제</h2>
+      <Fold
+        title="세금 · 보험 공제"
+        summary={brief(
+          `${{ daily: '일용근로소득', business: '사업소득 3.3%', none: '공제 없음' }[taxType]}${taxType === 'daily' && fd?.get('employment_insurance') ? ' · 고용보험 0.9%' : ''}`,
+        )}
+      >
         <div className="grid gap-2 sm:grid-cols-3">
           {(
             [
@@ -458,10 +518,16 @@ export default function JobForm({
             근로계약서를 쓰고 출퇴근·업무 지시를 받는 근무자는 일반적으로 근로자로 봅니다. 3.3% 사업소득 처리는 실제 용역 계약일 때만 쓰세요.
           </p>
         )}
-      </section>
+      </Fold>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold">근무 안내</h2>
+      <Fold
+        title="근무 안내"
+        summary={brief(
+          [v('dress_code') && `복장 ${v('dress_code')}`, v('supplies') && `준비물 ${v('supplies')}`, v('manager_name') && `담당 ${v('manager_name')}`]
+            .filter(Boolean)
+            .join(' · ') || '복장·준비물·현장 담당자',
+        )}
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="복장">
             <input name="dress_code" className="input" defaultValue={job?.dress_code ?? ''} placeholder="검정 바지, 운동화 (상의 스태프 티 지급)" />
@@ -476,12 +542,16 @@ export default function JobForm({
             <input name="manager_phone" className="input" inputMode="tel" defaultValue={job?.manager_phone ?? ''} />
           </Field>
         </div>
-      </section>
+      </Fold>
 
       <PostingEditor initial={job?.conditions ?? []} hidden={job?.hidden_fields ?? []} />
 
-      <section id="docs" className="card scroll-mt-32 space-y-3">
-        <h2 className="font-bold">확정 후 서명받을 서류</h2>
+      <Fold
+        id="docs"
+        title="확정 후 서명받을 서류"
+        className="space-y-3"
+        summary={brief(docTitles.length ? docTitles.join(', ') : '⚠️ 없음 (근로계약서는 꼭 받아야 해요)')}
+      >
         {templates.length === 0 && <p className="text-sm text-mute">등록된 서식이 없습니다. 서류 서식 메뉴에서 기본 서식을 불러오세요.</p>}
         {templates.map((t) => (
           <Check
@@ -493,10 +563,9 @@ export default function JobForm({
           />
         ))}
         <p className="hint">체크한 서류에 서명해야 근무 시작 버튼이 열립니다. 근로계약서는 근로기준법 제17조에 따라 꼭 서면(전자문서)으로 주어야 합니다.</p>
-      </section>
+      </Fold>
 
-      <section className="card space-y-4">
-        <h2 className="font-bold">공개 설정</h2>
+      <Fold title="공개 설정" summary={brief(`${STATUS_TEXT[v('status')] ?? ''}${fd?.get('auto_approve') ? ' · 지원하면 바로 확정' : ' · 관리자가 확정'}`)}>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="상태">
             <select name="status" className="input" defaultValue={job?.status ?? 'open'}>
@@ -508,9 +577,9 @@ export default function JobForm({
           </Field>
         </div>
         <Check name="auto_approve" label="지원하면 바로 확정 (모집 인원까지)" defaultChecked={job?.auto_approve} hint="끄면 관리자가 지원자를 보고 확정합니다." />
-      </section>
+      </Fold>
 
-      <div className="sticky bottom-3 z-10">
+      <div className="sticky bottom-3 z-10 pt-2">
         <FormMessage state={state} />
         <SubmitButton className="btn-primary mt-2 w-full py-3.5 text-base shadow-lg" pendingText="저장 중…">
           {job ? '공고 저장' : '공고 등록'}

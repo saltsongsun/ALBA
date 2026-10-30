@@ -178,7 +178,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
               <CopyButton text={text} label="문구 복사" className="btn-primary btn-sm" />
             </div>
           </div>
-          <textarea readOnly value={text} rows={9} className="input resize-none bg-bg text-[13px] leading-relaxed" />
+          {/* 문구는 복사 버튼으로 바로 쓰고, 내용은 필요할 때만 펼쳐 봄 */}
+          <details className="text-sm">
+            <summary className="cursor-pointer py-1 font-semibold text-sub">문구 미리보기</summary>
+            <textarea readOnly value={text} rows={9} className="input mt-2 resize-none bg-bg text-[13px] leading-relaxed" />
+          </details>
         </div>
       </div>
 

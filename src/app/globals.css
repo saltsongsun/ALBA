@@ -296,6 +296,10 @@
   @apply chip bg-brand-600 text-white ring-0 hover:bg-brand-700;
 }
 /* 누르면 이동하는 카드: 마우스를 올리면 살짝 뜨고, 누르면 눌림 */
+/* 접었다 펴는 카드 (components/Fold.tsx): card와 같은 모양, 안쪽 여백은 제목 줄·내용이 따로 가짐 */
+@utility fold-card {
+  @apply rounded-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)];
+}
 @utility card-link {
   @apply card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] active:translate-y-0 active:scale-[0.985];
 }

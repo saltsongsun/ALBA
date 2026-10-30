@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { deleteRating } from '@/app/actions/admin'
 import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
 import { ContactButtons } from '@/components/Contact'
+import Fold, { ShowMore } from '@/components/Fold'
 import PhotoUpload from '@/components/PhotoUpload'
 import { StarAvg, StarRow } from '@/components/Stars'
 import { ConfirmSubmit } from '@/components/ui'
@@ -114,26 +115,31 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             <ResetPin userId={u.id} />
           </div>
         </section>
-        <section className="card">
-          <h2 className="mb-3 font-bold">정보 수정</h2>
-          <WorkerEditForm
-            userId={u.id}
-            initial={{ name: u.name, phone: u.phone, role: u.role, active: u.active, admin_memo: u.admin_memo ?? '' }}
-          />
-        </section>
+        <div className="self-start">
+          <Fold
+            title="정보 수정"
+            summary={[u.role === 'admin' ? '관리자' : '근무자', u.active ? '사용 중' : '정지', u.admin_memo && `메모: ${u.admin_memo}`].filter(Boolean).join(' · ')}
+          >
+            <WorkerEditForm
+              userId={u.id}
+              initial={{ name: u.name, phone: u.phone, role: u.role, active: u.active, admin_memo: u.admin_memo ?? '' }}
+            />
+          </Fold>
+        </div>
       </div>
 
-      <section className="card space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-bold">
-            관리자 평가 <span className="text-xs font-medium text-mute">근무자에게는 보이지 않아요</span>
-          </h2>
-          <StarAvg scores={ratings.map((r) => r.score)} />
-        </div>
+      <Fold
+        title="관리자 평가"
+        badge={<StarAvg scores={ratings.map((r) => r.score)} />}
+        summary={ratings.length ? `${ratings.length}건 · 최근: ${ratings[0].comment || `${ratings[0].score}점`}` : '아직 평가가 없어요 · 근무자에게는 보이지 않아요'}
+      >
+        <p className="text-xs text-mute">근무자에게는 보이지 않아요.</p>
         {ratings.length > 0 && (
-          <ul className="stagger divide-y divide-line">
-            {ratings.map((r) => (
-              <li key={r.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
+          <ShowMore
+            limit={3}
+            className="divide-y divide-line"
+            items={ratings.map((r) => (
+              <div key={r.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
                 <div className="min-w-0">
                   <p>
                     <StarRow score={r.score} /> <span className="ml-1 font-semibold">{r.job?.title ?? '일반 메모'}</span>
@@ -150,20 +156,23 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                     </ConfirmSubmit>
                   </form>
                 )}
-              </li>
+              </div>
             ))}
-          </ul>
+          />
         )}
         <RatingForm userId={u.id} jobs={[...jobs.values()].filter(Boolean).map((j) => ({ id: j.id, title: j.title }))} />
         <p className="hint">개인정보 열람 요청이 오면 보여 줘야 할 수 있으니 사실 위주로 적어 주세요.</p>
-      </section>
+      </Fold>
 
-      <section>
-        <h2 className="section-title">근무 이력</h2>
+      <Fold
+        title="근무 이력"
+        open={perJob.length > 0 && perJob.length <= 5}
+        summary={perJob.length ? `행사 ${perJob.length}개 · ${perJob.reduce((n, p) => n + p.s.days, 0)}일 · 실지급 ${won(perJob.reduce((n, p) => n + p.s.net, 0))}` : '근무 기록이 없습니다'}
+      >
         {perJob.length === 0 ? (
-          <div className="card text-center text-mute">근무 기록이 없습니다.</div>
+          <p className="text-center text-sm text-mute">근무 기록이 없습니다.</p>
         ) : (
-          <div className="card overflow-x-auto p-0">
+          <div className="-mx-5 overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
@@ -198,37 +207,39 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             </table>
           </div>
         )}
-      </section>
+      </Fold>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section>
-          <h2 className="section-title">지원 내역</h2>
-          <div className="card divide-y divide-line py-1">
-            {apps.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
-            {apps.map((a) => (
-              <Link key={a.id} href={`/admin/jobs/${a.job_id}?tab=apps`} className="flex justify-between py-2.5 text-sm">
-                <span>{a.job?.title}</span>
-                <span className="text-mute">{a.status === 'approved' ? '확정' : a.status === 'applied' ? '대기' : a.status === 'rejected' ? '미선발' : '취소'}</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-        <section>
-          <h2 className="section-title">서류</h2>
-          <div className="card divide-y divide-line py-1">
-            {docs.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
-            {docs.map((d) => (
-              <Link key={d.id} href={`/docs/${d.id}`} className="flex justify-between py-2.5 text-sm">
-                <span>
-                  {d.title} <span className="text-mute">{jobs.get(d.job_id)?.title}</span>
-                </span>
-                <span className={d.status === 'signed' ? 'text-emerald-600' : d.status === 'void' ? 'text-mute line-through' : 'text-amber-600'}>
-                  {d.status === 'signed' ? `서명 ${fmtDate(kstDate(d.signed_at!))}` : d.status === 'void' ? '무효' : '대기'}
-                </span>
-              </Link>
-            ))}
-          </div>
-        </section>
+      <div className="grid items-start gap-3 lg:grid-cols-2">
+        <Fold
+          title="지원 내역"
+          className="divide-y divide-line"
+          summary={apps.length ? `${apps.length}건 · 확정 ${apps.filter((a) => a.status === 'approved').length}건` : '없음'}
+        >
+          {apps.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
+          {apps.map((a) => (
+            <Link key={a.id} href={`/admin/jobs/${a.job_id}?tab=apps`} className="flex justify-between py-2.5 text-sm">
+              <span>{a.job?.title}</span>
+              <span className="text-mute">{a.status === 'approved' ? '확정' : a.status === 'applied' ? '대기' : a.status === 'rejected' ? '미선발' : '취소'}</span>
+            </Link>
+          ))}
+        </Fold>
+        <Fold
+          title="서류"
+          className="divide-y divide-line"
+          summary={docs.length ? `서명 ${docs.filter((d) => d.status === 'signed').length}건 · 대기 ${docs.filter((d) => d.status === 'pending').length}건` : '없음'}
+        >
+          {docs.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
+          {docs.map((d) => (
+            <Link key={d.id} href={`/docs/${d.id}`} className="flex justify-between py-2.5 text-sm">
+              <span>
+                {d.title} <span className="text-mute">{jobs.get(d.job_id)?.title}</span>
+              </span>
+              <span className={d.status === 'signed' ? 'text-emerald-600' : d.status === 'void' ? 'text-mute line-through' : 'text-amber-600'}>
+                {d.status === 'signed' ? `서명 ${fmtDate(kstDate(d.signed_at!))}` : d.status === 'void' ? '무효' : '대기'}
+              </span>
+            </Link>
+          ))}
+        </Fold>
       </div>
     </div>
   )

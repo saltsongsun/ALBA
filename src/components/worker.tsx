@@ -11,6 +11,7 @@ import {
   type ClockResult,
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
+import Fold from './Fold'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
 type GeoProblem = 'denied' | 'failed'
@@ -352,31 +353,33 @@ export function ProfileForm({
 export function PinForm() {
   const [state, action] = useActionState(changePin, null)
   return (
-    <form action={action} onReset={keepInputs} className="card space-y-3">
-      <h2 className="font-bold">비밀번호 변경</h2>
-      <input name="current" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="현재 비밀번호" required />
-      <div className="grid grid-cols-2 gap-3">
-        <input name="pin" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="새 비밀번호 6자리" required />
-        <input name="pin2" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="새 비밀번호 확인" required />
-      </div>
-      <FormMessage state={state} />
-      <SubmitButton className="btn-soft">변경</SubmitButton>
-    </form>
+    <Fold title="비밀번호 변경" summary="숫자 6자리 비밀번호 바꾸기">
+      <form action={action} onReset={keepInputs} className="space-y-3">
+        <input name="current" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="현재 비밀번호" required />
+        <div className="grid grid-cols-2 gap-3">
+          <input name="pin" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="새 비밀번호 6자리" required />
+          <input name="pin2" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="새 비밀번호 확인" required />
+        </div>
+        <FormMessage state={state} />
+        <SubmitButton className="btn-soft">변경</SubmitButton>
+      </form>
+    </Fold>
   )
 }
 
 export function WithdrawForm() {
   const [state, action] = useActionState(withdraw, null)
   return (
-    <form action={action} onReset={keepInputs} className="card space-y-3">
-      <h2 className="font-bold">회원 탈퇴</h2>
-      <p className="text-sm text-sub">
-        근무 기록이 없으면 정보가 즉시 삭제됩니다. 근무 기록이 있으면 근로기준법에 따라 근로계약서·임금 기록을 3년간 보관한 뒤 파기하며,
-        계정은 바로 사용할 수 없게 됩니다.
-      </p>
-      <input name="pin" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="비밀번호 확인" required />
-      <FormMessage state={state} />
-      <SubmitButton className="btn-danger">탈퇴하기</SubmitButton>
-    </form>
+    <Fold title="회원 탈퇴" summary="계정 삭제 · 근무 기록은 법에 따라 3년 보관">
+      <form action={action} onReset={keepInputs} className="space-y-3">
+        <p className="text-sm text-sub">
+          근무 기록이 없으면 정보가 즉시 삭제됩니다. 근무 기록이 있으면 근로기준법에 따라 근로계약서·임금 기록을 3년간 보관한 뒤 파기하며,
+          계정은 바로 사용할 수 없게 됩니다.
+        </p>
+        <input name="pin" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="비밀번호 확인" required />
+        <FormMessage state={state} />
+        <SubmitButton className="btn-danger">탈퇴하기</SubmitButton>
+      </form>
+    </Fold>
   )
 }
