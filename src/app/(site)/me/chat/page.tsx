@@ -13,6 +13,10 @@ import { isUuid } from '@/lib/validate'
 
 export const metadata: Metadata = { title: '문의' }
 
+// 휴대폰으로 자주 보내는 문의 (누르면 입력칸에 채워짐, 고쳐서 보낼 수 있음)
+const QUICK_DAY = ['조금 늦을 것 같아요. 죄송합니다.', '집결 장소가 어디인가요?', '근무 시작 버튼이 안 눌려요.', '급여 지급일이 언제인가요?']
+const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부만 가능해요.', '식사가 제공되나요?', '주차할 수 있나요?']
+
 export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const sp = await props.searchParams
   const user = await requireUser('/me/chat')
@@ -60,6 +64,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, job?.id ?? null)}
           placeholder="담당자에게 보낼 내용"
+          quickReplies={job ? QUICK_JOB : QUICK_DAY}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">

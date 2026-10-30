@@ -183,6 +183,7 @@ const server = http.createServer(async (req, res) => {
       if (table === 'users') row = { role: 'worker', active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
       const key = table === 'user_photos' ? 'user_id' : 'id'
       if (key === 'id') row.id ??= crypto.randomUUID()
+      row.created_at ??= new Date().toISOString() // 실제 DB 기본값처럼
       const found = row[key] != null && list.find((r) => r[key] === row[key])
       if (found) Object.assign(found, row)
       else list.push(row)
