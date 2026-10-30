@@ -57,10 +57,10 @@ const tables = {
   }],
   jobs: [job],
   applications: [{
-    id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null,
+    id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null, position: 'A게이트',
     message: '행사 스태프 경험 3회, 주말 모두 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-01T00:00:00Z', job: jobLite, user: workerLite,
   }, {
-    id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today],
+    id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today], position: null,
     message: '행사장 안내 경험 있어요. 당일 아침 일찍 도착 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-02T00:00:00Z', job: jobLite,
     user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888', photo_at: FACE_AT },
   }],

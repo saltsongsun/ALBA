@@ -189,6 +189,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   : '이번에는 함께하지 못하게 됐어요.'}
             </p>
             {app.available_dates && <p className="text-sm text-sub">가능한 날: {app.available_dates.map(fmtDate).join(', ')}</p>}
+            {app.status === 'approved' && (
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                {app.position && <span className="rounded-lg bg-brand-50 px-2.5 py-1 font-bold text-brand-700">📍 내 배치 · {app.position}</span>}
+                {!ended && (
+                  <a href={`/me/calendar/${app.id}`} className="chip h-8 px-3 text-xs">
+                    📅 달력에 넣기
+                  </a>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <Link href="/me" className="btn-primary flex-1">
                 {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}

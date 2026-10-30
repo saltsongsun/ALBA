@@ -1,10 +1,10 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
-import { getJob } from '@/lib/data'
+import { audit, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { requireAdmin, requireUser } from '@/lib/session'
-import { isUuid, str } from '@/lib/validate'
+import { isDate, isUuid, str } from '@/lib/validate'
 import type { FormState } from './auth'
 
 const MAX_BODY = 2000
@@ -41,4 +41,39 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/admin/chat')
   return { ok: '보냈어요' }
+}
+
+/**
+ * 공고 확정자에게 한 번에 공지 (각자의 문의함에 담당자 메시지로 들어감 → 근무자 앱 '문의' 탭에 표시)
+ * target: all | date:YYYY-MM-DD (그날 근무자) | pos:배치이름
+ */
+export async function announceToJob(jobId: string, _: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  if (!isUuid(jobId)) return { error: '잘못된 요청입니다.' }
+  const body = str(form, 'body', MAX_BODY)
+  if (!body) return { error: '공지 내용을 입력해 주세요.' }
+  const target = str(form, 'target', 60) || 'all'
+  const apps = must(
+    await db().from('applications').select('user_id, available_dates, position').eq('job_id', jobId).eq('status', 'approved'),
+  ) as { user_id: string; available_dates: string[] | null; position: string | null }[]
+  const day = target.startsWith('date:') ? target.slice(5) : null
+  const pos = target.startsWith('pos:') ? target.slice(4) : null
+  if (day && !isDate(day)) return { error: '잘못된 요청입니다.' }
+  const to = [
+    ...new Set(
+      apps
+        .filter((a) => (day ? !a.available_dates || a.available_dates.includes(day) : true))
+        .filter((a) => (pos ? (a.position ?? '') === pos : true))
+        .map((a) => a.user_id),
+    ),
+  ]
+  if (!to.length) return { error: '보낼 확정자가 없어요.' }
+  must(
+    await db()
+      .from('messages')
+      .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: jobId, body: `📢 공지\n${body}` }))),
+  )
+  await audit(admin.id, 'job.announce', null, `${jobId} ${target} ${to.length}명`)
+  revalidatePath('/admin/chat')
+  return { ok: `${to.length}명에게 앱으로 보냈어요` }
 }

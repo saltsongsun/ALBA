@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, rateQuick, saveAttendance } from '@/app/actions/admin'
-import { QuickRate } from '@/components/admin'
+import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
@@ -21,6 +21,7 @@ export default function AttTab({
   date,
   dates,
   myScores,
+  pos,
 }: {
   job: Job
   apps: AppRow[]
@@ -29,6 +30,8 @@ export default function AttTab({
   date: string
   dates: string[]
   myScores: Record<string, number>
+  /** 배치로 거르기 ('-'는 미배치, null이면 전체) */
+  pos: string | null
 }) {
   const dayAtts = atts.filter((a) => a.work_date === date)
   const byUser = new Map(dayAtts.map((a) => [a.user_id, a]))
@@ -41,6 +44,13 @@ export default function AttTab({
   const today = kstDate()
   const working = dayAtts.filter((a) => !a.clock_out).length
   const done = dayAtts.filter((a) => a.clock_out).length
+  // 배치: 같은 배치끼리 모아 보여 주고, 배치별로 거를 수 있게 (미배치는 맨 뒤)
+  const appOf = new Map(apps.map((a) => [a.user_id, a]))
+  const posOf = (uid: string) => appOf.get(uid)?.position ?? ''
+  const positions = [...new Set(apps.map((a) => a.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, 'ko'))
+  const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
+  const shown = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
+  const posHref = (p: string | null) => `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}`
 
   return (
     <div className="space-y-4">
@@ -122,9 +132,38 @@ export default function AttTab({
         </div>
       )}
 
+      {/* 배치별 보기 (배치를 하나라도 정했을 때만) */}
+      {positions.length > 0 && roster.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {(
+            [
+              [null, '전체', roster.length],
+              ...positions.map((p) => [p, p, roster.filter((u) => posOf(u) === p).length] as const),
+              ['-', '미배치', roster.filter((u) => !posOf(u)).length],
+            ] as const
+          ).map(([value, label, n]) => (
+            <Link
+              key={label}
+              href={posHref(value)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${
+                pos === value ? 'bg-brand-600 text-white' : 'bg-white text-sub ring-1 ring-line'
+              }`}
+            >
+              {label} {n}
+            </Link>
+          ))}
+        </div>
+      )}
+      <datalist id={`pos-${job.id}`}>
+        {positions.map((p) => (
+          <option key={p} value={p} />
+        ))}
+      </datalist>
+
       <div className="stagger space-y-2">
         {roster.length === 0 && <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>}
-        {roster.map((uid) => {
+        {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">이 배치에 해당하는 사람이 없습니다.</div>}
+        {shown.map((uid) => {
           const u = users.get(uid)
           const a = byUser.get(uid)
           const pay = a ? calcDay(job, a) : null
@@ -147,10 +186,13 @@ export default function AttTab({
                     <span className={`relative inline-flex size-3.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`} />
                   </span>
                 </span>
-                <Link href={`/admin/workers/${uid}`} className="min-w-0 truncate text-[17px] font-bold">
-                  {u?.name ?? '알 수 없음'}
-                </Link>
-                <span className={`badge ml-auto shrink-0 ${status.cls}`}>{status.label}</span>
+                <div className="min-w-0 flex-1">
+                  <Link href={`/admin/workers/${uid}`} className="block truncate text-[17px] font-bold">
+                    {u?.name ?? '알 수 없음'}
+                  </Link>
+                  {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
+                </div>
+                <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
               </div>
 
               {a && (

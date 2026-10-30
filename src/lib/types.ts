@@ -91,6 +91,8 @@ export type Application = {
   available_dates: string[] | null
   message: string | null
   admin_memo: string | null
+  /** 현장 배치 (예: A게이트). 비어 있으면 미배치 */
+  position: string | null
   decided_at: string | null
   created_at: string
 }

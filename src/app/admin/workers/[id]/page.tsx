@@ -12,6 +12,7 @@ import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
+import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } from '@/lib/types'
@@ -23,7 +24,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const admin = await requireAdmin()
   const { id } = await props.params
   if (!isUuid(id)) notFound()
-  const [{ data }, apps, atts, docs, ratings] = await Promise.all([
+  const [{ data }, apps, atts, docs, ratings, relMap] = await Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
     db()
       .from('applications')
@@ -50,9 +51,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             rater: { name: string } | null
           })[],
       ),
+    reliabilityFor([id]),
   ])
   const u = data as UserRow | null
   if (!u) notFound()
+  const rel = relMap[id]
   const account = decrypt(u.bank_account_enc)
   const age = u.birth_date ? ageOn(u.birth_date, kstDate()) : null
   const jobs = new Map(apps.map((a) => [a.job_id, a.job]))
@@ -82,6 +85,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자 (친권자 동의 필요)</span>}
               {!u.active && <span className="badge bg-gray-100 text-mute">정지</span>}
             </div>
+            {/* 지난 근무 성실도 (출퇴근 기록 기준) */}
+            <p className="mt-1 text-sm text-sub">
+              근무 {rel.days}일 · 지각 {rel.late}회 ·{' '}
+              <span className={rel.noShow ? 'font-bold text-rose-600' : ''}>노쇼 {rel.noShow}회</span>
+            </p>
           </PhotoUpload>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>

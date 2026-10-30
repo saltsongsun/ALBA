@@ -162,6 +162,11 @@ export default async function MePage(props: PageProps<'/me'>) {
                       {job.location_name && ` · ${job.location_name}`}
                     </p>
                     {job.meeting_point && <p className="text-sm text-sub">집결: {job.meeting_point}</p>}
+                    {a.position && (
+                      <p className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-sm font-bold text-brand-700">
+                        📍 내 배치 · {a.position}
+                      </p>
+                    )}
                     {(job.manager_phone || map) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                         {job.manager_phone && (
@@ -213,15 +218,22 @@ export default async function MePage(props: PageProps<'/me'>) {
           <h2 className="section-title">예정된 근무</h2>
           <div className="stagger space-y-2">
             {upcoming.map((a) => (
-              <Link key={a.id} href={`/jobs/${a.job_id}`} className="card-link flex items-center justify-between py-4">
-                <div>
+              <div key={a.id} className="card flex items-center gap-3 py-4">
+                <Link href={`/jobs/${a.job_id}`} className="min-w-0 flex-1">
                   <p className="font-bold">{a.job.title}</p>
                   <p className="text-sm text-sub">
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
+                  {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700">📍 배치 · {a.position}</p>}
+                </Link>
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <span className={`badge ${APP_STATUS.approved.cls}`}>확정</span>
+                  {/* 휴대폰 달력에 넣기 (.ics) */}
+                  <a href={`/me/calendar/${a.id}`} className="chip h-8 px-3 text-xs">
+                    📅 달력에 넣기
+                  </a>
                 </div>
-                <span className={`badge ${APP_STATUS.approved.cls}`}>확정</span>
-              </Link>
+              </div>
             ))}
           </div>
         </section>

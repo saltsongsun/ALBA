@@ -1,7 +1,7 @@
 'use client'
 
-import { useActionState, useMemo, useOptimistic, useState } from 'react'
-import { rateWorker, resetPin, revealRrn, saveSettings, saveTemplate, updateWorker } from '@/app/actions/admin'
+import { useActionState, useMemo, useOptimistic, useRef, useState } from 'react'
+import { rateWorker, resetPin, revealRrn, saveSettings, saveTemplate, setPosition, updateWorker } from '@/app/actions/admin'
 import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
@@ -316,6 +316,48 @@ export function RatingForm({ userId, jobs }: { userId: string; jobs: { id: strin
       <SubmitButton className="btn-primary btn-sm" pendingText="저장 중…">
         평가 저장
       </SubmitButton>
+    </form>
+  )
+}
+
+/** 현장 배치 칸: 고치고 칸을 벗어나거나 엔터를 누르면 바로 저장 (listId의 datalist로 이미 쓴 배치를 골라 넣음) */
+export function PositionInput({ appId, value, listId }: { appId: string; value: string | null; listId: string }) {
+  const [state, action, pending] = useActionState(setPosition.bind(null, appId), null)
+  const [v, setV] = useState(value ?? '')
+  const saved = useRef(value ?? '')
+  const formRef = useRef<HTMLFormElement>(null)
+  const save = () => {
+    const next = v.trim()
+    if (next === saved.current) return
+    saved.current = next
+    haptic(8)
+    formRef.current?.requestSubmit()
+  }
+  return (
+    <form ref={formRef} action={action} onReset={keepInputs} className="inline-flex items-center gap-1.5">
+      <span className="text-xs font-semibold text-mute">배치</span>
+      <input
+        name="position"
+        value={v}
+        list={listId}
+        maxLength={30}
+        placeholder="미배치"
+        aria-label="현장 배치"
+        onChange={(e) => setV(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault()
+            e.currentTarget.blur()
+          }
+        }}
+        className={`w-28 rounded-lg px-2 py-0.5 text-base font-semibold outline-none transition placeholder:font-normal placeholder:text-mute focus:bg-white focus:ring-2 focus:ring-brand-500/40 ${
+          v ? 'bg-brand-50 text-brand-700' : 'bg-bg'
+        }`}
+      />
+      <span aria-live="polite" className="w-4 text-xs">
+        {pending ? '…' : state?.ok ? <span className="text-emerald-600">✓</span> : state?.error ? <span className="text-rose-500">!</span> : null}
+      </span>
     </form>
   )
 }

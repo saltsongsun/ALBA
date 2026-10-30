@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { deleteJob, duplicateJob, setJobStatus } from '@/app/actions/admin'
+import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
@@ -9,7 +10,7 @@ import { getJob, getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
-import { dateList, fmtDateRange, kstDate } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, kstDate } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
 import AppsTab from './AppsTab'
@@ -186,6 +187,15 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         </div>
       </div>
 
+      {approved.length > 0 && job.status !== 'done' && (
+        <Announce
+          jobId={job.id}
+          jobTitle={job.title}
+          recipients={approved.map((a) => ({ phone: a.user.phone, dates: a.available_dates, position: a.position }))}
+          dates={dates.map((d) => ({ value: d, label: fmtDate(d) }))}
+        />
+      )}
+
       <div className="flex gap-1 overflow-x-auto border-b border-line text-sm font-semibold">
         {TABS.map(([k, label]) => (
           <Link
@@ -199,7 +209,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       </div>
 
       {tab === 'apps' && <AppsTab job={job} apps={apps} />}
-      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} />}
+      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
     </div>

@@ -569,3 +569,16 @@ export async function deleteRating(ratingId: string, userId: string) {
   must(await db().from('worker_ratings').delete().eq('id', ratingId).eq('rater_id', admin.id))
   revalidatePath(`/admin/workers/${userId}`)
 }
+
+/** 확정 근무자의 현장 배치 (빈칸이면 미배치) */
+export async function setPosition(appId: string, _: FormState, form: FormData): Promise<FormState> {
+  await requireAdmin()
+  if (!isUuid(appId)) return { error: '잘못된 요청입니다.' }
+  const position = str(form, 'position', 30) || null
+  const app = must(await db().from('applications').update({ position }).eq('id', appId).select('job_id').maybeSingle()) as {
+    job_id: string
+  } | null
+  if (!app) return { error: '지원 내역을 찾을 수 없습니다.' }
+  revalidatePath(`/admin/jobs/${app.job_id}`)
+  return { ok: position ? '배치했어요' : '배치를 비웠어요' }
+}

@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { addWorkerToJob, approveAllApplied, decideApplication } from '@/app/actions/admin'
+import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
@@ -7,6 +8,7 @@ import { APP_STATUS } from '@/components/JobCard'
 import { scoresByUser, StarAvg } from '@/components/Stars'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
+import { reliabilityFor, type Reliability } from '@/lib/reliability'
 import { ageOn, fmtDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
@@ -44,26 +46,28 @@ function Decide({ a, wide = false }: { a: AppRow; wide?: boolean }) {
 
 export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] }) {
   const ids = apps.map((a) => a.user_id)
-  // 다른 행사 근무 이력 (몇 개 행사에서 일했는지)
-  const [history, ratings] = ids.length
+  // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
+  const [rel, ratings] = ids.length
     ? await Promise.all([
-        db()
-          .from('attendance')
-          .select('user_id, job_id')
-          .in('user_id', ids)
-          .neq('job_id', job.id)
-          .then((r) => must(r) as { user_id: string; job_id: string }[]),
-        // 관리자 평가 평균 (근무자에게는 보이지 않음)
+        reliabilityFor(ids, job.id),
         db()
           .from('worker_ratings')
           .select('user_id, score')
           .in('user_id', ids)
           .then((r) => must(r) as { user_id: string; score: number }[]),
       ])
-    : [[], []]
+    : [{} as Record<string, Reliability>, []]
   const scores = scoresByUser(ratings)
-  const jobsWorked: Record<string, Set<string>> = {}
-  for (const h of history) (jobsWorked[h.user_id] ??= new Set()).add(h.job_id)
+  const relText = (uid: string) => {
+    const r = rel[uid]
+    if (!r || (r.days === 0 && r.noShow === 0)) return '첫 근무'
+    return (
+      <>
+        근무 {r.days}일{r.late > 0 && ` · 지각 ${r.late}`}
+        {r.noShow > 0 && <b className="text-rose-600"> · 노쇼 {r.noShow}</b>}
+      </>
+    )
+  }
   const waiting = apps.filter((a) => a.status === 'applied').length
   const approved = apps.filter((a) => a.status === 'approved')
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
@@ -87,13 +91,14 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
           </div>
         </div>
         <p className="text-xs text-mute">
-          {jobsWorked[a.user_id]?.size ? `행사 ${jobsWorked[a.user_id].size}회 근무` : '첫 근무'} · 지원 {kstDateTime(a.created_at)}
+          {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
         </p>
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
           {a.message && <p className="text-ink">“{a.message}”</p>}
         </div>
         <ContactButtons phone={a.user.phone} name={a.user.name} />
+        {a.status === 'approved' && <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />}
         <Decide a={a} wide />
       </div>
     )
@@ -106,6 +111,12 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
 
   return (
     <div className="space-y-4">
+      {/* 배치 칸에서 이미 쓴 배치를 골라 넣게 */}
+      <datalist id={`pos-${job.id}`}>
+        {[...new Set(approved.map((a) => a.position).filter(Boolean))].map((p) => (
+          <option key={p} value={p!} />
+        ))}
+      </datalist>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
           확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명
@@ -180,6 +191,11 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
                           </span>
                         )}
                         {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
+                        {a.status === 'approved' && (
+                          <div className="mt-1">
+                            <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />
+                          </div>
+                        )}
                       </td>
                       <td className="whitespace-nowrap">
                         <ContactButtons phone={a.user.phone} name={a.user.name} />
@@ -189,7 +205,7 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
                         {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
                       </td>
                       <td className="text-xs whitespace-nowrap text-sub">
-                        {jobsWorked[a.user_id]?.size ? `행사 ${jobsWorked[a.user_id].size}회` : '첫 근무'}
+                        {relText(a.user_id)}
                       </td>
                       <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
                       <td>
