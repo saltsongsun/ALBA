@@ -233,7 +233,13 @@ export async function signDocument(docId: string, _: FormState, form: FormData):
   )
   revalidatePath('/me')
   revalidatePath(`/docs/${docId}`)
-  return { ok: '서명이 완료됐어요.' }
+  // 서명할 서류가 더 있으면 (같은 공고 먼저) 바로 다음 서류로, 다 했으면 내 근무로
+  const rest = must(
+    await db().from('signed_docs').select('id, job_id').eq('user_id', user.id).eq('status', 'pending').order('created_at'),
+  ) as { id: string; job_id: string }[]
+  const next = rest.find((r) => r.job_id === d.job_id) ?? rest[0]
+  if (next) redirect(`/docs/${next.id}?m=${encodeURIComponent(`서명했어요. 남은 서류 ${rest.length}건도 이어서 서명해 주세요.`)}`)
+  redirect(`/me?m=${encodeURIComponent('서류 서명을 모두 마쳤어요.')}`)
 }
 
 // ───────────── 내 정보 ─────────────

@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import DocSheet from '@/components/DocSheet'
+import Flash from '@/components/Flash'
 import { PrintButton } from '@/components/ui'
 import { SignForm } from '@/components/worker'
 import { getJob, getSettings } from '@/lib/data'
@@ -16,6 +17,7 @@ export const metadata: Metadata = { title: '서류' }
 
 export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   const { id } = await props.params
+  const sp = await props.searchParams
   // 로그인 확인과 서류 조회를 함께 하고, 본인·관리자 여부는 아래에서 확인
   const [user, doc] = await Promise.all([
     requireUser(`/docs/${id}`),
@@ -53,6 +55,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   const mine = doc.user_id === user.id
   return (
     <div className="space-y-4">
+      <Flash m={sp.m} />
       <div className="no-print flex items-center justify-between">
         <Link href={mine ? '/me' : `/admin/jobs/${doc.job_id}?tab=docs`} className="text-sm font-semibold text-sub">
           ← 돌아가기
