@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation'
 import { blindIndex, encrypt, hashPin, verifyPin } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
+import { photoBase64 } from '@/lib/photo'
 import { createSession, destroySession } from '@/lib/session'
 import { ageOn } from '@/lib/time'
 import { isPin, normalizePhone, optStr, parseRrn, safePath, str } from '@/lib/validate'
@@ -23,6 +24,11 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   const pin = str(form, 'pin')
 
   if (name.length < 2) return { error: '이름을 정확히 입력해 주세요.' }
+  // 현장에서 담당자가 알아볼 수 있게 얼굴 사진 필수
+  const photo = photoBase64(form.get('photo'))
+  if (!photo) {
+    return { error: form.get('photo') ? '사진을 올리지 못했어요. 다른 사진으로 다시 골라 주세요.' : '얼굴 사진을 찍거나 골라 주세요.' }
+  }
   if (!rrn) return { error: '주민등록번호 13자리를 정확히 입력해 주세요.' }
   if (!phone) return { error: '휴대폰 번호를 정확히 입력해 주세요. (예: 010-1234-5678)' }
   if (!isPin(pin)) return { error: '비밀번호는 숫자 6자리로 정해 주세요.' }
@@ -62,10 +68,16 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
       bank_account_enc: account ? encrypt(account) : null,
       account_holder: account ? optStr(form, 'account_holder', 30) || name : null,
       privacy_agreed_at: new Date().toISOString(),
+      photo_at: new Date().toISOString(),
     })
-    .select('id, session_version')
+    .select('id, session_version, photo_at')
     .single()
   if (error || !data) return { error: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  const { error: photoError } = await db()
+    .from('user_photos')
+    .insert({ user_id: data.id, data: photo, updated_at: data.photo_at, updated_by: data.id })
+  // 사진만 실패하면 가입은 그대로 두고 나중에 내 정보에서 올리게 (내 근무 화면에 안내가 뜸)
+  if (photoError) await db().from('users').update({ photo_at: null }).eq('id', data.id)
 
   await createSession(data.id, data.session_version)
   redirect(safeNext(str(form, 'next'), '/me'))

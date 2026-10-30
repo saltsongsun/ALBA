@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useActionState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
+import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
@@ -78,6 +79,7 @@ export function SignupForm({ next }: { next: string }) {
           </label>
           <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
         </div>
+        <PhotoField />
         <div>
           <label className="label">주민등록번호</label>
           <div className="flex items-center gap-2">

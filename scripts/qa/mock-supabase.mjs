@@ -178,7 +178,9 @@ const server = http.createServer(async (req, res) => {
     const parsed = JSON.parse(body || '[]')
     const list = (tables[table] ??= [])
     const out = []
-    for (const row of Array.isArray(parsed) ? parsed : [parsed]) {
+    for (let row of Array.isArray(parsed) ? parsed : [parsed]) {
+      // 실제 DB의 기본값 (가입 후 바로 로그인되게)
+      if (table === 'users') row = { role: 'worker', active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
       const key = table === 'user_photos' ? 'user_id' : 'id'
       if (key === 'id') row.id ??= crypto.randomUUID()
       const found = row[key] != null && list.find((r) => r[key] === row[key])
