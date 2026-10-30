@@ -200,7 +200,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
 
       {tab === 'apps' && <AppsTab job={job} apps={apps} />}
       {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} />}
-      {tab === 'pay' && <PayTab job={job} atts={atts} users={users} />}
+      {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
     </div>
   )

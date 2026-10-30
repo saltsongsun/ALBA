@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { setPaid } from '@/app/actions/admin'
+import { GroupContact } from '@/components/GroupContact'
 import { SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { maskAccount, won } from '@/lib/format'
@@ -8,7 +9,7 @@ import { minutesText } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
 import type { WorkerLite } from './page'
 
-export default function PayTab({ job, atts, users }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite> }) {
+export default function PayTab({ job, atts, users, origin }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string }) {
   const userIds = [...new Set(atts.map((a) => a.user_id))]
   const rows = userIds
     .map((uid) => {
@@ -27,6 +28,8 @@ export default function PayTab({ job, atts, users }: { job: Job; atts: Attendanc
     rows.reduce((t, r) => t + r.s[k], 0)
   const incomplete = rows.reduce((t, r) => t + r.s.incomplete, 0)
   const unconfirmed = rows.reduce((t, r) => t + r.unconfirmed, 0)
+  // 계좌가 없으면 입금을 못 하므로 정산 전에 한 번에 요청
+  const noAccount = rows.filter((r) => !r.user?.bank_account_enc)
 
   return (
     <div className="space-y-4">
@@ -45,6 +48,20 @@ export default function PayTab({ job, atts, users }: { job: Job; atts: Attendanc
           </a>
         </div>
       </div>
+      {noAccount.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p className="min-w-0 flex-1">
+            계좌 미등록 <b>{noAccount.length}명</b>: {noAccount.map((r) => r.user?.name ?? '알 수 없음').join(', ')}
+          </p>
+          <GroupContact
+            copy={false}
+            className="chip-primary"
+            phones={noAccount.map((r) => r.user?.phone)}
+            label={`${noAccount.length}명에게 계좌 등록 요청`}
+            body={`[${job.title}] 급여를 보내 드리려면 계좌가 필요해요. 앱의 내 정보에서 급여 계좌를 등록해 주세요.\n${origin}/me/profile`}
+          />
+        </div>
+      )}
       {(incomplete > 0 || unconfirmed > 0) && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
           {incomplete > 0 && `퇴근 기록이 없는 근무 ${incomplete}건은 금액에서 빠져 있습니다. `}

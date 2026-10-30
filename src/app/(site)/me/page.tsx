@@ -25,7 +25,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   const today = kstDate()
 
-  const [apps, atts, docs, photoAt] = await Promise.all([
+  const [apps, atts, docs, me] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*)')
@@ -46,11 +46,13 @@ export default async function MePage(props: PageProps<'/me'>) {
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title' | 'status' | 'signed_at'>[]),
     db()
       .from('users')
-      .select('photo_at')
+      .select('photo_at, bank_account_enc')
       .eq('id', user.id)
       .maybeSingle()
-      .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null),
+      .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null } | null),
   ])
+  const photoAt = me?.photo_at ?? null
+  const hasAccount = !!me?.bank_account_enc
 
   const openAtt = atts.find((a) => !a.clock_out) ?? null
   const approved = apps.filter((a) => a.status === 'approved')
@@ -103,6 +105,20 @@ export default async function MePage(props: PageProps<'/me'>) {
             ))}
           </div>
         </section>
+      )}
+
+      {/* 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음) */}
+      {!hasAccount && (approved.length > 0 || atts.length > 0) && (
+        <Link href="/me/profile" className="card-link flex items-center gap-3 p-4 ring-2 ring-rose-100">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-50 text-xl">
+            💳
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">급여 받을 계좌를 등록해 주세요</span>
+            <span className="block text-sm text-sub">계좌가 있어야 근무 후 급여를 보내 드릴 수 있어요</span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-brand-600">등록 →</span>
+        </Link>
       )}
 
       {/* 지원했거나 근무가 잡혔는데 사진이 없으면 (현장에서 담당자가 알아보게) */}
