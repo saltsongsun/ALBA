@@ -11,7 +11,7 @@ import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, 
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
-import { ageOn, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
+import { ageOn, fmtDate, fmtDateRange, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
   working: <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />,
@@ -88,6 +88,31 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const todayJobs = activeJobs.filter((j) => j.start_date <= today && j.end_date >= today)
   const workingBy: Record<string, number> = {}
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
+  // 오늘 행사의 미출근: 오늘 근무하기로 한 확정자 중 출근 기록이 없는 사람 (시작 시각이 지난 행사만 표시)
+  const todayIds = todayJobs.map((j) => j.id)
+  const [todayApps, todayAtts] = todayIds.length
+    ? await Promise.all([
+        db()
+          .from('applications')
+          .select('job_id, user_id, available_dates')
+          .in('job_id', todayIds)
+          .eq('status', 'approved')
+          .then((r) => must(r) as { job_id: string; user_id: string; available_dates: string[] | null }[]),
+        db()
+          .from('attendance')
+          .select('job_id, user_id')
+          .in('job_id', todayIds)
+          .eq('work_date', today)
+          .then((r) => must(r) as { job_id: string; user_id: string }[]),
+      ])
+    : [[], []]
+  const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
+  const absentBy: Record<string, number> = {}
+  for (const a of todayApps) {
+    if (a.available_dates && !a.available_dates.includes(today)) continue
+    if (!arrived.has(`${a.job_id}|${a.user_id}`)) absentBy[a.job_id] = (absentBy[a.job_id] ?? 0) + 1
+  }
+  const started = (j: JobWithAppStatus) => kstAt(today, j.start_time) <= new Date()
   const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
   const setupTodo = [
     !settings.business_no && '사업자등록번호',
@@ -142,6 +167,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 <p className="mt-3 flex items-baseline justify-between gap-2 text-sm">
                   <span className="font-bold text-emerald-600">
                     근무 중 <LiveNumber value={workingBy[j.id] ?? 0} />명
+                    {started(j) && (absentBy[j.id] ?? 0) > 0 && (
+                      <span className="ml-2 text-rose-600">
+                        미출근 <LiveNumber value={absentBy[j.id]} />명
+                      </span>
+                    )}
                   </span>
                   <span className="text-mute">
                     확정 {counts[j.id] ?? 0}명 · 모집 {j.headcount}명
