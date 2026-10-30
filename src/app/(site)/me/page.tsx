@@ -24,7 +24,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   const today = kstDate()
 
-  const [apps, atts, docs] = await Promise.all([
+  const [apps, atts, docs, photoAt] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*)')
@@ -43,6 +43,12 @@ export default async function MePage(props: PageProps<'/me'>) {
       .eq('user_id', user.id)
       .neq('status', 'void')
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title' | 'status' | 'signed_at'>[]),
+    db()
+      .from('users')
+      .select('photo_at')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null),
   ])
 
   const openAtt = atts.find((a) => !a.clock_out) ?? null
@@ -96,6 +102,20 @@ export default async function MePage(props: PageProps<'/me'>) {
             ))}
           </div>
         </section>
+      )}
+
+      {/* 지원했거나 근무가 잡혔는데 사진이 없으면 (현장에서 담당자가 알아보게) */}
+      {!photoAt && (todayApps.length > 0 || upcoming.length > 0 || waiting.length > 0) && (
+        <Link href="/me/profile#photo" className="card-link flex items-center gap-3 p-4">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
+            📷
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">얼굴 사진을 올려 주세요</span>
+            <span className="block text-sm text-sub">현장에서 담당자가 알아보기 쉬워요</span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-brand-600">올리기 →</span>
+        </Link>
       )}
 
       <section>

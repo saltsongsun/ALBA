@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { addWorkerToJob, approveAllApplied, decideApplication } from '@/app/actions/admin'
+import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import { APP_STATUS } from '@/components/JobCard'
@@ -99,14 +100,17 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
               const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
               return (
                 <div key={a.id} className={`card space-y-2.5 p-4 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Link href={`/admin/workers/${a.user_id}`} className="text-[17px] font-bold">
-                      {a.user.name}
-                    </Link>
-                    {age != null && <span className="text-sm text-mute">만 {age}세</span>}
-                    {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
-                    {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
-                    <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+                  <div className="flex items-center gap-3">
+                    <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="lg" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                      <Link href={`/admin/workers/${a.user_id}`} className="text-[17px] font-bold">
+                        {a.user.name}
+                      </Link>
+                      {age != null && <span className="text-sm text-mute">만 {age}세</span>}
+                      {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
+                      {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
+                      <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+                    </div>
                   </div>
                   <p className="text-xs text-mute">
                     {jobsWorked[a.user_id]?.size ? `행사 ${jobsWorked[a.user_id].size}회 근무` : '첫 근무'} · 지원 {kstDateTime(a.created_at)}
@@ -141,6 +145,9 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
                   return (
                     <tr key={a.id} className={a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}>
                       <td className="whitespace-nowrap">
+                        <span className="mr-2 inline-block align-middle">
+                          <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="sm" />
+                        </span>
                         <Link href={`/admin/workers/${a.user_id}`} className="font-semibold hover:text-brand-600">
                           {a.user.name}
                         </Link>

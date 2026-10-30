@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { deleteRating } from '@/app/actions/admin'
 import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
 import { ContactButtons } from '@/components/Contact'
+import PhotoUpload from '@/components/PhotoUpload'
 import { StarAvg, StarRow } from '@/components/Stars'
 import { ConfirmSubmit } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
@@ -72,13 +73,15 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       </Link>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="text-2xl font-extrabold">{u.name}</h1>
-            {age != null && <span className="text-sub">만 {age}세 {u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : ''}</span>}
-            {u.is_foreigner && <span className="badge bg-brand-50 text-brand-700">외국인</span>}
-            {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자 (친권자 동의 필요)</span>}
-            {!u.active && <span className="badge bg-gray-100 text-mute">정지</span>}
-          </div>
+          <PhotoUpload userId={u.id} name={u.name} photoAt={u.photo_at} admin>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h1 className="text-2xl font-extrabold">{u.name}</h1>
+              {age != null && <span className="text-sub">만 {age}세 {u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : ''}</span>}
+              {u.is_foreigner && <span className="badge bg-brand-50 text-brand-700">외국인</span>}
+              {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자 (친권자 동의 필요)</span>}
+              {!u.active && <span className="badge bg-gray-100 text-mute">정지</span>}
+            </div>
+          </PhotoUpload>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>
             <dd className="flex flex-wrap items-center gap-1.5">

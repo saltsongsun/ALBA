@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { replyInquiry } from '@/app/actions/chat'
 import AutoRefresh from '@/components/AutoRefresh'
+import Avatar from '@/components/Avatar'
 import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/Chat'
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import { ContactButtons } from '@/components/Contact'
@@ -20,7 +21,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   const { userId } = await props.params
   if (!isUuid(userId)) notFound()
   const [{ data: worker }, messages] = await Promise.all([
-    db().from('users').select('id, name, phone').eq('id', userId).maybeSingle(),
+    db().from('users').select('id, name, phone, photo_at').eq('id', userId).maybeSingle(),
     db()
       .from('messages')
       .select(CHAT_MESSAGE_COLS)
@@ -41,9 +42,12 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         ← 문의 목록
       </Link>
       <div className="card flex flex-wrap items-center justify-between gap-2 p-4">
-        <Link href={`/admin/workers/${worker.id}`} className="text-lg font-bold hover:text-brand-600">
-          {worker.name}
-        </Link>
+        <div className="flex items-center gap-3">
+          <Avatar id={worker.id} name={worker.name} photoAt={worker.photo_at} />
+          <Link href={`/admin/workers/${worker.id}`} className="text-lg font-bold hover:text-brand-600">
+            {worker.name}
+          </Link>
+        </div>
         <ContactButtons phone={worker.phone} name={worker.name} />
       </div>
       {messages.length === 0 ? (

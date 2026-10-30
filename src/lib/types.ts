@@ -24,6 +24,8 @@ export type UserRow = {
   failed_logins: number
   locked_until: string | null
   session_version: number
+  /** 얼굴 사진을 올린 시각 (없으면 null, 사진은 user_photos) */
+  photo_at: string | null
   created_at: string
 }
 

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import AutoRefresh from '@/components/AutoRefresh'
+import Avatar from '@/components/Avatar'
 import Empty from '@/components/Empty'
 import { db, must } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
@@ -16,7 +17,7 @@ type Row = {
   body: string
   created_at: string
   read_at: string | null
-  user: { id: string; name: string; phone: string } | null
+  user: { id: string; name: string; phone: string; photo_at: string | null } | null
 }
 
 export default async function AdminChatList() {
@@ -25,7 +26,7 @@ export default async function AdminChatList() {
   const rows = must(
     await db()
       .from('messages')
-      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone)')
+      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at)')
       .order('created_at', { ascending: false })
       .limit(1000),
   ) as unknown as Row[]
@@ -49,7 +50,7 @@ export default async function AdminChatList() {
         <div className="stagger space-y-2">
           {list.map(({ last, unread }) => (
             <Link key={last.thread_user_id} href={`/admin/chat/${last.thread_user_id}`} className="card-link flex items-center gap-3 p-4">
-              <span className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-lg font-bold text-brand-700">{last.user!.name.slice(0, 1)}</span>
+              <Avatar id={last.user!.id} name={last.user!.name} photoAt={last.user!.photo_at} zoom={false} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="truncate font-bold">

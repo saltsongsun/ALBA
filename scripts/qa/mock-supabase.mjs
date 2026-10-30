@@ -1,5 +1,6 @@
 // 화면 점검용 가짜 Supabase(PostgREST). 요청마다 LAT ms 지연. 실제 DB에는 연결하지 않습니다.
 // LAT=5 node scripts/qa/mock-supabase.mjs   (기본 포트 54321)
+import fs from 'node:fs'
 import http from 'node:http'
 
 const LAT = Number(process.env.LAT ?? 40)
@@ -19,16 +20,19 @@ const APPLICANT = '33333333-0000-4000-8000-000000000011' // 확정 대기 중인
 
 // 400KB 직인 → base64 약 533KB
 const SEAL = 'data:image/png;base64,' + Buffer.alloc(400_000, 7).toString('base64')
+// 지원자 김지원만 얼굴 사진이 있음 (근무자는 사진 없음 → 이름 글자·사진 올리기 안내)
+const FACE = fs.readFileSync(new URL('./face.jpg', import.meta.url)).toString('base64')
+const FACE_AT = '2026-10-29T00:00:00Z'
 
 const user = (id, role, name, phone) => ({
   id, role, name, phone, pin_hash: 's1:x:y', rrn_enc: null, rrn_hash: null, rrn_masked: '900101-1******',
   birth_date: '1990-01-01', gender: 'M', is_foreigner: false, address: '서울', bank_name: '국민',
   bank_account_enc: null, account_holder: name, bank_changed_at: null, emergency_phone: null, admin_memo: null,
   active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1,
-  created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
+  photo_at: id === APPLICANT ? FACE_AT : null, created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
 const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444'), user(APPLICANT, 'worker', '김지원', '01077778888')]
-const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자' }
+const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자', photo_at: null }
 
 const job = {
   id: JOB, title: '경상남도 생활체육대축전 행사장 안내 스태프', event_name: '2026 경상남도 생활체육대축전', description: '설명', task: '안내', location_name: '광장',
@@ -58,7 +62,7 @@ const tables = {
   }, {
     id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today],
     message: '행사장 안내 경험 있어요. 당일 아침 일찍 도착 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-02T00:00:00Z', job: jobLite,
-    user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888' },
+    user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888', photo_at: FACE_AT },
   }],
   attendance: SCENARIO === 'fresh' ? [] : [{
     id: ATT, job_id: JOB, user_id: WORKER, work_date: today, clock_in: new Date().toISOString(), clock_out: null,
@@ -89,6 +93,7 @@ const tables = {
     { id: '22222222-0000-4000-8000-000000000009', user_id: WORKER, job_id: JOB, rater_id: ADMIN, score: 4, comment: '시간 약속 잘 지킴',
       created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', job: { title: '경상남도 생활체육대축전 행사장 안내 스태프' }, rater: { name: '관리자' } },
   ],
+  user_photos: [{ user_id: APPLICANT, data: FACE, updated_at: FACE_AT, updated_by: APPLICANT }],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
 }
 
@@ -159,6 +164,34 @@ const server = http.createServer(async (req, res) => {
     for await (const c of req) body += c
     const patch = JSON.parse(body || '{}')
     for (const r of rows) Object.assign(r, patch)
+    // 근무자 정보를 바꾸면 다른 표에 함께 담긴 근무자(user·worker)에도 반영
+    if (table === 'users')
+      for (const list of Object.values(tables))
+        for (const row of list)
+          for (const v of [row.user, row.worker]) if (v && rows.some((r) => r.id === v.id)) Object.assign(v, patch)
+    return send(200, rows)
+  }
+  if (req.method === 'POST') {
+    // 넣기·upsert도 실제로 반영 (사진 올리기 테스트용). 같은 user_id(없으면 id)가 있으면 합침
+    let body = ''
+    for await (const c of req) body += c
+    const parsed = JSON.parse(body || '[]')
+    const list = (tables[table] ??= [])
+    const out = []
+    for (const row of Array.isArray(parsed) ? parsed : [parsed]) {
+      const key = table === 'user_photos' ? 'user_id' : 'id'
+      if (key === 'id') row.id ??= crypto.randomUUID()
+      const found = row[key] != null && list.find((r) => r[key] === row[key])
+      if (found) Object.assign(found, row)
+      else list.push(row)
+      out.push(found || row)
+    }
+    if ((req.headers.accept ?? '').includes('vnd.pgrst.object')) return send(201, out[0])
+    return send(201, out)
+  }
+  if (req.method === 'DELETE') {
+    req.resume()
+    tables[table] = (tables[table] ?? []).filter((r) => !rows.includes(r))
     return send(200, rows)
   }
   if (req.method !== 'GET') {

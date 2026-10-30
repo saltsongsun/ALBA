@@ -27,6 +27,7 @@ export type WorkerLite = {
   bank_name: string | null
   bank_account_enc: string | null
   account_holder: string | null
+  photo_at: string | null
 }
 export type AppRow = Application & { user: WorkerLite }
 
@@ -39,7 +40,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   if (!isUuid(id)) notFound()
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
-  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder'
+  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at'
   const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
     getJob(id),
     getSettings(),

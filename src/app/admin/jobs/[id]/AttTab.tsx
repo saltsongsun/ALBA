@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
+import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
@@ -137,10 +138,14 @@ export default function AttTab({
                 : { label: '종료', cls: 'bg-gray-100 text-sub' }
           return (
             <div key={uid} className="card p-4">
-              <div className="flex items-center gap-2">
-                <span className="relative flex size-2.5 shrink-0">
-                  {a && !a.clock_out && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
-                  <span className={`relative inline-flex size-2.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`} />
+              <div className="flex items-center gap-3">
+                {/* 얼굴 사진 (눌러서 크게) + 오른쪽 아래 상태 점 */}
+                <span className="relative shrink-0">
+                  <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="lg" />
+                  <span className="absolute right-0 bottom-0 flex size-3.5 rounded-full ring-2 ring-white">
+                    {a && !a.clock_out && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+                    <span className={`relative inline-flex size-3.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`} />
+                  </span>
                 </span>
                 <Link href={`/admin/workers/${uid}`} className="min-w-0 truncate text-[17px] font-bold">
                   {u?.name ?? '알 수 없음'}

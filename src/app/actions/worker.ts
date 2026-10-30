@@ -292,7 +292,9 @@ export async function withdraw(_: FormState, form: FormData): Promise<FormState>
     must(await db().from('users').delete().eq('id', user.id))
   } else {
     // 근로기준법상 3년 보존 대상이 있으면 계정만 막고 기록은 보관 (재가입은 관리자가 계정 복구)
-    must(await db().from('users').update({ active: false }).eq('id', user.id))
+    // 사진은 보존 대상이 아니므로 바로 지움
+    must(await db().from('users').update({ active: false, photo_at: null }).eq('id', user.id))
+    await db().from('user_photos').delete().eq('user_id', user.id)
     await db().from('applications').update({ status: 'cancelled' }).eq('user_id', user.id).in('status', ['applied'])
   }
   await destroySession()

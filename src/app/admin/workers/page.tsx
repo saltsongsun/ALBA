@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { StarAvg } from '@/components/Stars'
 import { db, must } from '@/lib/db'
@@ -16,6 +17,7 @@ type Row = {
   birth_date: string | null
   active: boolean
   bank_account_enc: string | null
+  photo_at: string | null
   created_at: string
   attendance: { work_date: string }[] | null
   ratings: { score: number }[] | null
@@ -28,7 +30,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   // 근무일수·최근 근무를 세기 위해 출퇴근 날짜도 같이 읽음
   let query = db()
     .from('users')
-    .select('id, name, phone, role, birth_date, active, bank_account_enc, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
+    .select('id, name, phone, role, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
     .order('created_at', { ascending: false })
     .limit(300)
   if (q) {
@@ -84,12 +86,15 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
       <div className="stagger space-y-2 sm:hidden">
         {users.map((u) => (
           <div key={u.id} className={`card p-4 ${u.active ? '' : 'opacity-50'}`}>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Link href={`/admin/workers/${u.id}`} className="text-[17px] font-bold">
-                {u.name}
-              </Link>
-              {ageBadges(u)}
-              {roleBadges(u)}
+            <div className="flex items-center gap-3">
+              <Avatar id={u.id} name={u.name} photoAt={u.photo_at} size="lg" />
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                <Link href={`/admin/workers/${u.id}`} className="text-[17px] font-bold">
+                  {u.name}
+                </Link>
+                {ageBadges(u)}
+                {roleBadges(u)}
+              </div>
             </div>
             <div className="mt-2">
               <ContactButtons phone={u.phone} name={u.name} />
@@ -121,6 +126,9 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
               <tr key={u.id} className={u.active ? '' : 'opacity-50'}>
                 <td className="whitespace-nowrap">
                   <div className="flex items-center gap-1">
+                    <span className="mr-1">
+                      <Avatar id={u.id} name={u.name} photoAt={u.photo_at} size="sm" />
+                    </span>
                     <Link href={`/admin/workers/${u.id}`} className="font-semibold hover:text-brand-600">
                       {u.name}
                     </Link>

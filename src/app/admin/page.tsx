@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { decideApplication } from '@/app/actions/admin'
 import AutoRefresh from '@/components/AutoRefresh'
+import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
@@ -63,7 +64,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .then((r) => must(r) as JobWithAppStatus[]),
     db()
       .from('applications')
-      .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date)')
+      .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date, photo_at)')
       .eq('status', 'applied')
       .order('created_at', { ascending: false })
       .limit(30)
@@ -75,7 +76,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             message: string | null
             available_dates: string[] | null
             job: { id: string; title: string; end_date: string }
-            user: { id: string; name: string; phone: string; birth_date: string | null }
+            user: { id: string; name: string; phone: string; birth_date: string | null; photo_at: string | null }
           }[],
       ),
     db().from('attendance').select('job_id').is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
@@ -163,12 +164,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             <div className="stagger space-y-2 sm:hidden">
               {pendingApps.map((p) => (
                 <div key={p.id} className="card space-y-2.5 p-4">
-                  <div className="flex flex-wrap items-baseline gap-1.5">
-                    <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
-                      {p.user.name}
-                    </Link>
-                    {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-                    <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+                  <div className="flex items-center gap-3">
+                    <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="lg" />
+                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-1.5">
+                      <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
+                        {p.user.name}
+                      </Link>
+                      {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+                      <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+                    </div>
                   </div>
                   <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block text-sm font-semibold text-sub">
                     📌 {p.job.title}
@@ -211,6 +215,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   {pendingApps.map((p) => (
                     <tr key={p.id}>
                       <td className="whitespace-nowrap">
+                        <span className="mr-2 inline-block align-middle">
+                          <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="sm" />
+                        </span>
                         <Link href={`/admin/workers/${p.user.id}`} className="font-semibold">
                           {p.user.name}
                         </Link>

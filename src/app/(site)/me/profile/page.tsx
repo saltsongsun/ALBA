@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import PhotoUpload from '@/components/PhotoUpload'
 import { PinForm, ProfileForm, WithdrawForm } from '@/components/worker'
 import { decrypt } from '@/lib/crypto'
 import { db } from '@/lib/db'
@@ -12,7 +13,7 @@ export default async function ProfilePage() {
   const user = await requireUser('/me/profile')
   const { data: me } = await db()
     .from('users')
-    .select('name, phone, rrn_masked, address, emergency_phone, bank_name, bank_account_enc, account_holder, created_at')
+    .select('name, phone, rrn_masked, address, emergency_phone, bank_name, bank_account_enc, account_holder, photo_at, created_at')
     .eq('id', user.id)
     .single()
   if (!me) return null
@@ -21,11 +22,14 @@ export default async function ProfilePage() {
       <Link href="/me" className="text-sm font-semibold text-sub">
         ← 내 근무
       </Link>
-      <div className="card">
-        <h1 className="text-xl font-extrabold">{me.name}</h1>
-        <p className="mt-1 text-sm text-sub">
-          {phoneFmt(me.phone)} · {me.rrn_masked ?? '주민번호 미등록'}
-        </p>
+      <div className="card space-y-3">
+        <PhotoUpload userId={user.id} name={me.name} photoAt={me.photo_at}>
+          <h1 className="text-xl font-extrabold">{me.name}</h1>
+          <p className="mt-0.5 text-sm text-sub">
+            <span className="whitespace-nowrap">{phoneFmt(me.phone)}</span> ·{' '}
+            <span className="whitespace-nowrap">{me.rrn_masked ?? '주민번호 미등록'}</span>
+          </p>
+        </PhotoUpload>
         <p className="hint">이름·주민등록번호·휴대폰 번호를 바꾸려면 담당자에게 요청해 주세요.</p>
       </div>
       <ProfileForm
