@@ -135,7 +135,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
               <Link key={j.id} href={`/admin/jobs/${j.id}?tab=att&date=${today}`} className="card-link block">
                 <p className="font-bold">{j.title}</p>
                 <p className="text-sm text-sub">
-                  {scheduleText(j)} · {j.location_name}
+                  {scheduleText(j)}
+                  {j.location_name && ` · ${j.location_name}`}
                 </p>
                 <p className="mt-3 flex items-baseline justify-between gap-2 text-sm">
                   <span className="font-bold text-emerald-600">

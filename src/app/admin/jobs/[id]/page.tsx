@@ -116,7 +116,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           </div>
           <h1 className="mt-1 text-2xl font-extrabold">{job.title}</h1>
           <p className="mt-1 text-sub">
-            {fmtDateRange(job.start_date, job.end_date)} {scheduleText(job)} · {job.location_name}
+            {fmtDateRange(job.start_date, job.end_date)} {scheduleText(job)}
+            {job.location_name && ` · ${job.location_name}`}
           </p>
           <p className="mt-1 text-sm">
             {wageBadge(job)} · 확정 <b>{approved.length}</b>/{job.headcount}명 · 대기 {waiting.length}명

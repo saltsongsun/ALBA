@@ -121,7 +121,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <p className="text-xs font-semibold text-mute">{job.event_name}</p>
                     <h3 className="text-lg font-bold">{job.title}</h3>
                     <p className="text-sm text-sub">
-                      {scheduleText(job)} · {job.location_name}
+                      {scheduleText(job)}
+                      {job.location_name && ` · ${job.location_name}`}
                     </p>
                     {job.meeting_point && <p className="text-sm text-sub">집결: {job.meeting_point}</p>}
                     {(job.manager_phone || map) && (

@@ -26,7 +26,8 @@ export async function generateMetadata(props: PageProps<'/jobs/[id]'>): Promise<
   const { id } = await props.params
   const job = await load(id)
   if (!job || job.status === 'draft') return { title: '공고' }
-  const description = `${scheduleSummary(job)} · ${job.location_name ?? ''} · ${wageBadge(job)}`
+  // 장소가 비어 있으면 빼고 이어 붙임 (카카오톡 미리보기에 '· ·'가 찍히지 않게)
+  const description = [scheduleSummary(job), job.location_name, wageBadge(job)].filter(Boolean).join(' · ')
   return {
     title: job.title,
     description,
