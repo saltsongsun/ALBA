@@ -44,7 +44,7 @@ export default function DocsTab({
             label={`서명 안 한 ${unsigned.length}명에게 문자`}
             body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
           />
-          <Link href={`/admin/jobs/${job.id}/edit`} className="btn-gray btn-sm">
+          <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-gray btn-sm">
             필요 서류 바꾸기
           </Link>
         </div>

@@ -480,7 +480,7 @@ export default function JobForm({
 
       <PostingEditor initial={job?.conditions ?? []} hidden={job?.hidden_fields ?? []} />
 
-      <section className="card space-y-3">
+      <section id="docs" className="card scroll-mt-32 space-y-3">
         <h2 className="font-bold">확정 후 서명받을 서류</h2>
         {templates.length === 0 && <p className="text-sm text-mute">등록된 서식이 없습니다. 서류 서식 메뉴에서 기본 서식을 불러오세요.</p>}
         {templates.map((t) => (

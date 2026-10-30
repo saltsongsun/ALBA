@@ -62,7 +62,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       .eq('job_id', id)
       .order('created_at')
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'user_id' | 'template_id' | 'title' | 'status' | 'signed_at' | 'created_at'>[]),
-    db().from('doc_templates').select('id, title').then((r) => must(r) as { id: string; title: string }[]),
+    db().from('doc_templates').select('id, title, kind').then((r) => must(r) as { id: string; title: string; kind: string }[]),
     // 내가 이 공고 근무자들에게 매긴 별점 (출퇴근 화면의 빠른 평가)
     db()
       .from('worker_ratings')
@@ -73,6 +73,9 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   ])
   if (!job) notFound()
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id))
+  const today = kstDate()
+  // 근로계약서를 받지 않는 공고는 위에 경고 (지난 공고·종료한 공고는 제외)
+  const noContract = job.status !== 'done' && job.end_date >= today && !templates.some((t) => t.kind === 'contract')
 
   // 출퇴근 기록은 있는데 지원 내역이 없는 사람(관리자 직접 등록 등)도 정산에 포함
   const known = new Set(apps.map((a) => a.user_id))
@@ -82,7 +85,6 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     : []
   const users = new Map<string, WorkerLite>([...apps.map((a) => [a.user_id, a.user] as const), ...extraUsers.map((u) => [u.id, u] as const)])
 
-  const today = kstDate()
   const dates = dateList(job.start_date, job.end_date)
   const date = typeof sp.date === 'string' && isDate(sp.date) && dates.includes(sp.date)
     ? sp.date
@@ -124,6 +126,19 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {job.gps_required && <span className="badge ml-2 bg-emerald-50 text-emerald-700">현장 위치 확인</span>}
             {job.auto_approve && <span className="badge ml-1 bg-brand-50 text-brand-700">자동 확정</span>}
           </p>
+          {noContract && (
+            <div className="mt-4 animate-pop rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4">
+              <p className="font-bold">✍️ 근로계약서를 받지 않는 공고예요</p>
+              <p className="mt-1 text-sm text-sub">
+                근로계약서는 근로기준법 제17조에 따라 서면(전자문서)으로 꼭 줘야 해요. 지정하면
+                {approved.length > 0 ? ` 이미 확정된 ${approved.length}명에게도 바로 ` : ' 확정되는 사람에게 '}
+                서명 요청이 가고, 서명 전에는 근무 시작 버튼이 잠겨요.
+              </p>
+              <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-primary btn-sm mt-3">
+                근로계약서 지정하기
+              </Link>
+            </div>
+          )}
           <div className="mt-4 flex flex-wrap gap-2">
             <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm">
               수정
