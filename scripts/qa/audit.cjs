@@ -60,6 +60,12 @@ const pages = [
             const st = getComputedStyle(el)
             // 고정 위치·계속 반복되는 애니메이션(깜빡이는 점·떠다니는 그림)은 일부러 상자를 벗어나므로 제외
             if (!r.width || st.position === 'fixed' || st.animationIterationCount === 'infinite') continue
+            // 칸이 너무 좁아 글자가 한두 자씩 세로로 쪼개짐 (표 칸이 줄어드는 경우 등)
+            if (!el.children.length && ['TD', 'TH', 'P', 'SPAN', 'A', 'DD', 'DIV'].includes(el.tagName)) {
+              const txt = (el.textContent || '').trim()
+              const lh = parseFloat(st.lineHeight) || parseFloat(st.fontSize) * 1.5
+              if (txt.length >= 5 && r.width < 60 && r.height > lh * 3.2) out.push(`CRAMPED ${el.tagName.toLowerCase()} ${Math.round(r.width)}px 폭에 ${Math.round(r.height / lh)}줄 "${txt.slice(0, 20)}"`)
+            }
             // 가로 스크롤 영역 안은 의도된 것
             let p = el.parentElement, scroller = false
             while (p && p !== document.body) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { scroller = true; break } p = p.parentElement }
@@ -72,7 +78,8 @@ const pages = [
               if (r.right > pr.right + 1 && pr.width > 0) out.push(`SPILL ${el.tagName.toLowerCase()}[${el.getAttribute('name') || String(el.className).slice(0, 30)}] right ${Math.round(r.right)} > parent ${Math.round(pr.right)} "${(el.textContent || '').trim().slice(0, 20)}"`)
             }
             // 글자가 잘리는 select
-            if (el.tagName === 'SELECT' && el.selectedOptions[0]) {
+            // (근무자가 쓴 긴 공고 제목 같은 데이터는 칸보다 길 수 있으니, 짧은 고정 문구만 검사)
+            if (el.tagName === 'SELECT' && el.selectedOptions[0] && el.selectedOptions[0].text.length <= 15) {
               const cs = getComputedStyle(el)
               const c = document.createElement('canvas').getContext('2d')
               c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`
@@ -80,7 +87,7 @@ const pages = [
               if (need > el.clientWidth + 1) out.push(`SELECT text cut: [${el.name}] "${el.selectedOptions[0].text}" needs ${Math.round(need)} > ${el.clientWidth}`)
             }
             // 글자가 잘리는 입력칸 (값이 칸보다 김)
-            if (el.tagName === 'INPUT' && el.scrollWidth > el.clientWidth + 1 && !['checkbox', 'radio', 'file', 'hidden'].includes(el.type)) out.push(`INPUT text cut: [${el.name || el.type}] ${el.scrollWidth} > ${el.clientWidth}`)
+            if (el.tagName === 'INPUT' && el.value.length <= 15 && el.scrollWidth > el.clientWidth + 1 && !['checkbox', 'radio', 'file', 'hidden'].includes(el.type)) out.push(`INPUT text cut: [${el.name || el.type}] ${el.scrollWidth} > ${el.clientWidth}`)
           }
           return [...new Set(out)].slice(0, 15)
         })

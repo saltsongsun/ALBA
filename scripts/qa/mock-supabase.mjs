@@ -15,6 +15,7 @@ const DOC = 'dddddddd-0000-4000-8000-000000000004'
 const DOC_SIGNED = 'dddddddd-0000-4000-8000-000000000005'
 const ATT = 'eeeeeeee-0000-4000-8000-000000000006'
 const TPL = 'ffffffff-0000-4000-8000-000000000007'
+const APPLICANT = '33333333-0000-4000-8000-000000000011' // 확정 대기 중인 지원자
 
 // 400KB 직인 → base64 약 533KB
 const SEAL = 'data:image/png;base64,' + Buffer.alloc(400_000, 7).toString('base64')
@@ -26,11 +27,11 @@ const user = (id, role, name, phone) => ({
   active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1,
   created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
-const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444')]
+const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444'), user(APPLICANT, 'worker', '김지원', '01077778888')]
 const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자' }
 
 const job = {
-  id: JOB, title: '테스트 행사 스태프', event_name: '축제', description: '설명', task: '안내', location_name: '광장',
+  id: JOB, title: '경상남도 생활체육대축전 행사장 안내 스태프', event_name: '2026 경상남도 생활체육대축전', description: '설명', task: '안내', location_name: '광장',
   address: '서울 중구', lat: 37.5, lng: 127.0, gps_required: false, gps_radius_m: 300, start_date: today, end_date: today,
   start_time: '09:00:00', end_time: '18:00:00', headcount: 5, pay_type: 'hourly', hourly_wage: 10320, daily_wage: 0,
   break_mode: 'auto', break_minutes: 0, round_unit: 1, early_clamp: false, premium_enabled: false, allowance: 0,
@@ -53,7 +54,11 @@ const tables = {
   jobs: [job],
   applications: [{
     id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null,
-    message: '열심히', admin_memo: null, decided_at: null, created_at: '2026-10-01T00:00:00Z', job: jobLite, user: workerLite,
+    message: '행사 스태프 경험 3회, 주말 모두 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-01T00:00:00Z', job: jobLite, user: workerLite,
+  }, {
+    id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today],
+    message: '행사장 안내 경험 있어요. 당일 아침 일찍 도착 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-02T00:00:00Z', job: jobLite,
+    user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888' },
   }],
   attendance: SCENARIO === 'fresh' ? [] : [{
     id: ATT, job_id: JOB, user_id: WORKER, work_date: today, clock_in: new Date().toISOString(), clock_out: null,
@@ -74,7 +79,7 @@ const tables = {
   doc_templates: [{ id: TPL, kind: 'contract', title: '근로계약서', body: '# 계약서\n\n{{근로자명}}', is_default: true, active: true, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' }],
   messages: [
     { id: 1, thread_user_id: WORKER, sender_id: WORKER, from_admin: false, job_id: JOB, body: '내일 집결 장소가 어디인가요?', read_at: null,
-      created_at: new Date(Date.now() - 3600e3).toISOString(), job: { id: JOB, title: '테스트 행사 스태프' }, sender: { name: '근무자' },
+      created_at: new Date(Date.now() - 3600e3).toISOString(), job: { id: JOB, title: '경상남도 생활체육대축전 행사장 안내 스태프' }, sender: { name: '근무자' },
       user: { id: WORKER, name: '근무자', phone: '01033334444' } },
     { id: 2, thread_user_id: WORKER, sender_id: ADMIN, from_admin: true, job_id: null, body: '촉석문 앞 운영본부 천막입니다.', read_at: null,
       created_at: new Date(Date.now() - 1800e3).toISOString(), job: null, sender: { name: '관리자' },
@@ -82,7 +87,7 @@ const tables = {
   ],
   worker_ratings: [
     { id: '22222222-0000-4000-8000-000000000009', user_id: WORKER, job_id: JOB, rater_id: ADMIN, score: 4, comment: '시간 약속 잘 지킴',
-      created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', job: { title: '테스트 행사 스태프' }, rater: { name: '관리자' } },
+      created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', job: { title: '경상남도 생활체육대축전 행사장 안내 스태프' }, rater: { name: '관리자' } },
   ],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
 }

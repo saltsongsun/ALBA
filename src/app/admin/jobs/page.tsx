@@ -55,42 +55,72 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       {jobs.length === 0 ? (
         <div className="card py-12 text-center text-mute">공고가 없습니다.</div>
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="table">
-            <thead>
-              <tr>
-                <th>공고</th>
-                <th>일정</th>
-                <th>확정/모집</th>
-                <th>대기</th>
-                <th>상태</th>
-              </tr>
-            </thead>
-            <tbody>
-              {jobs.map((j) => (
-                <tr key={j.id}>
-                  <td>
-                    <Link href={`/admin/jobs/${j.id}`} className="font-semibold hover:text-brand-600">
-                      {j.title}
-                    </Link>
-                    {j.event_name && <div className="text-xs text-mute">{j.event_name}</div>}
-                  </td>
-                  <td className="whitespace-nowrap">
-                    {fmtDateRange(j.start_date, j.end_date)}
-                    <div className="text-xs text-mute">{scheduleText(j)}</div>
-                  </td>
-                  <td className="whitespace-nowrap">
-                    <b>{counts[j.id] ?? 0}</b>/{j.headcount}
-                  </td>
-                  <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
-                  <td>
+        <>
+          {/* 휴대폰: 카드 (표는 칸이 좁아 옆으로 밀어야 해서) */}
+          <div className="stagger space-y-2 sm:hidden">
+            {jobs.map((j) => {
+              const approved = counts[j.id] ?? 0
+              return (
+                <Link key={j.id} href={`/admin/jobs/${j.id}`} className="card-link block p-4">
+                  <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                     <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
-                  </td>
+                    {waitingBy[j.id] > 0 && <span className="badge bg-amber-50 text-amber-700">대기 {waitingBy[j.id]}명</span>}
+                    {j.event_name && <span className="text-xs font-semibold text-mute">{j.event_name}</span>}
+                  </div>
+                  <p className="font-bold">{j.title}</p>
+                  <p className="mt-0.5 text-sm text-sub">
+                    {fmtDateRange(j.start_date, j.end_date)} {scheduleText(j)}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2 text-xs text-mute">
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg">
+                      <div className="h-full origin-left animate-grow rounded-full bg-brand-500" style={{ width: `${Math.min(100, Math.round((approved / Math.max(j.headcount, 1)) * 100))}%` }} />
+                    </div>
+                    <span className="shrink-0 tabular-nums">
+                      확정 <b className="text-ink">{approved}</b>/{j.headcount}명
+                    </span>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+
+          <div className="card hidden overflow-x-auto p-0 sm:block">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>공고</th>
+                  <th>일정</th>
+                  <th>확정/모집</th>
+                  <th>대기</th>
+                  <th>상태</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {jobs.map((j) => (
+                  <tr key={j.id}>
+                    <td>
+                      <Link href={`/admin/jobs/${j.id}`} className="font-semibold hover:text-brand-600">
+                        {j.title}
+                      </Link>
+                      {j.event_name && <div className="text-xs text-mute">{j.event_name}</div>}
+                    </td>
+                    <td className="whitespace-nowrap">
+                      {fmtDateRange(j.start_date, j.end_date)}
+                      <div className="text-xs text-mute">{scheduleText(j)}</div>
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <b>{counts[j.id] ?? 0}</b>/{j.headcount}
+                    </td>
+                    <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
+                    <td>
+                      <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

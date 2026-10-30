@@ -158,58 +158,97 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         {pendingApps.length === 0 ? (
           <Empty icon="📭" title="대기 중인 지원이 없습니다" />
         ) : (
-          <div className="card overflow-x-auto p-0">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>지원자</th>
-                  <th>공고</th>
-                  <th>가능일 · 한마디</th>
-                  <th>지원 시각</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {pendingApps.map((p) => (
-                  <tr key={p.id}>
-                    <td className="whitespace-nowrap">
-                      <Link href={`/admin/workers/${p.user.id}`} className="font-semibold">
-                        {p.user.name}
-                      </Link>
-                      {p.user.birth_date && <span className="ml-1 text-xs text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-                      <div className="mt-1">
-                        <ContactButtons phone={p.user.phone} name={p.user.name} />
-                      </div>
-                    </td>
-                    <td>
-                      <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
-                        {p.job.title}
-                      </Link>
-                    </td>
-                    <td className="max-w-xs text-xs text-sub">
-                      {p.available_dates?.map(fmtDate).join(', ')}
-                      {p.message && <div>“{p.message}”</div>}
-                    </td>
-                    <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(p.created_at)}</td>
-                    <td className="whitespace-nowrap">
-                      <div className="flex gap-1">
-                        <form action={decideApplication.bind(null, p.id, 'approved')}>
-                          <SubmitButton className="btn-primary btn-sm" pendingText="…">
-                            확정
-                          </SubmitButton>
-                        </form>
-                        <form action={decideApplication.bind(null, p.id, 'rejected')}>
-                          <SubmitButton className="btn-gray btn-sm" pendingText="…">
-                            미선발
-                          </SubmitButton>
-                        </form>
-                      </div>
-                    </td>
+          <>
+            {/* 휴대폰: 카드 (확정·미선발 버튼까지 옆으로 밀지 않고 바로) */}
+            <div className="stagger space-y-2 sm:hidden">
+              {pendingApps.map((p) => (
+                <div key={p.id} className="card space-y-2.5 p-4">
+                  <div className="flex flex-wrap items-baseline gap-1.5">
+                    <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
+                      {p.user.name}
+                    </Link>
+                    {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+                    <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+                  </div>
+                  <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block text-sm font-semibold text-sub">
+                    📌 {p.job.title}
+                  </Link>
+                  {(p.available_dates || p.message) && (
+                    <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
+                      {p.available_dates && <p>가능일 {p.available_dates.map(fmtDate).join(', ')}</p>}
+                      {p.message && <p>“{p.message}”</p>}
+                    </div>
+                  )}
+                  <ContactButtons phone={p.user.phone} name={p.user.name} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <form action={decideApplication.bind(null, p.id, 'approved')}>
+                      <SubmitButton className="btn-primary w-full" pendingText="확정 중…">
+                        확정
+                      </SubmitButton>
+                    </form>
+                    <form action={decideApplication.bind(null, p.id, 'rejected')}>
+                      <SubmitButton className="btn-gray w-full" pendingText="처리 중…">
+                        미선발
+                      </SubmitButton>
+                    </form>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="card hidden overflow-x-auto p-0 sm:block">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>지원자</th>
+                    <th>공고</th>
+                    <th>가능일 · 한마디</th>
+                    <th>지원 시각</th>
+                    <th />
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {pendingApps.map((p) => (
+                    <tr key={p.id}>
+                      <td className="whitespace-nowrap">
+                        <Link href={`/admin/workers/${p.user.id}`} className="font-semibold">
+                          {p.user.name}
+                        </Link>
+                        {p.user.birth_date && <span className="ml-1 text-xs text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+                        <div className="mt-1">
+                          <ContactButtons phone={p.user.phone} name={p.user.name} />
+                        </div>
+                      </td>
+                      <td>
+                        <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
+                          {p.job.title}
+                        </Link>
+                      </td>
+                      <td className="max-w-xs text-xs text-sub">
+                        {p.available_dates?.map(fmtDate).join(', ')}
+                        {p.message && <div>“{p.message}”</div>}
+                      </td>
+                      <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(p.created_at)}</td>
+                      <td className="whitespace-nowrap">
+                        <div className="flex gap-1">
+                          <form action={decideApplication.bind(null, p.id, 'approved')}>
+                            <SubmitButton className="btn-primary btn-sm" pendingText="…">
+                              확정
+                            </SubmitButton>
+                          </form>
+                          <form action={decideApplication.bind(null, p.id, 'rejected')}>
+                            <SubmitButton className="btn-gray btn-sm" pendingText="…">
+                              미선발
+                            </SubmitButton>
+                          </form>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
 

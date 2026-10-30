@@ -89,9 +89,10 @@
   body {
     @apply bg-bg text-ink antialiased;
     font-family: var(--font-sans);
-    /* 한글은 단어(띄어쓰기) 단위로 줄바꿈, 칸보다 긴 주소·숫자만 끊음 */
+    /* 한글은 단어(띄어쓰기) 단위로 줄바꿈, 칸보다 긴 주소·숫자만 끊음.
+       anywhere가 아니라 break-word: anywhere는 표 칸을 한 글자 너비까지 줄여 글자가 세로로 쪼개짐 */
     word-break: keep-all;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
   h1,
   h2 {
