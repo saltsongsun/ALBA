@@ -25,7 +25,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   const today = kstDate()
 
-  const [apps, atts, docs, me] = await Promise.all([
+  const [apps, atts, docs, me, notices] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*)')
@@ -50,7 +50,19 @@ export default async function MePage(props: PageProps<'/me'>) {
       .eq('id', user.id)
       .maybeSingle()
       .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null } | null),
+    // 담당자가 공고 확정자에게 보낸 공지 (오늘 근무 카드에 최근 것 하나)
+    db()
+      .from('messages')
+      .select('job_id, body, created_at')
+      .eq('thread_user_id', user.id)
+      .eq('from_admin', true)
+      .not('job_id', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then((r) => (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => m.body.startsWith('📢 공지'))),
   ])
+  const latestNotice = new Map<string, { body: string; created_at: string }>()
+  for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
   const photoAt = me?.photo_at ?? null
   const hasAccount = !!me?.bank_account_enc
 
@@ -167,6 +179,20 @@ export default async function MePage(props: PageProps<'/me'>) {
                         📍 내 배치 · {a.position}
                       </p>
                     )}
+                    {(() => {
+                      const n = latestNotice.get(job.id)
+                      if (!n) return null
+                      const at = kstDate(n.created_at) === today ? kstTime(n.created_at) : fmtDate(kstDate(n.created_at))
+                      return (
+                        <Link href="/me/chat" className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]">
+                          <span className="flex items-center justify-between gap-2 text-xs font-bold text-amber-800">
+                            📢 담당자 공지
+                            <span className="font-medium text-amber-700">{at}</span>
+                          </span>
+                          <span className="mt-0.5 line-clamp-3 block whitespace-pre-wrap text-ink">{n.body.replace(/^📢 공지\n?/, '')}</span>
+                        </Link>
+                      )
+                    })()}
                     {(job.manager_phone || map) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
                         {job.manager_phone && (
