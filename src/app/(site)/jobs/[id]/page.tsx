@@ -191,7 +191,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             {app.available_dates && <p className="text-sm text-sub">가능한 날: {app.available_dates.map(fmtDate).join(', ')}</p>}
             <div className="flex gap-2">
               <Link href="/me" className="btn-primary flex-1">
-                내 근무 보기
+                {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
               </Link>
               {(app.status === 'applied' || app.status === 'approved') && !ended && (
                 <form action={cancelApplication.bind(null, app.id)}>

@@ -4,6 +4,7 @@ import Flash from '@/components/Flash'
 import JobCard from '@/components/JobCard'
 import { countApps, getSettings, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
+import { scheduleText } from '@/lib/docs'
 import { getUser } from '@/lib/session'
 import { kstDate } from '@/lib/time'
 
@@ -35,10 +36,31 @@ export default async function HomePage(props: PageProps<'/'>) {
   const counts = countApps(jobs, 'approved')
   const mine: Record<string, string> = {}
   for (const r of myApps) mine[r.job_id] = r.status
+  // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
+  const todayJob = jobs.find((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
 
   return (
     <>
       <Flash m={sp.m} />
+      {todayJob && (
+        <Link href="/me" className="card-link mb-4 flex animate-pop items-center gap-3 p-4 ring-2 ring-emerald-200">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-emerald-500 text-white">
+            <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="13" r="8" />
+              <path d="M12 9v4l2.5 2.5M9.5 2.5h5" />
+            </svg>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-bold text-emerald-700">오늘 근무가 있어요</span>
+            <span className="block truncate font-bold">{todayJob.title}</span>
+            <span className="block truncate text-sm text-sub">
+              {scheduleText(todayJob)}
+              {todayJob.location_name && ` · ${todayJob.location_name}`}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-emerald-700">출퇴근 →</span>
+        </Link>
+      )}
       <section className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-6 text-white shadow-lg shadow-brand-600/20">
         {/* 배경에 천천히 떠다니는 동그라미 */}
         <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-44 animate-float rounded-full bg-white/10" />
