@@ -60,13 +60,16 @@ export function ConfirmSubmit({
   const { pending } = useFormStatus()
   return (
     <button
-      type={armed ? 'submit' : 'button'}
+      // 첫 번째 누름은 제출을 막고 확인 문구만 띄움.
+      // (type을 button→submit으로 바꾸는 방식은 같은 누름 안에서 바뀐 type으로 바로 제출돼 버림)
+      type="submit"
       className={className}
       disabled={pending}
       name={name}
       value={value}
-      onClick={() => {
+      onClick={(e) => {
         if (!armed) {
+          e.preventDefault()
           haptic(10)
           setArmed(true)
           setTimeout(() => setArmed(false), 4000)
