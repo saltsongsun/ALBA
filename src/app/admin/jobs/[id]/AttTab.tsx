@@ -5,8 +5,8 @@ import AutoRefresh from '@/components/AutoRefresh'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
-import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { won } from '@/lib/format'
+import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
+import { phoneFmt, won } from '@/lib/format'
 import { calcDay } from '@/lib/pay'
 import { fmtDate, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
@@ -43,6 +43,7 @@ export default function AttTab({
 
   return (
     <div className="space-y-4">
+      {/* 날짜 (행사가 여러 날이면 옆으로 넘김) */}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {dates.map((d) => {
           const n = atts.filter((a) => a.work_date === d).length
@@ -50,51 +51,75 @@ export default function AttTab({
             <Link
               key={d}
               href={`/admin/jobs/${job.id}?tab=att&date=${d}`}
-              className={`shrink-0 rounded-xl px-3 py-2 text-sm font-semibold ${d === date ? 'bg-ink text-white' : 'bg-white text-sub'}`}
+              className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
+                d === date ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
+              }`}
             >
               {fmtDate(d)}
-              {n > 0 && <span className="ml-1 opacity-70">{n}</span>}
+              {n > 0 && <span className={`rounded-full px-1.5 text-xs ${d === date ? 'bg-white/20' : 'bg-bg'}`}>{n}</span>}
             </Link>
           )
         })}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <p className="text-sm">
-            <span className="font-bold text-emerald-600">
-              근무 중 <LiveNumber value={working} />
-            </span>{' '}
-            · 종료 <LiveNumber value={done} /> · 미출근 <LiveNumber value={absent.length} />{' '}
-            <span className="text-mute">/ 명단 {roster.length}명</span>
-          </p>
+      {/* 이날 현황: 근무 중 · 종료 · 미출근 */}
+      <div className="card p-4">
+        <div className="grid grid-cols-3 divide-x divide-line text-center">
+          {(
+            [
+              ['근무 중', working, 'text-emerald-600'],
+              ['종료', done, 'text-ink'],
+              ['미출근', absent.length, absent.length && date <= today ? 'text-rose-500' : 'text-mute'],
+            ] as const
+          ).map(([label, n, tone]) => (
+            <div key={label}>
+              <p className="text-xs font-semibold text-mute">{label}</p>
+              <p className={`mt-0.5 text-2xl font-extrabold ${tone}`}>
+                <LiveNumber value={n} />
+              </p>
+            </div>
+          ))}
+        </div>
+        <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-bg">
+          <div className="bg-emerald-500 transition-[width] duration-500" style={{ width: `${(working / Math.max(roster.length, 1)) * 100}%` }} />
+          <div className="bg-ink/60 transition-[width] duration-500" style={{ width: `${(done / Math.max(roster.length, 1)) * 100}%` }} />
+        </div>
+        <div className="mt-2 flex items-center justify-between gap-2 text-xs text-mute">
+          <span>명단 {roster.length}명</span>
           {date === today && <AutoRefresh />}
         </div>
-        <div className="flex flex-wrap gap-2">
+      </div>
+
+      {/* 할 일: 한 줄로 (넘치면 옆으로 넘김) */}
+      {roster.length > 0 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
           {date <= today && absent.length > 0 && (
             <GroupContact
+              copy={false}
+              className="chip-primary"
               phones={absent.map((u) => users.get(u)?.phone)}
-              label={`미출근 ${absent.length}명에게 문자`}
+              label={`미출근 ${absent.length}명 문자`}
               body={`[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`}
             />
           )}
-          <GroupContact phones={roster.map((u) => users.get(u)?.phone)} label={`명단 ${roster.length}명에게 문자`} body={`[${job.title}] `} />
-        </div>
-        <div className="flex gap-2">
+          <GroupContact copy={false} className="chip" phones={roster.map((u) => users.get(u)?.phone)} label={`전체 ${roster.length}명 문자`} body={`[${job.title}] `} />
+          <CopyButton text={roster.map((u) => phoneFmt(users.get(u)?.phone)).filter(Boolean).join(', ')} label="번호 복사" className="chip" />
           {working > 0 && (
-            <form action={bulkClockOut.bind(null, job.id, date)}>
-              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${working}명 종료 처리?`}>
+            <form action={bulkClockOut.bind(null, job.id, date)} className="shrink-0">
+              <ConfirmSubmit className="chip" confirmText={`${working}명 종료할까요?`}>
                 미종료 일괄 종료
               </ConfirmSubmit>
             </form>
           )}
           {done > 0 && (
-            <form action={confirmDay.bind(null, job.id, date)}>
-              <SubmitButton className="btn-primary btn-sm">이날 근무 확정</SubmitButton>
+            <form action={confirmDay.bind(null, job.id, date)} className="shrink-0">
+              <SubmitButton className="chip" pendingText="확정 중…">
+                이날 근무 확정
+              </SubmitButton>
             </form>
           )}
         </div>
-      </div>
+      )}
 
       <div className="stagger space-y-2">
         {roster.length === 0 && <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>}
@@ -103,47 +128,51 @@ export default function AttTab({
           const a = byUser.get(uid)
           const pay = a ? calcDay(job, a) : null
           const far = (d: number | null) => d != null && d > job.gps_radius_m
+          const status = !a
+            ? { label: '미출근', cls: date <= today ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-mute' }
+            : !a.clock_out
+              ? { label: '근무 중', cls: 'bg-emerald-50 text-emerald-700' }
+              : a.confirmed
+                ? { label: '확정', cls: 'bg-ink text-white' }
+                : { label: '종료', cls: 'bg-gray-100 text-sub' }
           return (
             <div key={uid} className="card p-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span
-                    className={`size-2.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`}
-                  />
-                  <Link href={`/admin/workers/${uid}`} className="font-bold">
-                    {u?.name ?? '알 수 없음'}
-                  </Link>
-                </div>
-                <div className="flex flex-wrap items-center gap-1.5 text-sm">
-                  {!a && <span className="text-mute">미출근</span>}
-                  {a && (
-                    <>
-                      <span className="font-semibold">
-                        {kstTime(a.adj_in ?? a.clock_in)} ~ {a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : '근무 중'}
-                      </span>
-                      {pay && !pay.incomplete && (
-                        <span className="text-sub">
-                          {minutesText(pay.paidMin)} · {won(pay.gross)}
-                        </span>
-                      )}
-                      {(() => {
-                        const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, job.start_time).getTime()) / 60_000
-                        if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {Math.round(diff)}분</span>
-                        if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {Math.round(-diff)}분{job.early_clamp ? '(미인정)' : ''}</span>
-                        return null
-                      })()}
-                      {(a.adj_in || a.adj_out) && <span className="badge bg-amber-50 text-amber-700">보정</span>}
-                      {a.source === 'admin' && <span className="badge bg-gray-100 text-sub">관리자 등록</span>}
-                      {(far(a.in_distance_m) || far(a.out_distance_m)) && <span className="badge bg-rose-50 text-rose-600">위치 벗어남</span>}
-                      {a.confirmed && <span className="badge bg-ink text-white">확정</span>}
-                      {a.paid && <span className="badge bg-emerald-50 text-emerald-700">지급</span>}
-                    </>
-                  )}
-                </div>
+              <div className="flex items-center gap-2">
+                <span className="relative flex size-2.5 shrink-0">
+                  {a && !a.clock_out && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+                  <span className={`relative inline-flex size-2.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`} />
+                </span>
+                <Link href={`/admin/workers/${uid}`} className="min-w-0 truncate text-[17px] font-bold">
+                  {u?.name ?? '알 수 없음'}
+                </Link>
+                <span className={`badge ml-auto shrink-0 ${status.cls}`}>{status.label}</span>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-                <ContactButtons phone={u?.phone} name={u?.name} />
+              {a && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                  <span className="font-semibold tabular-nums">
+                    {kstTime(a.adj_in ?? a.clock_in)} ~ {a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : '근무 중'}
+                  </span>
+                  {pay && !pay.incomplete && (
+                    <span className="text-sub">
+                      · {minutesText(pay.paidMin)} · {won(pay.gross)}
+                    </span>
+                  )}
+                  {(() => {
+                    const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, job.start_time).getTime()) / 60_000
+                    if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {Math.round(diff)}분</span>
+                    if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {Math.round(-diff)}분{job.early_clamp ? '(미인정)' : ''}</span>
+                    return null
+                  })()}
+                  {(a.adj_in || a.adj_out) && <span className="badge bg-amber-50 text-amber-700">보정</span>}
+                  {a.source === 'admin' && <span className="badge bg-gray-100 text-sub">관리자 등록</span>}
+                  {(far(a.in_distance_m) || far(a.out_distance_m)) && <span className="badge bg-rose-50 text-rose-600">위치 벗어남</span>}
+                  {a.paid && <span className="badge bg-emerald-50 text-emerald-700">지급</span>}
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <ContactButtons phone={u?.phone} name={u?.name} showNumber={false} />
                 {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) */}
                 <span className="inline-flex items-center gap-1 text-xs text-mute">
                   평가
@@ -152,8 +181,8 @@ export default function AttTab({
               </div>
 
               {a ? (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-sm font-semibold text-brand-600">기록 보기 · 수정</summary>
+                <details className="mt-3 border-t border-line pt-2.5">
+                  <summary className="cursor-pointer text-sm font-semibold text-sub">기록 보기 · 수정</summary>
                   <div className="mt-2 rounded-xl bg-bg px-3 py-2 text-xs text-sub">
                     앱 기록: 출근 {kstTime(a.clock_in)}
                     {a.in_distance_m != null && ` (현장에서 ${a.in_distance_m}m)`} · 퇴근 {a.clock_out ? kstTime(a.clock_out) : '없음'}
@@ -203,8 +232,8 @@ export default function AttTab({
                   </form>
                 </details>
               ) : (
-                <details className="mt-2">
-                  <summary className="cursor-pointer text-sm font-semibold text-mute">수기로 출퇴근 등록</summary>
+                <details className="mt-3 border-t border-line pt-2.5">
+                  <summary className="cursor-pointer text-sm font-semibold text-sub">수기로 출퇴근 등록</summary>
                   <form action={addAttendance.bind(null, job.id)} className="mt-2 flex flex-wrap items-end gap-2">
                     <input type="hidden" name="user_id" value={uid} />
                     <input type="hidden" name="work_date" value={date} />

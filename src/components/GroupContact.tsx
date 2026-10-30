@@ -4,8 +4,20 @@ import { useEffect, useState } from 'react'
 import { phoneFmt } from '@/lib/format'
 import { CopyButton } from './ui'
 
-/** 여러 명에게 한 번에 문자 (휴대폰 문자 앱이 받는 사람을 채운 채로 열림) + 번호 전체 복사 */
-export function GroupContact({ phones, label, body }: { phones: (string | null | undefined)[]; label: string; body?: string }) {
+/** 여러 명에게 한 번에 문자 (휴대폰 문자 앱이 받는 사람을 채운 채로 열림) + 번호 전체 복사 (copy=false면 문자 버튼만) */
+export function GroupContact({
+  phones,
+  label,
+  body,
+  copy = true,
+  className = 'btn-soft btn-sm',
+}: {
+  phones: (string | null | undefined)[]
+  label: string
+  body?: string
+  copy?: boolean
+  className?: string
+}) {
   const list = [...new Set(phones.map((p) => (p ?? '').replace(/\D/g, '')).filter((p) => p.length >= 9))]
   const [ios, setIos] = useState(false)
   // 아이폰은 여러 명을 addresses=로 받음 (iPadOS는 Mac처럼 보이므로 터치 여부로 구분)
@@ -18,11 +30,15 @@ export function GroupContact({ phones, label, body }: { phones: (string | null |
   const href = ios
     ? `sms:/open?addresses=${list.join(',')}${q ? `&body=${q}` : ''}`
     : `sms:${list.join(',')}${q ? `?body=${q}` : ''}`
+  const sms = (
+    <a href={href} className={className}>
+      {label}
+    </a>
+  )
+  if (!copy) return sms
   return (
     <div className="flex flex-wrap gap-2">
-      <a href={href} className="btn-soft btn-sm">
-        {label}
-      </a>
+      {sms}
       <CopyButton text={list.map(phoneFmt).join(', ')} label={`번호 ${list.length}개 복사`} />
     </div>
   )

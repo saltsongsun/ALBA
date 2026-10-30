@@ -288,6 +288,13 @@
 @utility contact-btn {
   @apply inline-flex h-8 items-center gap-1 rounded-lg px-2.5 text-[13px] font-semibold whitespace-nowrap transition duration-150 active:scale-[0.94];
 }
+/* 작은 동그란 실행 버튼 (출퇴근 화면의 문자·복사·일괄 처리 등을 한 줄로) */
+@utility chip {
+  @apply inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-white px-3.5 text-[13px] font-semibold whitespace-nowrap text-sub ring-1 ring-line transition duration-150 select-none hover:bg-bg active:scale-95 disabled:opacity-50;
+}
+@utility chip-primary {
+  @apply chip bg-brand-600 text-white ring-0 hover:bg-brand-700;
+}
 /* 누르면 이동하는 카드: 마우스를 올리면 살짝 뜨고, 누르면 눌림 */
 @utility card-link {
   @apply card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] active:translate-y-0 active:scale-[0.985];
