@@ -5,6 +5,7 @@ import { saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { minutesText } from '@/lib/time'
+import { JOB_FIELDS } from '@/lib/jobFields'
 import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
@@ -25,8 +26,12 @@ const CONDITION_PRESETS: { label: string; hint: string }[] = [
 
 type ConditionRow = JobCondition & { key: number; hint?: string }
 
-/** 공고마다 필요한 조건만 넣고 빼는 목록 (저장할 때 빈 줄은 빠짐) */
-function ConditionsEditor({ initial }: { initial: JobCondition[] }) {
+/**
+ * 공고에 보일 내용: 기본 항목(휴게·공제 등)은 켜고 끄고, 필요한 조건은 더하고 빼기.
+ * 기본 항목을 끄면 공고 화면·홈 공고 카드·모집 문구에서 빠짐 (근로계약서에는 영향 없음)
+ */
+function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: string[] }) {
+  const [shown, setShown] = useState(() => new Set<string>(JOB_FIELDS.map((f) => f.key).filter((k) => !hidden.includes(k))))
   const [rows, setRows] = useState<ConditionRow[]>(() => initial.map((c, i) => ({ ...c, key: i })))
   const nextKey = useRef(initial.length)
   const focusRef = useRef<string | null>(null)
@@ -46,13 +51,58 @@ function ConditionsEditor({ initial }: { initial: JobCondition[] }) {
   const change = (key: number, field: 'label' | 'value', v: string) => setRows((r) => r.map((x) => (x.key === key ? { ...x, [field]: v } : x)))
   const used = new Set(rows.map((r) => r.label.trim()))
   const saved = rows.map((r) => ({ label: r.label.trim(), value: r.value.trim() })).filter((c) => c.label && c.value)
+  const toggle = (key: string, on: boolean) =>
+    setShown((s) => {
+      const next = new Set(s)
+      if (on) next.add(key)
+      else next.delete(key)
+      return next
+    })
+  // 법정 휴게 문구 대신 직접 쓰기: 기본 휴게를 끄고 '휴게 시간' 조건 줄로
+  const writeBreak = () => {
+    toggle('break', false)
+    const existing = rows.find((r) => r.label.trim() === '휴게 시간')
+    if (existing) document.querySelector<HTMLInputElement>(`[data-cond="${existing.key}-value"]`)?.focus()
+    else add('휴게 시간', CONDITION_PRESETS[0].hint)
+  }
 
   return (
     <section className="card space-y-4">
       <div>
-        <h2 className="font-bold">근무 조건</h2>
-        <p className="hint">필요한 조건만 넣고 빼세요. 공고 화면과 단톡방 모집 문구에 그대로 나옵니다.</p>
+        <h2 className="font-bold">공고에 보일 내용</h2>
+        <p className="hint">기본 항목은 켜고 끌 수 있고, 필요한 조건은 아래에 더하세요. 공고 화면과 단톡방 모집 문구에 그대로 나옵니다.</p>
       </div>
+
+      <ul className="divide-y divide-line rounded-xl ring-1 ring-line">
+        {JOB_FIELDS.map((f) => {
+          const on = shown.has(f.key)
+          return (
+            <li key={f.key} className="flex items-center gap-3 px-3.5 py-2.5">
+              <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3">
+                <input type="checkbox" name="show_fields" value={f.key} checked={on} onChange={(e) => toggle(f.key, e.target.checked)} className="peer sr-only" />
+                {/* 켜고 끄는 스위치 */}
+                <span
+                  aria-hidden
+                  className={`relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200 peer-focus-visible:ring-2 peer-focus-visible:ring-brand-500/40 ${on ? 'bg-brand-600' : 'bg-line'}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow transition-transform duration-200 ${on ? 'translate-x-4' : ''}`} />
+                </span>
+                <span className="min-w-0">
+                  <span className={`block text-sm font-semibold transition-colors ${on ? 'text-ink' : 'text-mute line-through'}`}>{f.label}</span>
+                  <span className="block text-xs text-mute">{f.hint}</span>
+                </span>
+              </label>
+              {f.key === 'break' && (
+                <button type="button" className="chip h-8 px-3 text-xs" onClick={writeBreak}>
+                  직접 쓰기
+                </button>
+              )}
+            </li>
+          )
+        })}
+      </ul>
+
+      <p className="text-sm font-semibold text-sub">추가 조건</p>
       {rows.length > 0 && (
         <ul className="space-y-2">
           {rows.map((r) => (
@@ -117,10 +167,10 @@ function Field({ label, children, hint, className = '' }: { label: string; child
   )
 }
 
-function Check({ name, label, defaultChecked, hint }: { name: string; label: string; defaultChecked?: boolean; hint?: string }) {
+function Check({ name, value, label, defaultChecked, hint }: { name: string; value?: string; label: string; defaultChecked?: boolean; hint?: string }) {
   return (
     <label className="flex items-start gap-2.5">
-      <input type="checkbox" name={name} defaultChecked={defaultChecked} className="mt-0.5 size-5 shrink-0 accent-brand-600" />
+      <input type="checkbox" name={name} value={value} defaultChecked={defaultChecked} className="mt-0.5 size-5 shrink-0 accent-brand-600" />
       <span className="text-sm">
         <span className="font-semibold">{label}</span>
         {hint && <span className="block text-xs text-mute">{hint}</span>}
@@ -284,7 +334,7 @@ export default function JobForm({
               const point = v('lat') && v('lng') && Number.isFinite(lat) && Number.isFinite(lng)
               const links = mapLinks({ name: v('location_name') || null, address: v('address') || null, lat: point ? lat : null, lng: point ? lng : null })
               setMapSrc(links?.embed ?? null)
-              if (!links) setLocMsg('주소나 위도·경도를 먼저 넣어 주세요.')
+              if (!links) setLocMsg('장소 이름이나 주소를 먼저 넣어 주세요.')
             }}
           >
             지도로 확인
@@ -428,7 +478,7 @@ export default function JobForm({
         </div>
       </section>
 
-      <ConditionsEditor initial={job?.conditions ?? []} />
+      <PostingEditor initial={job?.conditions ?? []} hidden={job?.hidden_fields ?? []} />
 
       <section className="card space-y-3">
         <h2 className="font-bold">확정 후 서명받을 서류</h2>
@@ -437,6 +487,7 @@ export default function JobForm({
           <Check
             key={t.id}
             name="required_docs"
+            value={t.id}
             label={t.title}
             defaultChecked={job ? job.required_docs.includes(t.id) : t.is_default}
           />

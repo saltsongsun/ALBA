@@ -1,6 +1,6 @@
 import { mapLinks, type Place } from '@/lib/map'
 
-/** 행사장 지도 + 카카오맵·길찾기·네이버 지도 버튼 (주소나 좌표가 없으면 그리지 않음) */
+/** 행사장 지도 + 카카오맵·길찾기·네이버 지도 버튼 (장소 이름·주소·좌표가 모두 없으면 그리지 않음) */
 export default function VenueMap(place: Place) {
   const links = mapLinks(place)
   if (!links) return null

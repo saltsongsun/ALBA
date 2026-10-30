@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
+import { shows } from '@/lib/jobFields'
 import { fmtDateRange, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
 
@@ -36,6 +37,7 @@ export default function JobCard({
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
   const filled = Math.min(100, Math.round((approved / Math.max(job.headcount, 1)) * 100))
+  const showCount = shows(job, 'headcount')
   return (
     <Link href={`/jobs/${job.id}`} className="card-link block">
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -66,14 +68,18 @@ export default function JobCard({
             </span>
           )}
         </p>
-        <span className="mb-0.5 shrink-0 text-xs font-semibold text-mute tabular-nums">
-          {approved}/{job.headcount}명 확정
-        </span>
+        {showCount && (
+          <span className="mb-0.5 shrink-0 text-xs font-semibold text-mute tabular-nums">
+            {approved}/{job.headcount}명 확정
+          </span>
+        )}
       </div>
       {/* 모집 인원이 얼마나 찼는지 (처음 보일 때 왼쪽에서 차오름) */}
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg">
-        <div className={`h-full origin-left animate-grow rounded-full ${full ? 'bg-mute' : 'bg-brand-500'}`} style={{ width: `${filled}%` }} />
-      </div>
+      {showCount && (
+        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg">
+          <div className={`h-full origin-left animate-grow rounded-full ${full ? 'bg-mute' : 'bg-brand-500'}`} style={{ width: `${filled}%` }} />
+        </div>
+      )}
     </Link>
   )
 }

@@ -12,6 +12,7 @@ import { approvedCounts, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
+import { shows } from '@/lib/jobFields'
 import { breakDescription, estimateDay, TAX_LABEL } from '@/lib/pay'
 import { getUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, minutesText } from '@/lib/time'
@@ -81,13 +82,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         </div>
         <h1 className="text-[22px] leading-snug font-extrabold">{job.title}</h1>
         <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">
-          <p className="text-sm text-sub">{wageBadge(job)}</p>
-          <p className="mt-0.5 text-2xl font-extrabold">
-            하루 약 {won(est.gross)}
-          </p>
-          <p className="mt-1 text-xs text-mute">
-            {scheduleText(job)} 기준 · 휴게 {est.breakMin}분 제외 {minutesText(est.paidMin)} · 세전
-          </p>
+          {shows(job, 'estimate') ? (
+            <>
+              <p className="text-sm text-sub">{wageBadge(job)}</p>
+              <p className="mt-0.5 text-2xl font-extrabold">하루 약 {won(est.gross)}</p>
+              <p className="mt-1 text-xs text-mute">
+                {scheduleText(job)} 기준 · 휴게 {est.breakMin}분 제외 {minutesText(est.paidMin)} · 세전
+              </p>
+            </>
+          ) : (
+            <p className="text-2xl font-extrabold">{wageBadge(job)}</p>
+          )}
         </div>
         <dl className="mt-3 divide-y divide-line">
           <Row k="일정">
@@ -101,19 +106,26 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </Row>
           )}
           {job.meeting_point && <Row k="집결">{job.meeting_point}</Row>}
-          <Row k="인원">
-            {job.headcount}명 모집 · {approved}명 확정
-          </Row>
+          {shows(job, 'headcount') && (
+            <Row k="인원">
+              {job.headcount}명 모집 · {approved}명 확정
+            </Row>
+          )}
           {job.task && <Row k="업무">{job.task}</Row>}
-          <Row k="휴게">{breakDescription(job)}</Row>
+          {shows(job, 'break') && <Row k="휴게">{breakDescription(job)}</Row>}
           {job.allowance > 0 && (
             <Row k="수당">
               {job.allowance_label || '수당'} 1일 {won(job.allowance)}
             </Row>
           )}
-          {job.premium_enabled && <Row k="가산">8시간 초과·야간(22~06시) 근무 50% 가산</Row>}
-          <Row k="공제">{TAX_LABEL[job.tax_type]}{job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}</Row>
-          {job.pay_day && <Row k="지급일">{job.pay_day}</Row>}
+          {job.premium_enabled && shows(job, 'premium') && <Row k="가산">8시간 초과·야간(22~06시) 근무 50% 가산</Row>}
+          {shows(job, 'tax') && (
+            <Row k="공제">
+              {TAX_LABEL[job.tax_type]}
+              {job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}
+            </Row>
+          )}
+          {job.pay_day && shows(job, 'pay_day') && <Row k="지급일">{job.pay_day}</Row>}
           {job.dress_code && <Row k="복장">{job.dress_code}</Row>}
           {job.supplies && <Row k="준비물">{job.supplies}</Row>}
           {job.conditions.map((c, i) => (
@@ -131,10 +143,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               )}
             </Row>
           )}
-          {docs.length > 0 && <Row k="서류">{docs.map((d) => d.title).join(', ')} (확정 후 앱에서 전자서명)</Row>}
+          {docs.length > 0 && shows(job, 'docs') && <Row k="서류">{docs.map((d) => d.title).join(', ')} (확정 후 앱에서 전자서명)</Row>}
         </dl>
         {job.description && <p className="mt-3 rounded-xl bg-bg p-4 text-[15px] whitespace-pre-wrap text-sub">{job.description}</p>}
-        {(job.address || job.lat != null) && (
+        {(job.location_name || job.address || job.lat != null) && (
           <div className="mt-4">
             <h2 className="mb-2 text-sm font-bold text-sub">찾아오는 길</h2>
             <VenueMap name={job.location_name} address={job.address} lat={job.lat} lng={job.lng} />
@@ -147,7 +159,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         <StickyApply
           targetId="apply"
           title={job.title}
-          summary={`하루 약 ${won(est.gross)}`}
+          summary={shows(job, 'estimate') ? `하루 약 ${won(est.gross)}` : wageBadge(job)}
           href={user ? undefined : `/signup?next=${encodeURIComponent(path)}`}
           aboveTabs={!!user}
         />

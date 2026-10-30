@@ -74,6 +74,8 @@ export type Job = {
   auto_approve: boolean
   status: JobStatus
   conditions: JobCondition[]
+  /** 공고 화면에서 숨길 기본 항목 (lib/jobFields.ts) */
+  hidden_fields: string[]
   created_at: string
 }
 

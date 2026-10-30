@@ -1,5 +1,6 @@
 import type { CompanySettings, Job } from './types'
 import { phoneFmt, won } from './format'
+import { shows } from './jobFields'
 import { breakDescription, taxDescription } from './pay'
 import { fmtDateLong, fmtDateRange, hhmm, kstDate } from './time'
 
@@ -79,7 +80,7 @@ export function recruitText(job: Job, url: string, companyName: string): string 
     `■ 일정: ${scheduleSummary(job)}`,
     job.location_name ? `■ 장소: ${job.location_name}` : null,
     `■ 급여: ${pay}${job.allowance > 0 ? ` + ${job.allowance_label || '수당'} ${won(job.allowance)}` : ''}`,
-    `■ 인원: ${job.headcount}명`,
+    shows(job, 'headcount') ? `■ 인원: ${job.headcount}명` : null,
     job.task ? `■ 업무: ${job.task}` : null,
     job.dress_code ? `■ 복장: ${job.dress_code}` : null,
     ...(job.conditions ?? []).map((c) => `■ ${c.label}: ${c.value}`),

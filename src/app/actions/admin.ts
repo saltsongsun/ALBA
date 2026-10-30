@@ -7,6 +7,7 @@ import { decrypt, hashPin } from '@/lib/crypto'
 import { audit, ensurePendingDocs, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
+import { hiddenFromForm } from '@/lib/jobFields'
 import { estimateDay, MIN_WAGE_2026 } from '@/lib/pay'
 import { requireAdmin } from '@/lib/session'
 import { fromKstInput, kstAt } from '@/lib/time'
@@ -115,6 +116,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
     auto_approve: bool(form, 'auto_approve'),
     status,
     conditions,
+    hidden_fields: hiddenFromForm(form),
   } satisfies Omit<Job, 'id' | 'created_at'>
 
   // 최저임금 확인

@@ -38,7 +38,7 @@ const job = {
   allowance_label: '교통비', tax_type: 'daily', employment_insurance: true, pay_day: '익월 10일', dress_code: null,
   supplies: null, meeting_point: null, manager_name: '담당', manager_phone: '01055556666', required_docs: [TPL],
   auto_approve: false, status: 'open', created_by: ADMIN,
-  conditions: [{ label: '휴게 시간', value: '12:00~13:00 점심' }, { label: '식사', value: '점심 도시락 제공' }], created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
+  hidden_fields: [], conditions: [{ label: '휴게 시간', value: '12:00~13:00 점심' }, { label: '식사', value: '점심 도시락 제공' }], created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
   applications: [{ status: 'approved' }, { status: 'applied' }],
 }
 const jobLite = { ...job }
@@ -152,6 +152,14 @@ const server = http.createServer(async (req, res) => {
   }
   if (req.method === 'HEAD' || (req.headers.prefer ?? '').includes('count=exact')) {
     return send(200, req.method === 'HEAD' ? undefined : rows, { 'content-range': `0-${Math.max(rows.length - 1, 0)}/${rows.length}` })
+  }
+  if (req.method === 'PATCH') {
+    // 수정은 실제로 반영 (공고 저장 → 화면 확인 테스트용)
+    let body = ''
+    for await (const c of req) body += c
+    const patch = JSON.parse(body || '{}')
+    for (const r of rows) Object.assign(r, patch)
+    return send(200, rows)
   }
   if (req.method !== 'GET') {
     req.resume()
