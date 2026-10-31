@@ -7,6 +7,8 @@ const DAILY_TAX_RATE = 0.06 * (1 - 0.55) // 세율 6%, 근로소득세액공제 
 const BUSINESS_TAX_RATE = 0.03 // 사업소득 3% (+지방소득세 0.3%)
 const EMPLOYMENT_INSURANCE_RATE = 0.009 // 고용보험 근로자 부담분
 const MIN_WITHHOLDING = 1_000 // 소액부징수 기준
+/** 계약 종료 시각을 이만큼 넘겨 기록돼야 연장 근무 확인을 물어봄 (더 짧으면 계약 종료 시각까지만 계산) */
+export const OT_ASK_MIN = 10
 
 export type PayRule = Pick<
   Job,
@@ -18,6 +20,7 @@ export type PayRule = Pick<
   | 'round_unit'
   | 'early_clamp'
   | 'start_time'
+  | 'end_time'
   | 'premium_enabled'
   | 'allowance'
   | 'tax_type'
@@ -27,7 +30,7 @@ export type PayRule = Pick<
 export type AttendanceTimes = Pick<
   Attendance,
   'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'break_override' | 'extra_pay' | 'deduction'
-> & { work_date?: string }
+> & { work_date?: string; ot_minutes?: number; ot_status?: Attendance['ot_status'] }
 
 export type DayPay = {
   incomplete: boolean
@@ -44,6 +47,9 @@ export type DayPay = {
   deduction: number
   gross: number
   dailyTax: number // 일용근로 일별 소득세 (소액부징수 판단 전)
+  afterMin: number // 계약 종료 시각 이후로 기록된 시간(분)
+  agreedOtMin: number // 그중 서로 확인해 금액에 넣은 시간(분)
+  otOpen: boolean // 연장 확인이 아직 끝나지 않음 (금액에서 빠져 있음)
 }
 
 export type Settlement = {
@@ -78,6 +84,13 @@ export function legalBreak(spanMin: number): number {
   return 0
 }
 
+/** 그날의 계약 종료 시각 (종료가 시작보다 이르면 다음날) */
+export function scheduledEnd(rule: Pick<Job, 'start_time' | 'end_time'>, workDate: string): Date {
+  const start = kstAt(workDate, rule.start_time)
+  const end = kstAt(workDate, rule.end_time)
+  return end <= start ? new Date(end.getTime() + 86_400_000) : end
+}
+
 export function effectiveTimes(a: Pick<Attendance, 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out'>) {
   const end = a.adj_out ?? a.clock_out
   return { start: new Date(a.adj_in ?? a.clock_in), end: end ? new Date(end) : null }
@@ -85,8 +98,21 @@ export function effectiveTimes(a: Pick<Attendance, 'clock_in' | 'clock_out' | 'a
 
 export function calcDay(rule: PayRule, a: AttendanceTimes): DayPay {
   const times = effectiveTimes(a)
-  const end = times.end
+  let end = times.end
   let start = times.start
+  // 계약 종료 시각 이후는 근무자·관리자가 서로 확인한(agreed) 만큼만 계산.
+  // 근무 종료를 늦게 누르거나 잊어도 금액이 저절로 늘지 않게
+  let afterMin = 0
+  let agreedOtMin = 0
+  if (end && a.work_date && rule.start_time && rule.end_time) {
+    const limit = scheduledEnd(rule, a.work_date)
+    if (end > limit) {
+      afterMin = Math.floor((end.getTime() - limit.getTime()) / 60_000)
+      agreedOtMin = a.ot_status === 'agreed' ? Math.min(Math.max(0, a.ot_minutes ?? 0), afterMin) : 0
+      end = new Date(limit.getTime() + agreedOtMin * 60_000)
+    }
+  }
+  const otOpen = afterMin >= OT_ASK_MIN && a.ot_status !== 'agreed' && a.ot_status !== 'rejected'
   // 관리자가 출근 시각을 직접 고친 경우는 그 값을 그대로 씁니다.
   if (rule.early_clamp && !a.adj_in && a.work_date && rule.start_time) {
     const scheduled = kstAt(a.work_date, rule.start_time)
@@ -107,8 +133,13 @@ export function calcDay(rule: PayRule, a: AttendanceTimes): DayPay {
     deduction: a.deduction ?? 0,
     gross: a.extra_pay ?? 0,
     dailyTax: 0,
+    afterMin,
+    agreedOtMin,
+    otOpen,
   }
-  if (!end || end <= start) return empty
+  if (!end) return empty
+  // 계약 종료 뒤에 출근을 누른 경우 등: 기록은 있지만 인정 시간 0
+  if (end <= start) return { ...empty, incomplete: !times.end }
 
   const spanMin = Math.floor((end.getTime() - start.getTime()) / 60_000)
   const breakMin =
@@ -159,6 +190,9 @@ export function calcDay(rule: PayRule, a: AttendanceTimes): DayPay {
     deduction: a.deduction ?? 0,
     gross,
     dailyTax,
+    afterMin,
+    agreedOtMin,
+    otOpen,
   }
 }
 
