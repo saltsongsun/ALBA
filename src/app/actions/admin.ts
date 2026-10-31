@@ -389,6 +389,22 @@ export async function setPaid(jobId: string, userId: string, paid: boolean) {
   revalidatePath(`/admin/jobs/${jobId}`)
 }
 
+/** 입금을 마친 뒤 한 번에: 이 공고의 퇴근까지 기록된 미지급 근무를 모두 지급 완료로 */
+export async function setAllPaid(jobId: string) {
+  const admin = await requireAdmin()
+  if (!isUuid(jobId)) return
+  must(
+    await db()
+      .from('attendance')
+      .update({ paid: true, paid_at: new Date().toISOString(), confirmed: true })
+      .eq('job_id', jobId)
+      .eq('paid', false)
+      .not('clock_out', 'is', null),
+  )
+  await audit(admin.id, 'pay.mark_paid_all', null, jobId)
+  revalidatePath(`/admin/jobs/${jobId}`)
+}
+
 // ───────────── 서류 ─────────────
 
 export async function voidDoc(docId: string) {

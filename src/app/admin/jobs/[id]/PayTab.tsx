@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { setPaid } from '@/app/actions/admin'
+import { setAllPaid, setPaid } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
-import { SubmitButton } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { maskAccount, won } from '@/lib/format'
 import { calcDay, settle, TAX_LABEL } from '@/lib/pay'
@@ -20,6 +20,7 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
         user: users.get(uid),
         s: settle(job, mine.map((a) => calcDay(job, a))),
         paid: done.length > 0 && done.every((a) => a.paid),
+        done: done.length,
         unconfirmed: done.filter((a) => !a.confirmed).length,
       }
     })
@@ -30,6 +31,7 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
   const unconfirmed = rows.reduce((t, r) => t + r.unconfirmed, 0)
   // 계좌가 없으면 입금을 못 하므로 정산 전에 한 번에 요청
   const noAccount = rows.filter((r) => !r.user?.bank_account_enc)
+  const unpaid = rows.filter((r) => r.done > 0 && !r.paid)
 
   return (
     <div className="space-y-4">
@@ -39,7 +41,14 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
           {job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}
           {job.premium_enabled ? ' · 연장·야간 가산' : ''}
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          {unpaid.length > 0 && (
+            <form action={setAllPaid.bind(null, job.id)}>
+              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${unpaid.length}명 모두 지급 완료로 바꿀까요?`}>
+                미지급 {unpaid.length}명 모두 지급 완료
+              </ConfirmSubmit>
+            </form>
+          )}
           <Link href={`/admin/jobs/${job.id}/edit`} className="btn-gray btn-sm">
             급여 설정 바꾸기
           </Link>
