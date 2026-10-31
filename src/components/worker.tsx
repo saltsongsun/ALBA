@@ -501,11 +501,28 @@ export function LateNotice({ jobId, sent }: { jobId: string; sent: { minutes: nu
   )
 }
 
-export function SignaturePad({ name }: { name: string }) {
+export function SignaturePad({ name, reuse = null }: { name: string; /** 앞 서류에 방금 한 서명 (있으면 '같은 서명 쓰기') */ reuse?: string | null }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const drawing = useRef(false)
   const [empty, setEmpty] = useState(true)
+
+  // 앞 서류와 같은 서명: 그 그림을 서명란에 그대로 놓고 같은 이미지로 제출
+  const applySaved = () => {
+    if (!reuse) return
+    const img = new Image()
+    img.onload = () => {
+      const c = canvasRef.current!
+      const r = c.getBoundingClientRect()
+      const ctx = c.getContext('2d')!
+      ctx.clearRect(0, 0, r.width, r.height)
+      const k = Math.min(r.width / img.width, r.height / img.height)
+      ctx.drawImage(img, (r.width - img.width * k) / 2, (r.height - img.height * k) / 2, img.width * k, img.height * k)
+      inputRef.current!.value = reuse
+      setEmpty(false)
+    }
+    img.src = reuse
+  }
 
   useEffect(() => {
     const c = canvasRef.current!
@@ -572,7 +589,12 @@ export function SignaturePad({ name }: { name: string }) {
           <span className="badge pointer-events-none absolute top-2 right-2 animate-pop bg-emerald-50 text-emerald-700">서명됨 ✓</span>
         )}
       </div>
-      <div className="mt-2 flex justify-end">
+      <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        {reuse && empty && (
+          <button type="button" onClick={applySaved} className="btn-soft btn-sm mr-auto">
+            ✍️ 앞 서류와 같은 서명 쓰기
+          </button>
+        )}
         <button
           type="button"
           className="btn-gray btn-sm"
@@ -591,12 +613,36 @@ export function SignaturePad({ name }: { name: string }) {
   )
 }
 
-export function SignForm({ docId, title }: { docId: string; title: string }) {
+/** 이 기기에서 방금 한 서명 (서류가 여러 건이면 같은 서명을 다시 그리지 않게). 같은 계정·30분 안에만 */
+const LAST_SIGNATURE = 'hw-last-signature'
+const REUSE_MS = 30 * 60_000
+
+export function SignForm({ docId, title, userId }: { docId: string; title: string; userId: string }) {
   const [state, action] = useActionState(signDocument.bind(null, docId), null)
+  const [saved, setSaved] = useState<string | null>(null)
+  useEffect(() => {
+    try {
+      const v = JSON.parse(sessionStorage.getItem(LAST_SIGNATURE) ?? 'null') as { u?: string; at?: number; data?: string } | null
+      if (v?.u === userId && typeof v.at === 'number' && Date.now() - v.at < REUSE_MS && v.data?.startsWith('data:image/png;base64,')) setSaved(v.data)
+      else sessionStorage.removeItem(LAST_SIGNATURE)
+    } catch {}
+  }, [userId])
   return (
-    <form action={action} onReset={keepInputs} className="card no-print space-y-4">
+    <form
+      action={action}
+      onReset={keepInputs}
+      onSubmit={(e) => {
+        const sig = new FormData(e.currentTarget).get('signature')
+        if (typeof sig === 'string' && sig.startsWith('data:image/png;base64,')) {
+          try {
+            sessionStorage.setItem(LAST_SIGNATURE, JSON.stringify({ u: userId, at: Date.now(), data: sig }))
+          } catch {}
+        }
+      }}
+      className="card no-print space-y-4"
+    >
       <h2 className="font-bold">근로자 서명</h2>
-      <SignaturePad name="signature" />
+      <SignaturePad name="signature" reuse={saved} />
       <label className="flex items-start gap-2.5 text-sm">
         <input type="checkbox" name="agree" className="mt-0.5 size-5 accent-brand-600" required />
         <span>위 「{title}」 내용을 모두 읽고 이해했으며, 전자서명으로 체결(제출)하는 데 동의합니다.</span>

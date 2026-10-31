@@ -113,7 +113,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         signedIp={doc.signed_ip}
       />
       </Guard>
-      {doc.status === 'pending' && mine && <SignForm docId={doc.id} title={doc.title} />}
+      {doc.status === 'pending' && mine && <SignForm docId={doc.id} title={doc.title} userId={user.id} />}
     </div>
   )
 }
