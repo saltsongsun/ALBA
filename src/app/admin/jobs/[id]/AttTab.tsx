@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, dismissWorker, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -11,7 +11,7 @@ import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
 import { calcDay, OT_ASK_MIN, shiftOf } from '@/lib/pay'
-import { DISMISS_NOTE, DISMISS_REASONS, parseArriveDistance, parseLate, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
@@ -75,6 +75,27 @@ export default async function AttTab({
       if (l) lateOf.set(m.thread_user_id, { ...l, at: kstTime(m.created_at), reason: m.body.match(/사유: (.+)/)?.[1] ?? null })
     }
     if (kind === 'arrive' && !arriveOf.has(m.thread_user_id)) arriveOf.set(m.thread_user_id, { at: kstTime(m.created_at), distance: parseArriveDistance(m.body) })
+  }
+  // 근무자의 기록 정정 요청 (출근·종료 시각이 잘못 찍힘): 아직 답하지 않은 것
+  const threads = (
+    must(
+      await db()
+        .from('messages')
+        .select('thread_user_id, body, created_at, from_admin')
+        .eq('job_id', job.id)
+        .gte('created_at', kstAt(date, '00:00').toISOString())
+        .order('created_at', { ascending: false })
+        .limit(500),
+    ) as { thread_user_id: string; body: string; created_at: string; from_admin: boolean }[]
+  ).filter((m) => ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''))
+  const fixOf = new Map<string, { field: 'in' | 'out'; time: string; at: string; reason: string | null }>()
+  for (const uid of new Set(threads.map((m) => m.thread_user_id))) {
+    const req = pendingFix(
+      threads.filter((m) => m.thread_user_id === uid),
+      date,
+    )
+    const fix = req && parseFix(req.body)
+    if (req && fix) fixOf.set(uid, { ...fix, at: kstTime(req.created_at), reason: req.body.match(/사유: (.+)/)?.[1] ?? null })
   }
   const dayAtts = atts.filter((a) => a.work_date === date)
   // 이날 지금 적용 중인 시간 (이날 동의받은 변경 → 출근 기록에 적용된 시간 → 공고 시간). 연장을 또 할 때 이 시각부터 더함
@@ -445,6 +466,37 @@ export default async function AttTab({
                   {a.note?.startsWith(DISMISS_NOTE) && <span className="badge bg-rose-600 text-white">{a.note.split(' · ')[0]}</span>}
                 </div>
               )}
+
+              {/* 근무자의 기록 정정 요청: 요청대로 한 번에 고치거나 그대로 두기 */}
+              {a?.clock_out &&
+                (() => {
+                  const f = fixOf.get(uid)
+                  if (!f) return null
+                  return (
+                    <div className="mt-2.5 space-y-2 rounded-xl bg-violet-50 px-3 py-2.5 text-sm text-violet-900 ring-1 ring-violet-200">
+                      <p>
+                        ✏️ {f.at} 정정 요청 · <b>실제 {f.field === 'in' ? '출근' : '종료'} {f.time}</b>
+                        <span className="text-violet-700">
+                          {' '}
+                          (지금 {kstTime(f.field === 'in' ? (a.adj_in ?? a.clock_in) : (a.adj_out ?? a.clock_out)!)})
+                        </span>
+                        {f.reason && <span className="text-violet-800"> · {f.reason}</span>}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <form action={decideFix.bind(null, job.id, uid, date, true)}>
+                          <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="고치는 중…">
+                            요청대로 {f.time}(으)로 고치기
+                          </SubmitButton>
+                        </form>
+                        <form action={decideFix.bind(null, job.id, uid, date, false)}>
+                          <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="한 번 더 누르면 그대로 둬요">
+                            그대로 두기
+                          </ConfirmSubmit>
+                        </form>
+                      </div>
+                    </div>
+                  )
+                })()}
 
               {/* 계약 종료 시각 이후 기록: 서로 확인해야 금액에 들어감 */}
               {a && pay && pay.afterMin >= OT_ASK_MIN && (

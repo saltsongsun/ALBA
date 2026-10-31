@@ -37,7 +37,8 @@ const errs = []
   await send(MF, 'messages', 'POST', { thread_user_id: W, sender_id: W, from_admin: false, job_id: J, body: '📍 출근 확인 요청\n테스트 · 09:05에 현장에 도착했는데 위치 확인이 안 돼요', read_at: null })
   const f = await pg(F)
   await f.goto(`${F}/admin`)
-  ok('출근 확인 요청', await f.getByText(/출근 확인 요청 · /).first().isVisible().catch(() => false))
+  // 관리자 화면은 나눠서 그려지므로(loading) 나타날 때까지 기다림
+  ok('출근 확인 요청', await f.getByText(/출근 확인 요청 · /).first().waitFor({ timeout: 8000 }).then(() => true, () => false))
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED'); process.exit(fails ? 1 : 0)

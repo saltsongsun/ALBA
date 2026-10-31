@@ -11,7 +11,7 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
-import { signalOf } from '@/lib/signals'
+import { pendingFix, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
@@ -122,10 +122,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   }
   const started = (j: JobWithAppStatus) => kstAt(today, j.start_time) <= new Date()
 
+  const group0 = <T,>(rows: T[], keyOf: (r: T) => string) => {
+    const m = new Map<string, T[]>()
+    for (const r of rows) m.set(keyOf(r), [...(m.get(keyOf(r)) ?? []), r])
+    return [...m.values()]
+  }
   // 확인할 일: 공고마다 흩어진 '답을 기다리는 일'을 한곳에 (공고·날짜별로 묶어 바로 그 화면으로)
   const titleOf = new Map(activeJobs.map((j) => [j.id, j.title]))
   const outsideJobs = activeJobs.filter((j) => j.contract_method !== 'app' && j.start_date <= soon)
-  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps] = await Promise.all([
+  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, fixMsgs] = await Promise.all([
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
@@ -178,13 +183,26 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           .eq('status', 'approved')
           .then((r) => (must(r) as { job_id: string; contract_received_at: string | null }[]).filter((a) => !a.contract_received_at))
       : [],
+    // 오늘 근무자가 보낸 기록 정정 요청과 그 답 (답하지 않은 것만 셈)
+    todayIds.length
+      ? db()
+          .from('messages')
+          .select('thread_user_id, job_id, body, created_at, from_admin')
+          .in('job_id', todayIds)
+          .gte('created_at', kstAt(today, '00:00').toISOString())
+          .limit(500)
+          .then((r) =>
+            (must(r) as { thread_user_id: string; job_id: string; body: string; created_at: string; from_admin: boolean }[]).filter((m) =>
+              ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''),
+            ),
+          )
+      : [],
   ])
+  const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
+    .map((g) => pendingFix(g, today))
+    .filter((m) => m !== null)
   type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string }
-  const group = <T,>(rows: T[], keyOf: (r: T) => string) => {
-    const m = new Map<string, T[]>()
-    for (const r of rows) m.set(keyOf(r), [...(m.get(keyOf(r)) ?? []), r])
-    return [...m.values()]
-  }
+  const group = group0
   const todos: Todo[] = [
     ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
       key: `arrive-${g[0].job_id}`,
@@ -193,6 +211,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       n: new Set(g.map((m) => m.thread_user_id)).size,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
       tone: 'text-brand-700',
+    })),
+    ...group(fixWait, (m) => m.job_id).map((g) => ({
+      key: `fix-${g[0].job_id}`,
+      icon: '✏️',
+      text: `기록 정정 요청 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
+      tone: 'text-violet-700',
     })),
     ...group(otAsk, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
       key: `ot-${g[0].job_id}-${g[0].work_date}`,

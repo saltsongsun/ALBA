@@ -13,7 +13,7 @@ import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
-import { SIGNAL, signalOf } from '@/lib/signals'
+import { fixTime, SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
@@ -232,6 +232,75 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
   )
   revalidatePath('/me')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
+}
+
+/**
+ * 오늘 기록된 출근·종료 시각이 틀렸을 때 (종료를 실수로 일찍 누름 등): 담당자에게 정정 요청.
+ * 담당자가 출퇴근 탭에서 한 번에 고치거나 그대로 둠 (근무자가 직접 고치지는 않음)
+ */
+export async function requestFix(attendanceId: string, _: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  if (!isUuid(attendanceId)) return { error: '잘못된 요청입니다.' }
+  const field = form.get('field') === 'in' ? 'in' : 'out'
+  const time = str(form, 'time', 5)
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return { error: '실제 시각을 골라 주세요.' }
+  const reason = optStr(form, 'reason', 100)
+  const { data } = await db()
+    .from('attendance')
+    .select('id, user_id, job_id, work_date, clock_in, clock_out, adj_in, adj_out, paid, job:jobs(title)')
+    .eq('id', attendanceId)
+    .maybeSingle()
+  const att = data as
+    | (Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'work_date' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'paid'> & {
+        job: { title: string } | null
+      })
+    | null
+  if (!att || att.user_id !== user.id || !att.job) return { error: '근무 기록을 찾을 수 없습니다.' }
+  if (att.work_date !== kstDate()) return { error: '오늘 근무만 여기서 요청할 수 있어요. 지난 근무는 문의함으로 알려 주세요.' }
+  if (!att.clock_out) return { error: '근무를 종료한 뒤에 요청할 수 있어요.' }
+  if (att.paid) return { error: '이미 급여가 지급된 기록이에요. 문의함으로 알려 주세요.' }
+  const curIn = new Date(att.adj_in ?? att.clock_in)
+  const curOut = new Date(att.adj_out ?? att.clock_out)
+  const want = fixTime(att.work_date, { field, time }, curIn)
+  if (want.getTime() > Date.now() + 60_000) return { error: '아직 오지 않은 시각이에요.' }
+  if (field === 'in' ? want >= curOut : want <= curIn) return { error: field === 'in' ? '출근 시각은 종료보다 앞이어야 해요.' : '종료 시각은 출근보다 뒤여야 해요.' }
+  if (kstTime(field === 'in' ? curIn : curOut) === time) return { error: '지금 기록된 시각과 같아요.' }
+  // 너무 자주 보내지 않게 (이날 3번까지)
+  const { data: sent } = await db()
+    .from('messages')
+    .select('body, created_at')
+    .eq('thread_user_id', user.id)
+    .eq('job_id', att.job_id)
+    .eq('from_admin', false)
+    .gte('created_at', kstAt(att.work_date, '00:00').toISOString())
+    .limit(50)
+  const asked = ((sent ?? []) as { body: string; created_at: string }[]).filter((m) => kstDate(m.created_at) === att.work_date && signalOf(m.body) === 'fix')
+  if (asked.length >= 3) return { error: '오늘은 이미 여러 번 요청했어요. 담당자에게 전화해 주세요.' }
+
+  const word = field === 'in' ? '출근' : '종료'
+  const body = [
+    SIGNAL.fix,
+    `${att.job.title} · ${fmtDate(att.work_date)} 근무`,
+    `기록 ${kstTime(curIn)}~${kstTime(curOut)} → 실제 ${word} ${time}`,
+    reason && `사유: ${reason}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: att.job_id, body }))
+  const { job_id: jobId, work_date: date } = att
+  const title = att.job.title
+  after(async () =>
+    sendPush(await adminIds(), {
+      title: SIGNAL.fix,
+      body: `${user.name} · ${title} · 실제 ${word} ${time}${reason ? ` · ${reason}` : ''}`,
+      url: `/admin/jobs/${jobId}?tab=att&date=${date}`,
+      tag: `fix-${jobId}-${user.id}`,
+    }),
+  )
+  revalidatePath('/me')
+  revalidatePath('/admin/chat')
+  revalidatePath(`/admin/jobs/${jobId}`)
+  return { ok: `담당자에게 ${word} ${time}(으)로 정정을 요청했어요. 고쳐지면 알려 드려요.` }
 }
 
 /**

@@ -15,9 +15,9 @@ import { tellWorkers } from '@/lib/notify'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { DISMISS_NOTE, DISMISS_REASONS, SIGNAL, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, fixTime, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
-import { dateList, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 import type { Attendance, Job, JobCondition, ShiftChange } from '@/lib/types'
 import {
   bool,
@@ -519,6 +519,68 @@ export async function approveArrival(jobId: string, userId: string, date: string
   })
   revalidatePath(`/admin/jobs/${jobId}`)
   back(path, `${kstTime(req.created_at)} 출근으로 처리했어요.`)
+}
+
+/** 근무자의 기록 정정 요청에 답하기: accept면 요청한 시각으로 보정(adj_in/adj_out), 아니면 그대로 두고 알림 */
+export async function decideFix(jobId: string, userId: string, date: string, accept: boolean) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) && isUuid(userId) && isDate(date) ? await getJob(jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
+  const [msgs, { data }] = await Promise.all([
+    db()
+      .from('messages')
+      .select('body, created_at, from_admin')
+      .eq('thread_user_id', userId)
+      .eq('job_id', jobId)
+      .gte('created_at', kstAt(date, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(100)
+      .then((r) => must(r) as { body: string; created_at: string; from_admin: boolean }[]),
+    db().from('attendance').select('id, clock_in, clock_out, adj_in, adj_out, note').eq('job_id', jobId).eq('user_id', userId).eq('work_date', date).maybeSingle(),
+  ])
+  const att = data as Pick<Attendance, 'id' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'note'> | null
+  const req = pendingFix(msgs, date)
+  const fix = req && parseFix(req.body)
+  if (!fix || !att?.clock_out) back(path, '답할 정정 요청이 없어요.')
+  const word = fix.field === 'in' ? '출근' : '종료'
+  const day = fmtDate(date)
+  if (!accept) {
+    await tellWorkers([userId], {
+      senderId: admin.id,
+      jobId,
+      title: SIGNAL.fixNo,
+      text: `${job.title} · ${day} 근무를 요청한 ${word} ${fix.time}(으)로 고치지 않고 그대로 두었어요. 궁금한 점은 문의함으로 물어봐 주세요.`,
+      tag: `fix-${jobId}`,
+    })
+    revalidatePath(`/admin/jobs/${jobId}`)
+    back(path, '정정하지 않고 근무자에게 알렸어요.')
+  }
+  const inAt = new Date(att.adj_in ?? att.clock_in)
+  const outAt = new Date(att.adj_out ?? att.clock_out)
+  const want = fixTime(date, fix, inAt)
+  if (fix.field === 'in' ? want >= outAt : want <= inAt) back(path, '요청한 시각이 출근·종료 순서와 맞지 않아요. 아래 ‘수정’에서 직접 고쳐 주세요.')
+  const memo = `근무자 요청으로 ${word} ${fix.time} 정정`
+  must(
+    await db()
+      .from('attendance')
+      .update({
+        [fix.field === 'in' ? 'adj_in' : 'adj_out']: want.toISOString(),
+        note: (att.note ? `${att.note} · ${memo}` : memo).slice(0, 300),
+      })
+      .eq('id', att.id),
+  )
+  await audit(admin.id, 'attendance.fix_ok', userId, `${date} ${word} ${fix.time}`)
+  await tellWorkers([userId], {
+    senderId: admin.id,
+    jobId,
+    title: SIGNAL.fixDone,
+    text: `${job.title} · ${day} 근무의 ${word} 시각을 ${fix.time}(으)로 고쳤어요.`,
+    tag: `fix-${jobId}`,
+  })
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath('/me')
+  back(path, `${word} 시각을 ${fix.time}(으)로 고쳤어요.`)
 }
 
 /**

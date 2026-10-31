@@ -1,3 +1,5 @@
+import { fmtDate, kstDate } from './time'
+
 /**
  * 현장 상황 알림: 문의함 메시지(messages) 첫 줄 머리말로 종류를 구분해 화면에서 다시 읽음.
  * 스키마를 늘리지 않고 근무자·담당자 양쪽 문의함에 그대로 기록이 남게 함.
@@ -10,6 +12,9 @@ export const SIGNAL = {
   remind: '⏰ 내일 근무 안내', // 자동: 근무 전날
   paid: '💸 급여 지급', // 담당자 → 근무자
   account: '💳 계좌 등록 요청', // 담당자 → 근무자
+  fix: '✏️ 기록 정정 요청', // 근무자 → 담당자: 출근·종료 시각이 잘못 찍힘
+  fixDone: '✅ 기록 정정', // 담당자 → 근무자: 요청대로 고침
+  fixNo: '↩️ 기록 정정 안 함', // 담당자 → 근무자: 그대로 둠
 } as const
 
 export type SignalKind = keyof typeof SIGNAL
@@ -35,3 +40,29 @@ export function parseArriveDistance(body: string): number | null {
 /** 불성실 근무자 귀가 조치: 근무 기록 메모의 머리말과 고를 수 있는 사유 (근로계약서 '근로계약의 해지' 조항과 같게) */
 export const DISMISS_NOTE = '귀가 조치'
 export const DISMISS_REASONS = ['무단 이탈', '업무 지시 반복 거부', '음주', '폭언·폭행·성희롱', '안전수칙 위반', '근무 태만', '기타'] as const
+
+/** 기록 정정 요청 본문에서 고칠 항목(출근·종료)과 실제 시각 */
+export function parseFix(body: string): { field: 'in' | 'out'; time: string } | null {
+  const m = body.match(/실제 (출근|종료) (\d{2}:\d{2})/)
+  return m ? { field: m[1] === '출근' ? 'in' : 'out', time: m[2] } : null
+}
+
+/**
+ * 그날(date) 근무에 대해 아직 답하지 않은 정정 요청 (가장 최근 것).
+ * 그 뒤에 담당자가 이날 근무에 대해 고침·그대로 둠으로 답했으면 없음
+ */
+export function pendingFix<T extends { body: string; created_at: string; from_admin: boolean }>(msgs: T[], date: string): T | null {
+  const day = fmtDate(date)
+  for (const m of [...msgs].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
+    const kind = signalOf(m.body)
+    if (m.from_admin && (kind === 'fixDone' || kind === 'fixNo') && m.body.includes(day)) return null
+    if (!m.from_admin && kind === 'fix' && kstDate(m.created_at) === date && parseFix(m.body)) return m
+  }
+  return null
+}
+
+/** 정정 요청한 시각을 그날 날짜에 맞춰 실제 시각으로 (종료가 출근보다 앞이면 자정을 넘긴 것) */
+export function fixTime(date: string, fix: { field: 'in' | 'out'; time: string }, inAt: Date): Date {
+  const t = new Date(`${date}T${fix.time}:00+09:00`)
+  return fix.field === 'out' && t <= inAt ? new Date(t.getTime() + 86_400_000) : t
+}

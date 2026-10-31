@@ -9,7 +9,7 @@ import PhotoPrompt from '@/components/PhotoPrompt'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { ClockPanel, ForgotClockOut, LateNotice } from '@/components/worker'
+import { ClockPanel, FixRequest, ForgotClockOut, LateNotice } from '@/components/worker'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
@@ -18,7 +18,7 @@ import { answerOvertime, answerShift } from '@/app/actions/worker'
 import { calcDay, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { parseLate, SIGNAL, signalOf } from '@/lib/signals'
+import { parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 
@@ -60,7 +60,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   const today = kstDate()
 
-  const [apps, atts, docs, me, notices, mySignals, shifts] = await Promise.all([
+  const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*)')
@@ -94,9 +94,7 @@ export default async function MePage(props: PageProps<'/me'>) {
       .not('job_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(30)
-      .then((r) =>
-        (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => m.body.startsWith('📢 공지') || signalOf(m.body) === 'change'),
-      ),
+      .then((r) => must(r) as { job_id: string; body: string; created_at: string }[]),
     // 오늘 내가 담당자에게 보낸 현장 알림 (늦어요 등)
     db()
       .from('messages')
@@ -118,6 +116,19 @@ export default async function MePage(props: PageProps<'/me'>) {
       .limit(30)
       .then((r) => (must(r) as ShiftChange[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
   ])
+  const notices = adminJobMsgs.filter((m) => m.body.startsWith('📢 공지') || signalOf(m.body) === 'change')
+  // 오늘 보낸 기록 정정 요청 중 담당자가 아직 답하지 않은 것 (공고별)
+  const fixSent = (jobId: string) => {
+    const req = pendingFix(
+      [
+        ...mySignals.filter((m) => m.job_id === jobId).map((m) => ({ ...m, from_admin: false })),
+        ...adminJobMsgs.filter((m) => m.job_id === jobId).map((m) => ({ ...m, from_admin: true })),
+      ],
+      today,
+    )
+    const f = req && parseFix(req.body)
+    return req && f ? { ...f, at: kstTime(req.created_at) } : null
+  }
   const pendingShifts = shifts.filter((c) => c.status === 'pending')
   // 오늘 적용되는 시간 (동의한 변경이 있으면 그것)
   const todayShift = (job: Job, att?: Attendance | null) => {
@@ -474,12 +485,23 @@ export default async function MePage(props: PageProps<'/me'>) {
                       gpsRequired={job.gps_required}
                     />
                   ) : todayAtt?.clock_out ? (
-                    <div className="rounded-xl bg-bg px-4 py-3 text-center">
-                      <p className="font-bold">오늘 근무 완료 👏</p>
-                      <p className="text-sm text-sub">
-                        {kstTime(todayAtt.clock_in)} ~ {kstTime(todayAtt.clock_out)} (
-                        {minutesText(calcDay(job, todayAtt).paidMin)} 인정)
-                      </p>
+                    <div className="space-y-3">
+                      <div className="rounded-xl bg-bg px-4 py-3 text-center">
+                        <p className="font-bold">오늘 근무 완료 👏</p>
+                        {/* 담당자가 고친(보정) 시각이 있으면 그것으로 */}
+                        <p className="text-sm text-sub">
+                          {kstTime(todayAtt.adj_in ?? todayAtt.clock_in)} ~ {kstTime(todayAtt.adj_out ?? todayAtt.clock_out)} (
+                          {minutesText(calcDay(job, todayAtt).paidMin)} 인정)
+                        </p>
+                      </div>
+                      {!todayAtt.paid && (
+                        <FixRequest
+                          attendanceId={todayAtt.id}
+                          inText={kstTime(todayAtt.adj_in ?? todayAtt.clock_in)}
+                          outText={kstTime(todayAtt.adj_out ?? todayAtt.clock_out)}
+                          sent={fixSent(job.id)}
+                        />
+                      )}
                     </div>
                   ) : (
                     <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />

@@ -8,6 +8,7 @@ import {
   closeForgotten,
   notifyLate,
   requestClockIn,
+  requestFix,
   signDocument,
   updateProfile,
   withdraw,
@@ -365,6 +366,86 @@ export function ForgotClockOut({
       <FormMessage state={state} />
       <p className="text-xs text-amber-800">입력하면 담당자에게도 알려져요.</p>
     </form>
+  )
+}
+
+/**
+ * 오늘 기록이 잘못 찍혔을 때 (종료를 실수로 일찍 누름 등): 담당자에게 정정 요청.
+ * 근무 완료 카드 아래에 작게 두고, 누르면 펼쳐짐
+ */
+export function FixRequest({
+  attendanceId,
+  inText,
+  outText,
+  sent,
+}: {
+  attendanceId: string
+  inText: string
+  outText: string
+  /** 보내 놓고 아직 답을 못 받은 요청 */
+  sent: { field: 'in' | 'out'; time: string; at: string } | null
+}) {
+  const [state, action] = useActionState(requestFix.bind(null, attendanceId), null)
+  const [open, setOpen] = useState(false)
+  const [field, setField] = useState<'in' | 'out'>('out')
+  const done = state?.ok
+  useEffect(() => {
+    if (done) setOpen(false)
+  }, [done])
+  return (
+    <div className="space-y-2">
+      {done ? (
+        <p className="rounded-xl bg-violet-50 px-3.5 py-2.5 text-sm font-semibold text-violet-800">✏️ {done}</p>
+      ) : (
+        sent && (
+          <p className="rounded-xl bg-violet-50 px-3.5 py-2.5 text-sm text-violet-900">
+            ✏️ {sent.at}에 <b>실제 {sent.field === 'in' ? '출근' : '종료'} {sent.time}</b>(으)로 정정을 요청했어요 · 담당자 확인 중
+          </p>
+        )
+      )}
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)} className="w-full text-center text-sm font-semibold text-sub underline underline-offset-4">
+          {sent || done ? '다시 요청하기' : '시각이 잘못 찍혔나요? 정정 요청'}
+        </button>
+      ) : (
+        <form action={action} onReset={keepInputs} className="animate-pop space-y-3 rounded-xl bg-bg p-3.5">
+          <p className="text-sm font-bold">어느 시각이 틀렸나요?</p>
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ['in', `출근 ${inText}`],
+                ['out', `종료 ${outText}`],
+              ] as const
+            ).map(([v, label]) => (
+              <label
+                key={v}
+                className={`cursor-pointer rounded-xl px-3 py-2.5 text-center text-sm font-bold ring-1 transition active:scale-95 ${
+                  field === v ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'
+                }`}
+              >
+                <input type="radio" name="field" value={v} checked={field === v} onChange={() => setField(v)} className="sr-only" />
+                {label}
+              </label>
+            ))}
+          </div>
+          <label className="block">
+            <span className="label">실제 {field === 'in' ? '출근' : '종료'} 시각</span>
+            <input key={field} type="time" name="time" defaultValue={field === 'in' ? inText : outText} required className="input bg-white" />
+          </label>
+          <input name="reason" maxLength={100} className="input bg-white text-sm" placeholder="사유 (선택) 예: 실수로 종료를 일찍 눌렀어요" />
+          <FormMessage state={state} />
+          <div className="grid grid-cols-[1fr_2fr] gap-2">
+            <button type="button" onClick={() => setOpen(false)} className="btn-gray">
+              취소
+            </button>
+            <SubmitButton className="btn-primary" pendingText="보내는 중…">
+              정정 요청 보내기
+            </SubmitButton>
+          </div>
+          <p className="hint">담당자가 확인하고 고쳐 주면 알림이 와요. 직접 고칠 수는 없어요.</p>
+        </form>
+      )}
+    </div>
   )
 }
 
