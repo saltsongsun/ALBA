@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { rerequestDoc, voidDoc } from '@/app/actions/admin'
+import { nudgeWorkers, rerequestDoc, voidDoc } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
@@ -44,6 +44,13 @@ export default function DocsTab({
             label={`서명 안 한 ${unsigned.length}명에게 문자`}
             body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
           />
+          {unsigned.length > 0 && (
+            <form action={nudgeWorkers.bind(null, job.id, 'sign', null)}>
+              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${unsigned.length}명에게 보낼까요?`}>
+                서명 안 한 {unsigned.length}명 앱 알림
+              </ConfirmSubmit>
+            </form>
+          )}
           <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-gray btn-sm">
             필요 서류 바꾸기
           </Link>

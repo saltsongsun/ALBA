@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addAttendance, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -112,6 +112,21 @@ export default function AttTab({
               label={`미출근 ${absent.length}명 문자`}
               body={`[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`}
             />
+          )}
+          {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄) */}
+          {date <= today && absent.length > 0 && (
+            <form action={nudgeWorkers.bind(null, job.id, 'clockin', date)} className="shrink-0">
+              <ConfirmSubmit className="chip" confirmText={`${absent.length}명에게 보낼까요?`}>
+                미출근 {absent.length}명 앱 알림
+              </ConfirmSubmit>
+            </form>
+          )}
+          {working > 0 && (
+            <form action={nudgeWorkers.bind(null, job.id, 'clockout', date)} className="shrink-0">
+              <ConfirmSubmit className="chip" confirmText={`${working}명에게 보낼까요?`}>
+                근무 중 {working}명 종료 알림
+              </ConfirmSubmit>
+            </form>
           )}
           <GroupContact copy={false} className="chip" phones={roster.map((u) => users.get(u)?.phone)} label={`전체 ${roster.length}명 문자`} body={`[${job.title}] `} />
           <CopyButton text={roster.map((u) => phoneFmt(users.get(u)?.phone)).filter(Boolean).join(', ')} label="번호 복사" className="chip" />

@@ -13,7 +13,7 @@ import { hiddenFromForm } from '@/lib/jobFields'
 import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN } from '@/lib/pay'
 import { sendPush } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
-import { fromKstInput, kstAt } from '@/lib/time'
+import { fromKstInput, hhmm, kstAt } from '@/lib/time'
 import type { Attendance, Job, JobCondition } from '@/lib/types'
 import {
   bool,
@@ -434,6 +434,53 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
         : '담당자가 연장 근무를 인정했어요. 맞으면 앱에서 확인해 주세요.'
   after(() => sendPush([att.user_id], { title: '⏱ 연장 근무', body: msg, url: '/me', tag: `ot-${attendanceId}` }))
   revalidatePath(`/admin/jobs/${att.job_id}`)
+}
+
+/**
+ * 근무자에게 할 일 알림 (각자 문의함 + 휴대폰 알림). 받을 사람은 서버에서 다시 셈
+ * sign: 서명 안 한 서류가 있는 사람 / clockin: 그날 근무인데 출근 기록 없음 / clockout: 근무 종료를 안 누름
+ */
+export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout', date: string | null) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job || !['sign', 'clockin', 'clockout'].includes(kind)) return
+  if (kind !== 'sign' && (!date || !isDate(date))) return
+  let to: string[] = []
+  if (kind === 'sign') {
+    const rows = must(await db().from('signed_docs').select('user_id').eq('job_id', jobId).eq('status', 'pending')) as { user_id: string }[]
+    to = rows.map((r) => r.user_id)
+  } else {
+    const atts = must(await db().from('attendance').select('user_id, clock_out').eq('job_id', jobId).eq('work_date', date!)) as {
+      user_id: string
+      clock_out: string | null
+    }[]
+    if (kind === 'clockout') to = atts.filter((a) => !a.clock_out).map((a) => a.user_id)
+    else {
+      const came = new Set(atts.map((a) => a.user_id))
+      const apps = must(await db().from('applications').select('user_id, available_dates').eq('job_id', jobId).eq('status', 'approved')) as {
+        user_id: string
+        available_dates: string[] | null
+      }[]
+      to = apps.filter((a) => (!a.available_dates || a.available_dates.includes(date!)) && !came.has(a.user_id)).map((a) => a.user_id)
+    }
+  }
+  to = [...new Set(to)]
+  const backTo = kind === 'sign' ? `/admin/jobs/${jobId}?tab=docs` : `/admin/jobs/${jobId}?tab=att&date=${date}`
+  if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
+  const [title, text] = {
+    sign: ['✍️ 서류 서명 요청', `${job.title} 근무 전에 앱 '내 근무'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
+    clockin: ['⏰ 출근 확인', `${job.title} · 근무 시작 시각(${hhmm(job.start_time)})이 지났어요. 현장에 도착했으면 앱에서 '근무 시작'을 눌러 주세요.`],
+    clockout: ['🏁 근무 종료 확인', `${job.title} · 일이 끝났으면 앱에서 '근무 종료'를 눌러 주세요. 계약 시간 이후는 서로 확인한 뒤에만 급여에 들어가요.`],
+  }[kind]
+  must(
+    await db()
+      .from('messages')
+      .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: jobId, body: `${title}\n${text}` }))),
+  )
+  await audit(admin.id, `nudge.${kind}`, null, `${jobId} ${date ?? ''} ${to.length}명`)
+  after(() => sendPush(to, { title, body: text, url: '/me', tag: `${kind}-${jobId}` }))
+  revalidatePath('/admin/chat')
+  redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}`)
 }
 
 /** 입금을 마친 뒤 한 번에: 이 공고의 퇴근까지 기록된 미지급 근무를 모두 지급 완료로 */
