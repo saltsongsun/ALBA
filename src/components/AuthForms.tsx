@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState } from 'react'
+import { useActionState, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
@@ -41,6 +41,25 @@ function Honeypot() {
   )
 }
 
+/** 비밀번호 보기·숨기기 (같은 폼의 비밀번호 칸을 함께). 6자리를 잘못 눌렀는지 확인하게 */
+function PinReveal({ names }: { names: string[] }) {
+  const [shown, setShown] = useState(false)
+  const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
+    const form = e.currentTarget.form
+    const next = !shown
+    for (const n of names) {
+      const el = form?.elements.namedItem(n)
+      if (el instanceof HTMLInputElement) el.type = next ? 'text' : 'password'
+    }
+    setShown(next)
+  }
+  return (
+    <button type="button" onClick={toggle} aria-pressed={shown} className="mt-1.5 text-xs font-semibold text-sub">
+      {shown ? '🙈 비밀번호 숨기기' : '👁 비밀번호 보기'}
+    </button>
+  )
+}
+
 export function LoginForm({ next }: { next: string }) {
   const [state, action] = useActionState(login, null)
   return (
@@ -68,6 +87,7 @@ export function LoginForm({ next }: { next: string }) {
           onInput={digitsOnly}
           required
         />
+        <PinReveal names={['pin']} />
       </div>
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full py-3.5 text-base">로그인</SubmitButton>
@@ -158,6 +178,7 @@ export function SignupForm({ next }: { next: string }) {
               onInput={digitsOnly}
               required
             />
+            <PinReveal names={['pin', 'pin2']} />
           </div>
         </div>
       </section>
