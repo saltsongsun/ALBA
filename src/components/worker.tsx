@@ -272,7 +272,7 @@ export function ClockPanel({
         </button>
       )}
       {result?.gps && !open && !pending && (
-        <div className="animate-pop space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900 ring-1 ring-brand-100">
+        <div className="animate-pop space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-1 ring-brand-100">
           <p className="font-bold">현장에 도착했는데 위치가 안 맞나요?</p>
           <p>실내나 지하에서는 위치가 멀게 잡힐 수 있어요. 담당자에게 요청하면 지금 시각으로 출근 처리해 줘요.</p>
           {asked?.ok ? (

@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
 import { CopyButton } from './ui'
+import { APP_NAME } from '@/lib/brand'
 
 // 홈 화면 앱(PWA) 설치 안내. 휴대폰으로 홈 화면에 처음 들어오면 아래에서 올라오고,
 // "나중에"를 누르면 7일 동안 숨깁니다. 다른 화면은 버튼(가입·지원·서명·출퇴근)을 가리지 않도록
@@ -189,7 +190,7 @@ export default function InstallGuide() {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/icon-192.png" alt="" className="size-11 rounded-xl" />
             <div className="min-w-0 flex-1">
-              <p className="font-bold">소켓 알바를 앱으로 설치하세요</p>
+              <p className="font-bold">{APP_NAME}를 앱으로 설치하세요</p>
               <p className="text-[13px] text-mute">홈 화면에서 바로 열고 출퇴근 버튼을 빨리 누를 수 있어요.</p>
             </div>
           </div>

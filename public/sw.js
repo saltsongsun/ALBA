@@ -1,6 +1,6 @@
-// 소켓 알바 서비스 워커
+// 해피워크 서비스 워커
 // 화면·데이터는 저장하지 않고(항상 최신), 인터넷이 끊겼을 때만 안내 화면을 보여 줍니다.
-const CACHE = 'alba-offline-v1'
+const CACHE = 'happywork-offline-v2'
 const OFFLINE = '/offline.html'
 
 self.addEventListener('install', (event) => {
@@ -41,7 +41,7 @@ self.addEventListener('push', (event) => {
     d = { body: event.data ? event.data.text() : '' }
   }
   event.waitUntil(
-    self.registration.showNotification(d.title || '소켓 알바', {
+    self.registration.showNotification(d.title || '해피워크', {
       body: d.body || '',
       icon: '/icons/icon-192.png',
       badge: '/icons/icon-192.png',

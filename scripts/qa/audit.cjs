@@ -30,6 +30,8 @@ const pages = [
   for (const [vpName, vp] of VPS) {
     for (const who of ['anon', 'worker', 'admin']) {
       const ctx = await browser.newContext({ ...vp })
+      // 얼굴 사진 등록 창은 따로 확인하므로 점검 중에는 띄우지 않음
+      await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
       if (who !== 'anon') await ctx.addCookies([{ name: 'alba_session', value: cookie(who === 'admin' ? A : W), url: base }])
       const page = await ctx.newPage()
       const errs = []

@@ -2,6 +2,8 @@ import Link from 'next/link'
 import { unreadForWorker } from '@/lib/data'
 import { getUser } from '@/lib/session'
 import { logout } from '@/app/actions/auth'
+import Logo from './Logo'
+import { APP_NAME } from '@/lib/brand'
 
 export default async function SiteHeader() {
   const user = await getUser()
@@ -10,8 +12,8 @@ export default async function SiteHeader() {
     <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight">
-          <span className="grid size-7 place-items-center rounded-lg bg-brand-600 text-sm text-white">S</span>
-          소켓 알바
+          <Logo />
+          {APP_NAME}
         </Link>
         <nav className="flex items-center gap-1 text-sm font-semibold">
           {user ? (

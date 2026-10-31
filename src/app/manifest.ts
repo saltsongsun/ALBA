@@ -1,17 +1,19 @@
 import type { MetadataRoute } from 'next'
+import { APP_DESCRIPTION, APP_NAME, BRAND_COLOR } from '@/lib/brand'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: '소켓 알바',
-    short_name: '소켓 알바',
-    description: '행사 단기 아르바이트 지원 · 출퇴근 · 근로계약 · 정산',
+    name: APP_NAME,
+    short_name: APP_NAME,
+    description: APP_DESCRIPTION,
     lang: 'ko',
     start_url: '/me',
     scope: '/',
     display: 'standalone',
-    background_color: '#f2f4f6',
-    theme_color: '#2557e8',
+    // 안드로이드 시작 화면: 흰 바탕에 아이콘과 앱 이름
+    background_color: '#ffffff',
+    theme_color: BRAND_COLOR,
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

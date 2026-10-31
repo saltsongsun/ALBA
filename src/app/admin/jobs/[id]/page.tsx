@@ -74,10 +74,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       .then((r) => must(r) as { user_id: string; score: number }[]),
   ])
   if (!job) notFound()
-  const templates = allTemplates.filter((t) => job.required_docs.includes(t.id))
+  // 근로계약서를 종이·다른 서비스로 받으면 앱 서명 서류에서 계약서 서식은 뺌
+  const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
   // 근로계약서를 받지 않는 공고는 위에 경고 (지난 공고·종료한 공고는 제외)
-  const noContract = !['done', 'cancelled'].includes(job.status) && job.end_date >= today && !templates.some((t) => t.kind === 'contract')
+  const noContract = job.contract_method === 'app' && !['done', 'cancelled'].includes(job.status) && job.end_date >= today && !templates.some((t) => t.kind === 'contract')
 
   // 출퇴근 기록은 있는데 지원 내역이 없는 사람(관리자 직접 등록 등)도 정산에 포함
   const known = new Set(apps.map((a) => a.user_id))
@@ -130,6 +131,14 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {job.gps_required && <span className="badge ml-2 bg-emerald-50 text-emerald-700">현장 위치 확인</span>}
             {job.auto_approve && <span className="badge ml-1 bg-brand-50 text-brand-700">자동 확정</span>}
           </p>
+          {job.contract_method !== 'app' && approved.length > 0 && (
+            <Link href={`/admin/jobs/${job.id}?tab=docs`} className="mt-1.5 inline-block text-sm">
+              📝 근로계약서 {job.contract_method === 'paper' ? '종이' : '모두싸인 등'} · 받음{' '}
+              <b className={approved.some((a) => !a.contract_received_at) ? 'text-rose-600' : 'text-emerald-600'}>
+                {approved.filter((a) => a.contract_received_at).length}/{approved.length}
+              </b>
+            </Link>
+          )}
           {noContract && (
             <div className="mt-4 animate-pop rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4">
               <p className="font-bold">✍️ 근로계약서를 받지 않는 공고예요</p>
@@ -147,6 +156,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm">
               수정
             </Link>
+            {!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && (
+              <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}&shift=1#shift`} className="btn-soft btn-sm">
+                🕒 근무시간 변경
+              </Link>
+            )}
             <form action={duplicateJob.bind(null, job.id)}>
               <SubmitButton className="btn-gray btn-sm">복사해서 새 공고</SubmitButton>
             </form>
@@ -238,7 +252,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       </div>
 
       {tab === 'apps' && <AppsTab job={job} apps={apps} origin={origin} />}
-      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} />}
+      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} openShift={sp.shift === '1'} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
     </div>

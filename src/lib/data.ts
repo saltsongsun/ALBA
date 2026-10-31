@@ -8,7 +8,7 @@ const COMPANY_COLS =
   'company_name, ceo_name, business_no, company_address, company_phone, contact_name, contact_phone, default_hourly_wage, workplace_5plus'
 
 const DEFAULT_SETTINGS: Settings = {
-  company_name: '주식회사 소켓씨앤씨',
+  company_name: '회사명 (설정에서 입력)',
   ceo_name: null,
   business_no: null,
   company_address: null,
@@ -72,7 +72,9 @@ export async function ensurePendingDocs(job: Job, userId: string) {
   const templates = must(
     await db().from('doc_templates').select('id, kind, title').in('id', job.required_docs),
   ) as { id: string; kind: string; title: string }[]
-  if (!templates.length) return
+  // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고는 앱 서명에서 뺌
+  const need = (job.contract_method ?? 'app') === 'app' ? templates : templates.filter((t) => t.kind !== 'contract')
+  if (!need.length) return
   const existing = must(
     await db()
       .from('signed_docs')
@@ -82,7 +84,7 @@ export async function ensurePendingDocs(job: Job, userId: string) {
       .neq('status', 'void'),
   ) as { template_id: string | null }[]
   const have = new Set(existing.map((e) => e.template_id))
-  const missing = templates.filter((t) => !have.has(t.id))
+  const missing = need.filter((t) => !have.has(t.id))
   if (!missing.length) return
   must(
     await db()

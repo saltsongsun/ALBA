@@ -1,5 +1,6 @@
 // 휴대폰 달력에 넣는 일정 파일(.ics, RFC 5545). 한국 시간은 서머타임이 없어 UTC로 바꿔 적음
 import { kstAt } from './time'
+import { APP_NAME } from './brand'
 
 export type IcsEvent = {
   uid: string
@@ -33,7 +34,7 @@ function fold(line: string): string {
   return out.join('\r\n')
 }
 
-export function buildIcs(events: IcsEvent[], calName = '소켓 알바'): string {
+export function buildIcs(events: IcsEvent[], calName = APP_NAME): string {
   const stamp = utc(new Date())
   const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//socket-alba//KO', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', `X-WR-CALNAME:${esc(calName)}`]
   for (const e of events) {

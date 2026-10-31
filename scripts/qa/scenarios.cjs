@@ -21,6 +21,8 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   const b = await chromium.launch()
   const page = async (base, uid, extra = {}) => {
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR', ...extra })
+    // 얼굴 사진 등록 창은 따로 확인하므로 점검 중에는 띄우지 않음
+    await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
     await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: base }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(`${base} ${e.message.slice(0, 150)}`))

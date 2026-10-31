@@ -250,7 +250,11 @@ export default function JobForm({
 
   const v = (k: string) => String(fd?.get(k) ?? '').trim()
   const brief = (text: string) => (fd ? text : '\u00a0')
-  const docTitles = templates.filter((t) => fd?.getAll('required_docs').includes(t.id)).map((t) => t.title)
+  const contractMethod = (fd ? v('contract_method') : job?.contract_method) || 'app'
+  const CONTRACT_TEXT: Record<string, string> = { app: '', paper: '종이', external: '다른 서비스' }
+  const docTitles = templates
+    .filter((t) => fd?.getAll('required_docs').includes(t.id) && (contractMethod === 'app' || t.kind !== 'contract'))
+    .map((t) => t.title)
   const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
 
   const pasteCoords = (e: React.ClipboardEvent<HTMLInputElement>) => {
@@ -550,19 +554,67 @@ export default function JobForm({
         id="docs"
         title="확정 후 서명받을 서류"
         className="space-y-3"
-        summary={brief(docTitles.length ? docTitles.join(', ') : '⚠️ 없음 (근로계약서는 꼭 받아야 해요)')}
+        summary={brief(
+          [CONTRACT_TEXT[contractMethod] && `계약서 ${CONTRACT_TEXT[contractMethod]}`, docTitles.length ? docTitles.join(', ') : contractMethod === 'app' ? '⚠️ 없음 (근로계약서는 꼭 받아야 해요)' : '']
+            .filter(Boolean)
+            .join(' · '),
+        )}
       >
+        {/* 근로계약서 받는 방법 (앱 전자서명 / 종이 / 모두싸인 등) */}
+        <div>
+          <p className="label">근로계약서 받는 방법</p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(
+              [
+                ['app', '앱에서 전자서명', '확정되면 앱으로 서명 요청'],
+                ['paper', '종이(서면)로 받기', '현장에서 종이에 작성'],
+                ['external', '다른 서비스', '모두싸인 등 전자계약'],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <label
+                key={value}
+                className={`cursor-pointer rounded-xl px-3.5 py-3 ring-1 transition ${
+                  contractMethod === value ? 'bg-brand-50 ring-2 ring-brand-500' : 'bg-white ring-line'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="contract_method"
+                  value={value}
+                  defaultChecked={(job?.contract_method ?? 'app') === value}
+                  className="sr-only"
+                />
+                <span className="block text-sm font-bold">{label}</span>
+                <span className="block text-xs text-mute">{hint}</span>
+              </label>
+            ))}
+          </div>
+          {contractMethod === 'external' && (
+            <div className="mt-3">
+              <Field label="서명 링크 (선택)">
+                <input name="contract_url" className="input" inputMode="url" placeholder="https://..." defaultValue={job?.contract_url ?? ''} />
+              </Field>
+              <p className="hint">모두싸인에서 근무자마다 문자·카톡으로 링크를 보내면 비워 두세요. 근무자 앱에는 ‘모두싸인 등에서 온 링크로 서명해 주세요’라고 안내돼요.</p>
+            </div>
+          )}
+          {contractMethod !== 'app' && (
+            <p className="hint mt-2">
+              앱에서는 근로계약서 서명을 요청하지 않아요. 받은 뒤 공고의 ‘서류’ 탭에서 사람마다 ‘받음’을 눌러 기록해 주세요. 출퇴근 화면에 아직 안 받은 사람이 표시돼요.
+            </p>
+          )}
+        </div>
+        <p className="label mt-1">{contractMethod === 'app' ? '앱에서 서명받을 서류' : '앱에서 서명받을 서류 (근로계약서 서식은 빠져요)'}</p>
         {templates.length === 0 && <p className="text-sm text-mute">등록된 서식이 없습니다. 서류 서식 메뉴에서 기본 서식을 불러오세요.</p>}
         {templates.map((t) => (
           <Check
             key={t.id}
             name="required_docs"
             value={t.id}
-            label={t.title}
+            label={contractMethod !== 'app' && t.kind === 'contract' ? `${t.title} (${CONTRACT_TEXT[contractMethod]}로 받으므로 앱에선 안 받음)` : t.title}
             defaultChecked={job ? job.required_docs.includes(t.id) : t.is_default}
           />
         ))}
-        <p className="hint">체크한 서류에 서명해야 근무 시작 버튼이 열립니다. 근로계약서는 근로기준법 제17조에 따라 꼭 서면(전자문서)으로 주어야 합니다.</p>
+        <p className="hint">체크한 서류에 서명해야 근무 시작 버튼이 열립니다. 근로계약서는 근로기준법 제17조에 따라 꼭 서면(종이 또는 전자문서)으로 주어야 합니다.</p>
       </Fold>
 
       <Fold title="공개 설정" summary={brief(`${STATUS_TEXT[v('status')] ?? ''}${fd?.get('auto_approve') ? ' · 지원하면 바로 확정' : ' · 관리자가 확정'}`)}>

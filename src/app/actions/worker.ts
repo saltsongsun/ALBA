@@ -10,10 +10,11 @@ import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
 import { note, recent } from '@/lib/ratelimit'
+import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
 import { SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
-import { fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
-import type { Application, Attendance, DocTemplate, Job, SignedDoc, UserRow } from '@/lib/types'
+import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
+import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
 import type { FormState } from './auth'
 
@@ -194,6 +195,8 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
       in_lat: pos?.lat ?? null,
       in_lng: pos?.lng ?? null,
       in_distance_m: distance,
+      // 이날 근무시간 변경에 동의했으면 그 시간으로
+      ...(await agreedShiftFor(jobId, user.id, today)),
     })
   if (error) {
     return { error: error.code === '23505' ? '오늘은 이미 출근 기록이 있습니다.' : '출근 기록 중 문제가 생겼어요. 다시 시도해 주세요.' }
@@ -326,6 +329,65 @@ export async function requestClockIn(jobId: string, lat: number | null, lng: num
   revalidatePath('/me')
   revalidatePath('/admin/chat')
   return { ok: `담당자에게 출근 확인을 요청했어요. 확인되면 ${kstTime(now)} 출근으로 기록돼요.` }
+}
+
+// ───────────── 근무시간 변경 동의 ─────────────
+
+/**
+ * 담당자가 근무시간을 바꿨을 때 '계속하시겠습니까?'에 답하기.
+ * agree: 바뀐 시간으로 근무 (그 시간까지 급여 계산) / decline: 그날만 바뀐 것은 원래 시간대로, 전체 일정이 바뀐 것은 근무 확정 취소
+ */
+export async function answerShift(changeId: string, choice: 'agree' | 'decline') {
+  const user = await requireUser('/me')
+  if (!isUuid(changeId) || !['agree', 'decline'].includes(choice)) return
+  const { data } = await db().from('shift_changes').select('*').eq('id', changeId).maybeSingle()
+  const c = data as ShiftChange | null
+  if (!c || c.user_id !== user.id) back('/me', '요청을 찾을 수 없어요.')
+  if (c.status !== 'pending') back('/me', '이미 답한 요청이에요.')
+  const { ip } = await clientInfo()
+  must(
+    await db()
+      .from('shift_changes')
+      .update({ status: choice === 'agree' ? 'agreed' : 'declined', answered_at: new Date().toISOString(), answered_by: user.id, answer_ip: ip || null })
+      .eq('id', changeId)
+      .eq('status', 'pending'),
+  )
+  const job = await getJob(c.job_id)
+  const title = job?.title ?? ''
+  const when = c.work_date ? fmtDate(c.work_date) : '전체 일정'
+  if (choice === 'agree') {
+    await applyAgreedShift(c)
+    revalidatePath('/me')
+    revalidatePath(`/admin/jobs/${c.job_id}`)
+    back('/me', `${when} ${span(c.start_time, c.end_time)}으로 계속 근무하기로 했어요. 고맙습니다!`)
+  }
+  // 어려워요: 담당자 문의함에 남기고 휴대폰 알림 (사람을 다시 구하거나 일정을 조정하게)
+  let cancelled = false
+  if (!c.work_date) {
+    const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', c.job_id).eq('user_id', user.id)
+    if (!worked) {
+      must(await db().from('applications').update({ status: 'cancelled' }).eq('job_id', c.job_id).eq('user_id', user.id).eq('status', 'approved'))
+      await db().from('signed_docs').delete().eq('job_id', c.job_id).eq('user_id', user.id).eq('status', 'pending')
+      cancelled = true
+    }
+  }
+  const body = [
+    `⚠️ 근무시간 ${changeWord(c)} 어려움`,
+    `${title} · ${when} ${span(c.prev_start, c.prev_end)} → ${span(c.start_time, c.end_time)} ${changeWord(c)}에 응하기 어려워요.`,
+    c.work_date ? `원래 시간(${hhmm(c.prev_end)})에 마칠게요.` : cancelled ? '근무 확정이 취소됐어요.' : '남은 일정은 담당자와 상의할게요.',
+  ].join('\n')
+  await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: c.job_id, body })
+  after(async () =>
+    sendPush(await adminIds(), {
+      title: `⚠️ 근무시간 ${changeWord(c)} 어려움${cancelled ? ' · 확정 취소' : ''}`,
+      body: `${user.name} · ${title} · ${when} ${span(c.start_time, c.end_time)}`,
+      url: `/admin/jobs/${c.job_id}?tab=att${c.work_date ? `&date=${c.work_date}` : ''}`,
+    }),
+  )
+  revalidatePath('/me')
+  revalidatePath('/admin/chat')
+  revalidatePath(`/admin/jobs/${c.job_id}`)
+  back('/me', cancelled ? '근무 확정을 취소했어요. 담당자에게 알렸어요.' : `원래 시간(${hhmm(c.prev_end)})에 마치는 걸로 담당자에게 알렸어요.`)
 }
 
 /**

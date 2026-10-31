@@ -1,8 +1,8 @@
 {
-  "name": "socket-alba",
+  "name": "happywork",
   "version": "0.1.0",
   "private": true,
-  "description": "소켓 알바 — 행사 단기 아르바이트 모집·출퇴근·정산·근로계약 관리",
+  "description": "해피워크 — 행사 단기 아르바이트 모집·출퇴근·정산·근로계약 관리",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

@@ -25,12 +25,15 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
     // 먼저 보냈다고 남겨서 동시에 두 번 불려도 한 번만 가게
     must(await db().from('audit_logs').insert({ actor_id: null, action: 'remind.day', detail: key }))
     const [apps, docs] = await Promise.all([
-      db().from('applications').select('user_id, available_dates').eq('job_id', job.id).eq('status', 'approved'),
+      db().from('applications').select('user_id, available_dates, contract_received_at').eq('job_id', job.id).eq('status', 'approved'),
       db().from('signed_docs').select('user_id').eq('job_id', job.id).eq('status', 'pending'),
     ])
-    const to = (must(apps) as { user_id: string; available_dates: string[] | null }[])
-      .filter((a) => !a.available_dates || a.available_dates.includes(tomorrow))
-      .map((a) => a.user_id)
+    const list = (must(apps) as { user_id: string; available_dates: string[] | null; contract_received_at: string | null }[]).filter(
+      (a) => !a.available_dates || a.available_dates.includes(tomorrow),
+    )
+    const to = list.map((a) => a.user_id)
+    // 종이·다른 서비스로 받는 근로계약서를 아직 안 받은 사람
+    const noContract = new Set(job.contract_method !== 'app' ? list.filter((a) => !a.contract_received_at).map((a) => a.user_id) : [])
     const unsigned = new Set((must(docs) as { user_id: string }[]).map((d) => d.user_id))
     const base = [
       `${job.title}`,
@@ -47,6 +50,10 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
         [
           ...base,
           unsigned.has(uid) && '✍️ 서명할 서류가 남았어요. 출근 전에 앱에서 먼저 서명해 주세요.',
+          noContract.has(uid) &&
+            (job.contract_method === 'paper'
+              ? '📝 근로계약서는 내일 현장에서 종이로 작성해요.'
+              : `📝 근로계약서를 전자계약(모두싸인 등)으로 먼저 서명해 주세요.${job.contract_url ? ` ${job.contract_url}` : ''}`),
           '늦거나 못 오게 되면 앱에서 바로 알려 주세요.',
         ]
           .filter(Boolean)

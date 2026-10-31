@@ -30,7 +30,18 @@ export type PayRule = Pick<
 export type AttendanceTimes = Pick<
   Attendance,
   'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'break_override' | 'extra_pay' | 'deduction'
-> & { work_date?: string; ot_minutes?: number; ot_status?: Attendance['ot_status'] }
+> & {
+  work_date?: string
+  ot_minutes?: number
+  ot_status?: Attendance['ot_status']
+  sched_start?: string | null
+  sched_end?: string | null
+}
+
+/** 그날 이 근무자에게 적용하는 시작·종료 (근무시간 변경에 동의했으면 그 시간, 아니면 공고 시간) */
+export function shiftOf(rule: Pick<Job, 'start_time' | 'end_time'>, a?: Pick<AttendanceTimes, 'sched_start' | 'sched_end'> | null) {
+  return { start_time: a?.sched_start ?? rule.start_time, end_time: a?.sched_end ?? rule.end_time }
+}
 
 export type DayPay = {
   incomplete: boolean
@@ -96,7 +107,9 @@ export function effectiveTimes(a: Pick<Attendance, 'clock_in' | 'clock_out' | 'a
   return { start: new Date(a.adj_in ?? a.clock_in), end: end ? new Date(end) : null }
 }
 
-export function calcDay(rule: PayRule, a: AttendanceTimes): DayPay {
+export function calcDay(base: PayRule, a: AttendanceTimes): DayPay {
+  // 근무시간 변경에 동의한 날은 그 시작·종료 시각으로 계산 (퇴근 시간 연장 등)
+  const rule = { ...base, ...shiftOf(base, a) }
   const times = effectiveTimes(a)
   let end = times.end
   let start = times.start

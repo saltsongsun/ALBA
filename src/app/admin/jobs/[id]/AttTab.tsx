@@ -1,18 +1,19 @@
 import Link from 'next/link'
-import { addAttendance, approveArrival, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
+import ShiftChange from '@/components/ShiftChange'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
-import { calcDay, OT_ASK_MIN } from '@/lib/pay'
+import { calcDay, OT_ASK_MIN, shiftOf } from '@/lib/pay'
 import { parseArriveDistance, parseLate, signalOf } from '@/lib/signals'
-import { fmtDate, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
-import type { Attendance, Job } from '@/lib/types'
+import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
+import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 
 export default async function AttTab({
@@ -24,6 +25,7 @@ export default async function AttTab({
   dates,
   myScores,
   pos,
+  openShift = false,
 }: {
   job: Job
   apps: AppRow[]
@@ -34,7 +36,19 @@ export default async function AttTab({
   myScores: Record<string, number>
   /** 배치로 거르기 ('-'는 미배치, null이면 전체) */
   pos: string | null
+  /** 근무시간 변경 칸을 펼쳐서 보여 줌 */
+  openShift?: boolean
 }) {
+  // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
+  const changes = (
+    must(
+      await db().from('shift_changes').select('*').eq('job_id', job.id).neq('status', 'superseded').order('created_at', { ascending: false }).limit(500),
+    ) as Change[]
+  )
+    .filter((c) => (c.work_date === date || c.work_date === null) && c.status !== 'superseded')
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const changeOf = new Map<string, Change>()
+  for (const c of changes) if (!changeOf.has(c.user_id)) changeOf.set(c.user_id, c)
   // 그날 근무자가 보낸 현장 알림 (늦어요 · 출근 확인 요청): 사람마다 가장 최근 것
   const signals = (
     must(
@@ -99,6 +113,22 @@ export default async function AttTab({
         })}
       </div>
 
+      {/* 근무시간 변경·퇴근 연장 (근무자 동의) */}
+      {!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && (
+        <ShiftChange
+          jobId={job.id}
+          date={date}
+          dateLabel={fmtDate(date)}
+          canDay={date >= today}
+          start={job.start_time}
+          end={job.end_time}
+          workers={apps
+            .filter((a) => !a.available_dates || a.available_dates.includes(date))
+            .map((a) => ({ id: a.user_id, name: a.user.name }))}
+          open={openShift}
+        />
+      )}
+
       {/* 이날 현황: 근무 중 · 종료 · 미출근 */}
       <div className="card p-4">
         <div className="grid grid-cols-3 divide-x divide-line text-center">
@@ -127,8 +157,19 @@ export default async function AttTab({
             {(() => {
               const late = absent.filter((u) => lateOf.has(u)).length
               const ask = absent.filter((u) => arriveOf.has(u)).length
+              const sc = roster.map((u) => changeOf.get(u)).filter((c): c is Change => !!c)
+              const agreed = sc.filter((c) => c.status === 'agreed').length
+              const waiting = sc.filter((c) => c.status === 'pending').length
+              const declined = sc.filter((c) => c.status === 'declined').length
               return (
                 <>
+                  {sc.length > 0 && (
+                    <b className="ml-1.5 whitespace-nowrap text-brand-700">
+                      · 시간 변경 동의 {agreed}
+                      {waiting > 0 && ` · 대기 ${waiting}`}
+                      {declined > 0 && ` · 어려움 ${declined}`}
+                    </b>
+                  )}
                   {late > 0 && <b className="ml-1.5 whitespace-nowrap text-amber-700">· 늦음 알림 {late}</b>}
                   {ask > 0 && <b className="ml-1.5 whitespace-nowrap text-brand-700">· 출근 요청 {ask}</b>}
                 </>
@@ -250,14 +291,54 @@ export default async function AttTab({
                     {u?.name ?? '알 수 없음'}
                   </Link>
                   {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
+                  {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
+                    <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge mt-1 bg-rose-50 text-rose-600">
+                      📝 계약서 미수령
+                    </Link>
+                  )}
                 </div>
                 <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
               </div>
 
+              {/* 근무시간 변경 동의 */}
+              {(() => {
+                const c = changeOf.get(uid)
+                if (!c) return null
+                const to = `${hhmm(c.start_time)}~${hhmm(c.end_time)}`
+                const scope = c.work_date ? '' : '전체 일정 '
+                if (c.status === 'agreed')
+                  return (
+                    <p className="mt-2.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                      ✓ {scope}
+                      <b>{to}</b> 동의{c.answered_by && c.answered_by !== uid ? ' (현장 동의)' : ''} · {c.answered_at ? kstTime(c.answered_at) : ''}
+                    </p>
+                  )
+                if (c.status === 'declined')
+                  return (
+                    <p className="mt-2.5 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                      ✕ {scope}
+                      {to} 변경 어려움 · {c.work_date ? `원래 ${hhmm(c.prev_end)}에 종료` : '확정 취소됨'}
+                    </p>
+                  )
+                return (
+                  <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <span className="min-w-0 flex-1">
+                      🕒 {scope}
+                      <b>{to}</b> 변경 · 근무자 동의 기다리는 중
+                    </span>
+                    <form action={answerShiftByAdmin.bind(null, c.id)}>
+                      <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="현장에서 동의받았나요?">
+                        현장 동의 받음
+                      </ConfirmSubmit>
+                    </form>
+                  </div>
+                )
+              })()}
+
               {/* 현장 위치 확인이 안 된 근무자의 출근 확인 요청: 요청 시각으로 바로 출근 처리 */}
               {ask && (
                 <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm ring-1 ring-brand-100">
-                  <span className="min-w-0 flex-1 text-brand-900">
+                  <span className="min-w-0 flex-1 text-brand-700">
                     📍 <b>{ask.at}</b> 현장 도착 · 위치 확인 실패{ask.distance != null ? ` (약 ${ask.distance.toLocaleString()}m로 잡힘)` : ''}
                   </span>
                   <form action={approveArrival.bind(null, job.id, uid, date)}>
@@ -285,7 +366,7 @@ export default async function AttTab({
                     </span>
                   )}
                   {(() => {
-                    const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, job.start_time).getTime()) / 60_000
+                    const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000
                     if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {Math.round(diff)}분</span>
                     if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {Math.round(-diff)}분{job.early_clamp ? '(미인정)' : ''}</span>
                     return null

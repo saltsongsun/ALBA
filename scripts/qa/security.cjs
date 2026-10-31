@@ -14,6 +14,8 @@ const errs = []
   const b = await chromium.launch()
   const ctxFor = async (ip, uid) => {
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR', extraHTTPHeaders: { 'x-forwarded-for': ip } })
+    // 얼굴 사진 등록 창은 따로 확인하므로 점검 중에는 띄우지 않음
+    await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
     if (uid) await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: B }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(e.message.slice(0, 150)))

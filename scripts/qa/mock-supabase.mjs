@@ -41,6 +41,7 @@ const job = {
   break_mode: 'auto', break_minutes: 0, round_unit: 1, early_clamp: false, premium_enabled: false, allowance: 0,
   allowance_label: '교통비', tax_type: 'daily', employment_insurance: true, pay_day: '익월 10일', dress_code: null,
   supplies: null, meeting_point: null, manager_name: '담당', manager_phone: '01055556666', required_docs: [TPL],
+  contract_method: 'app', contract_url: null,
   auto_approve: false, status: 'open', created_by: ADMIN,
   hidden_fields: [], conditions: [{ label: '휴게 시간', value: '12:00~13:00 점심' }, { label: '식사', value: '점심 도시락 제공' }], created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
   applications: [{ status: 'approved' }, { status: 'applied' }],
@@ -57,10 +58,10 @@ const tables = {
   }],
   jobs: [job],
   applications: [{
-    id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null, position: 'A게이트',
+    id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null, position: 'A게이트', contract_received_at: null,
     message: '행사 스태프 경험 3회, 주말 모두 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-01T00:00:00Z', job: jobLite, user: workerLite,
   }, {
-    id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today], position: null,
+    id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today], position: null, contract_received_at: null,
     message: '행사장 안내 경험 있어요. 당일 아침 일찍 도착 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-02T00:00:00Z', job: jobLite,
     user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888', photo_at: FACE_AT },
   }],
@@ -68,7 +69,7 @@ const tables = {
     id: ATT, job_id: JOB, user_id: WORKER, work_date: today, clock_in: new Date().toISOString(), clock_out: null,
     in_lat: null, in_lng: null, out_lat: null, out_lng: null, in_distance_m: null, out_distance_m: null, adj_in: null,
     adj_out: null, break_override: null, extra_pay: 0, deduction: 0, note: null, source: 'app', confirmed: false,
-    paid: false, paid_at: null, ot_minutes: 0, ot_status: null, ot_by: null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
+    paid: false, paid_at: null, ot_minutes: 0, ot_status: null, ot_by: null, sched_start: null, sched_end: null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
     job: jobLite, user: { ...workerLite, rrn_enc: null, is_foreigner: false },
   }],
   signed_docs: [
@@ -94,6 +95,8 @@ const tables = {
       created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z', job: { title: '경상남도 생활체육대축전 행사장 안내 스태프' }, rater: { name: '관리자' } },
   ],
   user_photos: [{ user_id: APPLICANT, data: FACE, updated_at: FACE_AT, updated_by: APPLICANT }],
+  shift_changes: [],
+  rate_events: [],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
 }
 

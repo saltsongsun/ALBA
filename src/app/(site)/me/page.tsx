@@ -5,23 +5,53 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import { ShowMore } from '@/components/Fold'
 import { InstallBanner } from '@/components/InstallGuide'
+import PhotoPrompt from '@/components/PhotoPrompt'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
-import { SubmitButton } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { ClockPanel, LateNotice } from '@/components/worker'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
 import { won } from '@/lib/format'
-import { answerOvertime } from '@/app/actions/worker'
-import { calcDay, OT_ASK_MIN, scheduledEnd, settle } from '@/lib/pay'
+import { answerOvertime, answerShift } from '@/app/actions/worker'
+import { calcDay, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { parseLate, SIGNAL, signalOf } from '@/lib/signals'
 import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
-import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
+import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 
 export const metadata: Metadata = { title: '내 근무' }
+
+/** 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 아직 안 받았으면 안내 */
+function ContractNote({ job, received, compact = false }: { job: Job; received: string | null; compact?: boolean }) {
+  if (!job.contract_method || job.contract_method === 'app' || received) return null
+  if (compact) {
+    return (
+      <p className="mt-1 text-xs font-semibold text-amber-700">
+        📝 근로계약서 {job.contract_method === 'paper' ? '현장에서 종이로 작성' : '전자계약(모두싸인 등)으로 서명 필요'}
+      </p>
+    )
+  }
+  return job.contract_method === 'paper' ? (
+    <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      📝 <b>근로계약서는 종이로 작성해요.</b> 근무 시작 전에 현장 담당자에게 받아 서명해 주세요.
+    </p>
+  ) : (
+    <div className="space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-1 ring-brand-100">
+      <p>
+        ✍️ <b>근로계약서를 전자계약(모두싸인 등)으로 서명해 주세요.</b>{' '}
+        {job.contract_url ? '' : '문자·카카오톡으로 온 서명 링크를 확인해 주세요.'}
+      </p>
+      {job.contract_url && (
+        <a href={job.contract_url} target="_blank" rel="noreferrer" className="btn-primary btn-sm">
+          서명하러 가기 →
+        </a>
+      )}
+    </div>
+  )
+}
 
 type AppWithJob = Application & { job: Job }
 
@@ -30,7 +60,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   const today = kstDate()
 
-  const [apps, atts, docs, me, notices, mySignals] = await Promise.all([
+  const [apps, atts, docs, me, notices, mySignals, shifts] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*)')
@@ -78,7 +108,23 @@ export default async function MePage(props: PageProps<'/me'>) {
       .order('created_at', { ascending: false })
       .limit(20)
       .then((r) => (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => kstDate(m.created_at) === today)),
+    // 담당자가 바꾼 근무시간: 답을 기다리는 것 + 오늘 동의한 것
+    db()
+      .from('shift_changes')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'agreed'])
+      .order('created_at', { ascending: false })
+      .limit(30)
+      .then((r) => (must(r) as ShiftChange[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
   ])
+  const pendingShifts = shifts.filter((c) => c.status === 'pending')
+  // 오늘 적용되는 시간 (동의한 변경이 있으면 그것)
+  const todayShift = (job: Job, att?: Attendance | null) => {
+    if (att?.sched_start && att.sched_end) return shiftOf(job, att)
+    const c = shifts.find((x) => x.job_id === job.id && x.status === 'agreed' && x.work_date === today)
+    return c ? { start_time: c.start_time, end_time: c.end_time } : shiftOf(job)
+  }
   const lateSent = new Map<string, { minutes: number; eta: string; at: string }>()
   for (const m of mySignals) {
     const l = signalOf(m.body) === 'late' ? parseLate(m.body) : null
@@ -137,6 +183,54 @@ export default async function MePage(props: PageProps<'/me'>) {
         </Link>
       </div>
 
+      {/* 담당자가 근무시간을 바꿨을 때: 계속하시겠습니까? */}
+      {pendingShifts.length > 0 && (
+        <section className="card animate-pop space-y-3 border-2 border-brand-100 bg-brand-50/40">
+          <div>
+            <h2 className="font-bold">🕒 근무시간이 바뀌었어요</h2>
+            <p className="text-sm text-sub">바뀐 시간으로 계속 근무하실 수 있는지 알려 주세요. 동의하면 바뀐 시간까지 급여가 계산돼요.</p>
+          </div>
+          {pendingShifts.map((c) => {
+            const job = jobsById.get(c.job_id)
+            const ext = hhmm(c.start_time) === hhmm(c.prev_start) && hhmm(c.end_time) > hhmm(c.prev_end)
+            return (
+              <div key={c.id} className="space-y-2.5 rounded-xl bg-white p-3.5 text-sm">
+                <p className="font-semibold">
+                  {c.work_date ? fmtDate(c.work_date) : '전체 일정'} · {job?.title ?? '근무'}
+                </p>
+                <p className="flex flex-wrap items-center gap-1.5 text-base">
+                  <span className="text-mute line-through">
+                    {hhmm(c.prev_start)}~{hhmm(c.prev_end)}
+                  </span>
+                  <span aria-hidden>→</span>
+                  <b className="text-brand-700">
+                    {hhmm(c.start_time)}~{hhmm(c.end_time)}
+                  </b>
+                  {ext && <span className="badge bg-brand-600 text-white">연장</span>}
+                </p>
+                {c.reason && <p className="text-sub">사유: {c.reason}</p>}
+                <p className="font-bold">계속하시겠습니까?</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <form action={answerShift.bind(null, c.id, 'agree')}>
+                    <SubmitButton className="btn-primary w-full" pendingText="처리 중…">
+                      네, 계속할게요
+                    </SubmitButton>
+                  </form>
+                  <form action={answerShift.bind(null, c.id, 'decline')}>
+                    <ConfirmSubmit
+                      className="btn-gray w-full"
+                      confirmText={c.work_date ? `원래 ${hhmm(c.prev_end)}에 마칠까요?` : '근무 확정이 취소돼요. 괜찮나요?'}
+                    >
+                      아니요, 어려워요
+                    </ConfirmSubmit>
+                  </form>
+                </div>
+              </div>
+            )
+          })}
+        </section>
+      )}
+
       {/* 계약 종료 시각 이후로 기록된 근무: 서로 확인해야 급여에 들어감 */}
       {otItems.length > 0 && (
         <section className="card animate-pop space-y-3 border-2 border-amber-200 bg-amber-50/50">
@@ -150,8 +244,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                 {fmtDate(a.work_date)} · {job.title}
               </p>
               <p className="text-sub">
-                계약 종료 {hhmm(job.end_time)} 이후 <b className="text-ink">{minutesText(afterMin)}</b>이 더 기록됐어요. 지금은 {hhmm(job.end_time)}까지만
-                계산돼 있어요.
+                계약 종료 {hhmm(shiftOf(job, a).end_time)} 이후 <b className="text-ink">{minutesText(afterMin)}</b>이 더 기록됐어요. 지금은{' '}
+                {hhmm(shiftOf(job, a).end_time)}까지만 계산돼 있어요.
               </p>
               {!a.ot_status ? (
                 <div className="flex flex-wrap gap-2">
@@ -162,7 +256,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   </form>
                   <form action={answerOvertime.bind(null, a.id, 'decline')}>
                     <SubmitButton className="btn-gray btn-sm" pendingText="처리 중…">
-                      아니요, {hhmm(job.end_time)}에 끝났어요
+                      아니요, {hhmm(shiftOf(job, a).end_time)}에 끝났어요
                     </SubmitButton>
                   </form>
                 </div>
@@ -227,8 +321,9 @@ export default async function MePage(props: PageProps<'/me'>) {
         </Link>
       )}
 
-      {/* 지원했거나 근무가 잡혔는데 사진이 없으면 (현장에서 담당자가 알아보게) */}
-      {!photoAt && (todayApps.length > 0 || upcoming.length > 0 || waiting.length > 0) && (
+      {/* 사진이 없으면 (사진 필수 전에 가입한 사람 포함) 열 때 등록 창을 띄우고, 카드로도 계속 안내 */}
+      {!photoAt && user.role === 'worker' && <PhotoPrompt userId={user.id} name={user.name} />}
+      {!photoAt && (
         <Link href="/me/profile#photo" className="card-link flex items-center gap-3 p-4">
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
             📷
@@ -264,7 +359,17 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <p className="text-xs font-semibold text-mute">{job.event_name}</p>
                     <h3 className="text-lg font-bold">{job.title}</h3>
                     <p className="text-sm text-sub">
-                      {scheduleText(job)}
+                      {(() => {
+                        // 오늘 바뀐 시간에 동의했으면 그 시간으로
+                        const t = todayShift(job, todayAtt)
+                        return hhmm(t.start_time) !== hhmm(job.start_time) || hhmm(t.end_time) !== hhmm(job.end_time) ? (
+                          <b className="text-brand-700">
+                            {hhmm(t.start_time)} ~ {hhmm(t.end_time)} (변경 동의)
+                          </b>
+                        ) : (
+                          scheduleText(job)
+                        )
+                      })()}
                       {job.location_name && ` · ${job.location_name}`}
                     </p>
                     {job.meeting_point && <p className="text-sm text-sub">집결: {job.meeting_point}</p>}
@@ -304,6 +409,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     )}
                     {notChosen && <p className="mt-1 text-xs text-amber-600">오늘은 근무 가능일로 고르지 않은 날이에요. 담당자 안내에 따라 주세요.</p>}
                   </div>
+                  <ContractNote job={job} received={a.contract_received_at} />
                   {docsLeft > 0 ? (
                     <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
                       위의 서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요.
@@ -312,8 +418,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <ClockPanel
                       jobId={job.id}
                       open={{ id: open.id, clock_in: open.clock_in, startText: kstTime(open.clock_in) }}
-                      endAt={scheduledEnd(job, open.work_date).toISOString()}
-                      endText={hhmm(job.end_time)}
+                      endAt={scheduledEnd(todayShift(job, open), open.work_date).toISOString()}
+                      endText={hhmm(todayShift(job, open).end_time)}
                       useLocation={job.lat != null}
                       gpsRequired={job.gps_required}
                     />
@@ -329,7 +435,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
                   )}
                   {/* 출근 전이고 근무가 끝나기 전: 늦으면 담당자에게 알리기 */}
-                  {!todayAtt && !open && !notChosen && new Date() < scheduledEnd(job, today) && (
+                  {!todayAtt && !open && !notChosen && new Date() < scheduledEnd(todayShift(job), today) && (
                     <LateNotice jobId={job.id} sent={lateSent.get(job.id) ?? null} />
                   )}
                 </div>
@@ -351,6 +457,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
                   {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700">📍 배치 · {a.position}</p>}
+                  <ContractNote job={a.job} received={a.contract_received_at} compact />
                   {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
                   {(() => {
                     const n = latestNotice.get(a.job_id)

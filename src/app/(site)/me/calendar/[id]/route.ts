@@ -46,7 +46,7 @@ export async function GET(_: Request, ctx: RouteContext<'/me/calendar/[id]'>) {
   return new Response(ics, {
     headers: {
       'Content-Type': 'text/calendar; charset=utf-8',
-      'Content-Disposition': `inline; filename="socket-alba.ics"`,
+      'Content-Disposition': `inline; filename="happywork.ics"`,
       'Cache-Control': 'no-store',
     },
   })

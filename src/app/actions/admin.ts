@@ -10,14 +10,15 @@ import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
 import { hiddenFromForm } from '@/lib/jobFields'
-import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, settle } from '@/lib/pay'
+import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { tellWorkers } from '@/lib/notify'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
+import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
 import { SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
-import { fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
-import type { Attendance, Job, JobCondition } from '@/lib/types'
+import { dateList, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
+import type { Attendance, Job, JobCondition, ShiftChange } from '@/lib/types'
 import {
   bool,
   formatRrn,
@@ -84,6 +85,9 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
   const status = (['draft', 'open', 'closed', 'done', 'cancelled'] as const).find((m) => m === str(form, 'status')) ?? 'open'
   const conditions = parseConditions(str(form, 'conditions', 5000))
   if (!conditions) return { error: '근무 조건을 다시 입력해 주세요.' }
+  // 모두싸인 등 다른 서비스 서명 링크 (https만)
+  const contractUrl = str(form, 'contract_method') === 'external' ? optStr(form, 'contract_url', 500) : null
+  if (contractUrl && !/^https:\/\/[^\s]+$/.test(contractUrl)) return { error: '서명 링크는 https://로 시작하는 주소로 넣어 주세요.' }
 
   const row = {
     title,
@@ -120,6 +124,8 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
     manager_name: optStr(form, 'manager_name', 30),
     manager_phone: normalizePhone(str(form, 'manager_phone')) ?? optStr(form, 'manager_phone', 20),
     required_docs: form.getAll('required_docs').map(String).filter(isUuid),
+    contract_method: (['app', 'paper', 'external'] as const).find((m) => m === str(form, 'contract_method')) ?? 'app',
+    contract_url: contractUrl,
     auto_approve: bool(form, 'auto_approve'),
     status,
     conditions,
@@ -167,6 +173,9 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
     // 취소한 행사는 '행사 취소' 상태로만 남김 (다시 모집하려면 복사해서 새 공고로)
     if (before.status === 'cancelled') row.status = 'cancelled'
     else if (row.status === 'cancelled') row.status = before.status
+    const timeChanged = hhmm(before.start_time) !== hhmm(row.start_time) || hhmm(before.end_time) !== hhmm(row.end_time)
+    // 시간을 바꾸면 이미 일한 기록은 예전 시간으로 고정 (지난 급여가 바뀌지 않게)
+    if (timeChanged) await freezeAttendance(id, before.start_time, before.end_time)
     must(await db().from('jobs').update(row).eq('id', id))
     // 서류 구성을 바꿨다면 이미 확정된 인원에게도 서명 요청
     const job = await getJob(id)
@@ -174,6 +183,10 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
       await db().from('applications').select('user_id, status').eq('job_id', id).in('status', ['approved', 'applied']),
     ) as { user_id: string; status: string }[]
     const approved = apps.filter((a) => a.status === 'approved')
+    // 근로계약서를 종이·다른 서비스로 받기로 바꿨으면 앱에서 기다리던 계약서 서명 요청은 거둠
+    if (job && job.contract_method !== 'app') {
+      await db().from('signed_docs').delete().eq('job_id', id).eq('kind', 'contract').eq('status', 'pending')
+    }
     if (job) for (const a of approved) await ensurePendingDocs(job, a.user_id)
     // 일정·장소·급여가 바뀌었으면 확정자·지원자에게 바로 알림 (끝난 행사·임시저장 제외)
     const changes = job ? jobChanges(before, job) : []
@@ -184,12 +197,27 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
           senderId: admin.id,
           jobId: id,
           title: SIGNAL.change,
-          text: `${job.title}의 내용이 바뀌었어요.\n${changes.join('\n')}\n못 오게 되면 앱에서 담당자에게 알려 주세요.`,
+          text: `${job.title}의 내용이 바뀌었어요.\n${changes.join('\n')}\n${timeChanged ? "확정된 분은 앱 '내 근무'에서 계속 근무할지 알려 주세요." : '못 오게 되면 앱에서 담당자에게 알려 주세요.'}`,
           url: `/jobs/${id}`,
           tag: `change-${id}`,
         },
       )
       await audit(admin.id, 'job.change_notice', null, `${id} ${n}명 ${changes.map((c) => c.split(':')[0]).join(',')}`)
+      // 근무시간이 바뀌면 확정자에게 '계속하시겠습니까' 동의를 받음 (알림은 위에서 보냄)
+      if (timeChanged && approved.length) {
+        await requestShiftChange({
+          job,
+          adminId: admin.id,
+          userIds: approved.map((a) => a.user_id),
+          workDate: null,
+          start: job.start_time,
+          end: job.end_time,
+          reason: null,
+          prevOf: () => ({ start: before.start_time, end: before.end_time }),
+          notify: false,
+        })
+        note += ' 확정자에게 바뀐 시간으로 계속할지 동의를 요청했어요.'
+      }
       note = ` 확정·지원자 ${n}명에게 바뀐 내용을 알렸어요.`
       // 이미 서명한 계약서는 예전 내용 → 다시 받도록 안내
       if (changes.some((c) => /^(날짜|시간|장소|급여)/.test(c))) {
@@ -438,6 +466,7 @@ export async function addAttendance(jobId: string, form: FormData) {
     clock_out: clockOut?.toISOString() ?? null,
     source: 'admin',
     note: optStr(form, 'note', 300) ?? '관리자 등록',
+    ...(await agreedShiftFor(jobId, userId, date)),
   })
   if (error) back(path, error.code === '23505' ? '그날 이미 기록이 있습니다. 기존 기록을 고쳐 주세요.' : '등록하지 못했습니다.')
   await audit(admin.id, 'attendance.add', userId, `${date} ${inT}~${outT || '-'}`)
@@ -474,6 +503,7 @@ export async function approveArrival(jobId: string, userId: string, date: string
     clock_in: req.created_at,
     source: 'admin',
     note: `위치 확인 실패 · ${kstTime(req.created_at)} 출근 확인 요청 승인`,
+    ...(await agreedShiftFor(jobId, userId, date)),
   })
   if (error) back(path, error.code === '23505' ? '이미 출근 기록이 있어요.' : '출근 처리하지 못했어요.')
   await audit(admin.id, 'attendance.arrive_ok', userId, `${date} ${kstTime(req.created_at)}`)
@@ -486,6 +516,101 @@ export async function approveArrival(jobId: string, userId: string, date: string
   })
   revalidatePath(`/admin/jobs/${jobId}`)
   back(path, `${kstTime(req.created_at)} 출근으로 처리했어요.`)
+}
+
+/**
+ * 근무시간 변경 (퇴근 연장 등): 그날만(scope=날짜) 또는 전체 일정(scope=all).
+ * 근무자마다 '계속하시겠습니까' 동의를 받고, 동의한 사람만 바뀐 시간으로 급여를 계산
+ */
+export async function changeShift(jobId: string, _: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  if (['done', 'cancelled', 'draft'].includes(job.status)) return { error: '진행 중인 공고만 근무시간을 바꿀 수 있어요.' }
+  const today = kstDate()
+  const scope = str(form, 'scope')
+  const start = str(form, 'start_time')
+  const end = str(form, 'end_time')
+  const reason = optStr(form, 'reason', 100)
+  if (!isTime(start) || !isTime(end)) return { error: '시작·종료 시각을 확인해 주세요.' }
+  if (hhmm(start) === hhmm(end)) return { error: '시작과 종료 시각이 같아요.' }
+  const approved = must(
+    await db().from('applications').select('user_id, available_dates').eq('job_id', jobId).eq('status', 'approved'),
+  ) as { user_id: string; available_dates: string[] | null }[]
+  let n = 0
+  if (scope === 'all') {
+    if (job.end_date < today) return { error: '이미 끝난 행사예요.' }
+    if (hhmm(start) === hhmm(job.start_time) && hhmm(end) === hhmm(job.end_time)) return { error: '지금 시간과 같아요.' }
+    await freezeAttendance(jobId, job.start_time, job.end_time)
+    must(await db().from('jobs').update({ start_time: start, end_time: end }).eq('id', jobId))
+    n = await requestShiftChange({
+      job,
+      adminId: admin.id,
+      userIds: approved.map((a) => a.user_id),
+      workDate: null,
+      start,
+      end,
+      reason,
+      prevOf: () => ({ start: job.start_time, end: job.end_time }),
+    })
+    revalidatePath('/')
+  } else {
+    if (!isDate(scope) || !dateList(job.start_date, job.end_date).includes(scope)) return { error: '날짜를 확인해 주세요.' }
+    if (scope < today) return { error: '지난 날짜는 출퇴근 기록에서 직접 고쳐 주세요.' }
+    const picked = new Set(form.getAll('uid').map(String))
+    const targets = approved.filter((a) => (!a.available_dates || a.available_dates.includes(scope)) && picked.has(a.user_id)).map((a) => a.user_id)
+    if (!targets.length) return { error: '변경할 근무자를 골라 주세요.' }
+    // 사람마다 지금 그날 시간 (이미 바꾼 시간이 있으면 그것)
+    const [atts, agreed] = await Promise.all([
+      db().from('attendance').select('user_id, sched_start, sched_end').eq('job_id', jobId).eq('work_date', scope),
+      db().from('shift_changes').select('user_id, work_date, start_time, end_time, status, created_at').eq('job_id', jobId).eq('work_date', scope).eq('status', 'agreed'),
+    ])
+    const attOf = new Map((must(atts) as { user_id: string; sched_start: string | null; sched_end: string | null }[]).map((a) => [a.user_id, a]))
+    const agreedOf = new Map<string, Pick<ShiftChange, 'start_time' | 'end_time'>>()
+    for (const c of (must(agreed) as ShiftChange[]).sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+      if (c.work_date === scope && c.status === 'agreed') agreedOf.set(c.user_id, c)
+    }
+    n = await requestShiftChange({
+      job,
+      adminId: admin.id,
+      userIds: targets,
+      workDate: scope,
+      start,
+      end,
+      reason,
+      prevOf: (uid) => {
+        const a = attOf.get(uid)
+        if (a?.sched_start && a.sched_end) return { start: a.sched_start, end: a.sched_end }
+        const c = agreedOf.get(uid)
+        return c ? { start: c.start_time, end: c.end_time } : { start: job.start_time, end: job.end_time }
+      },
+    })
+  }
+  if (!n) return { error: '바뀌는 사람이 없어요. 이미 그 시간이에요.' }
+  await audit(admin.id, 'shift.change', null, `${jobId} ${scope} ${start}~${end} ${n}명`)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath('/admin/chat')
+  const date = scope === 'all' ? (dateList(job.start_date, job.end_date).includes(today) ? today : job.start_date) : scope
+  redirect(`/admin/jobs/${jobId}?tab=att&date=${date}&m=${encodeURIComponent(`${n}명에게 근무시간 변경 동의를 요청했어요.`)}`)
+}
+
+/** 근무자가 앱을 못 쓸 때: 현장에서 말로 동의받은 것을 관리자가 기록 (누가 기록했는지 남음) */
+export async function answerShiftByAdmin(changeId: string) {
+  const admin = await requireAdmin()
+  if (!isUuid(changeId)) return
+  const { data } = await db().from('shift_changes').select('*').eq('id', changeId).maybeSingle()
+  const c = data as ShiftChange | null
+  if (!c || c.status !== 'pending') return
+  must(
+    await db()
+      .from('shift_changes')
+      .update({ status: 'agreed', answered_at: new Date().toISOString(), answered_by: admin.id, answer_ip: 'admin' })
+      .eq('id', changeId)
+      .eq('status', 'pending'),
+  )
+  await applyAgreedShift(c)
+  await audit(admin.id, 'shift.agree_onsite', c.user_id, `${c.job_id} ${c.work_date ?? 'all'} ${c.start_time}~${c.end_time}`)
+  revalidatePath(`/admin/jobs/${c.job_id}`)
 }
 
 export async function deleteAttendance(attId: string) {
@@ -504,13 +629,13 @@ export async function bulkClockOut(jobId: string, date: string) {
   await requireAdmin()
   const job = isUuid(jobId) && isDate(date) ? await getJob(jobId) : null
   if (!job) return
-  let end = kstAt(date, job.end_time)
-  if (job.end_time <= job.start_time) end = new Date(end.getTime() + 24 * 3600_000)
-  const out = end < new Date() ? end : new Date()
   const open = must(
-    await db().from('attendance').select('id, clock_in').eq('job_id', jobId).eq('work_date', date).is('clock_out', null),
-  ) as { id: string; clock_in: string }[]
+    await db().from('attendance').select('id, clock_in, sched_start, sched_end').eq('job_id', jobId).eq('work_date', date).is('clock_out', null),
+  ) as { id: string; clock_in: string; sched_start: string | null; sched_end: string | null }[]
   for (const a of open) {
+    // 사람마다 그날 종료 시각 (연장에 동의했으면 그 시각)이 지났으면 그 시각, 아니면 지금
+    const end = scheduledEnd(shiftOf(job, a), date)
+    const out = end < new Date() ? end : new Date()
     const t = new Date(a.clock_in) < out ? out : new Date()
     await db().from('attendance').update({ clock_out: t.toISOString(), note: '관리자 일괄 종료' }).eq('id', a.id)
   }
@@ -609,13 +734,19 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
  * 근무자에게 할 일 알림 (각자 문의함 + 휴대폰 알림). 받을 사람은 서버에서 다시 셈
  * sign: 서명 안 한 서류가 있는 사람 / clockin: 그날 근무인데 출근 기록 없음 / clockout: 근무 종료를 안 누름
  */
-export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout' | 'account', date: string | null) {
+export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout' | 'account' | 'contract', date: string | null) {
   const admin = await requireAdmin()
   const job = isUuid(jobId) ? await getJob(jobId) : null
-  if (!job || !['sign', 'clockin', 'clockout', 'account'].includes(kind)) return
+  if (!job || !['sign', 'clockin', 'clockout', 'account', 'contract'].includes(kind)) return
   if ((kind === 'clockin' || kind === 'clockout') && (!date || !isDate(date))) return
   let to: string[] = []
-  if (kind === 'account') {
+  if (kind === 'contract') {
+    // 종이·다른 서비스로 받는 근로계약서를 아직 안 받은 확정자
+    const rows = must(
+      await db().from('applications').select('user_id, contract_received_at').eq('job_id', jobId).eq('status', 'approved'),
+    ) as { user_id: string; contract_received_at: string | null }[]
+    to = job.contract_method === 'app' ? [] : rows.filter((r) => !r.contract_received_at).map((r) => r.user_id)
+  } else if (kind === 'account') {
     // 이 행사에서 일한 사람 중 계좌가 없는 사람 (정산 탭의 '계좌 미등록'과 같은 기준)
     const atts = must(await db().from('attendance').select('user_id').eq('job_id', jobId)) as { user_id: string }[]
     const ids = [...new Set(atts.map((r) => r.user_id))]
@@ -661,13 +792,23 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
   }
   to = [...new Set(to)]
   const backTo =
-    kind === 'sign' ? `/admin/jobs/${jobId}?tab=docs` : kind === 'account' ? `/admin/jobs/${jobId}?tab=pay` : `/admin/jobs/${jobId}?tab=att&date=${date}`
+    kind === 'sign' || kind === 'contract'
+      ? `/admin/jobs/${jobId}?tab=docs`
+      : kind === 'account'
+        ? `/admin/jobs/${jobId}?tab=pay`
+        : `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
   const [title, text] = {
     sign: ['✍️ 서류 서명 요청', `${job.title} 근무 전에 앱 '내 근무'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
     clockin: ['⏰ 출근 확인', `${job.title} · 근무 시작 시각(${hhmm(job.start_time)})이 지났어요. 현장에 도착했으면 앱에서 '근무 시작'을 눌러 주세요.`],
     clockout: ['🏁 근무 종료 확인', `${job.title} · 일이 끝났으면 앱에서 '근무 종료'를 눌러 주세요. 계약 시간 이후는 서로 확인한 뒤에만 급여에 들어가요.`],
     account: [SIGNAL.account, `${job.title} 급여를 보내 드리려면 계좌가 필요해요. 앱 '내 정보'에서 은행·계좌번호·예금주를 등록해 주세요.`],
+    contract: [
+      '📝 근로계약서 작성 안내',
+      job.contract_method === 'paper'
+        ? `${job.title} 근로계약서는 종이로 작성해요. 근무 시작 전에 현장 담당자에게 받아 서명해 주세요.`
+        : `${job.title} 근로계약서는 전자계약(모두싸인 등)으로 받아요. ${job.contract_url ? `아래 링크에서 서명해 주세요.\n${job.contract_url}` : '문자·카카오톡으로 온 서명 링크를 확인해 서명해 주세요.'}`,
+    ],
   }[kind]
   must(
     await db()
@@ -715,6 +856,17 @@ export async function voidDoc(docId: string) {
   revalidatePath(`/admin/jobs/${doc.job_id}`)
 }
 
+/** 종이·다른 서비스(모두싸인 등)로 받은 근로계약서를 받았다고 표시하거나 취소 */
+export async function setContractReceived(appId: string, received: boolean) {
+  const admin = await requireAdmin()
+  if (!isUuid(appId)) return
+  const { data: app } = await db().from('applications').select('id, job_id, user_id').eq('id', appId).maybeSingle()
+  if (!app) return
+  must(await db().from('applications').update({ contract_received_at: received ? new Date().toISOString() : null }).eq('id', appId))
+  await audit(admin.id, received ? 'contract.received' : 'contract.unreceived', app.user_id, app.job_id)
+  revalidatePath(`/admin/jobs/${app.job_id}`)
+}
+
 /** 무효 처리 후 같은 서식으로 다시 서명 요청 */
 export async function rerequestDoc(docId: string) {
   const admin = await requireAdmin()
@@ -734,7 +886,7 @@ export async function rerequestDoc(docId: string) {
 export async function saveTemplate(id: string | null, _: FormState, form: FormData): Promise<FormState> {
   await requireAdmin()
   const title = str(form, 'title', 100)
-  const body = str(form, 'body', 20_000)
+  const body = str(form, 'body', 20_000).replace(/\r\n?/g, '\n')
   if (!title || !body) return { error: '제목과 내용을 입력해 주세요.' }
   const kind = (['contract', 'pledge', 'consent', 'other'] as const).find((k) => k === str(form, 'kind')) ?? 'other'
   const row = { title, body, kind, is_default: bool(form, 'is_default'), active: !bool(form, 'inactive') }

@@ -73,6 +73,10 @@ export type Job = {
   manager_name: string | null
   manager_phone: string | null
   required_docs: string[]
+  /** 근로계약서 받는 방법: 앱 전자서명 / 종이로 따로 / 모두싸인 등 다른 서비스 */
+  contract_method: ContractMethod
+  /** 다른 서비스로 받을 때 근무자에게 보여 줄 서명 링크 (선택) */
+  contract_url: string | null
   auto_approve: boolean
   status: JobStatus
   conditions: JobCondition[]
@@ -82,6 +86,26 @@ export type Job = {
 }
 
 export type AppStatus = 'applied' | 'approved' | 'rejected' | 'cancelled'
+
+export type ContractMethod = 'app' | 'paper' | 'external'
+
+/** 근무시간 변경 요청과 근무자 동의 (work_date가 null이면 공고 전체 일정) */
+export type ShiftChange = {
+  id: string
+  job_id: string
+  user_id: string
+  work_date: string | null
+  start_time: string
+  end_time: string
+  prev_start: string
+  prev_end: string
+  reason: string | null
+  status: 'pending' | 'agreed' | 'declined' | 'superseded'
+  requested_by: string | null
+  created_at: string
+  answered_at: string | null
+  answered_by: string | null
+}
 
 export type Application = {
   id: string
@@ -93,6 +117,8 @@ export type Application = {
   admin_memo: string | null
   /** 현장 배치 (예: A게이트). 비어 있으면 미배치 */
   position: string | null
+  /** 종이·외부 서비스로 받은 근로계약서를 관리자가 받았다고 표시한 시각 */
+  contract_received_at: string | null
   decided_at: string | null
   created_at: string
 }
@@ -124,6 +150,9 @@ export type Attendance = {
   ot_minutes: number
   ot_status: 'pending' | 'agreed' | 'rejected' | null
   ot_by: 'worker' | 'admin' | null
+  /** 그날 이 근무자에게 적용할 시작·종료 (근무시간 변경에 동의했거나, 공고 시간이 바뀌기 전 근무). 비어 있으면 공고 시간 */
+  sched_start: string | null
+  sched_end: string | null
 }
 
 export type DocKind = 'contract' | 'pledge' | 'consent' | 'other'

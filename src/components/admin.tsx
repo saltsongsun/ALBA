@@ -6,6 +6,7 @@ import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
 import { DocBody } from './DocSheet'
+import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
 export function RevealRrn({ userId, masked }: { userId: string; masked: string | null }) {
@@ -80,7 +81,7 @@ const SAMPLE: Record<string, string> = {
   생년월일: '2001년 3월 4일',
   연락처: '010-1234-5678',
   주소: '경남 진주시 ○○로 12',
-  회사명: '주식회사 소켓씨앤씨',
+  회사명: '주식회사 예시회사',
   대표자: '대표자',
   사업자번호: '000-00-00000',
   회사주소: '경남 진주시',
@@ -105,8 +106,19 @@ const SAMPLE: Record<string, string> = {
 
 export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
   const [state, action] = useActionState(saveTemplate.bind(null, tpl?.id ?? null), null)
-  const [body, setBody] = useState(tpl?.body ?? '# 제목\n\n## 1. 항목\n- 내용')
+  // 기본은 항목(조항)별 편집, 필요하면 글 전체를 한 번에 고칠 수도 있게
+  const [mode, setMode] = useState<'items' | 'text'>('items')
+  const [model, setModel] = useState<DocModel>(() => parseDoc(tpl?.body ?? '# 제목\n\n## 1. 항목\n- 내용'))
+  const [raw, setRaw] = useState('')
+  const body = mode === 'items' ? serializeDoc(model) : raw
   const preview = useMemo(() => renderTemplate(body, SAMPLE), [body])
+  const insert = useRef<((token: string) => void) | null>(null)
+  const switchMode = (m: 'items' | 'text') => {
+    if (m === mode) return
+    if (m === 'text') setRaw(serializeDoc(model))
+    else setModel(parseDoc(raw))
+    setMode(m)
+  }
   return (
     <form action={action} onReset={keepInputs} className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-3">
@@ -120,13 +132,34 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
               <option value="other">기타</option>
             </select>
           </div>
-          <textarea
-            name="body"
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            rows={26}
-            className="input font-mono text-[13px] leading-relaxed"
-          />
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg p-1 text-sm font-semibold">
+            {(
+              [
+                ['items', '항목별로 고치기'],
+                ['text', '글 전체로 고치기'],
+              ] as const
+            ).map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => switchMode(m)}
+                className={`rounded-lg py-2 transition ${mode === m ? 'bg-white text-ink shadow-sm' : 'text-mute'}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <input type="hidden" name="body" value={body} />
+          {mode === 'items' ? (
+            <TemplateSections model={model} onChange={setModel} insertRef={insert} />
+          ) : (
+            <textarea
+              value={raw}
+              onChange={(e) => setRaw(e.target.value)}
+              rows={26}
+              className="input font-mono text-[13px] leading-relaxed"
+            />
+          )}
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-2">
               <input type="checkbox" name="is_default" defaultChecked={tpl?.is_default} className="size-5 accent-brand-600" />새 공고에 기본 체크
@@ -140,7 +173,11 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
           <SubmitButton>서식 저장</SubmitButton>
         </div>
         <div className="card text-xs text-sub">
-          <p className="mb-2 font-semibold text-ink">쓰는 법: # 제목 · ## 소제목 · - 목록 · {'{{항목}}'} 자리채움</p>
+          <p className="mb-2 font-semibold text-ink">
+            {mode === 'items'
+              ? '자리채움: 칸을 누른 뒤 아래 단추를 누르면 그 자리에 들어가요. 서명할 때 공고·근로자·회사 정보로 바뀌어요.'
+              : '쓰는 법: # 제목 · ## 소제목 · - 목록 · {{항목}} 자리채움'}
+          </p>
           <div className="flex flex-wrap gap-1">
             {PLACEHOLDERS.map((p) => (
               <button
@@ -148,7 +185,8 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
                 type="button"
                 title={p.desc}
                 className="rounded-md bg-bg px-1.5 py-0.5 font-mono hover:bg-brand-50"
-                onClick={() => setBody((b) => `${b}{{${p.key}}}`)}
+                onMouseDown={(e) => e.preventDefault()} // 누르는 동안 입력 칸의 커서를 잃지 않게
+                onClick={() => (mode === 'items' ? insert.current?.(`{{${p.key}}}`) : setRaw((b) => `${b}{{${p.key}}}`))}
               >
                 {`{{${p.key}}}`}
               </button>
@@ -169,7 +207,13 @@ export function SettingsForm({ s }: { s: Settings }) {
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
       <section className="card space-y-4">
-        <h2 className="font-bold">사업주 정보 (근로계약서·임금명세서에 표시)</h2>
+        <div>
+          <h2 className="font-bold">회사(사업주) 정보</h2>
+          <p className="hint">
+            근로계약서·임금명세서·모집 문구·첫 화면에 들어가요. 다른 회사가 이 앱을 쓸 때는 여기(상호·대표자·사업자번호·주소·연락처·직인)만 바꾸면 돼요.
+            이미 서명된 서류는 서명할 때의 회사 정보 그대로 보관돼요.
+          </p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label>
             <span className="label">상호 *</span>

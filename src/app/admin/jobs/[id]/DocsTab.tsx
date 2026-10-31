@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { nudgeWorkers, rerequestDoc, voidDoc } from '@/app/actions/admin'
+import { nudgeWorkers, rerequestDoc, setContractReceived, voidDoc } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
-import { ConfirmSubmit } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import type { Job, SignedDoc } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
@@ -32,8 +32,59 @@ export default function DocsTab({
   const signedCount = live.filter((d) => d.status === 'signed').length
   const unsigned = [...new Set(live.filter((d) => d.status === 'pending').map((d) => d.user_id))]
 
+  // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 사람마다 받았는지 기록
+  const outside = job.contract_method !== 'app'
+  const notReceived = approved.filter((a) => !a.contract_received_at)
+
   return (
     <div className="space-y-4">
+      {outside && (
+        <section className="card space-y-3 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="font-bold">📝 근로계약서 · {job.contract_method === 'paper' ? '종이(서면)로 받기' : '다른 서비스(모두싸인 등)'}</h3>
+              <p className="text-sm text-sub">
+                받음 <b className="text-ink">{approved.length - notReceived.length}</b> / 확정 {approved.length}명
+                {job.contract_url && (
+                  <>
+                    {' · '}
+                    <a href={job.contract_url} target="_blank" rel="noreferrer" className="font-semibold text-brand-600 underline">
+                      서명 링크 열기
+                    </a>
+                  </>
+                )}
+              </p>
+            </div>
+            {notReceived.length > 0 && (
+              <form action={nudgeWorkers.bind(null, job.id, 'contract', null)}>
+                <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${notReceived.length}명에게 보낼까요?`}>
+                  안 받은 {notReceived.length}명 앱 안내
+                </ConfirmSubmit>
+              </form>
+            )}
+          </div>
+          {approved.length === 0 ? (
+            <p className="text-sm text-mute">확정된 사람이 없어요.</p>
+          ) : (
+            <ul className="divide-y divide-line">
+              {approved.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-2 py-2.5">
+                  <span className="min-w-0">
+                    <span className="font-semibold">{a.user.name}</span>
+                    {a.contract_received_at && <span className="ml-2 text-xs text-mute">{kstDateTime(a.contract_received_at)} 받음</span>}
+                  </span>
+                  <form action={setContractReceived.bind(null, a.id, !a.contract_received_at)}>
+                    <SubmitButton className={a.contract_received_at ? 'badge bg-emerald-50 text-emerald-700' : 'chip-primary h-8 px-3 text-xs'} pendingText="…">
+                      {a.contract_received_at ? '받음 ✓' : '받음으로 표시'}
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="hint">근로계약서는 근무 시작 전에 줘야 해요(근로기준법 제17조). 받은 계약서는 3년 동안 보관해 주세요.</p>
+        </section>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-sub">
           서명 완료 <b className="text-ink">{signedCount}</b> / {live.length}건
