@@ -120,6 +120,10 @@ export type Attendance = {
   confirmed: boolean
   paid: boolean
   paid_at: string | null
+  /** 계약 종료 시각 이후 근무(연장): ot_by가 요청·제안, 상대가 확인하면 agreed → 그때만 금액에 들어감 */
+  ot_minutes: number
+  ot_status: 'pending' | 'agreed' | 'rejected' | null
+  ot_by: 'worker' | 'admin' | null
 }
 
 export type DocKind = 'contract' | 'pledge' | 'consent' | 'other'
