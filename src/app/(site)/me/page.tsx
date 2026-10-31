@@ -151,7 +151,9 @@ export default async function MePage(props: PageProps<'/me'>) {
   const todayApps = approved.filter(
     (a) => (a.job.start_date <= today && a.job.end_date >= today) || openAtt?.job_id === a.job_id,
   )
-  const upcoming = approved.filter((a) => a.job.start_date > today).sort((a, b) => a.job.start_date.localeCompare(b.job.start_date))
+  // 여러 날 행사는 사람마다 근무일이 다름 (고른 날 중 오늘 이후 첫날)
+  const firstDay = (a: AppWithJob) => (a.available_dates ?? [a.job.start_date]).filter((d) => d >= today).sort()[0] ?? a.job.start_date
+  const upcoming = approved.filter((a) => a.job.start_date > today).sort((a, b) => firstDay(a).localeCompare(firstDay(b)))
   const nextApp = upcoming[0] ?? null
   const dLabel = (d: string) => {
     const n = Math.round((Date.parse(d) - Date.parse(today)) / 86_400_000)
@@ -359,7 +361,7 @@ export default async function MePage(props: PageProps<'/me'>) {
             // 오늘 근무가 없으면 다음 근무를 크게 (며칠 남았는지·시간·장소·길찾기)
             <Link href={`/jobs/${nextApp.job_id}`} className="card-link block space-y-2 ring-2 ring-brand-100">
               <p className="flex items-center gap-2 text-sm font-bold text-brand-700">
-                <span className="badge bg-brand-600 text-white">{dLabel(nextApp.job.start_date)}</span>
+                <span className="badge bg-brand-600 text-white">{dLabel(firstDay(nextApp))}</span>
                 다음 근무
               </p>
               <p className="text-lg font-bold">{nextApp.job.title}</p>
@@ -367,6 +369,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                 {fmtDateRange(nextApp.job.start_date, nextApp.job.end_date)} {scheduleText(nextApp.job)}
                 {nextApp.job.location_name && ` · ${nextApp.job.location_name}`}
               </p>
+              {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700">📅 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
               {nextApp.job.meeting_point && <p className="text-sm text-sub">🚩 집결 {nextApp.job.meeting_point}</p>}
               <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
             </Link>
@@ -461,10 +464,26 @@ export default async function MePage(props: PageProps<'/me'>) {
                         )}
                       </div>
                     )}
-                    {notChosen && <p className="mt-1 text-xs text-amber-600">오늘은 근무 가능일로 고르지 않은 날이에요. 담당자 안내에 따라 주세요.</p>}
                   </div>
                   <ContractNote job={job} received={a.contract_received_at} />
-                  {forgot ? (
+                  {notChosen && !todayAtt && !open ? (
+                    // 오늘은 내 근무일이 아님 (지원할 때 고르지 않았거나 '이날은 못 가요'로 뺀 날): 근무 시작은 접어 둠
+                    <div className="space-y-2 rounded-xl bg-bg px-4 py-3">
+                      <p className="font-bold">🗓️ 오늘은 내 근무일이 아니에요</p>
+                      <p className="text-sm text-sub">
+                        {(() => {
+                          const next = a.available_dates!.filter((d) => d > today).sort()[0]
+                          return next ? `다음 근무일은 ${fmtDate(next)}이에요.` : '이 행사에서 남은 근무일이 없어요.'
+                        })()}
+                      </p>
+                      <details className="text-sm">
+                        <summary className="cursor-pointer py-1 font-semibold text-sub">담당자가 오늘 나와 달라고 했나요?</summary>
+                        <div className="mt-2">
+                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
+                        </div>
+                      </details>
+                    </div>
+                  ) : forgot ? (
                     <ForgotClockOut
                       attendanceId={forgot.id}
                       dateLabel={fmtDate(forgot.work_date)}
@@ -528,6 +547,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <p className="text-sm text-sub">
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
+                  {a.available_dates && <p className="mt-0.5 text-xs font-semibold text-brand-700">📅 내 근무일 {a.available_dates.map(fmtDate).join(' · ')}</p>}
                   {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700">📍 배치 · {a.position}</p>}
                   <ContractNote job={a.job} received={a.contract_received_at} compact />
                   {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
