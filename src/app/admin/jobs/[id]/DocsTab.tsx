@@ -63,6 +63,19 @@ export default function DocsTab({
               </form>
             )}
           </div>
+          {/* 종이로 받을 때: 공고·근무자 정보를 미리 채운 계약서를 한 번에 인쇄 */}
+          {job.contract_method === 'paper' && (
+            <div className="flex flex-wrap gap-1.5">
+              {approved.length > 0 && (
+                <Link href={`/print/contract/${job.id}`} className="chip-primary">
+                  📄 확정 {approved.length}명 계약서 출력
+                </Link>
+              )}
+              <Link href={`/print/contract/${job.id}?blank=1`} className="chip">
+                빈 계약서 출력
+              </Link>
+            </div>
+          )}
           {approved.length === 0 ? (
             <p className="text-sm text-mute">확정된 사람이 없어요.</p>
           ) : (
@@ -72,6 +85,11 @@ export default function DocsTab({
                   <span className="min-w-0">
                     <span className="font-semibold">{a.user.name}</span>
                     {a.contract_received_at && <span className="ml-2 text-xs text-mute">{kstDateTime(a.contract_received_at)} 받음</span>}
+                    {job.contract_method === 'paper' && !a.contract_received_at && (
+                      <Link href={`/print/contract/${job.id}?u=${a.user_id}`} className="ml-2 text-xs font-semibold text-brand-600">
+                        출력
+                      </Link>
+                    )}
                   </span>
                   <form action={setContractReceived.bind(null, a.id, !a.contract_received_at)}>
                     <SubmitButton className={a.contract_received_at ? 'badge bg-emerald-50 text-emerald-700' : 'chip-primary h-8 px-3 text-xs'} pendingText="…">
