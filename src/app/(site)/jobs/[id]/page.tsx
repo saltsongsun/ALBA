@@ -10,13 +10,14 @@ import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
 import { approvedCounts, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
+import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
 import { breakDescription, estimateDay, TAX_LABEL } from '@/lib/pay'
 import { getUser } from '@/lib/session'
-import { dateList, fmtDate, fmtDateRange, kstDate, minutesText } from '@/lib/time'
-import type { Application } from '@/lib/types'
+import { dateList, fmtDate, fmtDateRange, hhmm, kstDate, minutesText } from '@/lib/time'
+import type { Application, Job } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 
 async function load(id: string) {
@@ -53,13 +54,30 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const [counts, app, docs] = await Promise.all([
+  const [counts, app, docs, mine] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
       : null,
     job.required_docs.length
       ? db().from('doc_templates').select('id, title').in('id', job.required_docs).then((r) => must(r) as { id: string; title: string }[])
+      : [],
+    // 내가 확정·지원한 다른 근무 (같은 날 같은 시간에 겹치는지 보려고)
+    user
+      ? db()
+          .from('applications')
+          .select('status, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+          .eq('user_id', user.id)
+          .in('status', ['approved', 'applied'])
+          .neq('job_id', job.id)
+          .then(
+            (r) =>
+              (r.data ?? []) as unknown as {
+                status: string
+                available_dates: string[] | null
+                job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
+              }[],
+          )
       : [],
   ])
   const approved = counts[job.id] ?? 0
@@ -68,14 +86,35 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const ended = job.end_date < kstDate()
   const canApply = job.status === 'open' && !ended
   const path = `/jobs/${job.id}`
+  // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
+  const clashes =
+    canApply && (!app || app.status === 'cancelled')
+      ? mine
+          .filter((m) => m.job && m.job.end_date >= kstDate() && m.job.status !== 'cancelled')
+          .map((m) => ({ m, at: overlapDay(job, { ...m.job!, dates: m.available_dates }) }))
+          .filter((x): x is { m: (typeof mine)[number]; at: string } => !!x.at)
+      : []
 
   return (
     <>
       <Flash m={sp.m} />
+      {job.status === 'cancelled' && (
+        <div className="mb-3 animate-pop rounded-2xl border-2 border-rose-200 bg-rose-50 p-4">
+          <p className="font-bold text-rose-700">❌ 취소된 행사예요</p>
+          <p className="mt-1 text-sm text-rose-900">
+            {app ? '지원·확정은 모두 취소됐어요. 사유는 문의함에서 볼 수 있어요.' : '이 행사는 열리지 않아요. 다른 모집 공고를 확인해 주세요.'}
+          </p>
+          <Link href={app ? '/me/chat' : '/'} className="btn-gray btn-sm mt-3">
+            {app ? '문의함 보기' : '모집 중인 알바 보기'}
+          </Link>
+        </div>
+      )}
       <div className="card">
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {canApply ? (
             <span className="badge bg-brand-50 text-brand-700">모집중</span>
+          ) : job.status === 'cancelled' ? (
+            <span className="badge bg-rose-50 text-rose-600">행사 취소</span>
           ) : (
             <span className="badge bg-gray-100 text-mute">마감</span>
           )}
@@ -167,6 +206,22 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         />
       )}
       <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
+        {clashes.length > 0 && (
+          <div className="animate-pop rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-sm">
+            <p className="font-bold text-amber-900">⚠️ 같은 시간에 잡힌 근무가 있어요</p>
+            <ul className="mt-1.5 space-y-1 text-amber-900">
+              {clashes.map(({ m, at }) => (
+                <li key={m.job!.id}>
+                  <Link href={`/jobs/${m.job!.id}`} className="font-semibold underline">
+                    {m.job!.title}
+                  </Link>{' '}
+                  · {fmtDate(kstDate(at))} {hhmm(m.job!.start_time)}~{hhmm(m.job!.end_time)} ({m.status === 'approved' ? '확정' : '지원함'})
+                </li>
+              ))}
+            </ul>
+            <p className="mt-1.5 text-amber-800">겹치는 날은 근무할 수 없어요. 여러 날 행사라면 가능한 날짜만 골라 지원해 주세요.</p>
+          </div>
+        )}
         {!user ? (
           canApply && (
             <div className="card space-y-3 text-center">

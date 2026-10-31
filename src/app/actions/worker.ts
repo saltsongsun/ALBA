@@ -9,8 +9,9 @@ import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
+import { SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
-import { fmtDateRange, hhmm, kstAt, kstDate, minutesText } from '@/lib/time'
+import { fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str } from '@/lib/validate'
 import type { FormState } from './auth'
@@ -109,13 +110,20 @@ export async function cancelApplication(appId: string, form?: FormData) {
       .join('\n')
     await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: app.job_id, body })
     const title = app.job.title
-    after(async () =>
-      sendPush(await adminIds(), {
+    const jobId = app.job_id
+    after(async () => {
+      // 빈자리와 대기 인원을 함께 알려 바로 채울 수 있게
+      const [job, { count: waiting }] = await Promise.all([
+        getJob(jobId),
+        db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'applied'),
+      ])
+      const left = job ? job.headcount - ((await approvedCounts([jobId]))[jobId] ?? 0) : 0
+      await sendPush(await adminIds(), {
         title: `⚠️ 확정 취소${hoursLeft < 24 ? ' (24시간 안)' : ''}`,
-        body: `${user.name} · ${title}${reason ? ` · ${reason}` : ''}`,
-        url: `/admin/chat/${user.id}`,
-      }),
-    )
+        body: `${user.name} · ${title}${reason ? ` · ${reason}` : ''}${left > 0 ? ` · 빈자리 ${left}명, 대기 ${waiting ?? 0}명` : ''}`,
+        url: `/admin/jobs/${jobId}?tab=apps`,
+      })
+    })
     revalidatePath('/admin/chat')
   }
   revalidatePath('/me')
@@ -124,7 +132,8 @@ export async function cancelApplication(appId: string, form?: FormData) {
 
 // ───────────── 출퇴근 ─────────────
 
-export type ClockResult = { ok?: string; error?: string }
+/** gps: 현장 위치 확인에 막힘 → 담당자에게 출근 확인을 요청할 수 있게 */
+export type ClockResult = { ok?: string; error?: string; gps?: boolean }
 
 function distanceM(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6_371_000
@@ -168,9 +177,9 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
   let distance: number | null = null
   if (pos && job.lat != null && job.lng != null) distance = distanceM(pos.lat, pos.lng, job.lat, job.lng)
   if (job.gps_required && job.lat != null && job.lng != null) {
-    if (!pos) return { error: '이 행사는 현장 위치 확인이 필요합니다. 위치 권한을 허용하고 다시 눌러 주세요.' }
+    if (!pos) return { error: '이 행사는 현장 위치 확인이 필요합니다. 위치 권한을 허용하고 다시 눌러 주세요.', gps: true }
     if (distance! > job.gps_radius_m) {
-      return { error: `행사장에서 약 ${distance!.toLocaleString()}m 떨어져 있어요. 현장(${job.gps_radius_m}m 이내)에서 눌러 주세요.` }
+      return { error: `행사장에서 약 ${distance!.toLocaleString()}m 떨어져 있어요. 현장(${job.gps_radius_m}m 이내)에서 눌러 주세요.`, gps: true }
     }
   }
 
@@ -216,6 +225,106 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
   )
   revalidatePath('/me')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
+}
+
+// ───────────── 현장 상황 알리기 (지각·위치 확인 실패) ─────────────
+
+/** 오늘 이 공고에서 근무하기로 한 확정자이고 아직 출근 기록이 없는지 */
+async function todayShift(userId: string, jobId: string) {
+  if (!isUuid(jobId)) return { error: '잘못된 요청입니다.' }
+  const today = kstDate()
+  const [job, { data: app }, { data: att }, { data: sent }] = await Promise.all([
+    getJob(jobId),
+    db().from('applications').select('status, available_dates').eq('job_id', jobId).eq('user_id', userId).maybeSingle(),
+    db().from('attendance').select('id').eq('job_id', jobId).eq('user_id', userId).eq('work_date', today).maybeSingle(),
+    // 오늘 이미 보낸 알림 (너무 자주 보내지 않게)
+    db()
+      .from('messages')
+      .select('body, created_at')
+      .eq('thread_user_id', userId)
+      .eq('job_id', jobId)
+      .eq('from_admin', false)
+      .gte('created_at', kstAt(today, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ])
+  if (!job || job.status === 'cancelled') return { error: '공고를 찾을 수 없습니다.' }
+  if (today < job.start_date || today > job.end_date) return { error: '오늘은 이 행사의 근무일이 아닙니다.' }
+  if (app?.status !== 'approved') return { error: '근무가 확정된 공고만 알릴 수 있어요.' }
+  if (att) return { error: '이미 출근 기록이 있어요.' }
+  const todaySent = ((sent ?? []) as { body: string; created_at: string }[]).filter((m) => kstDate(m.created_at) === today)
+  return { job, today, todaySent }
+}
+
+/** 늦을 것 같을 때: 몇 분 늦는지 담당자에게 (문의함 + 휴대폰 알림) */
+export async function notifyLate(jobId: string, _: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  const r = await todayShift(user.id, jobId)
+  if (!r.job) return { error: r.error }
+  const minutes = Number(str(form, 'minutes'))
+  if (![10, 20, 30, 60].includes(minutes)) return { error: '얼마나 늦는지 골라 주세요.' }
+  if (r.todaySent.filter((m) => signalOf(m.body) === 'late').length >= 3) return { error: '오늘은 이미 여러 번 알렸어요. 담당자에게 전화해 주세요.' }
+  const reason = optStr(form, 'reason', 100)
+  const start = kstAt(r.today, r.job.start_time)
+  const eta = new Date(Math.max(Date.now(), start.getTime()) + minutes * 60_000)
+  const body = [
+    SIGNAL.late,
+    `${r.job.title} · 약 ${minutes}분 늦어요 (도착 예정 ${kstTime(eta)})`,
+    reason && `사유: ${reason}`,
+  ]
+    .filter(Boolean)
+    .join('\n')
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: jobId, body }))
+  const title = r.job.title
+  after(async () =>
+    sendPush(await adminIds(), {
+      title: `${SIGNAL.late} · ${minutes}분`,
+      body: `${user.name} · ${title} · ${kstTime(eta)} 도착 예정${reason ? ` · ${reason}` : ''}`,
+      url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
+      tag: `late-${jobId}-${user.id}`,
+    }),
+  )
+  revalidatePath('/me')
+  revalidatePath('/admin/chat')
+  return { ok: `담당자에게 약 ${minutes}분 늦는다고 알렸어요. 조심히 오세요!` }
+}
+
+/** 현장에 왔는데 위치 확인이 안 될 때: 담당자에게 출근 확인 요청 (요청한 시각으로 출근 처리 가능) */
+export async function requestClockIn(jobId: string, lat: number | null, lng: number | null): Promise<ClockResult> {
+  const user = await requireUser()
+  const r = await todayShift(user.id, jobId)
+  if (!r.job) return { error: r.error }
+  const { count: pendingDocs } = await db()
+    .from('signed_docs')
+    .select('id', { count: 'exact', head: true })
+    .eq('job_id', jobId)
+    .eq('user_id', user.id)
+    .eq('status', 'pending')
+  if (pendingDocs) return { error: '근로계약서 등 서류에 먼저 서명해 주세요.' }
+  const last = r.todaySent.find((m) => signalOf(m.body) === 'arrive')
+  if (last && Date.now() - Date.parse(last.created_at) < 5 * 60_000) {
+    return { ok: `${kstTime(last.created_at)}에 이미 요청했어요. 담당자가 확인하면 근무 중으로 바뀌어요.` }
+  }
+  const pos = coords(lat, lng)
+  const distance = pos && r.job.lat != null && r.job.lng != null ? distanceM(pos.lat, pos.lng, r.job.lat, r.job.lng) : null
+  const now = new Date()
+  const body = [
+    SIGNAL.arrive,
+    `${r.job.title} · ${kstTime(now)}에 현장에 도착했는데 위치 확인이 안 돼요${distance != null ? ` (행사장에서 약 ${distance.toLocaleString()}m로 잡힘)` : ' (위치를 못 읽음)'}`,
+  ].join('\n')
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: jobId, body }))
+  const title = r.job.title
+  after(async () =>
+    sendPush(await adminIds(), {
+      title: SIGNAL.arrive,
+      body: `${user.name} · ${title} · ${kstTime(now)} 도착 · 앱에서 출근 처리해 주세요`,
+      url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
+      tag: `arrive-${jobId}-${user.id}`,
+    }),
+  )
+  revalidatePath('/me')
+  revalidatePath('/admin/chat')
+  return { ok: `담당자에게 출근 확인을 요청했어요. 확인되면 ${kstTime(now)} 출근으로 기록돼요.` }
 }
 
 /**

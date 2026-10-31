@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addAttendance, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, approveArrival, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -7,13 +7,15 @@ import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
+import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
+import { parseArriveDistance, parseLate, signalOf } from '@/lib/signals'
 import { fmtDate, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 
-export default function AttTab({
+export default async function AttTab({
   job,
   apps,
   atts,
@@ -33,6 +35,29 @@ export default function AttTab({
   /** 배치로 거르기 ('-'는 미배치, null이면 전체) */
   pos: string | null
 }) {
+  // 그날 근무자가 보낸 현장 알림 (늦어요 · 출근 확인 요청): 사람마다 가장 최근 것
+  const signals = (
+    must(
+      await db()
+        .from('messages')
+        .select('thread_user_id, body, created_at')
+        .eq('job_id', job.id)
+        .eq('from_admin', false)
+        .gte('created_at', kstAt(date, '00:00').toISOString())
+        .order('created_at', { ascending: false })
+        .limit(500),
+    ) as { thread_user_id: string; body: string; created_at: string }[]
+  ).filter((m) => kstDate(m.created_at) === date)
+  const lateOf = new Map<string, { minutes: number; eta: string; at: string; reason: string | null }>()
+  const arriveOf = new Map<string, { at: string; distance: number | null }>()
+  for (const m of signals) {
+    const kind = signalOf(m.body)
+    if (kind === 'late' && !lateOf.has(m.thread_user_id)) {
+      const l = parseLate(m.body)
+      if (l) lateOf.set(m.thread_user_id, { ...l, at: kstTime(m.created_at), reason: m.body.match(/사유: (.+)/)?.[1] ?? null })
+    }
+    if (kind === 'arrive' && !arriveOf.has(m.thread_user_id)) arriveOf.set(m.thread_user_id, { at: kstTime(m.created_at), distance: parseArriveDistance(m.body) })
+  }
   const dayAtts = atts.filter((a) => a.work_date === date)
   const byUser = new Map(dayAtts.map((a) => [a.user_id, a]))
   const roster = [
@@ -41,6 +66,7 @@ export default function AttTab({
   ].filter((v, i, arr) => arr.indexOf(v) === i)
   const notScheduled = apps.filter((a) => !roster.includes(a.user_id))
   const absent = roster.filter((u) => !byUser.has(u))
+  const nudgeable = absent.filter((u) => !lateOf.has(u) && !arriveOf.has(u)).length
   const today = kstDate()
   const working = dayAtts.filter((a) => !a.clock_out).length
   const done = dayAtts.filter((a) => a.clock_out).length
@@ -96,7 +122,19 @@ export default function AttTab({
           <div className="bg-ink/60 transition-[width] duration-500" style={{ width: `${(done / Math.max(roster.length, 1)) * 100}%` }} />
         </div>
         <div className="mt-2 flex items-center justify-between gap-2 text-xs text-mute">
-          <span>명단 {roster.length}명</span>
+          <span>
+            명단 {roster.length}명
+            {(() => {
+              const late = absent.filter((u) => lateOf.has(u)).length
+              const ask = absent.filter((u) => arriveOf.has(u)).length
+              return (
+                <>
+                  {late > 0 && <b className="ml-1.5 whitespace-nowrap text-amber-700">· 늦음 알림 {late}</b>}
+                  {ask > 0 && <b className="ml-1.5 whitespace-nowrap text-brand-700">· 출근 요청 {ask}</b>}
+                </>
+              )
+            })()}
+          </span>
           {date === today && <AutoRefresh />}
         </div>
       </div>
@@ -113,11 +151,11 @@ export default function AttTab({
               body={`[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`}
             />
           )}
-          {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄) */}
-          {date <= today && absent.length > 0 && (
+          {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄). 늦는다고 알렸거나 출근 확인을 요청한 사람은 빼고 */}
+          {date <= today && nudgeable > 0 && (
             <form action={nudgeWorkers.bind(null, job.id, 'clockin', date)} className="shrink-0">
-              <ConfirmSubmit className="chip" confirmText={`${absent.length}명에게 보낼까요?`}>
-                미출근 {absent.length}명 앱 알림
+              <ConfirmSubmit className="chip" confirmText={`${nudgeable}명에게 보낼까요?`}>
+                미출근 {nudgeable}명 앱 알림
               </ConfirmSubmit>
             </form>
           )}
@@ -183,8 +221,14 @@ export default function AttTab({
           const a = byUser.get(uid)
           const pay = a ? calcDay(job, a) : null
           const far = (d: number | null) => d != null && d > job.gps_radius_m
+          const late = !a ? lateOf.get(uid) : undefined
+          const ask = !a ? arriveOf.get(uid) : undefined
           const status = !a
-            ? { label: '미출근', cls: date <= today ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-mute' }
+            ? ask
+              ? { label: '출근 요청', cls: 'bg-brand-600 text-white' }
+              : late
+                ? { label: `${late.minutes}분 늦음`, cls: 'bg-amber-100 text-amber-800' }
+                : { label: '미출근', cls: date <= today ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-mute' }
             : !a.clock_out
               ? { label: '근무 중', cls: 'bg-emerald-50 text-emerald-700' }
               : a.confirmed
@@ -209,6 +253,26 @@ export default function AttTab({
                 </div>
                 <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
               </div>
+
+              {/* 현장 위치 확인이 안 된 근무자의 출근 확인 요청: 요청 시각으로 바로 출근 처리 */}
+              {ask && (
+                <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm ring-1 ring-brand-100">
+                  <span className="min-w-0 flex-1 text-brand-900">
+                    📍 <b>{ask.at}</b> 현장 도착 · 위치 확인 실패{ask.distance != null ? ` (약 ${ask.distance.toLocaleString()}m로 잡힘)` : ''}
+                  </span>
+                  <form action={approveArrival.bind(null, job.id, uid, date)}>
+                    <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="처리 중…">
+                      {ask.at} 출근 처리
+                    </SubmitButton>
+                  </form>
+                </div>
+              )}
+              {late && !ask && (
+                <p className="mt-2.5 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  🕒 {late.at}에 알림 · 약 {late.minutes}분 늦음, <b>{late.eta} 도착 예정</b>
+                  {late.reason && <span className="text-amber-800"> · {late.reason}</span>}
+                </p>
+              )}
 
               {a && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">

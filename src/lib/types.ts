@@ -32,7 +32,7 @@ export type UserRow = {
 export type PayType = 'hourly' | 'daily'
 export type BreakMode = 'auto' | 'fixed' | 'none'
 export type TaxType = 'daily' | 'business' | 'none'
-export type JobStatus = 'draft' | 'open' | 'closed' | 'done'
+export type JobStatus = 'draft' | 'open' | 'closed' | 'done' | 'cancelled'
 
 /** 공고마다 넣고 빼는 근무 조건 (예: 식사 · 점심 도시락 제공) */
 export type JobCondition = { label: string; value: string }

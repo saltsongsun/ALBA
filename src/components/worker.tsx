@@ -5,6 +5,8 @@ import {
   changePin,
   clockIn,
   clockOut,
+  notifyLate,
+  requestClockIn,
   signDocument,
   updateProfile,
   withdraw,
@@ -109,6 +111,11 @@ export function ClockPanel({
   const [confirmOut, setConfirmOut] = useState(false)
   const [celebrate, setCelebrate] = useState(0)
   const [geo, setGeo] = useState<GeoProblem | null>(null)
+  // 인터넷이 끊겨 기록하지 못했으면 연결되는 대로 다시 시도 (지하 행사장 등)
+  const [offline, setOffline] = useState(false)
+  const lastPos = useRef<{ lat: number; lng: number } | null>(null)
+  const [asked, setAsked] = useState<ClockResult | null>(null)
+  const [asking, startAsk] = useTransition()
 
   // 위치 권한이 이미 꺼져 있으면 누르기 전에 미리 알려 줌 (지원하는 브라우저만)
   useEffect(() => {
@@ -153,6 +160,7 @@ export function ClockPanel({
   const run = () =>
     start(async () => {
       setResult(null)
+      setAsked(null)
       let pos: { lat: number; lng: number } | null = null
       if (useLocation) {
         setStep('위치 확인 중…')
@@ -160,8 +168,20 @@ export function ClockPanel({
         pos = r.pos
         setGeo(r.problem)
       }
+      lastPos.current = pos
       setStep('기록 중…')
-      const res = open ? await clockOut(open.id, pos?.lat ?? null, pos?.lng ?? null) : await clockIn(jobId, pos?.lat ?? null, pos?.lng ?? null)
+      let res: ClockResult
+      try {
+        if (!navigator.onLine) throw new Error('offline')
+        res = open ? await clockOut(open.id, pos?.lat ?? null, pos?.lng ?? null) : await clockIn(jobId, pos?.lat ?? null, pos?.lng ?? null)
+      } catch {
+        // 서버에 닿지 못함: 화면이 오류로 바뀌지 않게 하고, 연결되면 자동으로 다시 누름
+        setStep('')
+        setOffline(true)
+        setResult({ error: `인터넷 연결이 약해 기록하지 못했어요. 연결되면 자동으로 다시 ${open ? '종료' : '시작'}을 눌러 드릴게요.` })
+        return
+      }
+      setOffline(false)
       setResult(res)
       setStep('')
       setNow(Date.now())
@@ -169,6 +189,32 @@ export function ClockPanel({
         const id = Date.now()
         setCelebrate(id)
         setTimeout(() => setCelebrate((c) => (c === id ? 0 : c)), 1500)
+      }
+    })
+
+  // 연결이 돌아오면 한 번 다시 시도 (계속 안 되면 다음 연결 때 또)
+  const retry = useRef(run)
+  retry.current = run
+  const busy = useRef(false)
+  busy.current = pending
+  useEffect(() => {
+    if (!offline) return
+    const again = () => !busy.current && retry.current()
+    window.addEventListener('online', again)
+    const t = setInterval(() => navigator.onLine && again(), 20_000)
+    return () => {
+      window.removeEventListener('online', again)
+      clearInterval(t)
+    }
+  }, [offline])
+
+  // 현장 위치 확인에 막혔을 때: 담당자에게 출근 확인 요청 (요청한 시각으로 출근 처리)
+  const ask = () =>
+    startAsk(async () => {
+      try {
+        setAsked(await requestClockIn(jobId, lastPos.current?.lat ?? null, lastPos.current?.lng ?? null))
+      } catch {
+        setAsked({ error: '인터넷 연결이 약해요. 신호가 잡히는 곳에서 다시 눌러 주세요.' })
       }
     })
 
@@ -220,7 +266,78 @@ export function ClockPanel({
       {confirmOut && !pending && <p className="text-center text-sm font-semibold text-rose-600">실수로 끝나지 않도록 한 번 더 눌러야 종료돼요.</p>}
       {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치를 함께 기록합니다.</p>}
       <FormMessage state={result} />
+      {offline && !pending && (
+        <button type="button" onClick={run} className="btn-gray btn-sm w-full">
+          지금 다시 시도
+        </button>
+      )}
+      {result?.gps && !open && !pending && (
+        <div className="animate-pop space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-900 ring-1 ring-brand-100">
+          <p className="font-bold">현장에 도착했는데 위치가 안 맞나요?</p>
+          <p>실내나 지하에서는 위치가 멀게 잡힐 수 있어요. 담당자에게 요청하면 지금 시각으로 출근 처리해 줘요.</p>
+          {asked?.ok ? (
+            <p className="font-semibold text-emerald-700">✓ {asked.ok}</p>
+          ) : (
+            <button type="button" onClick={ask} disabled={asking} className="btn-primary btn-sm disabled:opacity-60">
+              {asking ? '요청 중…' : '담당자에게 출근 확인 요청'}
+            </button>
+          )}
+          {asked?.error && <p className="font-semibold text-rose-600">{asked.error}</p>}
+        </div>
+      )}
       {useLocation && geo && !pending && <LocationHelp problem={geo} required={gpsRequired && !open} />}
+    </div>
+  )
+}
+
+/** 늦을 것 같을 때 담당자에게 몇 분 늦는지 알리기 (오늘 근무 카드, 출근 전) */
+export function LateNotice({ jobId, sent }: { jobId: string; sent: { minutes: number; eta: string; at: string } | null }) {
+  const [state, action, pending] = useActionState(notifyLate.bind(null, jobId), null)
+  const [openForm, setOpenForm] = useState(false)
+  const [minutes, setMinutes] = useState(sent?.minutes ?? 10)
+  const done = state?.ok
+  useEffect(() => {
+    if (done) setOpenForm(false)
+  }, [done])
+  return (
+    <div className="space-y-2">
+      {sent && !state && (
+        <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
+          🕒 {sent.at}에 담당자에게 <b>약 {sent.minutes}분 늦음</b>(도착 예정 {sent.eta})을 알렸어요.
+        </p>
+      )}
+      {!openForm ? (
+        <button type="button" onClick={() => setOpenForm(true)} className="btn-gray btn-sm w-full">
+          🕒 {sent || done ? '늦는 시간 다시 알리기' : '늦을 것 같아요 · 담당자에게 알리기'}
+        </button>
+      ) : (
+        <form action={action} className="animate-pop space-y-3 rounded-xl bg-bg p-3.5">
+          <p className="text-sm font-bold">얼마나 늦을 것 같나요?</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {[10, 20, 30, 60].map((m) => (
+              <label
+                key={m}
+                className={`cursor-pointer rounded-xl py-2.5 text-center text-sm font-bold ring-1 transition active:scale-95 ${
+                  minutes === m ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'
+                }`}
+              >
+                <input type="radio" name="minutes" value={m} checked={minutes === m} onChange={() => setMinutes(m)} className="sr-only" />
+                {m === 60 ? '1시간' : `${m}분`}
+              </label>
+            ))}
+          </div>
+          <input name="reason" maxLength={100} className="input py-2.5 text-sm" placeholder="사유 (선택) 예: 버스 지연" />
+          <div className="flex gap-2">
+            <SubmitButton className="btn-primary btn-sm flex-1" pendingText="보내는 중…">
+              담당자에게 알리기
+            </SubmitButton>
+            <button type="button" onClick={() => setOpenForm(false)} className="btn-gray btn-sm">
+              닫기
+            </button>
+          </div>
+        </form>
+      )}
+      <FormMessage state={state} />
     </div>
   )
 }

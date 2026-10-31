@@ -251,7 +251,7 @@ export default function JobForm({
   const v = (k: string) => String(fd?.get(k) ?? '').trim()
   const brief = (text: string) => (fd ? text : '\u00a0')
   const docTitles = templates.filter((t) => fd?.getAll('required_docs').includes(t.id)).map((t) => t.title)
-  const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료' }
+  const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
 
   const pasteCoords = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const m = e.clipboardData.getData('text').match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/)
@@ -573,11 +573,25 @@ export default function JobForm({
               <option value="closed">모집마감 (목록에 보이되 지원 불가)</option>
               <option value="draft">임시저장 (비공개)</option>
               <option value="done">종료</option>
+              {job?.status === 'cancelled' && <option value="cancelled">행사 취소</option>}
             </select>
           </Field>
         </div>
         <Check name="auto_approve" label="지원하면 바로 확정 (모집 인원까지)" defaultChecked={job?.auto_approve} hint="끄면 관리자가 지원자를 보고 확정합니다." />
       </Fold>
+
+      {/* 고칠 때: 일정·장소·급여가 바뀌면 확정자·지원자에게 바로 알림 (오타만 고칠 때는 끌 수 있게) */}
+      {job && job.status !== 'cancelled' && (
+        <div className="card p-4">
+          <Check
+            name="notify_change"
+            value="1"
+            defaultChecked
+            label="날짜·시간·장소·급여가 바뀌면 확정자·지원자에게 알리기"
+            hint="바뀐 내용(이전 → 변경)을 앱 문의함과 휴대폰 알림으로 보내요. 오타만 고칠 때는 꺼 주세요."
+          />
+        </div>
+      )}
 
       <div className="sticky bottom-3 z-10 pt-2">
         <FormMessage state={state} />

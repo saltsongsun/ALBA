@@ -45,7 +45,9 @@ export default function JobCard({
         {myStatus && APP_STATUS[myStatus] && (
           <span className={`badge ${APP_STATUS[myStatus].cls}`}>{APP_STATUS[myStatus].label}</span>
         )}
-        {job.status !== 'open' ? (
+        {job.status === 'cancelled' ? (
+          <span className="badge bg-rose-50 text-rose-600">행사 취소</span>
+        ) : job.status !== 'open' ? (
           <span className="badge bg-gray-100 text-mute">마감</span>
         ) : full ? (
           <span className="badge bg-gray-100 text-sub">정원 마감 · 대기 접수</span>

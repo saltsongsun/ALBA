@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { deleteJob, duplicateJob, setJobStatus } from '@/app/actions/admin'
+import { cancelEvent, deleteJob, duplicateJob, setJobStatus } from '@/app/actions/admin'
 import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
@@ -32,7 +32,7 @@ export type WorkerLite = {
 }
 export type AppRow = Application & { user: WorkerLite }
 
-const STATUS_LABEL: Record<Job['status'], string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료' }
+const STATUS_LABEL: Record<Job['status'], string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
 
 export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>) {
   const admin = await requireAdmin()
@@ -77,7 +77,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id))
   const today = kstDate()
   // 근로계약서를 받지 않는 공고는 위에 경고 (지난 공고·종료한 공고는 제외)
-  const noContract = job.status !== 'done' && job.end_date >= today && !templates.some((t) => t.kind === 'contract')
+  const noContract = !['done', 'cancelled'].includes(job.status) && job.end_date >= today && !templates.some((t) => t.kind === 'contract')
 
   // 출퇴근 기록은 있는데 지원 내역이 없는 사람(관리자 직접 등록 등)도 정산에 포함
   const known = new Set(apps.map((a) => a.user_id))
@@ -95,6 +95,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const approved = apps.filter((a) => a.status === 'approved')
   const waiting = apps.filter((a) => a.status === 'applied')
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
+  // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
+  const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   const link = `${origin}/jobs/${job.id}`
   const text = recruitText(job, link, settings.company_name)
 
@@ -115,7 +117,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <div className="card">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="badge bg-ink text-white">{STATUS_LABEL[job.status]}</span>
+            <span className={`badge ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{STATUS_LABEL[job.status]}</span>
             {job.event_name && <span className="text-sm font-semibold text-mute">{job.event_name}</span>}
           </div>
           <h1 className="mt-1 text-2xl font-extrabold">{job.title}</h1>
@@ -148,7 +150,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             <form action={duplicateJob.bind(null, job.id)}>
               <SubmitButton className="btn-gray btn-sm">복사해서 새 공고</SubmitButton>
             </form>
-            {job.status !== 'open' && (
+            {job.status !== 'open' && job.status !== 'cancelled' && (
               <form action={setJobStatus.bind(null, job.id, 'open')}>
                 <SubmitButton className="btn-gray btn-sm">모집 열기</SubmitButton>
               </form>
@@ -158,7 +160,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                 <SubmitButton className="btn-gray btn-sm">모집 마감</SubmitButton>
               </form>
             )}
-            {job.status !== 'done' && (
+            {job.status !== 'done' && job.status !== 'cancelled' && (
               <form action={setJobStatus.bind(null, job.id, 'done')}>
                 <SubmitButton className="btn-gray btn-sm">행사 종료</SubmitButton>
               </form>
@@ -169,6 +171,33 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
               </ConfirmSubmit>
             </form>
           </div>
+          {job.status === 'cancelled' && (
+            <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800">
+              취소한 행사예요. 지원·확정은 모두 취소됐고 근무자에게 알렸어요. 다시 모집하려면 ‘복사해서 새 공고’를 눌러 주세요.
+            </p>
+          )}
+          {/* 비·주최측 사정 등으로 행사가 열리지 않을 때: 사유와 함께 확정·지원자 모두에게 알림 */}
+          {canCancel && (
+            <details className="mt-3 rounded-xl border border-line px-3.5 py-2.5">
+              <summary className="cursor-pointer text-sm font-semibold text-rose-600">행사가 취소됐나요? (우천·주최측 사정 등)</summary>
+              <form action={cancelEvent.bind(null, job.id)} className="mt-2.5 space-y-2.5">
+                <textarea
+                  name="reason"
+                  required
+                  maxLength={200}
+                  rows={2}
+                  className="input text-sm"
+                  placeholder="취소 사유 (근무자에게 그대로 전달돼요) 예: 태풍 예보로 주최측이 행사를 취소했습니다."
+                />
+                <p className="hint">
+                  확정 {approved.length}명 · 대기 {waiting.length}명에게 앱 문의함과 휴대폰 알림으로 알리고, 지원은 모두 취소돼요. 되돌릴 수 없어요.
+                </p>
+                <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 취소하고 알릴까요?">
+                  행사 취소하고 알리기
+                </ConfirmSubmit>
+              </form>
+            </details>
+          )}
         </div>
 
         <div className="card space-y-2">
@@ -187,7 +216,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         </div>
       </div>
 
-      {approved.length > 0 && job.status !== 'done' && (
+      {approved.length > 0 && !['done', 'cancelled'].includes(job.status) && (
         <Announce
           jobId={job.id}
           jobTitle={job.title}

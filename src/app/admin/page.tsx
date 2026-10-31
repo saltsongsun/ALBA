@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { decideApplication } from '@/app/actions/admin'
+import { decideApplication, setJobStatus } from '@/app/actions/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
@@ -13,7 +13,7 @@ import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
-import { ageOn, fmtDate, fmtDateRange, kstAt, kstDate, kstDateTime } from '@/lib/time'
+import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
   working: <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />,
@@ -87,6 +87,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     unreadForAdmins(),
   ])
   const counts = countApps(activeJobs, 'approved')
+  const waitingBy = countApps(activeJobs, 'applied')
+  // 곧(모레까지) 시작하거나 진행 중인데 확정 인원이 모자란 행사: 취소로 빈자리가 생겼을 때 바로 보이게
+  const soon = kstDate(new Date(Date.now() + 2 * 86_400_000))
+  const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
+  const short = activeJobs.filter((j) => j.start_date <= soon && (counts[j.id] ?? 0) < j.headcount)
   const todayJobs = activeJobs.filter((j) => j.start_date <= today && j.end_date >= today)
   const workingBy: Record<string, number> = {}
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
@@ -134,6 +139,44 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <span>💬 새 문의 {unreadChats}건이 있어요</span>
           <span>답장하기 →</span>
         </Link>
+      )}
+      {short.length > 0 && (
+        <section className="card animate-pop space-y-3 border-2 border-rose-200 bg-rose-50/40">
+          <div>
+            <h2 className="font-bold">🚨 곧 시작하는데 인원이 모자라요</h2>
+            <p className="text-sm text-sub">취소나 미확정으로 빈자리가 있어요. 대기자를 확정하거나 예전 근무자에게 모집을 알려 보세요.</p>
+          </div>
+          {short.map((j) => {
+            const gap = j.headcount - (counts[j.id] ?? 0)
+            const wait = waitingBy[j.id] ?? 0
+            const when = j.start_date < today ? '진행 중' : j.start_date === today ? '오늘' : j.start_date === tomorrow ? '내일' : fmtDate(j.start_date)
+            return (
+              <div key={j.id} className="space-y-2 rounded-xl bg-white p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <Link href={`/admin/jobs/${j.id}?tab=apps`} className="min-w-0 font-bold">
+                    {j.title}
+                  </Link>
+                  <span className="badge shrink-0 bg-rose-600 text-white">{gap}명 부족</span>
+                </div>
+                <p className="text-sm text-sub">
+                  <b className="text-ink">{when}</b> {hhmm(j.start_time)} 시작 · 확정 {counts[j.id] ?? 0}/{j.headcount}명 · 대기 {wait}명
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Link href={`/admin/jobs/${j.id}?tab=apps`} className="chip-primary">
+                    {wait > 0 ? `대기 ${wait}명 확정하러 가기` : '예전 근무자에게 알리기'}
+                  </Link>
+                  {j.status === 'closed' && (
+                    <form action={setJobStatus.bind(null, j.id, 'open')}>
+                      <SubmitButton className="chip" pendingText="여는 중…">
+                        모집 다시 열기
+                      </SubmitButton>
+                    </form>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </section>
       )}
       {setupTodo.length > 0 && (
         <Link href="/admin/settings" className="block rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800">

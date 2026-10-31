@@ -8,12 +8,14 @@ import { decrypt, hashPin } from '@/lib/crypto'
 import { audit, ensurePendingDocs, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
-import { scheduleSummary } from '@/lib/docs'
+import { scheduleSummary, wageText } from '@/lib/docs'
 import { hiddenFromForm } from '@/lib/jobFields'
-import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN } from '@/lib/pay'
+import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, settle } from '@/lib/pay'
+import { tellWorkers } from '@/lib/notify'
 import { sendPush } from '@/lib/push'
+import { SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
-import { fromKstInput, hhmm, kstAt } from '@/lib/time'
+import { fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 import type { Attendance, Job, JobCondition } from '@/lib/types'
 import {
   bool,
@@ -77,7 +79,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
   const break_mode = (['auto', 'fixed', 'none'] as const).find((m) => m === str(form, 'break_mode')) ?? 'auto'
   const tax_type = (['daily', 'business', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily'
   const round = int(form, 'round_unit', 1)
-  const status = (['draft', 'open', 'closed', 'done'] as const).find((m) => m === str(form, 'status')) ?? 'open'
+  const status = (['draft', 'open', 'closed', 'done', 'cancelled'] as const).find((m) => m === str(form, 'status')) ?? 'open'
   const conditions = parseConditions(str(form, 'conditions', 5000))
   if (!conditions) return { error: '근무 조건을 다시 입력해 주세요.' }
 
@@ -136,33 +138,78 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
   return { row }
 }
 
+/** 근무자가 알아야 할 공고 내용이 바뀌었는지: ["시간: 10:00~18:00 → 11:00~19:00", ...] */
+function jobChanges(before: Job, after: Job): string[] {
+  const out: string[] = []
+  const line = (label: string, a: string, b: string) => a !== b && out.push(`${label}: ${a || '없음'} → ${b || '없음'}`)
+  line('날짜', fmtDateRange(before.start_date, before.end_date), fmtDateRange(after.start_date, after.end_date))
+  line('시간', `${hhmm(before.start_time)}~${hhmm(before.end_time)}`, `${hhmm(after.start_time)}~${hhmm(after.end_time)}`)
+  line('장소', [before.location_name, before.address].filter(Boolean).join(' '), [after.location_name, after.address].filter(Boolean).join(' '))
+  line('집결', before.meeting_point ?? '', after.meeting_point ?? '')
+  line('급여', wageText(before), wageText(after))
+  line('복장', before.dress_code ?? '', after.dress_code ?? '')
+  line('준비물', before.supplies ?? '', after.supplies ?? '')
+  return out
+}
+
 export async function saveJob(jobId: string | null, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
   const { row, error } = parseJob(form)
   if (!row) return { error }
   let id = jobId
+  let note = ''
   if (id) {
     if (!isUuid(id)) return { error: '잘못된 요청입니다.' }
+    const before = await getJob(id)
+    if (!before) return { error: '공고를 찾을 수 없습니다.' }
+    // 취소한 행사는 '행사 취소' 상태로만 남김 (다시 모집하려면 복사해서 새 공고로)
+    if (before.status === 'cancelled') row.status = 'cancelled'
+    else if (row.status === 'cancelled') row.status = before.status
     must(await db().from('jobs').update(row).eq('id', id))
     // 서류 구성을 바꿨다면 이미 확정된 인원에게도 서명 요청
     const job = await getJob(id)
-    const approved = must(
-      await db().from('applications').select('user_id').eq('job_id', id).eq('status', 'approved'),
-    ) as { user_id: string }[]
+    const apps = must(
+      await db().from('applications').select('user_id, status').eq('job_id', id).in('status', ['approved', 'applied']),
+    ) as { user_id: string; status: string }[]
+    const approved = apps.filter((a) => a.status === 'approved')
     if (job) for (const a of approved) await ensurePendingDocs(job, a.user_id)
+    // 일정·장소·급여가 바뀌었으면 확정자·지원자에게 바로 알림 (끝난 행사·임시저장 제외)
+    const changes = job ? jobChanges(before, job) : []
+    if (job && changes.length && apps.length && form.get('notify_change') && ['open', 'closed'].includes(job.status) && before.end_date >= kstDate()) {
+      const n = await tellWorkers(
+        apps.map((a) => a.user_id),
+        {
+          senderId: admin.id,
+          jobId: id,
+          title: SIGNAL.change,
+          text: `${job.title}의 내용이 바뀌었어요.\n${changes.join('\n')}\n못 오게 되면 앱에서 담당자에게 알려 주세요.`,
+          url: `/jobs/${id}`,
+          tag: `change-${id}`,
+        },
+      )
+      await audit(admin.id, 'job.change_notice', null, `${id} ${n}명 ${changes.map((c) => c.split(':')[0]).join(',')}`)
+      note = ` 확정·지원자 ${n}명에게 바뀐 내용을 알렸어요.`
+      // 이미 서명한 계약서는 예전 내용 → 다시 받도록 안내
+      if (changes.some((c) => /^(날짜|시간|장소|급여)/.test(c))) {
+        const { count } = await db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('job_id', id).eq('status', 'signed')
+        if (count) note += ` 서명된 서류 ${count}건은 예전 내용이에요. 서류 탭에서 '다시 요청'을 눌러 주세요.`
+      }
+      revalidatePath('/admin/chat')
+    }
   } else {
     const created = must(await db().from('jobs').insert({ ...row, created_by: admin.id }).select('id').single()) as { id: string }
     id = created.id
   }
   revalidatePath('/admin/jobs')
   revalidatePath('/')
-  redirect(`/admin/jobs/${id}?m=${encodeURIComponent('저장했습니다.')}`)
+  redirect(`/admin/jobs/${id}?m=${encodeURIComponent(`저장했습니다.${note}`)}`)
 }
 
 export async function setJobStatus(jobId: string, status: Job['status']) {
   await requireAdmin()
   if (!isUuid(jobId) || !['draft', 'open', 'closed', 'done'].includes(status)) return
-  must(await db().from('jobs').update({ status }).eq('id', jobId))
+  // 취소한 행사는 되돌리지 않음 (지원이 모두 취소됨 → 복사해서 새 공고로)
+  must(await db().from('jobs').update({ status }).eq('id', jobId).neq('status', 'cancelled'))
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/')
 }
@@ -197,6 +244,51 @@ export async function deleteJob(jobId: string) {
   await audit(admin.id, 'job.delete', null, jobId)
   revalidatePath('/admin/jobs')
   back('/admin/jobs', '공고를 삭제했습니다.')
+}
+
+/**
+ * 행사 취소 (우천·주최측 사정 등): 공고를 '행사 취소'로, 확정·대기 지원을 모두 취소하고 서명 대기 서류를 지움.
+ * 확정자·지원자 각자에게 사유와 함께 알림. 이미 근무 기록이 있으면 (행사 도중) 종료로 처리하도록 막음
+ */
+export async function cancelEvent(jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}`
+  if (job.status === 'cancelled') back(path, '이미 취소한 행사입니다.')
+  const reason = str(form, 'reason', 200)
+  if (!reason) back(path, '취소 사유를 적어 주세요. 근무자에게 그대로 전달돼요.')
+  const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', jobId)
+  if (worked) back(path, '이미 근무 기록이 있어 행사 취소로 바꿀 수 없어요. 남은 날짜는 공고를 고쳐 줄이거나 \'행사 종료\'를 눌러 주세요.')
+  const apps = must(
+    await db().from('applications').select('id, user_id, status').eq('job_id', jobId).in('status', ['approved', 'applied']),
+  ) as { id: string; user_id: string; status: string }[]
+  must(await db().from('jobs').update({ status: 'cancelled' }).eq('id', jobId))
+  if (apps.length) {
+    must(
+      await db()
+        .from('applications')
+        .update({ status: 'cancelled', admin_memo: `행사 취소: ${reason}`.slice(0, 300) })
+        .in('id', apps.map((a) => a.id)),
+    )
+  }
+  await db().from('signed_docs').delete().eq('job_id', jobId).eq('status', 'pending')
+  const n = await tellWorkers(
+    apps.map((a) => a.user_id),
+    {
+      senderId: admin.id,
+      jobId,
+      title: SIGNAL.cancel,
+      text: `${job.title} (${fmtDateRange(job.start_date, job.end_date)} ${hhmm(job.start_time)}) 행사가 취소됐어요.\n사유: ${reason}\n지원·확정은 모두 취소 처리됐어요. 불편을 드려 죄송합니다.`,
+      url: '/me/chat',
+      tag: `cancel-${jobId}`,
+    },
+  )
+  await audit(admin.id, 'job.cancel', null, `${jobId} ${n}명 ${reason}`.slice(0, 500))
+  revalidatePath('/admin/jobs')
+  revalidatePath('/admin')
+  revalidatePath('/')
+  back(path, `행사를 취소했어요.${n ? ` 확정·지원자 ${n}명에게 알렸어요.` : ''}`)
 }
 
 // ───────────── 지원자 ─────────────
@@ -351,6 +443,49 @@ export async function addAttendance(jobId: string, form: FormData) {
   back(path, '근무 기록을 추가했습니다.')
 }
 
+/**
+ * 현장 위치 확인이 안 돼 근무자가 보낸 '출근 확인 요청'을 받아들임: 요청한 시각으로 출근 기록 (근무자는 이후 앱에서 종료)
+ * 그날 그 근무자의 가장 최근 요청을 서버에서 다시 찾음
+ */
+export async function approveArrival(jobId: string, userId: string, date: string) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) && isUuid(userId) && isDate(date) ? await getJob(jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
+  const rows = must(
+    await db()
+      .from('messages')
+      .select('body, created_at')
+      .eq('thread_user_id', userId)
+      .eq('job_id', jobId)
+      .eq('from_admin', false)
+      .gte('created_at', kstAt(date, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ) as { body: string; created_at: string }[]
+  const req = rows.find((m) => kstDate(m.created_at) === date && signalOf(m.body) === 'arrive')
+  if (!req) back(path, '출근 확인 요청을 찾을 수 없어요.')
+  const { error } = await db().from('attendance').insert({
+    job_id: jobId,
+    user_id: userId,
+    work_date: date,
+    clock_in: req.created_at,
+    source: 'admin',
+    note: `위치 확인 실패 · ${kstTime(req.created_at)} 출근 확인 요청 승인`,
+  })
+  if (error) back(path, error.code === '23505' ? '이미 출근 기록이 있어요.' : '출근 처리하지 못했어요.')
+  await audit(admin.id, 'attendance.arrive_ok', userId, `${date} ${kstTime(req.created_at)}`)
+  await tellWorkers([userId], {
+    senderId: admin.id,
+    jobId,
+    title: '✅ 출근 처리됐어요',
+    text: `${job.title} · ${kstTime(req.created_at)} 출근으로 기록했어요. 일이 끝나면 앱에서 '근무 종료'를 눌러 주세요.`,
+    tag: `arrive-ok-${jobId}`,
+  })
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back(path, `${kstTime(req.created_at)} 출근으로 처리했어요.`)
+}
+
 export async function deleteAttendance(attId: string) {
   const admin = await requireAdmin()
   if (!isUuid(attId)) return
@@ -391,9 +526,40 @@ export async function confirmDay(jobId: string, date: string) {
   back(`/admin/jobs/${jobId}?tab=att&date=${date}`, '퇴근 기록이 있는 근무를 모두 확정했습니다.')
 }
 
+/** 지급 완료로 바꾼 근무자에게 이 공고 실지급액과 함께 알림 (급여 들어왔는지 묻지 않아도 되게) */
+async function tellPaid(adminId: string, jobId: string, userIds: string[]) {
+  const job = userIds.length ? await getJob(jobId) : null
+  if (!job) return
+  const rows = must(
+    await db().from('attendance').select('*').eq('job_id', jobId).in('user_id', userIds).not('clock_out', 'is', null),
+  ) as Attendance[]
+  const net = new Map(userIds.map((u) => [u, settle(job, rows.filter((r) => r.user_id === u).map((r) => calcDay(job, r))).net]))
+  await tellWorkers(userIds, {
+    senderId: adminId,
+    jobId,
+    title: SIGNAL.paid,
+    text: (uid) => {
+      const n = net.get(uid) ?? 0
+      return `${job.title} 급여${n > 0 ? ` ${n.toLocaleString()}원(세금 뗀 실지급액)` : ''}을 등록한 계좌로 보냈어요. '근무 내역'에서 명세서를 볼 수 있어요.`
+    },
+    url: '/me/history',
+    tag: `paid-${jobId}`,
+  })
+}
+
 export async function setPaid(jobId: string, userId: string, paid: boolean) {
   const admin = await requireAdmin()
   if (!isUuid(jobId) || !isUuid(userId)) return
+  // 이번에 새로 지급 완료가 되는 근무가 있을 때만 알림 (눌렀다 풀었다 해도 한 번만)
+  const { count: newlyPaid } = paid
+    ? await db()
+        .from('attendance')
+        .select('id', { count: 'exact', head: true })
+        .eq('job_id', jobId)
+        .eq('user_id', userId)
+        .eq('paid', false)
+        .not('clock_out', 'is', null)
+    : { count: 0 }
   must(
     await db()
       .from('attendance')
@@ -403,6 +569,7 @@ export async function setPaid(jobId: string, userId: string, paid: boolean) {
       .not('clock_out', 'is', null),
   )
   await audit(admin.id, paid ? 'pay.mark_paid' : 'pay.unmark_paid', userId, jobId)
+  if (newlyPaid) await tellPaid(admin.id, jobId, [userId])
   revalidatePath(`/admin/jobs/${jobId}`)
 }
 
@@ -440,13 +607,21 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
  * 근무자에게 할 일 알림 (각자 문의함 + 휴대폰 알림). 받을 사람은 서버에서 다시 셈
  * sign: 서명 안 한 서류가 있는 사람 / clockin: 그날 근무인데 출근 기록 없음 / clockout: 근무 종료를 안 누름
  */
-export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout', date: string | null) {
+export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout' | 'account', date: string | null) {
   const admin = await requireAdmin()
   const job = isUuid(jobId) ? await getJob(jobId) : null
-  if (!job || !['sign', 'clockin', 'clockout'].includes(kind)) return
-  if (kind !== 'sign' && (!date || !isDate(date))) return
+  if (!job || !['sign', 'clockin', 'clockout', 'account'].includes(kind)) return
+  if ((kind === 'clockin' || kind === 'clockout') && (!date || !isDate(date))) return
   let to: string[] = []
-  if (kind === 'sign') {
+  if (kind === 'account') {
+    // 이 행사에서 일한 사람 중 계좌가 없는 사람 (정산 탭의 '계좌 미등록'과 같은 기준)
+    const atts = must(await db().from('attendance').select('user_id').eq('job_id', jobId)) as { user_id: string }[]
+    const ids = [...new Set(atts.map((r) => r.user_id))]
+    if (ids.length) {
+      const rows = must(await db().from('users').select('id').in('id', ids).is('bank_account_enc', null)) as { id: string }[]
+      to = rows.map((r) => r.id)
+    }
+  } else if (kind === 'sign') {
     const rows = must(await db().from('signed_docs').select('user_id').eq('job_id', jobId).eq('status', 'pending')) as { user_id: string }[]
     to = rows.map((r) => r.user_id)
   } else {
@@ -461,16 +636,36 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
         user_id: string
         available_dates: string[] | null
       }[]
-      to = apps.filter((a) => (!a.available_dates || a.available_dates.includes(date!)) && !came.has(a.user_id)).map((a) => a.user_id)
+      // 늦는다고 알렸거나 출근 확인을 요청한 사람은 빼고
+      const told = new Set(
+        (
+          must(
+            await db()
+              .from('messages')
+              .select('thread_user_id, body, created_at')
+              .eq('job_id', jobId)
+              .eq('from_admin', false)
+              .gte('created_at', kstAt(date!, '00:00').toISOString())
+              .limit(500),
+          ) as { thread_user_id: string; body: string; created_at: string }[]
+        )
+          .filter((m) => kstDate(m.created_at) === date && ['late', 'arrive'].includes(signalOf(m.body) ?? ''))
+          .map((m) => m.thread_user_id),
+      )
+      to = apps
+        .filter((a) => (!a.available_dates || a.available_dates.includes(date!)) && !came.has(a.user_id) && !told.has(a.user_id))
+        .map((a) => a.user_id)
     }
   }
   to = [...new Set(to)]
-  const backTo = kind === 'sign' ? `/admin/jobs/${jobId}?tab=docs` : `/admin/jobs/${jobId}?tab=att&date=${date}`
+  const backTo =
+    kind === 'sign' ? `/admin/jobs/${jobId}?tab=docs` : kind === 'account' ? `/admin/jobs/${jobId}?tab=pay` : `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
   const [title, text] = {
     sign: ['✍️ 서류 서명 요청', `${job.title} 근무 전에 앱 '내 근무'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
     clockin: ['⏰ 출근 확인', `${job.title} · 근무 시작 시각(${hhmm(job.start_time)})이 지났어요. 현장에 도착했으면 앱에서 '근무 시작'을 눌러 주세요.`],
     clockout: ['🏁 근무 종료 확인', `${job.title} · 일이 끝났으면 앱에서 '근무 종료'를 눌러 주세요. 계약 시간 이후는 서로 확인한 뒤에만 급여에 들어가요.`],
+    account: [SIGNAL.account, `${job.title} 급여를 보내 드리려면 계좌가 필요해요. 앱 '내 정보'에서 은행·계좌번호·예금주를 등록해 주세요.`],
   }[kind]
   must(
     await db()
@@ -478,7 +673,7 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
       .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: jobId, body: `${title}\n${text}` }))),
   )
   await audit(admin.id, `nudge.${kind}`, null, `${jobId} ${date ?? ''} ${to.length}명`)
-  after(() => sendPush(to, { title, body: text, url: '/me', tag: `${kind}-${jobId}` }))
+  after(() => sendPush(to, { title, body: text, url: kind === 'account' ? '/me/profile' : '/me', tag: `${kind}-${jobId}` }))
   revalidatePath('/admin/chat')
   redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}`)
 }
@@ -487,6 +682,9 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
 export async function setAllPaid(jobId: string) {
   const admin = await requireAdmin()
   if (!isUuid(jobId)) return
+  const unpaid = must(
+    await db().from('attendance').select('user_id').eq('job_id', jobId).eq('paid', false).not('clock_out', 'is', null),
+  ) as { user_id: string }[]
   must(
     await db()
       .from('attendance')
@@ -496,7 +694,10 @@ export async function setAllPaid(jobId: string) {
       .not('clock_out', 'is', null),
   )
   await audit(admin.id, 'pay.mark_paid_all', null, jobId)
+  const paidTo = [...new Set(unpaid.map((r) => r.user_id))]
+  await tellPaid(admin.id, jobId, paidTo)
   revalidatePath(`/admin/jobs/${jobId}`)
+  if (paidTo.length) back(`/admin/jobs/${jobId}?tab=pay`, `${paidTo.length}명을 지급 완료로 바꾸고 알렸어요.`)
 }
 
 // ───────────── 서류 ─────────────

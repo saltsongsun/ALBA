@@ -8,7 +8,7 @@ import { InstallBanner } from '@/components/InstallGuide'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { SubmitButton } from '@/components/ui'
-import { ClockPanel } from '@/components/worker'
+import { ClockPanel, LateNotice } from '@/components/worker'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
@@ -17,7 +17,8 @@ import { answerOvertime } from '@/app/actions/worker'
 import { calcDay, OT_ASK_MIN, scheduledEnd, settle } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { fmtDate, fmtDateRange, hhmm, kstDate, kstTime, minutesText } from '@/lib/time'
+import { parseLate, SIGNAL, signalOf } from '@/lib/signals'
+import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
 
 export const metadata: Metadata = { title: '내 근무' }
@@ -29,7 +30,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   const today = kstDate()
 
-  const [apps, atts, docs, me, notices] = await Promise.all([
+  const [apps, atts, docs, me, notices, mySignals] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*)')
@@ -63,8 +64,26 @@ export default async function MePage(props: PageProps<'/me'>) {
       .not('job_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(30)
-      .then((r) => (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => m.body.startsWith('📢 공지'))),
+      .then((r) =>
+        (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => m.body.startsWith('📢 공지') || signalOf(m.body) === 'change'),
+      ),
+    // 오늘 내가 담당자에게 보낸 현장 알림 (늦어요 등)
+    db()
+      .from('messages')
+      .select('job_id, body, created_at')
+      .eq('thread_user_id', user.id)
+      .eq('from_admin', false)
+      .not('job_id', 'is', null)
+      .gte('created_at', kstAt(today, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then((r) => (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => kstDate(m.created_at) === today)),
   ])
+  const lateSent = new Map<string, { minutes: number; eta: string; at: string }>()
+  for (const m of mySignals) {
+    const l = signalOf(m.body) === 'late' ? parseLate(m.body) : null
+    if (l && !lateSent.has(m.job_id)) lateSent.set(m.job_id, { ...l, at: kstTime(m.created_at) })
+  }
   const latestNotice = new Map<string, { body: string; created_at: string }>()
   for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
   const photoAt = me?.photo_at ?? null
@@ -261,10 +280,10 @@ export default async function MePage(props: PageProps<'/me'>) {
                       return (
                         <Link href="/me/chat" className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]">
                           <span className="flex items-center justify-between gap-2 text-xs font-bold text-amber-800">
-                            📢 담당자 공지
+                            {signalOf(n.body) === 'change' ? SIGNAL.change : '📢 담당자 공지'}
                             <span className="font-medium text-amber-700">{at}</span>
                           </span>
-                          <span className="mt-0.5 line-clamp-3 block whitespace-pre-wrap text-ink">{n.body.replace(/^📢 공지\n?/, '')}</span>
+                          <span className="mt-0.5 line-clamp-3 block whitespace-pre-wrap text-ink">{n.body.replace(/^.*\n?/, '')}</span>
                         </Link>
                       )
                     })()}
@@ -309,6 +328,10 @@ export default async function MePage(props: PageProps<'/me'>) {
                   ) : (
                     <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
                   )}
+                  {/* 출근 전이고 근무가 끝나기 전: 늦으면 담당자에게 알리기 */}
+                  {!todayAtt && !open && !notChosen && new Date() < scheduledEnd(job, today) && (
+                    <LateNotice jobId={job.id} sent={lateSent.get(job.id) ?? null} />
+                  )}
                 </div>
               )
             })}
@@ -328,6 +351,16 @@ export default async function MePage(props: PageProps<'/me'>) {
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
                   {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700">📍 배치 · {a.position}</p>}
+                  {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
+                  {(() => {
+                    const n = latestNotice.get(a.job_id)
+                    if (!n || signalOf(n.body) !== 'change') return null
+                    return (
+                      <p className="mt-1.5 inline-block rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+                        🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요 · 공고에서 확인
+                      </p>
+                    )
+                  })()}
                 </Link>
                 <div className="flex shrink-0 flex-col items-end gap-2">
                   <span className={`badge ${APP_STATUS.approved.cls}`}>확정</span>

@@ -9,6 +9,7 @@ import { APP_STATUS } from '@/components/JobCard'
 import { scoresByUser, StarAvg } from '@/components/Stars'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
+import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
 import { ageOn, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
@@ -81,7 +82,7 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
   const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
   // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
-  const [rel, ratings] = ids.length
+  const [rel, ratings, others] = ids.length
     ? await Promise.all([
         reliabilityFor(ids, job.id),
         db()
@@ -89,8 +90,45 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
           .select('user_id, score')
           .in('user_id', ids)
           .then((r) => must(r) as { user_id: string; score: number }[]),
+        // 같은 사람이 다른 행사에 확정된 근무 (같은 시간에 겹치면 표시)
+        db()
+          .from('applications')
+          .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+          .in('user_id', ids)
+          .eq('status', 'approved')
+          .neq('job_id', job.id)
+          .then(
+            (r) =>
+              must(r) as unknown as {
+                user_id: string
+                available_dates: string[] | null
+                job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
+              }[],
+          ),
       ])
-    : [{} as Record<string, Reliability>, []]
+    : [{} as Record<string, Reliability>, [], []]
+  const today = kstDate()
+  const clashOf = new Map<string, { id: string; title: string; at: string }>()
+  for (const a of apps) {
+    if (a.status !== 'applied' && a.status !== 'approved') continue
+    for (const o of others) {
+      if (o.user_id !== a.user_id || !o.job || o.job.end_date < today || o.job.status === 'cancelled') continue
+      const at = overlapDay({ ...job, dates: a.available_dates }, { ...o.job, dates: o.available_dates })
+      if (at) {
+        clashOf.set(a.user_id, { id: o.job.id, title: o.job.title, at })
+        break
+      }
+    }
+  }
+  const Clash = ({ uid }: { uid: string }) => {
+    const c = clashOf.get(uid)
+    if (!c) return null
+    return (
+      <Link href={`/admin/jobs/${c.id}`} className="mt-1 inline-block rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+        ⚠️ {fmtDate(kstDate(c.at))} 다른 근무와 겹침 · {c.title}
+      </Link>
+    )
+  }
   const scores = scoresByUser(ratings)
   const relText = (uid: string) => {
     const r = rel[uid]
@@ -127,6 +165,7 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
         <p className="text-xs text-mute">
           {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
         </p>
+        <Clash uid={a.user_id} />
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
           {a.message && <p className="text-ink">“{a.message}”</p>}
@@ -241,6 +280,9 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
                       </td>
                       <td className="text-xs whitespace-nowrap text-sub">
                         {relText(a.user_id)}
+                        <div>
+                          <Clash uid={a.user_id} />
+                        </div>
                       </td>
                       <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
                       <td>

@@ -15,6 +15,7 @@ const STATUS: Record<Job['status'], [string, string]> = {
   closed: ['모집마감', 'bg-amber-50 text-amber-700'],
   draft: ['임시저장', 'bg-gray-100 text-mute'],
   done: ['종료', 'bg-gray-100 text-mute'],
+  cancelled: ['행사 취소', 'bg-rose-50 text-rose-600'],
 }
 
 export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
@@ -25,7 +26,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
   let q = db().from('jobs').select(JOB_WITH_APP_STATUS)
   if (tab === 'active') q = q.in('status', ['open', 'closed']).gte('end_date', today).order('start_date')
   else if (tab === 'draft') q = q.eq('status', 'draft').order('created_at', { ascending: false })
-  else q = q.or(`status.eq.done,end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false }).limit(100)
+  else q = q.or(`status.in.(done,cancelled),end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false }).limit(100)
   const jobs = must(await q) as JobWithAppStatus[]
   const counts = countApps(jobs, 'approved')
   const waitingBy = countApps(jobs, 'applied')

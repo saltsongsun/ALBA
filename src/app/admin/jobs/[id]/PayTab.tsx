@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { setAllPaid, setPaid } from '@/app/actions/admin'
+import { nudgeWorkers, setAllPaid, setPaid } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
@@ -46,7 +46,7 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
         <div className="flex flex-wrap gap-2">
           {unpaid.length > 0 && (
             <form action={setAllPaid.bind(null, job.id)}>
-              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${unpaid.length}명 모두 지급 완료로 바꿀까요?`}>
+              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${unpaid.length}명 지급 완료로 바꾸고 알릴까요?`}>
                 미지급 {unpaid.length}명 모두 지급 완료
               </ConfirmSubmit>
             </form>
@@ -71,6 +71,12 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
             label={`${noAccount.length}명에게 계좌 등록 요청`}
             body={`[${job.title}] 급여를 보내 드리려면 계좌가 필요해요. 앱의 내 정보에서 급여 계좌를 등록해 주세요.\n${origin}/me/profile`}
           />
+          {/* 앱 문의함 + 휴대폰 알림 (누르면 바로 등록 화면으로) */}
+          <form action={nudgeWorkers.bind(null, job.id, 'account', null)}>
+            <ConfirmSubmit className="chip" confirmText={`${noAccount.length}명에게 보낼까요?`}>
+              앱 알림
+            </ConfirmSubmit>
+          </form>
         </div>
       )}
       {(incomplete > 0 || unconfirmed > 0 || otWaiting > 0) && (
