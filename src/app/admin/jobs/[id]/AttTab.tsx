@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addAttendance, bulkClockOut, confirmDay, deleteAttendance, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -8,7 +8,7 @@ import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { phoneFmt, won } from '@/lib/format'
-import { calcDay } from '@/lib/pay'
+import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { fmtDate, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
@@ -215,6 +215,42 @@ export default function AttTab({
                   {a.source === 'admin' && <span className="badge bg-gray-100 text-sub">관리자 등록</span>}
                   {(far(a.in_distance_m) || far(a.out_distance_m)) && <span className="badge bg-rose-50 text-rose-600">위치 벗어남</span>}
                   {a.paid && <span className="badge bg-emerald-50 text-emerald-700">지급</span>}
+                </div>
+              )}
+
+              {/* 계약 종료 시각 이후 기록: 서로 확인해야 금액에 들어감 */}
+              {a && pay && pay.afterMin >= OT_ASK_MIN && (
+                <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-sm">
+                  <span className="font-semibold text-amber-800">계약 후 {minutesText(pay.afterMin)}</span>
+                  <span className="text-amber-700">
+                    {a.ot_status === 'agreed'
+                      ? `· 연장 ${minutesText(pay.agreedOtMin)} 확정`
+                      : a.ot_status === 'rejected'
+                        ? `· 불인정${a.ot_by === 'worker' ? ' (근무자: 제시간 종료)' : ''}`
+                        : a.ot_status === 'pending' && a.ot_by === 'worker'
+                          ? '· 근무자가 연장 확인 요청'
+                          : a.ot_status === 'pending'
+                            ? '· 인정함, 근무자 확인 대기'
+                            : '· 금액 미포함'}
+                  </span>
+                  {!a.paid && a.ot_status !== 'agreed' && (
+                    <span className="ml-auto flex gap-1">
+                      {!(a.ot_status === 'pending' && a.ot_by === 'admin') && (
+                        <form action={decideOvertime.bind(null, a.id, 'approve')}>
+                          <SubmitButton className="chip-primary h-7 px-2.5 text-xs" pendingText="…">
+                            {a.ot_status === 'pending' && a.ot_by === 'worker' ? '인정' : '연장 인정'}
+                          </SubmitButton>
+                        </form>
+                      )}
+                      {a.ot_status !== 'rejected' && (
+                        <form action={decideOvertime.bind(null, a.id, 'reject')}>
+                          <SubmitButton className="chip h-7 px-2.5 text-xs" pendingText="…">
+                            불인정
+                          </SubmitButton>
+                        </form>
+                      )}
+                    </span>
+                  )}
                 </div>
               )}
 

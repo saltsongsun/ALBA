@@ -8,10 +8,10 @@ import { audit, ensurePendingDocs, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { hiddenFromForm } from '@/lib/jobFields'
-import { estimateDay, MIN_WAGE_2026 } from '@/lib/pay'
+import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN } from '@/lib/pay'
 import { requireAdmin } from '@/lib/session'
 import { fromKstInput, kstAt } from '@/lib/time'
-import type { Job, JobCondition } from '@/lib/types'
+import type { Attendance, Job, JobCondition } from '@/lib/types'
 import {
   bool,
   formatRrn,
@@ -387,6 +387,29 @@ export async function setPaid(jobId: string, userId: string, paid: boolean) {
   )
   await audit(admin.id, paid ? 'pay.mark_paid' : 'pay.unmark_paid', userId, jobId)
   revalidatePath(`/admin/jobs/${jobId}`)
+}
+
+/**
+ * 계약 종료 시각 이후 근무(연장) 결정. approve: 근무자가 요청했으면 확정, 아니면 인정 제안(근무자가 확인해야 확정)
+ * reject: 인정하지 않음 (계약 종료 시각까지만 계산)
+ */
+export async function decideOvertime(attendanceId: string, decision: 'approve' | 'reject') {
+  const admin = await requireAdmin()
+  if (!isUuid(attendanceId) || !['approve', 'reject'].includes(decision)) return
+  const { data } = await db().from('attendance').select('*, job:jobs(*)').eq('id', attendanceId).maybeSingle()
+  const att = data as (Attendance & { job: Job | null }) | null
+  if (!att || !att.job || att.paid) return
+  const { afterMin } = calcDay(att.job, att)
+  if (afterMin < OT_ASK_MIN) return
+  const patch =
+    decision === 'reject'
+      ? { ot_by: 'admin', ot_status: 'rejected' }
+      : att.ot_status === 'pending' && att.ot_by === 'worker'
+        ? { ot_status: 'agreed' }
+        : { ot_minutes: afterMin, ot_by: 'admin', ot_status: 'pending' }
+  must(await db().from('attendance').update(patch).eq('id', attendanceId))
+  await audit(admin.id, `overtime.${decision}`, att.user_id, `${att.work_date} ${afterMin}분`)
+  revalidatePath(`/admin/jobs/${att.job_id}`)
 }
 
 /** 입금을 마친 뒤 한 번에: 이 공고의 퇴근까지 기록된 미지급 근무를 모두 지급 완료로 */

@@ -6,9 +6,10 @@ import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
 import { approvedCounts, ensurePendingDocs, getJob, getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
+import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { kstDate } from '@/lib/time'
-import type { Application, DocTemplate, SignedDoc, UserRow } from '@/lib/types'
+import type { Application, Attendance, DocTemplate, Job, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str } from '@/lib/validate'
 import type { FormState } from './auth'
 
@@ -176,6 +177,29 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
   )
   revalidatePath('/me')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
+}
+
+/**
+ * 계약 종료 시각 이후로 기록된 근무(연장) 답하기
+ * request: 연장 근무했다고 담당자에게 확인 요청 / decline: 제시간에 끝남 / accept: 담당자가 인정한 연장이 맞음
+ */
+export async function answerOvertime(attendanceId: string, choice: 'request' | 'decline' | 'accept') {
+  const user = await requireUser()
+  if (!isUuid(attendanceId) || !['request', 'decline', 'accept'].includes(choice)) return
+  const { data } = await db().from('attendance').select('*, job:jobs(*)').eq('id', attendanceId).maybeSingle()
+  const att = data as (Attendance & { job: Job | null }) | null
+  if (!att || att.user_id !== user.id || !att.job || att.paid) return
+  const { afterMin } = calcDay(att.job, att)
+  if (afterMin < OT_ASK_MIN) return
+  if (choice === 'accept' && !(att.ot_status === 'pending' && att.ot_by === 'admin')) return
+  const patch =
+    choice === 'request'
+      ? { ot_minutes: afterMin, ot_by: 'worker', ot_status: 'pending' }
+      : choice === 'decline'
+        ? { ot_minutes: 0, ot_by: 'worker', ot_status: 'rejected' }
+        : { ot_status: 'agreed' }
+  must(await db().from('attendance').update(patch).eq('id', attendanceId))
+  revalidatePath('/me')
 }
 
 // ───────────── 전자서명 ─────────────
