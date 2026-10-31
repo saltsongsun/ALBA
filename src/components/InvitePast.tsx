@@ -15,6 +15,7 @@ export type PastWorker = {
   days: number
   late: number
   noShow: number
+  dismissed?: number
   avg: number | null
 }
 
@@ -22,9 +23,9 @@ export type PastWorker = {
 export default function InvitePast({ jobId, jobTitle, link, workers }: { jobId: string; jobTitle: string; link: string; workers: PastWorker[] }) {
   const [state, action] = useActionState(inviteToJob.bind(null, jobId), null)
   const [onlyReliable, setOnlyReliable] = useState(true)
-  const [picked, setPicked] = useState(() => new Set(workers.filter((w) => w.noShow === 0).map((w) => w.id)))
-  const reliable = workers.filter((w) => w.noShow === 0).length
-  const shown = useMemo(() => workers.filter((w) => !onlyReliable || w.noShow === 0), [workers, onlyReliable])
+  const [picked, setPicked] = useState(() => new Set(workers.filter((w) => w.noShow === 0 && !w.dismissed).map((w) => w.id)))
+  const reliable = workers.filter((w) => w.noShow === 0 && !w.dismissed).length
+  const shown = useMemo(() => workers.filter((w) => !onlyReliable || (w.noShow === 0 && !w.dismissed)), [workers, onlyReliable])
   const chosen = shown.filter((w) => picked.has(w.id))
   const toggle = (id: string) =>
     setPicked((s) => {
@@ -61,6 +62,7 @@ export default function InvitePast({ jobId, jobTitle, link, workers }: { jobId: 
                 근무 {w.days}일{w.avg != null && ` · ★${w.avg.toFixed(1)}`}
                 {w.late > 0 && ` · 지각 ${w.late}`}
                 {w.noShow > 0 && <b className="text-rose-600"> · 노쇼 {w.noShow}</b>}
+                {!!w.dismissed && <b className="text-rose-600"> · 귀가 조치 {w.dismissed}</b>}
               </span>
             </label>
           </li>

@@ -6,6 +6,7 @@ import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
 import { DocBody } from './DocSheet'
+import SealField from './SealField'
 import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
@@ -239,23 +240,12 @@ export function SettingsForm({ s }: { s: Settings }) {
       </section>
       <section className="card space-y-4">
         <h2 className="font-bold">직인</h2>
-        <div className="flex flex-wrap items-center gap-4">
-          {s.seal_image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={s.seal_image} alt="직인" className="size-24 rounded-xl border border-line object-contain p-1" />
-          ) : (
-            <div className="grid size-24 place-items-center rounded-xl border-2 border-dashed border-line text-xs text-mute">없음</div>
-          )}
-          <div className="min-w-0 flex-1 space-y-2 text-sm">
-            <input type="file" name="seal" accept="image/png,image/jpeg,image/webp" className="block w-full text-sm" />
-            <p className="hint">배경이 투명한 PNG(400KB 이하)를 권장합니다. 서명 시점의 직인이 서류에 함께 보관됩니다.</p>
-            {s.seal_image && (
-              <label className="flex items-center gap-2">
-                <input type="checkbox" name="remove_seal" className="size-4" /> 직인 삭제
-              </label>
-            )}
-          </div>
-        </div>
+        <SealField current={s.seal_image} />
+        {s.seal_image && (
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="remove_seal" className="size-4" /> 직인 삭제
+          </label>
+        )}
       </section>
       <section className="card space-y-4">
         <h2 className="font-bold">운영 기본값</h2>

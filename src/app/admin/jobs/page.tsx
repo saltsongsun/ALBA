@@ -27,7 +27,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
   if (tab === 'active') q = q.in('status', ['open', 'closed']).gte('end_date', today).order('start_date')
   else if (tab === 'draft') q = q.eq('status', 'draft').order('created_at', { ascending: false })
   else q = q.or(`status.in.(done,cancelled),end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false }).limit(100)
-  const jobs = must(await q) as JobWithAppStatus[]
+  // 제목·행사명·장소로 찾기
+  const term = typeof sp.q === 'string' ? sp.q.trim().slice(0, 50) : ''
+  const all = must(await q) as JobWithAppStatus[]
+  const jobs = term
+    ? all.filter((j) => [j.title, j.event_name, j.location_name].some((v) => v?.toLowerCase().includes(term.toLowerCase())))
+    : all
   const counts = countApps(jobs, 'approved')
   const waitingBy = countApps(jobs, 'applied')
 
@@ -53,6 +58,21 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           </Link>
         ))}
       </div>
+      <form className="flex gap-1.5" role="search">
+        <input type="hidden" name="tab" value={tab} />
+        <input name="q" defaultValue={term} className="input min-w-0 flex-1 py-2 text-sm" placeholder="공고 제목·행사명·장소로 찾기" />
+        <button className="btn-gray btn-sm shrink-0">찾기</button>
+        {term && (
+          <Link href={`/admin/jobs?tab=${tab}`} className="btn-gray btn-sm shrink-0">
+            지우기
+          </Link>
+        )}
+      </form>
+      {term && (
+        <p className="text-sm text-sub">
+          ‘{term}’ 검색 결과 {jobs.length}건
+        </p>
+      )}
       {jobs.length === 0 ? (
         <div className="card py-12 text-center text-mute">공고가 없습니다.</div>
       ) : (

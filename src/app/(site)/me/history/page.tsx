@@ -54,6 +54,9 @@ export default async function HistoryPage() {
     days: items.reduce((n, it) => n + it.s.days, 0),
     net: items.reduce((n, it) => n + it.s.net, 0),
   }
+  // 아직 입금되지 않은 급여 (지급 완료되면 알림이 감)
+  const unpaid = items.filter((it) => !it.paid && it.s.net > 0)
+  const unpaidNet = unpaid.reduce((n, it) => n + it.s.net, 0)
 
   return (
     <div className="space-y-6">
@@ -87,6 +90,14 @@ export default async function HistoryPage() {
             ))}
           </section>
 
+          {unpaidNet > 0 && (
+            <p className="-mt-3 flex items-center justify-between gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <span>
+                ⏳ 입금 대기 <b>{unpaid.length}곳</b>
+              </span>
+              <b className="text-base tabular-nums">{won(unpaidNet)}</b>
+            </p>
+          )}
           {[...months.entries()].map(([ym, list]) => (
             <section key={ym}>
               <div className="mb-3 flex items-baseline justify-between">

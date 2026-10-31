@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import PhotoUpload from '@/components/PhotoUpload'
 import PushToggle from '@/components/PushToggle'
+import TextSizeToggle from '@/components/TextSizeToggle'
 import { PinForm, ProfileForm, WithdrawForm } from '@/components/worker'
 import { decrypt } from '@/lib/crypto'
 import { db } from '@/lib/db'
@@ -45,6 +46,9 @@ export default async function ProfilePage() {
       />
       <div className="card p-4">
         <PushToggle publicKey={pushPublicKey()} />
+      </div>
+      <div className="card p-4">
+        <TextSizeToggle />
       </div>
       <PinForm />
       <WithdrawForm />

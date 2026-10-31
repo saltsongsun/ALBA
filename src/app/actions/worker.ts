@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
-import { approvedCounts, ensurePendingDocs, getJob, getSettings } from '@/lib/data'
+import { approvedCounts, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
@@ -98,7 +98,8 @@ export async function cancelApplication(appId: string, form?: FormData) {
     .eq('user_id', user.id)
   if (count) back('/me', '이미 근무 기록이 있어 취소할 수 없습니다. 담당자에게 문의해 주세요.')
   must(await db().from('applications').update({ status: 'cancelled' }).eq('id', appId))
-  await db().from('signed_docs').delete().eq('job_id', app.job_id).eq('user_id', user.id).eq('status', 'pending')
+  // 서명 대기는 지우고, 이미 서명한 서류도 무효로 (근무 기록이 없을 때만 취소할 수 있어서)
+  await releaseDocs(app.job_id, user.id)
   // 확정된 근무를 취소하면 담당자 문의함에 바로 알림 (안 읽음 표시) — 사람을 다시 구할 시간을 벌게
   if (app.status === 'approved' && app.job) {
     const reason = form ? str(form, 'reason', 100) : ''
@@ -367,7 +368,7 @@ export async function answerShift(changeId: string, choice: 'agree' | 'decline')
     const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', c.job_id).eq('user_id', user.id)
     if (!worked) {
       must(await db().from('applications').update({ status: 'cancelled' }).eq('job_id', c.job_id).eq('user_id', user.id).eq('status', 'approved'))
-      await db().from('signed_docs').delete().eq('job_id', c.job_id).eq('user_id', user.id).eq('status', 'pending')
+      await releaseDocs(c.job_id, user.id)
       cancelled = true
     }
   }

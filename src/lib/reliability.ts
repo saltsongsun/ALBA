@@ -1,8 +1,10 @@
 import 'server-only'
 import { db, must } from './db'
+import { DISMISS_NOTE } from './signals'
 import { dateList, kstAt, kstDate } from './time'
 
-export type Reliability = { days: number; late: number; noShow: number }
+/** dismissed: 불성실로 귀가 조치된 날 */
+export type Reliability = { days: number; late: number; noShow: number; dismissed: number }
 
 const LATE_MIN = 5 // 출퇴근 탭의 '지각' 표시와 같은 기준
 
@@ -14,9 +16,9 @@ const LATE_MIN = 5 // 출퇴근 탭의 '지각' 표시와 같은 기준
 export async function reliabilityFor(userIds: string[], exceptJobId?: string): Promise<Record<string, Reliability>> {
   const out: Record<string, Reliability> = {}
   if (!userIds.length) return out
-  for (const u of userIds) out[u] = { days: 0, late: 0, noShow: 0 }
+  for (const u of userIds) out[u] = { days: 0, late: 0, noShow: 0, dismissed: 0 }
   const today = kstDate()
-  let attQ = db().from('attendance').select('user_id, job_id, work_date, clock_in, job:jobs(start_time)').in('user_id', userIds)
+  let attQ = db().from('attendance').select('user_id, job_id, work_date, clock_in, note, job:jobs(start_time)').in('user_id', userIds)
   let appQ = db()
     .from('applications')
     .select('user_id, job_id, available_dates, job:jobs(start_date, end_date)')
@@ -27,7 +29,7 @@ export async function reliabilityFor(userIds: string[], exceptJobId?: string): P
     appQ = appQ.neq('job_id', exceptJobId)
   }
   const [atts, apps] = await Promise.all([
-    attQ.then((r) => must(r) as unknown as { user_id: string; job_id: string; work_date: string; clock_in: string; job: { start_time: string } | null }[]),
+    attQ.then((r) => must(r) as unknown as { user_id: string; job_id: string; work_date: string; clock_in: string; note: string | null; job: { start_time: string } | null }[]),
     appQ.then(
       (r) =>
         must(r) as unknown as {
@@ -44,6 +46,7 @@ export async function reliabilityFor(userIds: string[], exceptJobId?: string): P
     if (worked.has(key)) continue
     worked.add(key)
     out[a.user_id].days++
+    if (a.note?.startsWith(DISMISS_NOTE)) out[a.user_id].dismissed++
     if (a.job && (new Date(a.clock_in).getTime() - kstAt(a.work_date, a.job.start_time).getTime()) / 60_000 > LATE_MIN) out[a.user_id].late++
   }
   // 앱으로 출퇴근을 받은 날 (공고·날짜별로 누구라도 출근 기록이 있으면)

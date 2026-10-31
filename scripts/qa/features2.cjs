@@ -81,7 +81,7 @@ const errs = []
   const aw = await page(W_, ADMIN)
   await aw.goto(`${W_}/admin/jobs/${J}?tab=att&shift=1`)
   await aw.getByRole('button', { name: '+1시간' }).click()
-  await aw.locator('input[name=reason]').fill('행사 진행이 늦어져 연장')
+  await aw.locator('#shift input[name=reason]').fill('행사 진행이 늦어져 연장')
   await aw.getByRole('button', { name: '근무자에게 동의 요청 보내기' }).click()
   ok('연장 동의 요청 보냄', await see(aw, '1명에게 근무시간 변경 동의를 요청했어요', 15000))
   let sc = await rest(MW, `shift_changes?job_id=eq.${J}`)

@@ -140,7 +140,12 @@ export default async function MePage(props: PageProps<'/me'>) {
   const todayApps = approved.filter(
     (a) => (a.job.start_date <= today && a.job.end_date >= today) || openAtt?.job_id === a.job_id,
   )
-  const upcoming = approved.filter((a) => a.job.start_date > today)
+  const upcoming = approved.filter((a) => a.job.start_date > today).sort((a, b) => a.job.start_date.localeCompare(b.job.start_date))
+  const nextApp = upcoming[0] ?? null
+  const dLabel = (d: string) => {
+    const n = Math.round((Date.parse(d) - Date.parse(today)) / 86_400_000)
+    return n === 1 ? '내일' : `D-${n}`
+  }
   const waiting = apps.filter((a) => a.status === 'applied' && a.job.end_date >= today)
   const pendingDocs = docs.filter((d) => d.status === 'pending')
   const jobsById = new Map(apps.map((a) => [a.job_id, a.job]))
@@ -339,11 +344,28 @@ export default async function MePage(props: PageProps<'/me'>) {
       <section>
         <h2 className="section-title">오늘의 근무</h2>
         {todayApps.length === 0 ? (
-          <Empty icon="🌤️" title="오늘 예정된 근무가 없어요">
-            <Link href="/" className="font-semibold text-brand-600">
-              모집 중인 알바 보기 →
+          nextApp ? (
+            // 오늘 근무가 없으면 다음 근무를 크게 (며칠 남았는지·시간·장소·길찾기)
+            <Link href={`/jobs/${nextApp.job_id}`} className="card-link block space-y-2 ring-2 ring-brand-100">
+              <p className="flex items-center gap-2 text-sm font-bold text-brand-700">
+                <span className="badge bg-brand-600 text-white">{dLabel(nextApp.job.start_date)}</span>
+                다음 근무
+              </p>
+              <p className="text-lg font-bold">{nextApp.job.title}</p>
+              <p className="text-sm text-sub">
+                {fmtDateRange(nextApp.job.start_date, nextApp.job.end_date)} {scheduleText(nextApp.job)}
+                {nextApp.job.location_name && ` · ${nextApp.job.location_name}`}
+              </p>
+              {nextApp.job.meeting_point && <p className="text-sm text-sub">🚩 집결 {nextApp.job.meeting_point}</p>}
+              <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
             </Link>
-          </Empty>
+          ) : (
+            <Empty icon="🌤️" title="오늘 예정된 근무가 없어요">
+              <Link href="/" className="font-semibold text-brand-600">
+                모집 중인 알바 보기 →
+              </Link>
+            </Empty>
+          )
         ) : (
           <div className="stagger space-y-3">
             {todayApps.map((a) => {
@@ -372,7 +394,26 @@ export default async function MePage(props: PageProps<'/me'>) {
                       })()}
                       {job.location_name && ` · ${job.location_name}`}
                     </p>
-                    {job.meeting_point && <p className="text-sm text-sub">집결: {job.meeting_point}</p>}
+                    {/* 출근 전에 챙길 것: 집결 장소·복장·준비물 */}
+                    {(job.meeting_point || job.dress_code || job.supplies) && (
+                      <ul className="mt-2 space-y-1 rounded-xl bg-bg px-3 py-2.5 text-sm">
+                        {job.meeting_point && (
+                          <li>
+                            <span aria-hidden>🚩</span> <b className="font-semibold text-sub">집결</b> {job.meeting_point}
+                          </li>
+                        )}
+                        {job.dress_code && (
+                          <li>
+                            <span aria-hidden>👕</span> <b className="font-semibold text-sub">복장</b> {job.dress_code}
+                          </li>
+                        )}
+                        {job.supplies && (
+                          <li>
+                            <span aria-hidden>🎒</span> <b className="font-semibold text-sub">준비물</b> {job.supplies}
+                          </li>
+                        )}
+                      </ul>
+                    )}
                     {a.position && (
                       <p className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-sm font-bold text-brand-700">
                         📍 내 배치 · {a.position}

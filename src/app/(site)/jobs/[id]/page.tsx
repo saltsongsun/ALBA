@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { applyJob, cancelApplication } from '@/app/actions/worker'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
+import MessageChips from '@/components/MessageChips'
 import { APP_STATUS, wageBadge } from '@/components/JobCard'
 import StickyApply from '@/components/StickyApply'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
@@ -327,6 +328,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   한마디 (선택)
                 </label>
                 <input id="message" name="message" className="input" placeholder="예) 행사 스태프 경험 3회, 운전 가능" maxLength={300} />
+                <MessageChips target="message" />
               </div>
               <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="지원 중…">
                 {user.name}님으로 지원하기

@@ -31,3 +31,7 @@ export function parseArriveDistance(body: string): number | null {
   const m = body.match(/약 ([\d,]+)m/)
   return m ? Number(m[1].replace(/,/g, '')) : null
 }
+
+/** 불성실 근무자 귀가 조치: 근무 기록 메모의 머리말과 고를 수 있는 사유 (근로계약서 '근로계약의 해지' 조항과 같게) */
+export const DISMISS_NOTE = '귀가 조치'
+export const DISMISS_REASONS = ['무단 이탈', '업무 지시 반복 거부', '음주', '폭언·폭행·성희롱', '안전수칙 위반', '근무 태만', '기타'] as const

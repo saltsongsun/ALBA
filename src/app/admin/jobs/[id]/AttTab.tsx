@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, dismissWorker, confirmDay, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -11,7 +11,7 @@ import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
 import { calcDay, OT_ASK_MIN, shiftOf } from '@/lib/pay'
-import { parseArriveDistance, parseLate, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, parseArriveDistance, parseLate, signalOf } from '@/lib/signals'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
@@ -26,6 +26,7 @@ export default async function AttTab({
   myScores,
   pos,
   openShift = false,
+  faces = false,
 }: {
   job: Job
   apps: AppRow[]
@@ -38,6 +39,8 @@ export default async function AttTab({
   pos: string | null
   /** 근무시간 변경 칸을 펼쳐서 보여 줌 */
   openShift?: boolean
+  /** 얼굴 명단으로 보기 (현장 입구에서 얼굴 확인용) */
+  faces?: boolean
 }) {
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
   const changes = (
@@ -90,7 +93,9 @@ export default async function AttTab({
   const positions = [...new Set(apps.map((a) => a.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, 'ko'))
   const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
   const shown = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
-  const posHref = (p: string | null) => `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}`
+  const posHref = (p: string | null) =>
+    `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}${faces ? '&view=faces' : ''}`
+  const viewHref = (f: boolean) => `/admin/jobs/${job.id}?tab=att&date=${date}${pos === null ? '' : `&pos=${encodeURIComponent(pos)}`}${f ? '&view=faces' : ''}`
 
   return (
     <div className="space-y-4">
@@ -254,7 +259,54 @@ export default async function AttTab({
         ))}
       </datalist>
 
-      <div className="stagger space-y-2">
+      {/* 보기: 자세한 목록 / 얼굴 명단 (입구에서 얼굴로 확인) */}
+      {roster.length > 0 && (
+        <div className="flex gap-1 rounded-xl bg-white p-1 text-sm font-semibold ring-1 ring-line">
+          {(
+            [
+              [false, '자세히'],
+              [true, '👤 얼굴 명단'],
+            ] as const
+          ).map(([f, label]) => (
+            <Link
+              key={label}
+              href={viewHref(f)}
+              scroll={false}
+              className={`flex-1 rounded-lg py-1.5 text-center transition ${faces === f ? 'bg-ink text-white' : 'text-mute'}`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      )}
+      {faces && (
+        <div className="stagger grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {shown.map((uid) => {
+            const u = users.get(uid)
+            const a = byUser.get(uid)
+            const label = !a ? (arriveOf.has(uid) ? '출근 요청' : lateOf.has(uid) ? '늦음 알림' : '미출근') : !a.clock_out ? '근무 중' : '종료'
+            const cls = !a
+              ? arriveOf.has(uid)
+                ? 'bg-brand-600 text-white'
+                : lateOf.has(uid)
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-rose-50 text-rose-600'
+              : !a.clock_out
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-gray-100 text-sub'
+            return (
+              <div key={uid} className="card flex flex-col items-center p-3 text-center">
+                <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="xl" />
+                <p className="mt-2 w-full truncate text-[17px] font-bold">{u?.name ?? '알 수 없음'}</p>
+                {posOf(uid) && <p className="w-full truncate text-xs font-semibold text-brand-700">📍 {posOf(uid)}</p>}
+                <span className={`badge mt-1.5 ${cls}`}>{label}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className={`stagger space-y-2 ${faces ? 'hidden' : ''}`}>
         {roster.length === 0 && <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>}
         {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">이 배치에 해당하는 사람이 없습니다.</div>}
         {shown.map((uid) => {
@@ -375,6 +427,7 @@ export default async function AttTab({
                   {a.source === 'admin' && <span className="badge bg-gray-100 text-sub">관리자 등록</span>}
                   {(far(a.in_distance_m) || far(a.out_distance_m)) && <span className="badge bg-rose-50 text-rose-600">위치 벗어남</span>}
                   {a.paid && <span className="badge bg-emerald-50 text-emerald-700">지급</span>}
+                  {a.note?.startsWith(DISMISS_NOTE) && <span className="badge bg-rose-600 text-white">{a.note.split(' · ')[0]}</span>}
                 </div>
               )}
 
@@ -422,6 +475,36 @@ export default async function AttTab({
                   <QuickRate action={rateQuick.bind(null, uid, job.id)} score={myScores[uid] ?? null} />
                 </span>
               </div>
+
+              {/* 불성실 근무자 귀가 조치: 지금 시각으로 종료하고 사유를 남겨 알림 (일한 시간 급여는 지급) */}
+              {a && !a.clock_out && (
+                <details className="mt-3 border-t border-line pt-2.5">
+                  <summary className="cursor-pointer text-sm font-semibold text-rose-600">🏠 귀가 조치 (불성실 근무)</summary>
+                  <form action={dismissWorker.bind(null, a.id)} className="mt-2 space-y-2.5">
+                    <div className="flex flex-wrap gap-1.5">
+                      {DISMISS_REASONS.map((r, i) => (
+                        <label
+                          key={r}
+                          className="has-checked:bg-rose-600 has-checked:text-white has-checked:ring-rose-600 cursor-pointer rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line"
+                        >
+                          <input type="radio" name="reason" value={r} defaultChecked={i === 0} className="sr-only" />
+                          {r}
+                        </label>
+                      ))}
+                    </div>
+                    <input name="memo" maxLength={200} className="input py-2 text-sm" placeholder="상황 메모 (선택) 예: 14시경 두 번 주의 후에도 자리 이탈" />
+                    {job.end_date > date && (
+                      <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" name="cancel_rest" className="size-4 accent-rose-600" /> 남은 날짜 근무도 취소
+                      </label>
+                    )}
+                    <p className="hint">지금 시각으로 근무를 종료하고 사유를 근무자에게 알려요. 일한 시간까지의 급여는 지급돼요(근로계약서 ‘근로계약의 해지’ 조항).</p>
+                    <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 귀가 조치할까요?">
+                      귀가 조치
+                    </ConfirmSubmit>
+                  </form>
+                </details>
+              )}
 
               {a ? (
                 <details className="mt-3 border-t border-line pt-2.5">

@@ -93,6 +93,19 @@ export async function ensurePendingDocs(job: Job, userId: string) {
   )
 }
 
+/**
+ * 확정을 되돌리거나 취소했을 때 그 공고의 서류를 정리: 서명 대기는 지우고, 이미 서명한 서류도 무효(void)로.
+ * 실제로 일한 기록이 있으면 서명한 서류는 근로 증빙이므로 그대로 둠 (무효 서류도 기록은 남음).
+ * 무효로 바꾼 서류 수를 돌려줌
+ */
+export async function releaseDocs(jobId: string, userId: string): Promise<number> {
+  await db().from('signed_docs').delete().eq('job_id', jobId).eq('user_id', userId).eq('status', 'pending')
+  const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId)
+  if (worked) return 0
+  const { data } = await db().from('signed_docs').update({ status: 'void' }).eq('job_id', jobId).eq('user_id', userId).eq('status', 'signed').select('id')
+  return data?.length ?? 0
+}
+
 export async function audit(
   actorId: string | null,
   action: string,

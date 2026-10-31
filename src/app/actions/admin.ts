@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
-import { audit, ensurePendingDocs, getJob } from '@/lib/data'
+import { audit, ensurePendingDocs, getJob, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
@@ -15,7 +15,7 @@ import { tellWorkers } from '@/lib/notify'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { SIGNAL, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
 import { dateList, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 import type { Attendance, Job, JobCondition, ShiftChange } from '@/lib/types'
@@ -302,7 +302,8 @@ export async function cancelEvent(jobId: string, form: FormData) {
         .in('id', apps.map((a) => a.id)),
     )
   }
-  await db().from('signed_docs').delete().eq('job_id', jobId).eq('status', 'pending')
+  // 서명 대기는 지우고, 이미 서명한 서류도 무효로 (근무 기록이 없는 행사라서)
+  for (const a of apps) await releaseDocs(jobId, a.user_id)
   const n = await tellWorkers(
     apps.map((a) => a.user_id),
     {
@@ -334,7 +335,7 @@ function approvedPush(job: Job) {
 }
 
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied') {
-  await requireAdmin()
+  const admin = await requireAdmin()
   if (!isUuid(appId) || !['approved', 'rejected', 'applied'].includes(status)) return
   const { data: app } = await db().from('applications').select('id, job_id, user_id').eq('id', appId).maybeSingle()
   if (!app) return
@@ -351,7 +352,9 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
       after(() => sendPush([app.user_id], approvedPush(job)))
     }
   } else {
-    await db().from('signed_docs').delete().eq('job_id', app.job_id).eq('user_id', app.user_id).eq('status', 'pending')
+    // 되돌리면(대기로·미선발) 서명 대기 서류는 지우고, 이미 서명한 서류도 무효로 (다시 확정하면 새로 서명)
+    const voided = await releaseDocs(app.job_id, app.user_id)
+    if (voided) await audit(admin.id, 'doc.void_on_revert', app.user_id, `${app.job_id} ${voided}건`)
   }
   revalidatePath(`/admin/jobs/${app.job_id}`)
   revalidatePath('/admin')
@@ -611,6 +614,60 @@ export async function answerShiftByAdmin(changeId: string) {
   await applyAgreedShift(c)
   await audit(admin.id, 'shift.agree_onsite', c.user_id, `${c.job_id} ${c.work_date ?? 'all'} ${c.start_time}~${c.end_time}`)
   revalidatePath(`/admin/jobs/${c.job_id}`)
+}
+
+/**
+ * 불성실 근무자 귀가 조치 (근로계약서의 '근로계약의 해지' 조항): 지금 시각으로 근무 종료 처리하고 사유를 기록·알림.
+ * 일한 시간까지의 급여는 그대로 계산됨. 여러 날 행사면 남은 날 근무도 취소할 수 있음
+ */
+export async function dismissWorker(attId: string, form: FormData) {
+  const admin = await requireAdmin()
+  if (!isUuid(attId)) return
+  const { data } = await db().from('attendance').select('*, job:jobs(*)').eq('id', attId).maybeSingle()
+  const att = data as (Attendance & { job: Job | null }) | null
+  if (!att || !att.job) return
+  const path = `/admin/jobs/${att.job_id}?tab=att&date=${att.work_date}`
+  if (att.clock_out) back(path, '이미 근무가 끝난 기록이에요.')
+  const reason = DISMISS_REASONS.find((r) => r === str(form, 'reason'))
+  if (!reason) back(path, '귀가 조치 사유를 골라 주세요.')
+  const memo = optStr(form, 'memo', 200)
+  const now = new Date()
+  must(
+    await db()
+      .from('attendance')
+      .update({ clock_out: now.toISOString(), note: `${DISMISS_NOTE}(${reason})${memo ? ` · ${memo}` : ''}`.slice(0, 300) })
+      .eq('id', attId)
+      .is('clock_out', null),
+  )
+  // 여러 날 행사: 남은 날 근무도 취소 (확정 취소)
+  const restCancelled = bool(form, 'cancel_rest') && att.job.end_date > att.work_date
+  if (restCancelled) {
+    must(
+      await db()
+        .from('applications')
+        .update({ status: 'cancelled', admin_memo: `${DISMISS_NOTE}(${reason}) ${att.work_date}`.slice(0, 300) })
+        .eq('job_id', att.job_id)
+        .eq('user_id', att.user_id),
+    )
+  }
+  await audit(admin.id, 'attendance.dismiss', att.user_id, `${att.job_id} ${att.work_date} ${reason}${restCancelled ? ' +남은 날 취소' : ''}`)
+  await tellWorkers([att.user_id], {
+    senderId: admin.id,
+    jobId: att.job_id,
+    title: '🏠 귀가 조치 안내',
+    text: [
+      `${att.job.title} · 오늘 근무는 ${kstTime(now)}에 종료 처리됐어요.`,
+      `사유: ${reason}${memo ? ` (${memo})` : ''}`,
+      restCancelled && '남은 날짜의 근무도 취소됐어요.',
+      `${kstTime(att.adj_in ?? att.clock_in)}부터 ${kstTime(now)}까지 일한 시간의 급여는 지급돼요. 이의가 있으면 문의함으로 남겨 주세요.`,
+    ]
+      .filter(Boolean)
+      .join('\n'),
+    tag: `dismiss-${att.job_id}`,
+  })
+  revalidatePath(`/admin/jobs/${att.job_id}`)
+  revalidatePath('/admin/chat')
+  back(path, `귀가 조치했어요. ${kstTime(now)} 종료로 기록하고 근무자에게 알렸어요.`)
 }
 
 export async function deleteAttendance(attId: string) {
@@ -981,8 +1038,14 @@ export async function saveSettings(_: FormState, form: FormData): Promise<FormSt
     default_hourly_wage: Math.max(MIN_WAGE_2026, int(form, 'default_hourly_wage', MIN_WAGE_2026)),
     workplace_5plus: bool(form, 'workplace_5plus'),
   }
+  // 화면에서 줄여 보낸 직인 (data URL). 예전 방식(파일 그대로)도 받음
+  const sealData = str(form, 'seal_data', 600_000)
   const seal = form.get('seal')
-  if (seal instanceof File && seal.size > 0) {
+  if (sealData) {
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(sealData)) return { error: '직인 이미지를 다시 골라 주세요.' }
+    if (sealData.length > 560_000) return { error: '직인 이미지가 너무 커요. 다른 사진으로 골라 주세요.' }
+    update.seal_image = sealData
+  } else if (seal instanceof File && seal.size > 0) {
     if (!SEAL_TYPES.includes(seal.type)) return { error: '직인은 PNG·JPG·WEBP 이미지로 올려 주세요.' }
     if (seal.size > 400_000) return { error: '직인 이미지는 400KB 이하로 올려 주세요.' }
     update.seal_image = `data:${seal.type};base64,${Buffer.from(await seal.arrayBuffer()).toString('base64')}`

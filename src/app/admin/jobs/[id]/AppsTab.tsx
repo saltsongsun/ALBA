@@ -44,9 +44,16 @@ function Decide({ a, wide = false, full = false }: { a: AppRow; wide?: boolean; 
       )}
       {(a.status === 'approved' || a.status === 'rejected') && (
         <form action={decideApplication.bind(null, a.id, 'applied')} className={form}>
-          <SubmitButton className={btn(false)} pendingText="…">
-            대기로
-          </SubmitButton>
+          {a.status === 'approved' ? (
+            // 확정을 되돌리면 서명한 서류도 무효가 되므로 한 번 더 확인
+            <ConfirmSubmit className={btn(false)} confirmText="서명도 취소돼요 · 대기로?">
+              대기로
+            </ConfirmSubmit>
+          ) : (
+            <SubmitButton className={btn(false)} pendingText="…">
+              대기로
+            </SubmitButton>
+          )}
         </form>
       )}
     </div>
@@ -81,7 +88,7 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
       const s = scores[u.id]
       return { id: u.id, name: u.name, phone: u.phone, photo_at: u.photo_at, ...rel[u.id], avg: s?.length ? s.reduce((a, b) => a + b, 0) / s.length : null }
     })
-    .sort((a, b) => a.noShow - b.noShow || (b.avg ?? 0) - (a.avg ?? 0) || b.days - a.days)
+    .sort((a, b) => a.noShow + a.dismissed - (b.noShow + b.dismissed) || (b.avg ?? 0) - (a.avg ?? 0) || b.days - a.days)
 }
 
 export default async function AppsTab({ job, apps, origin }: { job: Job; apps: AppRow[]; origin: string }) {
@@ -144,6 +151,7 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
       <>
         근무 {r.days}일{r.late > 0 && ` · 지각 ${r.late}`}
         {r.noShow > 0 && <b className="text-rose-600"> · 노쇼 {r.noShow}</b>}
+        {r.dismissed > 0 && <b className="text-rose-600"> · 귀가 조치 {r.dismissed}</b>}
       </>
     )
   }

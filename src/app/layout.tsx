@@ -28,7 +28,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ko">
+    <html lang="ko" suppressHydrationWarning>
+      <head>
+        {/* 글자 크게 보기: 화면이 그려지기 전에 적용 (깜빡이지 않게) */}
+        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('text-size')==='lg')document.documentElement.dataset.text='lg'}catch(e){}" }} />
+      </head>
       <body className="min-h-dvh">
         <Suspense fallback={null}>
           <NavProgress />

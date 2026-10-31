@@ -144,7 +144,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   // S8 급여 지급 알림
   await aw.goto(`${W_}/admin/jobs/${J}?tab=pay`)
   await aw.getByRole('button', { name: /미지급 1명 모두 지급 완료/ }).click()
-  await aw.getByRole('button', { name: '1명 지급 완료로 바꾸고 알릴까요?' }).click()
+  await aw.getByRole('button', { name: /1명 지급 완료/ }).click() // 계좌가 없으면 '정리 안 된 …' 확인 문구
   ok('S8 지급 완료 + 알림 안내', await see(aw, '1명을 지급 완료로 바꾸고 알렸어요'))
   const paid = (await rest(MW, `messages?thread_user_id=eq.${WK}`)).find((m) => m.body.startsWith('💸 급여 지급'))
   ok('S8 근무자에게 실지급액과 함께 💸 급여 지급', paid && /급여.*을 등록한 계좌로 보냈어요/.test(paid.body), paid && paid.body.split('\n')[1])

@@ -385,6 +385,11 @@
   }
 }
 
+/* 글자 크게 보기 (내 정보에서 켬): rem 단위 글자·여백이 함께 커짐 */
+html[data-text='lg'] {
+  font-size: 112.5%;
+}
+
 /* 인쇄: 서류만 A4로 */
 @media print {
   @page {

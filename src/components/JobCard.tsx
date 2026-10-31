@@ -70,11 +70,21 @@ export default function JobCard({
             </span>
           )}
         </p>
-        {showCount && (
-          <span className="mb-0.5 shrink-0 text-xs font-semibold text-mute tabular-nums">
-            {approved}/{job.headcount}명 확정
-          </span>
-        )}
+        {showCount &&
+          (job.status === 'open' && !full ? (
+            // 남은 자리: 2자리 이하면 마감 임박으로 눈에 띄게
+            job.headcount - approved <= 2 ? (
+              <span className="mb-0.5 shrink-0 animate-pop rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-600 tabular-nums">
+                마감 임박 · {job.headcount - approved}자리
+              </span>
+            ) : (
+              <span className="mb-0.5 shrink-0 text-xs font-semibold text-brand-700 tabular-nums">{job.headcount - approved}자리 남음</span>
+            )
+          ) : (
+            <span className="mb-0.5 shrink-0 text-xs font-semibold text-mute tabular-nums">
+              {approved}/{job.headcount}명 확정
+            </span>
+          ))}
       </div>
       {/* 모집 인원이 얼마나 찼는지 (처음 보일 때 왼쪽에서 차오름) */}
       {showCount && (
