@@ -11,6 +11,7 @@ import { SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
+import { signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
@@ -120,6 +121,115 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     if (!arrived.has(`${a.job_id}|${a.user_id}`)) absentBy[a.job_id] = (absentBy[a.job_id] ?? 0) + 1
   }
   const started = (j: JobWithAppStatus) => kstAt(today, j.start_time) <= new Date()
+
+  // 확인할 일: 공고마다 흩어진 '답을 기다리는 일'을 한곳에 (공고·날짜별로 묶어 바로 그 화면으로)
+  const titleOf = new Map(activeJobs.map((j) => [j.id, j.title]))
+  const outsideJobs = activeJobs.filter((j) => j.contract_method !== 'app' && j.start_date <= soon)
+  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps] = await Promise.all([
+    // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
+    db()
+      .from('attendance')
+      .select('job_id, work_date, job:jobs(title)')
+      .eq('ot_status', 'pending')
+      .eq('ot_by', 'worker')
+      .eq('paid', false)
+      .limit(200)
+      .then((r) => must(r) as unknown as { job_id: string; work_date: string; job: { title: string } | null }[]),
+    // 근무시간 변경에 아직 답하지 않은 근무자
+    db()
+      .from('shift_changes')
+      .select('job_id, work_date, status')
+      .eq('status', 'pending')
+      .limit(500)
+      .then((r) => (must(r) as { job_id: string; work_date: string | null; status: string }[]).filter((c) => c.status === 'pending')),
+    // 지난 날짜인데 근무 종료를 안 누른 기록
+    db()
+      .from('attendance')
+      .select('job_id, work_date, clock_out, job:jobs(title)')
+      .is('clock_out', null)
+      .lt('work_date', today)
+      .limit(200)
+      .then((r) =>
+        (must(r) as unknown as { job_id: string; work_date: string; clock_out: string | null; job: { title: string } | null }[]).filter(
+          (a) => !a.clock_out && a.work_date < today,
+        ),
+      ),
+    // 오늘 현장 위치 확인이 안 돼 출근 확인을 요청한 근무자
+    todayIds.length
+      ? db()
+          .from('messages')
+          .select('thread_user_id, job_id, body, created_at')
+          .in('job_id', todayIds)
+          .eq('from_admin', false)
+          .gte('created_at', kstAt(today, '00:00').toISOString())
+          .limit(300)
+          .then((r) =>
+            (must(r) as { thread_user_id: string; job_id: string; body: string; created_at: string }[]).filter(
+              (m) => kstDate(m.created_at) === today && signalOf(m.body) === 'arrive',
+            ),
+          )
+      : [],
+    // 곧 시작하는(진행 중 포함) 종이·외부 계약서 공고의 확정자 중 아직 계약서를 안 받은 사람
+    outsideJobs.length
+      ? db()
+          .from('applications')
+          .select('job_id, contract_received_at')
+          .in('job_id', outsideJobs.map((j) => j.id))
+          .eq('status', 'approved')
+          .then((r) => (must(r) as { job_id: string; contract_received_at: string | null }[]).filter((a) => !a.contract_received_at))
+      : [],
+  ])
+  type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string }
+  const group = <T,>(rows: T[], keyOf: (r: T) => string) => {
+    const m = new Map<string, T[]>()
+    for (const r of rows) m.set(keyOf(r), [...(m.get(keyOf(r)) ?? []), r])
+    return [...m.values()]
+  }
+  const todos: Todo[] = [
+    ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
+      key: `arrive-${g[0].job_id}`,
+      icon: '📍',
+      text: `출근 확인 요청 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      n: new Set(g.map((m) => m.thread_user_id)).size,
+      href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
+      tone: 'text-brand-700',
+    })),
+    ...group(otAsk, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
+      key: `ot-${g[0].job_id}-${g[0].work_date}`,
+      icon: '⏱',
+      text: `연장 근무 확인 요청 · ${g[0].job?.title ?? titleOf.get(g[0].job_id) ?? '공고'} ${fmtDate(g[0].work_date)}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=att&date=${g[0].work_date}`,
+      tone: 'text-amber-700',
+    })),
+    ...group(openOld, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
+      key: `open-${g[0].job_id}-${g[0].work_date}`,
+      icon: '🏁',
+      text: `근무 종료 안 누름 · ${g[0].job?.title ?? titleOf.get(g[0].job_id) ?? '공고'} ${fmtDate(g[0].work_date)}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=att&date=${g[0].work_date}`,
+      tone: 'text-rose-600',
+    })),
+    ...group(shiftWait, (c) => c.job_id).map((g) => {
+      const date = g.find((c) => c.work_date)?.work_date
+      return {
+        key: `shift-${g[0].job_id}`,
+        icon: '🕒',
+        text: `근무시간 변경 답 기다림 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+        n: g.length,
+        href: `/admin/jobs/${g[0].job_id}?tab=att${date ? `&date=${date}` : ''}`,
+        tone: 'text-brand-700',
+      }
+    }),
+    ...group(outsideApps, (a) => a.job_id).map((g) => ({
+      key: `contract-${g[0].job_id}`,
+      icon: '📝',
+      text: `근로계약서 미수령 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=docs`,
+      tone: 'text-rose-600',
+    })),
+  ]
   const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
   const setupTodo = [
     !settings.business_no && '사업자등록번호',
@@ -139,6 +249,30 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <span>💬 새 문의 {unreadChats}건이 있어요</span>
           <span>답장하기 →</span>
         </Link>
+      )}
+      {todos.length > 0 && (
+        <section className="card animate-pop space-y-2 p-4">
+          <h2 className="flex items-center gap-2 font-bold">
+            ✅ 확인할 일
+            <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">{todos.reduce((t, x) => t + x.n, 0)}</span>
+          </h2>
+          <ul className="divide-y divide-line">
+            {todos.map((t) => (
+              <li key={t.key}>
+                <Link href={t.href} className="flex items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
+                  <span aria-hidden className="text-lg">
+                    {t.icon}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{t.text}</span>
+                  <b className={`shrink-0 ${t.tone}`}>{t.n}명</b>
+                  <span aria-hidden className="shrink-0 text-mute">
+                    ›
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {short.length > 0 && (
         <section className="card animate-pop space-y-3 border-2 border-rose-200 bg-rose-50/40">
