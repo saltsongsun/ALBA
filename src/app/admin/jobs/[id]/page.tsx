@@ -10,13 +10,16 @@ import { getJob, getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
-import { dateList, fmtDate, fmtDateRange, kstDate } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
 import AppsTab from './AppsTab'
 import AttTab from './AttTab'
 import DocsTab from './DocsTab'
 import PayTab from './PayTab'
+import JobViewStats from '@/components/JobViewStats'
+import ViewerInvite from '@/components/ViewerInvite'
+import { memberViewers, viewStats } from '@/lib/views'
 
 export const metadata: Metadata = { title: '공고 관리' }
 
@@ -29,6 +32,7 @@ export type WorkerLite = {
   bank_account_enc: string | null
   account_holder: string | null
   photo_at: string | null
+  careers?: { event: string; period: string; role: string }[] | null
 }
 export type AppRow = Application & { user: WorkerLite }
 
@@ -41,7 +45,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   if (!isUuid(id)) notFound()
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
-  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at'
+  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers'
   const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
     getJob(id),
     getSettings(),
@@ -74,6 +78,13 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       .then((r) => must(r) as { user_id: string; score: number }[]),
   ])
   if (!job) notFound()
+  // 조회 현황 (관리자만): 확인한 인원·지금 보는 인원·본 가입자
+  const [vstats, mviewers] = await Promise.all([viewStats([id]), memberViewers(id)])
+  const viewerNames = mviewers.length
+    ? new Map(
+        (must(await db().from('users').select('id, name').in('id', mviewers.map((v) => v.user_id))) as { id: string; name: string }[]).map((u) => [u.id, u.name]),
+      )
+    : new Map<string, string>()
   // 근로계약서를 종이·다른 서비스로 받으면 앱 서명 서류에서 계약서 서식은 뺌
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
@@ -131,6 +142,21 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {job.gps_required && <span className="badge ml-2 bg-emerald-50 text-emerald-700">현장 위치 확인</span>}
             {job.auto_approve && <span className="badge ml-1 bg-brand-50 text-brand-700">자동 확정</span>}
           </p>
+          <JobViewStats jobId={job.id} initial={vstats[job.id]} />
+          {mviewers.length > 0 && (
+            <ViewerInvite
+              jobId={job.id}
+              canInvite={job.status === 'open' && job.end_date >= today}
+              viewers={mviewers.map((v) => ({
+                id: v.user_id,
+                name: viewerNames.get(v.user_id) ?? '알 수 없음',
+                seen: kstDateTime(v.last_seen),
+                visits: v.visits,
+                live: v.live,
+                applied: apps.some((a) => a.user_id === v.user_id && a.status !== 'cancelled'),
+              }))}
+            />
+          )}
           {job.contract_method !== 'app' && approved.length > 0 && (
             <Link href={`/admin/jobs/${job.id}?tab=docs`} className="mt-1.5 inline-block text-sm">
               📝 근로계약서 {job.contract_method === 'paper' ? '종이' : '모두싸인 등'} · 받음{' '}
@@ -159,6 +185,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && (
               <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}&shift=1#shift`} className="btn-soft btn-sm">
                 🕒 근무시간 변경
+              </Link>
+            )}
+            {/* 행사 당일: 새 인력이 QR만 찍으면 가입·로그인 후 바로 확정 */}
+            {['open', 'closed'].includes(job.status) && dates.includes(today) && (
+              <Link href={`/admin/jobs/${job.id}/qr`} className="btn-sm btn bg-rose-50 text-rose-600">
+                🚨 긴급 투입 QR
               </Link>
             )}
             <form action={duplicateJob.bind(null, job.id)}>
@@ -251,7 +283,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         ))}
       </div>
 
-      {tab === 'apps' && <AppsTab job={job} apps={apps} origin={origin} />}
+      {tab === 'apps' && <AppsTab job={job} apps={apps} origin={origin} sort={typeof sp.sort === 'string' ? sp.sort : 'time'} />}
       {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}

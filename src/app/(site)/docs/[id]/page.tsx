@@ -12,6 +12,9 @@ import { phoneFmt } from '@/lib/format'
 import { requireUser } from '@/lib/session'
 import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
+import DocGuard from '@/components/DocGuard'
+import { kstDateTime } from '@/lib/time'
+import { Fragment } from 'react'
 
 export const metadata: Metadata = { title: '서류' }
 
@@ -33,6 +36,34 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   if (!doc || (doc.user_id !== user.id && user.role !== 'admin')) notFound()
   const worker = doc.worker
   if (!worker) notFound()
+  const admin = user.role === 'admin'
+  // 근무자: 무효가 된 서류(확정을 되돌렸는데 실제로 일하지 않음)나, 확정이 풀렸고 일한 적도 없는 공고의 서류는 내용을 볼 수 없음
+  if (!admin) {
+    let blocked = doc.status === 'void'
+    if (!blocked) {
+      const [{ data: app }, { count: worked }] = await Promise.all([
+        db().from('applications').select('status').eq('job_id', doc.job_id).eq('user_id', doc.user_id).maybeSingle(),
+        db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', doc.job_id).eq('user_id', doc.user_id),
+      ])
+      blocked = (app as { status: string } | null)?.status !== 'approved' && !worked
+    }
+    if (blocked) {
+      return (
+        <div className="space-y-4">
+          <Link href="/me" className="text-sm font-semibold text-sub">
+            ← 내 근무
+          </Link>
+          <div className="card py-12 text-center">
+            <p className="text-3xl" aria-hidden>
+              🔒
+            </p>
+            <p className="mt-2 font-bold">볼 수 없는 서류예요</p>
+            <p className="mt-1 text-sm text-sub">근무 확정이 취소돼 이 서류는 무효가 됐어요. 궁금한 점은 문의함으로 물어봐 주세요.</p>
+          </div>
+        </div>
+      )
+    }
+  }
 
   let body = doc.body ?? ''
   let company: CompanySnapshot | null = doc.company_snapshot
@@ -53,6 +84,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   }
 
   const mine = doc.user_id === user.id
+  const Guard = admin ? Fragment : DocGuard
   return (
     <div className="space-y-4">
       <Flash m={sp.m} />
@@ -67,7 +99,10 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         )}
       </div>
       {doc.status === 'void' && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">무효 처리된 서류입니다.</p>}
+      {/* 근무자 화면: 복사·저장 막기 + 열람 일시·열람자 워터마크 */}
+      <Guard>
       <DocSheet
+        watermark={admin ? undefined : `열람 ${kstDateTime(new Date())} · ${user.name} ${user.phone.slice(-4)}`}
         docId={doc.id}
         body={body}
         company={company ?? { company_name: '', ceo_name: null, business_no: null, company_address: null, company_phone: null }}
@@ -77,6 +112,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         signedAt={doc.signed_at}
         signedIp={doc.signed_ip}
       />
+      </Guard>
       {doc.status === 'pending' && mine && <SignForm docId={doc.id} title={doc.title} />}
     </div>
   )

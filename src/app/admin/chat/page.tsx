@@ -20,8 +20,10 @@ type Row = {
   user: { id: string; name: string; phone: string; photo_at: string | null } | null
 }
 
-export default async function AdminChatList() {
+export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   await requireAdmin()
+  const sp = await props.searchParams
+  const onlyUnread = sp.unread === '1'
   // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
   const rows = must(
     await db()
@@ -36,13 +38,23 @@ export default async function AdminChatList() {
     if (!r.from_admin && !r.read_at) t.unread++
   }
   const today = kstDate()
-  const list = [...threads.values()].filter((t) => t.last.user)
+  const all = [...threads.values()].filter((t) => t.last.user)
+  const unreadCount = all.filter((t) => t.unread > 0).length
+  const list = onlyUnread ? all.filter((t) => t.unread > 0) : all
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div>
         <h1 className="text-2xl font-extrabold">문의</h1>
         <AutoRefresh seconds={15} />
+      </div>
+      <div className="flex gap-1.5">
+        <Link href="/admin/chat" className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+          전체 {all.length}
+        </Link>
+        <Link href="/admin/chat?unread=1" className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+          안 읽음 {unreadCount}
+        </Link>
       </div>
       {list.length === 0 ? (
         <Empty icon="💬" title="아직 들어온 문의가 없습니다">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모입니다.</Empty>

@@ -878,6 +878,40 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
   redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}`)
 }
 
+/**
+ * 은행 앱으로 이체할 목록 (미지급 근무자의 은행·계좌·예금주·실지급액). 화면에는 계좌를 가려 두고,
+ * 누를 때만 서버에서 꺼내 복사하며 기록을 남김
+ */
+export async function transferList(jobId: string): Promise<{ ok?: string; error?: string; n?: number }> {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  if (await overLimit(`export:${admin.id}`, 30, 3600)) return { error: '내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
+  const rows = must(
+    await db().from('attendance').select('*').eq('job_id', jobId).eq('paid', false).not('clock_out', 'is', null),
+  ) as Attendance[]
+  const ids = [...new Set(rows.map((r) => r.user_id))]
+  if (!ids.length) return { error: '지급할 근무가 없어요.' }
+  const users = must(await db().from('users').select('id, name, bank_name, bank_account_enc, account_holder').in('id', ids)) as {
+    id: string
+    name: string
+    bank_name: string | null
+    bank_account_enc: string | null
+    account_holder: string | null
+  }[]
+  const lines = users
+    .map((u) => {
+      const net = settle(job, rows.filter((r) => r.user_id === u.id).map((r) => calcDay(job, r))).net
+      const acc = decrypt(u.bank_account_enc)
+      return { u, net, line: [u.bank_name ?? '은행 미등록', acc ?? '계좌 미등록', u.account_holder || u.name, String(net)].join('\t') }
+    })
+    .filter((x) => x.net > 0)
+    .sort((a, b) => a.u.name.localeCompare(b.u.name, 'ko'))
+  if (!lines.length) return { error: '지급할 금액이 없어요.' }
+  await audit(admin.id, 'pay.transfer_list', null, `${jobId} ${lines.length}명`)
+  return { ok: ['은행\t계좌번호\t예금주\t금액', ...lines.map((x) => x.line)].join('\n'), n: lines.length }
+}
+
 /** 입금을 마친 뒤 한 번에: 이 공고의 퇴근까지 기록된 미지급 근무를 모두 지급 완료로 */
 export async function setAllPaid(jobId: string) {
   const admin = await requireAdmin()

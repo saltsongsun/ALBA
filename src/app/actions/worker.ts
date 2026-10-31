@@ -9,6 +9,8 @@ import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
+import { parseCareers } from '@/lib/careers'
+import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
 import { SIGNAL, signalOf } from '@/lib/signals'
@@ -514,6 +516,46 @@ export async function updateProfile(_: FormState, form: FormData): Promise<FormS
   )
   revalidatePath('/me/profile')
   return { ok: '저장했어요.' }
+}
+
+/**
+ * 현장 긴급 투입: 담당자가 보여 준 QR(오늘만 쓸 수 있는 코드)로 들어온 사람을 바로 확정.
+ * 모집 인원과 상관없이 확정하고, 서류 서명 요청을 만든 뒤 담당자에게 알림
+ */
+export async function joinNow(jobId: string, code: string) {
+  const user = await requireUser(`/join/${jobId}?c=${encodeURIComponent(code)}`)
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job || !joinOk(job, code)) back(`/join/${jobId}?c=${encodeURIComponent(code)}`, 'QR이 만료됐어요. 담당자에게 새 QR을 요청해 주세요.')
+  const now = new Date().toISOString()
+  const { data: existing } = await db().from('applications').select('id, status').eq('job_id', jobId).eq('user_id', user.id).maybeSingle()
+  if ((existing as { status: string } | null)?.status !== 'approved') {
+    const row = { status: 'approved', decided_at: now, admin_memo: EMERGENCY_MEMO, available_dates: null }
+    if (existing) must(await db().from('applications').update(row).eq('id', (existing as { id: string }).id))
+    else must(await db().from('applications').insert({ job_id: jobId, user_id: user.id, ...row }))
+    await ensurePendingDocs(job, user.id)
+    const title = job.title
+    after(async () =>
+      sendPush(await adminIds(), {
+        title: '🚨 긴급 투입 합류',
+        body: `${user.name} · ${title} · QR로 합류했어요`,
+        url: `/admin/jobs/${jobId}?tab=att`,
+        tag: `join-${jobId}`,
+      }),
+    )
+  }
+  revalidatePath('/me')
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back('/me', '합류했어요! 서류에 서명한 뒤 근무 시작을 눌러 주세요.')
+}
+
+/** 내 정보에서 행사 경력 고치기 */
+export async function saveCareers(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser('/me/profile')
+  const careers = parseCareers(str(form, 'careers', 8000))
+  if (!careers) return { error: '경력을 다시 입력해 주세요.' }
+  must(await db().from('users').update({ careers }).eq('id', user.id))
+  revalidatePath('/me/profile')
+  return { ok: careers.length ? `경력 ${careers.length}개를 저장했어요.` : '경력을 비웠어요.' }
 }
 
 export async function changePin(_: FormState, form: FormData): Promise<FormState> {

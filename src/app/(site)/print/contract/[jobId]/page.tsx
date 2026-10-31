@@ -11,6 +11,7 @@ import { requireAdmin } from '@/lib/session'
 import { fmtDateLong } from '@/lib/time'
 import type { DocTemplate } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
+import SealMark from '@/components/SealMark'
 
 export const metadata: Metadata = { title: '종이 근로계약서' }
 
@@ -96,12 +97,8 @@ export default async function PaperContractPage(props: PageProps<'/print/contrac
                   {settings.business_no && <p>사업자등록번호: {settings.business_no}</p>}
                   {settings.company_address && <p>주소: {settings.company_address}</p>}
                   {settings.company_phone && <p>전화: {settings.company_phone}</p>}
-                  <p className="relative">
-                    대표자: {settings.ceo_name ?? ''} <span className="text-mute">(인)</span>
-                    {settings.seal_image && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={settings.seal_image} alt="직인" className="absolute -top-5 left-24 size-16 object-contain mix-blend-multiply" />
-                    )}
+                  <p>
+                    대표자: {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} />
                   </p>
                 </div>
                 <div className="space-y-2">

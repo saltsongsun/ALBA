@@ -12,6 +12,7 @@ import { caughtByHoneypot, ipKey, note, overLimit, recent } from '@/lib/ratelimi
 import { createSession, destroySession } from '@/lib/session'
 import { ageOn, minutesText } from '@/lib/time'
 import { isPin, normalizePhone, optStr, parseRrn, safePath, str, weakPin } from '@/lib/validate'
+import { parseCareers } from '@/lib/careers'
 
 export type FormState = { error?: string; ok?: string } | null
 
@@ -85,6 +86,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
     return { error: '이미 가입된 주민등록번호입니다. 예전에 쓰던 번호로 로그인하거나 담당자에게 문의해 주세요.' }
   }
 
+  const careers = parseCareers(str(form, 'careers', 8000)) ?? []
   const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
   const { data, error } = await db()
     .from('users')
@@ -104,6 +106,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
       account_holder: account ? optStr(form, 'account_holder', 30) || name : null,
       privacy_agreed_at: new Date().toISOString(),
       photo_at: new Date().toISOString(),
+      careers,
     })
     .select('id, session_version, photo_at')
     .single()

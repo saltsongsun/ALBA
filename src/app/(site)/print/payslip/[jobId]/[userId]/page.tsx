@@ -6,6 +6,7 @@ import { maskAccount, won, wonKorean } from '@/lib/format'
 import { loadWorkerPay } from '@/lib/payroll'
 import { requireUser } from '@/lib/session'
 import { fmtDate, fmtDateLong, kstDate, kstTime, minutesText } from '@/lib/time'
+import SealMark from '@/components/SealMark'
 
 export const metadata: Metadata = { title: '임금명세서' }
 
@@ -181,15 +182,11 @@ export default async function PayslipPage(props: PageProps<'/print/payslip/[jobI
           <p className="mt-2 text-xs text-amber-600">퇴근 기록이 없는 {total.incomplete}일은 담당자 확인 후 반영됩니다.</p>
         )}
 
-        <div className="relative mt-8 text-right text-sm">
+        <div className="mt-8 text-right text-sm">
           <p className="font-bold">{settings.company_name}</p>
           <p>
-            대표 {settings.ceo_name ?? ''} <span className="text-mute">(인)</span>
+            대표 {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} />
           </p>
-          {settings.seal_image && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={settings.seal_image} alt="직인" className="absolute -top-3 right-0 size-16 object-contain mix-blend-multiply" />
-          )}
           <p className="mt-2 text-[11px] text-mute">근로기준법 제48조 제2항에 따른 임금명세서 · 발행 {fmtDateLong(kstDate())}</p>
         </div>
       </article>

@@ -14,6 +14,7 @@ import { reliabilityFor, type Reliability } from '@/lib/reliability'
 import { ageOn, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
+import { careerText } from '@/lib/careers'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
 /** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
@@ -91,7 +92,7 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
     .sort((a, b) => a.noShow + a.dismissed - (b.noShow + b.dismissed) || (b.avg ?? 0) - (a.avg ?? 0) || b.days - a.days)
 }
 
-export default async function AppsTab({ job, apps, origin }: { job: Job; apps: AppRow[]; origin: string }) {
+export default async function AppsTab({ job, apps, origin, sort = 'time' }: { job: Job; apps: AppRow[]; origin: string; sort?: string }) {
   const ids = apps.map((a) => a.user_id)
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
   const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
@@ -158,7 +159,22 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
   const waiting = apps.filter((a) => a.status === 'applied').length
   const approved = apps.filter((a) => a.status === 'approved')
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
-  const sorted = [...apps].sort((a, b) => order[a.status] - order[b.status])
+  // 정렬: 지원순(기본) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
+  const avg = (uid: string) => {
+    const s = scores[uid]
+    return s?.length ? s.reduce((x, y) => x + y, 0) / s.length : 0
+  }
+  const by: Record<string, (a: AppRow, b: AppRow) => number> = {
+    time: () => 0,
+    rating: (a, b) => avg(b.user_id) - avg(a.user_id),
+    exp: (a, b) => (rel[b.user_id]?.days ?? 0) - (rel[a.user_id]?.days ?? 0),
+    reliable: (a, b) => {
+      const bad = (u: string) => (rel[u]?.noShow ?? 0) * 3 + (rel[u]?.dismissed ?? 0) * 3 + (rel[u]?.late ?? 0)
+      return bad(a.user_id) - bad(b.user_id) || (rel[b.user_id]?.days ?? 0) - (rel[a.user_id]?.days ?? 0)
+    },
+  }
+  const cmp = by[sort] ?? by.time
+  const sorted = [...apps].sort((a, b) => order[a.status] - order[b.status] || cmp(a, b))
 
   // 휴대폰: 대기는 펼쳐 두고, 확정은 대기가 있으면 접어 둠, 미선발·취소는 접어 둠 (카드가 길어서)
   const mobileCard = (a: AppRow) => {
@@ -184,6 +200,12 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
           {a.message && <p className="text-ink">“{a.message}”</p>}
+          {!!a.user.careers?.length && (
+            <p className="mt-0.5 text-xs">
+              🎪 {careerText(a.user.careers[0])}
+              {a.user.careers.length > 1 && ` 외 ${a.user.careers.length - 1}건`}
+            </p>
+          )}
         </div>
         <ContactButtons phone={a.user.phone} name={a.user.name} />
         {a.status === 'approved' && <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />}
@@ -192,9 +214,9 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
     )
   }
   const groups: [string, AppRow[], boolean][] = [
-    ['대기', apps.filter((a) => a.status === 'applied'), true],
-    ['확정', approved, waiting === 0],
-    ['미선발·취소', apps.filter((a) => a.status === 'rejected' || a.status === 'cancelled'), false],
+    ['대기', sorted.filter((a) => a.status === 'applied'), true],
+    ['확정', sorted.filter((a) => a.status === 'approved'), waiting === 0],
+    ['미선발·취소', sorted.filter((a) => a.status === 'rejected' || a.status === 'cancelled'), false],
   ]
 
   return (
@@ -229,6 +251,29 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
           </form>
         </div>
       </div>
+      {apps.length > 1 && (
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          {(
+            [
+              ['time', '지원순'],
+              ['rating', '평점 높은 순'],
+              ['exp', '경험 많은 순'],
+              ['reliable', '성실한 순'],
+            ] as const
+          ).map(([k, label]) => (
+            <Link
+              key={k}
+              href={`/admin/jobs/${job.id}?tab=apps${k === 'time' ? '' : `&sort=${k}`}`}
+              scroll={false}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${
+                sort === k ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
+              }`}
+            >
+              {label}
+            </Link>
+          ))}
+        </div>
+      )}
       {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} link={`${origin}/jobs/${job.id}`} workers={past} />}
       {apps.length === 0 ? (
         <div className="card py-10 text-center text-mute">
@@ -299,6 +344,12 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
                       <td className="min-w-48 text-xs text-sub">
                         {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}
                         {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
+                        {!!a.user.careers?.length && (
+                          <div className="mt-0.5">
+                            🎪 {careerText(a.user.careers[0])}
+                            {a.user.careers.length > 1 && ` 외 ${a.user.careers.length - 1}건`}
+                          </div>
+                        )}
                       </td>
                       <td className="text-xs whitespace-nowrap text-sub">
                         {relText(a.user_id)}

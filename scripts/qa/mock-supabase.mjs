@@ -29,7 +29,7 @@ const user = (id, role, name, phone) => ({
   birth_date: '1990-01-01', gender: 'M', is_foreigner: false, address: '서울', bank_name: '국민',
   bank_account_enc: null, account_holder: name, bank_changed_at: null, emergency_phone: null, admin_memo: null,
   active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1,
-  photo_at: id === APPLICANT ? FACE_AT : null, created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
+  photo_at: id === APPLICANT ? FACE_AT : null, careers: id === APPLICANT ? [{ event: '부산국제영화제', period: '2025.10', role: '안내' }] : [], created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
 const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444'), user(APPLICANT, 'worker', '김지원', '01077778888')]
 const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자', photo_at: null }
@@ -63,7 +63,7 @@ const tables = {
   }, {
     id: '11111111-0000-4000-8000-000000000012', job_id: JOB, user_id: APPLICANT, status: 'applied', available_dates: [today], position: null, contract_received_at: null,
     message: '행사장 안내 경험 있어요. 당일 아침 일찍 도착 가능합니다', admin_memo: null, decided_at: null, created_at: '2026-10-02T00:00:00Z', job: jobLite,
-    user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888', photo_at: FACE_AT },
+    user: { ...workerLite, id: APPLICANT, name: '김지원', phone: '01077778888', photo_at: FACE_AT, careers: [{ event: '부산국제영화제', period: '2025.10', role: '안내' }] },
   }],
   attendance: SCENARIO === 'fresh' ? [] : [{
     id: ATT, job_id: JOB, user_id: WORKER, work_date: today, clock_in: new Date().toISOString(), clock_out: null,
@@ -97,6 +97,7 @@ const tables = {
   user_photos: [{ user_id: APPLICANT, data: FACE, updated_at: FACE_AT, updated_by: APPLICANT }],
   shift_changes: [],
   rate_events: [],
+  job_views: [],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
 }
 

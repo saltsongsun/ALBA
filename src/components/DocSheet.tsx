@@ -1,5 +1,6 @@
 import { fmtDateLong, kstDate, kstDateTime } from '@/lib/time'
 import type { CompanySnapshot } from '@/lib/types'
+import SealMark from './SealMark'
 
 /** '# ' 제목, '## ' 소제목, '- ' 목록만 해석하는 아주 단순한 서식 */
 export function DocBody({ text }: { text: string }) {
@@ -48,6 +49,18 @@ export function DocBody({ text }: { text: string }) {
   return <div className="text-[14.5px] leading-relaxed">{blocks}</div>
 }
 
+/** 서류 배경 워터마크: 열람 일시·열람자를 옅게 비스듬히 반복 (인쇄해도 찍힘) */
+function watermarkStyle(text: string): React.CSSProperties {
+  const esc = text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='300' height='170'><text x='150' y='95' text-anchor='middle' transform='rotate(-24 150 85)' fill='rgba(37,87,232,0.13)' font-size='14' font-weight='700' font-family='Pretendard Variable, sans-serif'>${esc}</text></svg>`
+  return {
+    backgroundImage: `url("data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}")`,
+    backgroundRepeat: 'repeat',
+    printColorAdjust: 'exact',
+    WebkitPrintColorAdjust: 'exact',
+  }
+}
+
 export default function DocSheet({
   docId,
   body,
@@ -57,6 +70,7 @@ export default function DocSheet({
   signature,
   signedAt,
   signedIp,
+  watermark,
 }: {
   docId: string
   body: string
@@ -66,9 +80,12 @@ export default function DocSheet({
   signature: string | null
   signedAt: string | null
   signedIp?: string | null
+  /** 서류 뒤에 비스듬히 반복해서 찍는 글자 (열람 일시·열람자) */
+  watermark?: string
 }) {
+  const mark = watermark ? watermarkStyle(watermark) : undefined
   return (
-    <article className="print-sheet card px-6 py-8 sm:px-10">
+    <article className="print-sheet card px-6 py-8 sm:px-10" style={mark}>
       <DocBody text={body} />
       <p className="mt-8 text-center font-semibold">{fmtDateLong(signedAt ? kstDate(signedAt) : kstDate())}</p>
       <div className="mt-6 grid gap-6 text-sm sm:grid-cols-2">
@@ -78,12 +95,8 @@ export default function DocSheet({
           {company.business_no && <p>사업자등록번호: {company.business_no}</p>}
           {company.company_address && <p>주소: {company.company_address}</p>}
           {company.company_phone && <p>전화: {company.company_phone}</p>}
-          <p className="relative">
-            대표자: {company.ceo_name ?? ''} <span className="text-mute">(인)</span>
-            {seal && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={seal} alt="직인" className="absolute -top-5 left-24 size-16 object-contain mix-blend-multiply" />
-            )}
+          <p>
+            대표자: {company.ceo_name ?? ''} <SealMark seal={seal} />
           </p>
         </div>
         <div className="space-y-1">

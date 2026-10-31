@@ -244,6 +244,22 @@ export function ClockPanel({
           <span className="text-sm font-bold">{elapsedText(open.clock_in, now)}</span>
         </div>
       )}
+      {/* 계약 종료까지 얼마나 남았는지 */}
+      {open && endAt && now < Date.parse(endAt) && (
+        <div className="space-y-1">
+          <div className="h-2 overflow-hidden rounded-full bg-bg">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-[width] duration-700"
+              style={{
+                width: `${Math.min(100, Math.max(2, ((now - Date.parse(open.clock_in)) / Math.max(1, Date.parse(endAt) - Date.parse(open.clock_in))) * 100))}%`,
+              }}
+            />
+          </div>
+          <p className="text-right text-xs font-semibold text-sub">
+            종료({endText})까지 {elapsedText(new Date(now).toISOString(), Date.parse(endAt))}
+          </p>
+        </div>
+      )}
       {open && endAt && now >= Date.parse(endAt) && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
           계약 종료 시각({endText})이 지났어요. 일이 끝났으면 근무 종료를 눌러 주세요. 이후 시간은 담당자와 서로 확인한 뒤에만 급여에 들어가요.

@@ -38,7 +38,11 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     const safe = q.replace(/[%,()]/g, '')
     query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
   }
-  const users = must(await query) as Row[]
+  // 빠른 거르기: 사진 없음 · 계좌 없음
+  const f = sp.f === 'nophoto' || sp.f === 'noaccount' ? sp.f : null
+  if (f === 'nophoto') query = query.is('photo_at', null)
+  if (f === 'noaccount') query = query.is('bank_account_enc', null)
+  const users = (must(await query) as Row[]).filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : true))
   const stat: Record<string, { days: number; last: string }> = {}
   for (const u of users) {
     for (const a of u.attendance ?? []) {
@@ -80,6 +84,24 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
             명부 CSV
           </a>
         </div>
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {(
+          [
+            [null, '전체'],
+            ['nophoto', '사진 없음'],
+            ['noaccount', '계좌 없음'],
+          ] as const
+        ).map(([k, label]) => (
+          <Link
+            key={label}
+            href={`/admin/workers${k ? `?f=${k}` : ''}`}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold ${f === k ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}
+          >
+            {label}
+          </Link>
+        ))}
       </div>
 
       {/* 휴대폰: 카드 목록 */}

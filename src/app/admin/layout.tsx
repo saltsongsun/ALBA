@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/session'
 import AdminNav from './AdminNav'
 import Logo from '@/components/Logo'
 import { APP_NAME } from '@/lib/brand'
+import AppBadge from '@/components/AppBadge'
 
 export const metadata: Metadata = { title: { default: '관리자', template: `%s · ${APP_NAME} 관리자` } }
 
@@ -30,6 +31,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </div>
         <AdminNav unread={unread} />
+        <AppBadge count={unread} />
       </header>
       <main className="mx-auto max-w-6xl px-4 pt-5 pb-20">{children}</main>
     </>

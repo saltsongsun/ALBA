@@ -5,6 +5,8 @@ export type UserRow = {
   role: Role
   name: string
   phone: string
+  /** 행사 경력 [{ event, period, role }] */
+  careers?: { event: string; period: string; role: string }[]
   pin_hash: string
   rrn_enc: string | null
   rrn_hash: string | null

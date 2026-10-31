@@ -6,6 +6,8 @@ import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
+import CareerEditor from './CareerEditor'
+import SignupProgress from './SignupProgress'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
   const el = e.currentTarget
@@ -84,6 +86,7 @@ export function SignupForm({ next }: { next: string }) {
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
       <Honeypot />
+      <SignupProgress />
       <input type="hidden" name="next" value={next} />
       <section className="card space-y-4">
         <h2 className="font-bold">기본 정보 <span className="text-sm font-medium text-rose-500">필수</span></h2>
@@ -174,6 +177,13 @@ export function SignupForm({ next }: { next: string }) {
         </div>
         <input name="account_holder" className="input" placeholder="예금주 (비우면 본인 이름)" />
         <input name="address" className="input" placeholder="주소 (선택)" autoComplete="street-address" />
+      </section>
+
+      <section className="card space-y-3">
+        <h2 className="font-bold">
+          행사 경력 <span className="text-sm font-medium text-mute">선택 · 가입한 뒤에도 내 정보에서 고칠 수 있어요</span>
+        </h2>
+        <CareerEditor />
       </section>
 
       <section className="card space-y-3 text-sm">

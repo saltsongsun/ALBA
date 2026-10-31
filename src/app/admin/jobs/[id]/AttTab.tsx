@@ -15,6 +15,7 @@ import { DISMISS_NOTE, DISMISS_REASONS, parseArriveDistance, parseLate, signalOf
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
+import { EMERGENCY_MEMO } from '@/lib/emergency'
 
 export default async function AttTab({
   job,
@@ -343,6 +344,7 @@ export default async function AttTab({
                     {u?.name ?? '알 수 없음'}
                   </Link>
                   {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
+                  {appOf.get(uid)?.admin_memo === EMERGENCY_MEMO && <span className="badge mt-1 mr-1 bg-rose-600 text-white">🚨 긴급 투입</span>}
                   {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
                     <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge mt-1 bg-rose-50 text-rose-600">
                       📝 계약서 미수령

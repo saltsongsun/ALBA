@@ -41,7 +41,7 @@ const TABS: { href: string; label: string; on: (path: string) => boolean; icon: 
 ]
 
 /** 휴대폰 아래쪽 탭 (로그인한 근무자). 앱으로 설치했을 때 주소창 없이도 오가기 쉽게 */
-export default function BottomNav({ unread = 0 }: { unread?: number }) {
+export default function BottomNav({ unread = 0, todo = 0 }: { unread?: number; todo?: number }) {
   const path = usePathname()
   return (
     <nav aria-label="주요 메뉴" data-bottom-nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
@@ -60,6 +60,12 @@ export default function BottomNav({ unread = 0 }: { unread?: number }) {
                 {t.href === '/me/chat' && unread > 0 && (
                   <span className="absolute -top-1 right-1 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 text-[10px] leading-none font-bold text-white">
                     {unread > 9 ? '9+' : unread}
+                  </span>
+                )}
+                {/* 해야 할 일 (서명·시간 변경 답·연장 확인) */}
+                {t.href === '/me' && todo > 0 && (
+                  <span className="absolute -top-1 right-1 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 px-1 text-[10px] leading-none font-bold text-white">
+                    {todo > 9 ? '9+' : todo}
                   </span>
                 )}
                 {/* 활성 탭이 바뀌면 아이콘이 톡 튀어나옴 */}

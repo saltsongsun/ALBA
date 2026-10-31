@@ -5,11 +5,11 @@ import { applyJob, cancelApplication } from '@/app/actions/worker'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import MessageChips from '@/components/MessageChips'
-import { APP_STATUS, wageBadge } from '@/components/JobCard'
+import JobCard, { APP_STATUS, wageBadge } from '@/components/JobCard'
 import StickyApply from '@/components/StickyApply'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
-import { approvedCounts, getJob } from '@/lib/data'
+import { approvedCounts, countApps, getJob, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
@@ -20,6 +20,8 @@ import { getUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstDate, minutesText } from '@/lib/time'
 import type { Application, Job } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
+import JobViewBeacon from '@/components/JobViewBeacon'
+import ApplySteps from '@/components/ApplySteps'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -55,7 +57,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const [counts, app, docs, mine] = await Promise.all([
+  const [counts, app, docs, mine, myPending] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -84,8 +86,26 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               }[],
           )
       : [],
+    // 이 공고에서 아직 서명 안 한 내 서류 수 (진행 단계 표시용)
+    user
+      ? db()
+          .from('signed_docs')
+          .select('id', { count: 'exact', head: true })
+          .eq('job_id', job.id)
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .then((r) => r.count ?? 0)
+      : 0,
   ])
+  // 날짜가 가까운 다른 모집 공고 3개
+  const others = (
+    must(
+      await db().from('jobs').select(JOB_WITH_APP_STATUS).eq('status', 'open').gte('end_date', kstDate()).neq('id', job.id).order('start_date').limit(3),
+    ) as JobWithAppStatus[]
+  ).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate())
+  const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
+  const unsignedHere = myPending > 0
   const est = estimateDay(job)
   const dates = dateList(job.start_date, job.end_date)
   const ended = job.end_date < kstDate()
@@ -211,6 +231,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       </div>
 
       {/* 아직 지원 전이면 휴대폰 아래에 지원 버튼을 띄움 (지원 칸이 화면 아래쪽이라) */}
+      {/* 관리자 조회 현황용 신호 (관리자 본인은 세지 않음) */}
+      <JobViewBeacon jobId={job.id} />
       {canApply && (!app || app.status === 'cancelled') && (
         <StickyApply
           targetId="apply"
@@ -253,6 +275,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           )
         ) : app && app.status !== 'cancelled' ? (
           <div className="card space-y-3">
+            {app.status !== 'rejected' && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : 4} />}
             <p className="font-semibold">
               {app.status === 'approved'
                 ? '근무가 확정됐어요.'
@@ -346,6 +369,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>
       </div>
+      {/* 다른 모집 중인 알바 (이 공고가 맞지 않을 때 바로 둘러보게) */}
+      {others.length > 0 && (
+        <section className="mt-8">
+          <h2 className="section-title">다른 모집 중인 알바</h2>
+          <div className="space-y-3">
+            {others.map((j) => (
+              <JobCard key={j.id} job={j} approved={otherCounts[j.id] ?? 0} />
+            ))}
+          </div>
+        </section>
+      )}
     </>
   )
 }

@@ -5,6 +5,7 @@ import { PrintButton } from '@/components/ui'
 import { loadWorkerPay } from '@/lib/payroll'
 import { requireUser } from '@/lib/session'
 import { fmtDateLong, kstDate, minutesText } from '@/lib/time'
+import SealMark from '@/components/SealMark'
 
 export const metadata: Metadata = { title: '근무확인서' }
 
@@ -85,16 +86,12 @@ export default async function CertPage(props: PageProps<'/print/cert/[jobId]/[us
             </table>
             <p className="my-14 text-center text-lg">위 사람은 위와 같이 근무하였음을 확인합니다.</p>
             <p className="mb-10 text-center font-semibold">{fmtDateLong(kstDate())}</p>
-            <div className="relative mx-auto w-fit text-center">
+            <div className="mx-auto w-fit text-center">
               <p className="text-lg font-bold">{settings.company_name}</p>
               {settings.company_address && <p className="text-sm text-sub">{settings.company_address}</p>}
               <p className="mt-1">
-                대표이사 {settings.ceo_name ?? ''} <span className="text-mute">(인)</span>
+                대표이사 {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} size="lg" />
               </p>
-              {settings.seal_image && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={settings.seal_image} alt="직인" className="absolute -right-14 -bottom-4 size-20 object-contain mix-blend-multiply" />
-              )}
             </div>
           </>
         )}

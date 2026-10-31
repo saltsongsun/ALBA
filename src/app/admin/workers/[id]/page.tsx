@@ -17,6 +17,7 @@ import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
+import { careerText } from '@/lib/careers'
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
@@ -89,7 +90,17 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             <p className="mt-1 text-sm text-sub">
               근무 {rel.days}일 · 지각 {rel.late}회 ·{' '}
               <span className={rel.noShow ? 'font-bold text-rose-600' : ''}>노쇼 {rel.noShow}회</span>
+              {rel.dismissed > 0 && <b className="text-rose-600"> · 귀가 조치 {rel.dismissed}회</b>}
             </p>
+            {!!u.careers?.length && (
+              <ul className="mt-2 space-y-0.5 text-sm">
+                {u.careers.map((c, i) => (
+                  <li key={i} className="text-sub">
+                    🎪 {careerText(c)}
+                  </li>
+                ))}
+              </ul>
+            )}
           </PhotoUpload>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>

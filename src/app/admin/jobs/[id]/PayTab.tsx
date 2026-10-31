@@ -8,6 +8,7 @@ import { calcDay, settle, TAX_LABEL } from '@/lib/pay'
 import { minutesText } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
 import type { WorkerLite } from './page'
+import TransferCopy from '@/components/TransferCopy'
 
 export default function PayTab({ job, atts, users, origin }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string }) {
   const userIds = [...new Set(atts.map((a) => a.user_id))]
@@ -59,6 +60,7 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
               </ConfirmSubmit>
             </form>
           )}
+          {unpaid.length > 0 && <TransferCopy jobId={job.id} />}
           <Link href={`/admin/jobs/${job.id}/edit`} className="btn-gray btn-sm">
             급여 설정 바꾸기
           </Link>

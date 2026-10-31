@@ -116,6 +116,16 @@ export async function audit(
   await db().from('audit_logs').insert({ actor_id: actorId, action, target_user_id: targetUserId, detail, ip })
 }
 
+/** 근무자가 해야 할 일 수: 서명할 서류 + 근무시간 변경 답 + 담당자가 인정한 연장 확인 (아래 탭 '내 근무' 배지) */
+export const todoForWorker = cache(async (userId: string): Promise<number> => {
+  const [docs, shifts, ot] = await Promise.all([
+    db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending'),
+    db().from('shift_changes').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('status', 'pending'),
+    db().from('attendance').select('id', { count: 'exact', head: true }).eq('user_id', userId).eq('ot_status', 'pending').eq('ot_by', 'admin'),
+  ])
+  return (docs.count ?? 0) + (shifts.count ?? 0) + (ot.count ?? 0)
+})
+
 /** 근무자가 아직 안 읽은 담당자 답장 수 (머리글·아래 탭이 같은 요청에서 한 번만 읽도록) */
 export const unreadForWorker = cache(async (userId: string): Promise<number> => {
   const { count } = await db()

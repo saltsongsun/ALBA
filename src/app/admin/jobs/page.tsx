@@ -7,6 +7,7 @@ import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
 import { fmtDateRange, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
+import { viewStats } from '@/lib/views'
 
 export const metadata: Metadata = { title: '공고' }
 
@@ -34,6 +35,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
     ? all.filter((j) => [j.title, j.event_name, j.location_name].some((v) => v?.toLowerCase().includes(term.toLowerCase())))
     : all
   const counts = countApps(jobs, 'approved')
+  const views = await viewStats(jobs.map((j) => j.id))
   const waitingBy = countApps(jobs, 'applied')
 
   return (
@@ -99,6 +101,10 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     <span className="shrink-0 tabular-nums">
                       확정 <b className="text-ink">{approved}</b>/{j.headcount}명
                     </span>
+                    <span className="shrink-0 tabular-nums" title="공고를 확인한 인원">
+                      👀 {views[j.id]?.total ?? 0}
+                      {(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
+                    </span>
                   </div>
                 </Link>
               )
@@ -113,6 +119,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                   <th>일정</th>
                   <th>확정/모집</th>
                   <th>대기</th>
+                  <th>확인</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -133,6 +140,9 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                       <b>{counts[j.id] ?? 0}</b>/{j.headcount}
                     </td>
                     <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
+                    <td className="whitespace-nowrap tabular-nums">
+                      {views[j.id]?.total ?? 0}명{(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
+                    </td>
                     <td>
                       <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
                     </td>

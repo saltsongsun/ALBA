@@ -1,9 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import CareerForm from '@/components/CareerForm'
 import PhotoUpload from '@/components/PhotoUpload'
 import PushToggle from '@/components/PushToggle'
 import TextSizeToggle from '@/components/TextSizeToggle'
 import { PinForm, ProfileForm, WithdrawForm } from '@/components/worker'
+import type { Career } from '@/lib/careers'
 import { decrypt } from '@/lib/crypto'
 import { db } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
@@ -16,7 +18,7 @@ export default async function ProfilePage() {
   const user = await requireUser('/me/profile')
   const { data: me } = await db()
     .from('users')
-    .select('name, phone, rrn_masked, address, emergency_phone, bank_name, bank_account_enc, account_holder, photo_at, created_at')
+    .select('name, phone, rrn_masked, address, emergency_phone, bank_name, bank_account_enc, account_holder, photo_at, careers, created_at')
     .eq('id', user.id)
     .single()
   if (!me) return null
@@ -44,6 +46,7 @@ export default async function ProfilePage() {
           account_holder: me.account_holder ?? '',
         }}
       />
+      <CareerForm initial={(me.careers as Career[] | null) ?? []} />
       <div className="card p-4">
         <PushToggle publicKey={pushPublicKey()} />
       </div>
