@@ -7,7 +7,7 @@ import { GroupContact } from '@/components/GroupContact'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
 import { APP_STATUS } from '@/components/JobCard'
 import { scoresByUser, StarAvg } from '@/components/Stars'
-import { SubmitButton } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
@@ -16,16 +16,23 @@ import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
-function Decide({ a, wide = false }: { a: AppRow; wide?: boolean }) {
+/** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
+function Decide({ a, wide = false, full = false }: { a: AppRow; wide?: boolean; full?: boolean }) {
   const btn = (primary: boolean) => `${primary ? 'btn-primary' : 'btn-gray'} ${wide ? 'w-full' : 'btn-sm'}`
   const form = wide ? 'flex-1' : ''
   return (
     <div className={`flex ${wide ? 'gap-2' : 'gap-1'}`}>
       {a.status !== 'approved' && a.status !== 'cancelled' && (
         <form action={decideApplication.bind(null, a.id, 'approved')} className={form}>
-          <SubmitButton className={btn(true)} pendingText="…">
-            확정
-          </SubmitButton>
+          {full ? (
+            <ConfirmSubmit className={btn(true)} confirmText="인원 다 찼어요 · 확정?">
+              확정
+            </ConfirmSubmit>
+          ) : (
+            <SubmitButton className={btn(true)} pendingText="…">
+              확정
+            </SubmitButton>
+          )}
         </form>
       )}
       {a.status === 'applied' && (
@@ -172,7 +179,7 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
         </div>
         <ContactButtons phone={a.user.phone} name={a.user.name} />
         {a.status === 'approved' && <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />}
-        <Decide a={a} wide />
+        <Decide a={a} wide full={approved.length >= job.headcount} />
       </div>
     )
   }
@@ -198,7 +205,14 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
         <div className="flex flex-wrap gap-2">
           {waiting > 0 && (
             <form action={approveAllApplied.bind(null, job.id)}>
-              <SubmitButton className="btn-primary btn-sm">대기 {waiting}명 모두 확정</SubmitButton>
+              {/* 모집 인원을 넘기게 되면 한 번 더 확인 */}
+              {approved.length + waiting > job.headcount ? (
+                <ConfirmSubmit className="btn-primary btn-sm" confirmText={`모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`}>
+                  대기 {waiting}명 모두 확정
+                </ConfirmSubmit>
+              ) : (
+                <SubmitButton className="btn-primary btn-sm">대기 {waiting}명 모두 확정</SubmitButton>
+              )}
             </form>
           )}
           <form action={addWorkerToJob.bind(null, job.id)} className="flex gap-1">
@@ -289,7 +303,7 @@ export default async function AppsTab({ job, apps, origin }: { job: Job; apps: A
                         <span className={`badge ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
                       </td>
                       <td className="whitespace-nowrap">
-                        <Decide a={a} />
+                        <Decide a={a} full={approved.length >= job.headcount} />
                       </td>
                     </tr>
                   )

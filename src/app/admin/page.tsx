@@ -7,7 +7,7 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
-import { SubmitButton } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -231,6 +231,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
   ]
   const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
+  // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
+  const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
+  const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
   const setupTodo = [
     !settings.business_no && '사업자등록번호',
     !settings.company_address && '회사 주소',
@@ -398,9 +401,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   <ContactButtons phone={p.user.phone} name={p.user.name} />
                   <div className="grid grid-cols-2 gap-2">
                     <form action={decideApplication.bind(null, p.id, 'approved')}>
-                      <SubmitButton className="btn-primary w-full" pendingText="확정 중…">
-                        확정
-                      </SubmitButton>
+                      {isFull(p.job.id) ? (
+                        <ConfirmSubmit className="btn-primary w-full" confirmText="인원 다 찼어요 · 확정?">
+                          확정
+                        </ConfirmSubmit>
+                      ) : (
+                        <SubmitButton className="btn-primary w-full" pendingText="확정 중…">
+                          확정
+                        </SubmitButton>
+                      )}
                     </form>
                     <form action={decideApplication.bind(null, p.id, 'rejected')}>
                       <SubmitButton className="btn-gray w-full" pendingText="처리 중…">
@@ -451,9 +460,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                       <td className="whitespace-nowrap">
                         <div className="flex gap-1">
                           <form action={decideApplication.bind(null, p.id, 'approved')}>
-                            <SubmitButton className="btn-primary btn-sm" pendingText="…">
-                              확정
-                            </SubmitButton>
+                            {isFull(p.job.id) ? (
+                              <ConfirmSubmit className="btn-primary btn-sm" confirmText="인원 다 찼어요 · 확정?">
+                                확정
+                              </ConfirmSubmit>
+                            ) : (
+                              <SubmitButton className="btn-primary btn-sm" pendingText="…">
+                                확정
+                              </SubmitButton>
+                            )}
                           </form>
                           <form action={decideApplication.bind(null, p.id, 'rejected')}>
                             <SubmitButton className="btn-gray btn-sm" pendingText="…">

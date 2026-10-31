@@ -46,7 +46,15 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
         <div className="flex flex-wrap gap-2">
           {unpaid.length > 0 && (
             <form action={setAllPaid.bind(null, job.id)}>
-              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${unpaid.length}명 지급 완료로 바꾸고 알릴까요?`}>
+              <ConfirmSubmit
+                className="btn-soft btn-sm"
+                confirmText={
+                  // 연장 확인·퇴근 기록·계좌가 덜 정리됐으면 한 번 더 알려 줌 (금액이 빠졌거나 입금을 못 했을 수 있어서)
+                  otWaiting || incomplete || unpaid.some((r) => !r.user?.bank_account_enc)
+                    ? `정리 안 된 근무·계좌가 있어요 · ${unpaid.length}명 지급 완료?`
+                    : `${unpaid.length}명 지급 완료로 바꾸고 알릴까요?`
+                }
+              >
                 미지급 {unpaid.length}명 모두 지급 완료
               </ConfirmSubmit>
             </form>
@@ -130,9 +138,16 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
                   </td>
                   <td>
                     <form action={setPaid.bind(null, job.id, r.uid, !r.paid)}>
-                      <SubmitButton className={r.paid ? 'badge bg-emerald-50 text-emerald-700' : 'badge bg-gray-100 text-sub'} pendingText="…">
-                        {r.paid ? '지급완료' : '미지급'}
-                      </SubmitButton>
+                      {!r.paid && !r.user?.bank_account_enc ? (
+                        // 계좌가 없는데 지급 완료로 바꾸려 하면 한 번 더 확인
+                        <ConfirmSubmit className="badge bg-gray-100 text-sub" confirmText="계좌 없음 · 지급완료?">
+                          미지급
+                        </ConfirmSubmit>
+                      ) : (
+                        <SubmitButton className={r.paid ? 'badge bg-emerald-50 text-emerald-700' : 'badge bg-gray-100 text-sub'} pendingText="…">
+                          {r.paid ? '지급완료' : '미지급'}
+                        </SubmitButton>
+                      )}
                     </form>
                   </td>
                   <td className="whitespace-nowrap">
