@@ -36,6 +36,8 @@ export async function generateMetadata(props: PageProps<'/jobs/[id]'>): Promise<
   }
 }
 
+const CANCEL_REASONS = ['일정이 생겼어요', '몸이 아파요', '교통·거리 문제', '다른 일을 하게 됐어요', '기타']
+
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 py-2.5">
@@ -203,7 +205,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               <Link href="/me" className="btn-primary flex-1">
                 {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
               </Link>
-              {(app.status === 'applied' || app.status === 'approved') && !ended && (
+              {app.status === 'applied' && !ended && (
                 <form action={cancelApplication.bind(null, app.id)}>
                   <ConfirmSubmit className="btn-gray" confirmText="정말 취소할까요?">
                     지원 취소
@@ -211,6 +213,26 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 </form>
               )}
             </div>
+            {/* 확정된 근무 취소: 담당자에게 바로 알림이 가고, 사유를 고를 수 있음 */}
+            {app.status === 'approved' && !ended && (
+              <details className="text-sm">
+                <summary className="cursor-pointer py-1 font-semibold text-sub">근무를 못 하게 됐어요</summary>
+                <form action={cancelApplication.bind(null, app.id)} className="mt-2 space-y-3 rounded-xl bg-bg p-3">
+                  <p className="text-sub">취소하면 담당자에게 바로 알림이 가요. 사유를 고르면 담당자가 사정을 알 수 있어요.</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CANCEL_REASONS.map((r) => (
+                      <label key={r} className="cursor-pointer">
+                        <input type="radio" name="reason" value={r} className="peer sr-only" />
+                        <span className="chip h-8 px-3 text-xs peer-checked:bg-brand-600 peer-checked:text-white">{r}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <ConfirmSubmit className="btn-danger w-full" confirmText="한 번 더 누르면 확정 근무가 취소돼요">
+                    확정 근무 취소하기
+                  </ConfirmSubmit>
+                </form>
+              </details>
+            )}
           </div>
         ) : (
           canApply && (

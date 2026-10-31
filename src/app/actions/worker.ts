@@ -8,7 +8,7 @@ import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
-import { kstDate } from '@/lib/time'
+import { fmtDateRange, hhmm, kstAt, kstDate } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str } from '@/lib/validate'
 import type { FormState } from './auth'
@@ -63,13 +63,20 @@ export async function applyJob(jobId: string, form: FormData) {
   back(path, status === 'approved' ? '근무가 확정됐어요! 내 근무에서 서류에 서명해 주세요.' : '지원이 접수됐어요. 확정되면 내 근무에 표시됩니다.')
 }
 
-export async function cancelApplication(appId: string) {
+export async function cancelApplication(appId: string, form?: FormData) {
   const user = await requireUser()
-  const { data: app } = await db()
+  const { data } = await db()
     .from('applications')
-    .select('id, job_id, user_id, status')
+    .select('id, job_id, user_id, status, job:jobs(title, start_date, end_date, start_time)')
     .eq('id', appId)
     .maybeSingle()
+  const app = data as {
+    id: string
+    job_id: string
+    user_id: string
+    status: string
+    job: { title: string; start_date: string; end_date: string; start_time: string } | null
+  } | null
   if (!app || app.user_id !== user.id) back('/me', '지원 내역을 찾을 수 없습니다.')
   const { count } = await db()
     .from('attendance')
@@ -79,6 +86,20 @@ export async function cancelApplication(appId: string) {
   if (count) back('/me', '이미 근무 기록이 있어 취소할 수 없습니다. 담당자에게 문의해 주세요.')
   must(await db().from('applications').update({ status: 'cancelled' }).eq('id', appId))
   await db().from('signed_docs').delete().eq('job_id', app.job_id).eq('user_id', user.id).eq('status', 'pending')
+  // 확정된 근무를 취소하면 담당자 문의함에 바로 알림 (안 읽음 표시) — 사람을 다시 구할 시간을 벌게
+  if (app.status === 'approved' && app.job) {
+    const reason = form ? str(form, 'reason', 100) : ''
+    const hoursLeft = (kstAt(app.job.start_date, app.job.start_time).getTime() - Date.now()) / 3_600_000
+    const body = [
+      `⚠️ 확정 취소${hoursLeft < 24 ? ' (근무 24시간 안)' : ''}`,
+      `${app.job.title} · ${fmtDateRange(app.job.start_date, app.job.end_date)} ${hhmm(app.job.start_time)} 근무를 취소했어요.`,
+      reason && `사유: ${reason}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: app.job_id, body })
+    revalidatePath('/admin/chat')
+  }
   revalidatePath('/me')
   back(`/jobs/${app.job_id}`, '지원을 취소했어요.')
 }
