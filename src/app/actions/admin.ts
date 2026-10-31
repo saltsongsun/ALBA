@@ -12,6 +12,7 @@ import { scheduleSummary, wageText } from '@/lib/docs'
 import { hiddenFromForm } from '@/lib/jobFields'
 import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, settle } from '@/lib/pay'
 import { tellWorkers } from '@/lib/notify'
+import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
@@ -27,6 +28,7 @@ import {
   normalizePhone,
   optStr,
   str,
+  weakPin,
 } from '@/lib/validate'
 import type { FormState } from './auth'
 
@@ -760,6 +762,8 @@ export async function restoreDefaultTemplates() {
 export async function revealRrn(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
   if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
+  // 관리자 계정이 털려도 주민번호를 한꺼번에 빼 가지 못하게 열람 횟수 제한
+  if (await overLimit(`rrn-view:${admin.id}`, 30, 3600)) return { error: '주민등록번호 열람이 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
   const { data } = await db().from('users').select('rrn_enc').eq('id', userId).maybeSingle()
   const rrn = decrypt(data?.rrn_enc)
   if (!rrn) return { error: '등록된 주민등록번호가 없습니다.' }
@@ -772,7 +776,9 @@ export async function resetPin(userId: string, _: FormState): Promise<FormState>
   if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
   const { data } = await db().from('users').select('session_version').eq('id', userId).maybeSingle()
   if (!data) return { error: '근무자를 찾을 수 없습니다.' }
-  const temp = String(randomInt(0, 1_000_000)).padStart(6, '0')
+  // 임시 비밀번호도 추측하기 쉬운 번호는 피함
+  let temp = String(randomInt(0, 1_000_000)).padStart(6, '0')
+  while (weakPin(temp)) temp = String(randomInt(0, 1_000_000)).padStart(6, '0')
   must(
     await db()
       .from('users')

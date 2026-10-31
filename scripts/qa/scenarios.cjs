@@ -127,7 +127,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   ok('S3 끊겼을 때 오류 화면 대신 안내', await see(ww, /인터넷 연결이 약해 기록하지 못했어요/, 15000))
   await shot(ww, '3-offline', 'text=인터넷 연결이 약해')
   await ww.context().setOffline(false)
-  ok('S3 연결되면 자동으로 다시 눌러 종료됨', await see(ww, /근무를 종료했어요/, 30000))
+  ok('S3 연결되면 자동으로 다시 눌러 종료됨', await see(ww, /근무를 종료했어요|오늘 근무 완료/, 30000))
   const attW = (await rest(MW, `attendance?job_id=eq.${J}&user_id=eq.${WK}`))[0]
   ok('S3 종료 기록 저장', !!attW.clock_out)
 

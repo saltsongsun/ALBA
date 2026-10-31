@@ -3,6 +3,7 @@ import { audit, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { calcDay, settle } from '@/lib/pay'
 import { monthlyRows, toCsv } from '@/lib/reports'
+import { overLimit } from '@/lib/ratelimit'
 import { getUser } from '@/lib/session'
 import type { Attendance, UserRow } from '@/lib/types'
 import { formatRrn, isUuid } from '@/lib/validate'
@@ -22,6 +23,8 @@ function csvResponse(name: string, body: string) {
 export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'>) {
   const admin = await getUser()
   if (!admin || admin.role !== 'admin') return new Response('권한이 없습니다.', { status: 403 })
+  // 관리자 계정이 털려도 개인정보 파일을 대량으로 내려받지 못하게
+  if (await overLimit(`export:${admin.id}`, 30, 3600)) return new Response('내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.', { status: 429 })
   const { kind } = await ctx.params
   const url = new URL(req.url)
   const month = url.searchParams.get('month') ?? ''

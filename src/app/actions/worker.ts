@@ -9,11 +9,12 @@ import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
+import { note, recent } from '@/lib/ratelimit'
 import { SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, SignedDoc, UserRow } from '@/lib/types'
-import { isDate, isPin, isUuid, normalizePhone, optStr, str } from '@/lib/validate'
+import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -458,19 +459,32 @@ export async function changePin(_: FormState, form: FormData): Promise<FormState
   const next = str(form, 'pin')
   if (!isPin(next)) return { error: '새 비밀번호는 숫자 6자리로 정해 주세요.' }
   if (next !== str(form, 'pin2')) return { error: '새 비밀번호 확인이 일치하지 않습니다.' }
-  const { data } = await db().from('users').select('pin_hash, session_version').eq('id', user.id).single()
-  const row = data as Pick<UserRow, 'pin_hash' | 'session_version'> | null
-  if (!row || !(await verifyPin(cur, row.pin_hash))) return { error: '현재 비밀번호가 맞지 않습니다.' }
+  // 로그인된 휴대폰을 남이 쥐고 현재 비밀번호를 맞혀 보지 못하게
+  const failKey = `pin-check-fail:${user.id}`
+  if ((await recent(failKey, 15 * 60)) >= 5) return { error: '비밀번호를 여러 번 틀렸어요. 15분 뒤에 다시 시도해 주세요.' }
+  const { data } = await db().from('users').select('pin_hash, session_version, birth_date, phone').eq('id', user.id).single()
+  const row = data as Pick<UserRow, 'pin_hash' | 'session_version' | 'birth_date' | 'phone'> | null
+  if (!row || !(await verifyPin(cur, row.pin_hash))) {
+    await note(failKey)
+    return { error: '현재 비밀번호가 맞지 않습니다.' }
+  }
+  const weak = weakPin(next, { birthDate: row.birth_date, phone: row.phone })
+  if (weak) return { error: weak }
   const version = row.session_version + 1
   must(await db().from('users').update({ pin_hash: await hashPin(next), session_version: version }).eq('id', user.id))
-  await createSession(user.id, version)
+  await createSession(user.id, version, user.role)
   return { ok: '비밀번호를 바꿨어요. 다른 기기에서는 다시 로그인해야 합니다.' }
 }
 
 export async function withdraw(_: FormState, form: FormData): Promise<FormState> {
   const user = await requireUser()
+  const failKey = `pin-check-fail:${user.id}`
+  if ((await recent(failKey, 15 * 60)) >= 5) return { error: '비밀번호를 여러 번 틀렸어요. 15분 뒤에 다시 시도해 주세요.' }
   const { data } = await db().from('users').select('pin_hash').eq('id', user.id).single()
-  if (!data || !(await verifyPin(str(form, 'pin'), data.pin_hash))) return { error: '비밀번호가 맞지 않습니다.' }
+  if (!data || !(await verifyPin(str(form, 'pin'), data.pin_hash))) {
+    await note(failKey)
+    return { error: '비밀번호가 맞지 않습니다.' }
+  }
 
   const [{ count: worked }, { count: signed }] = await Promise.all([
     db().from('attendance').select('id', { count: 'exact', head: true }).eq('user_id', user.id),

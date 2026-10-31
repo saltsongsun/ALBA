@@ -27,10 +27,23 @@ const formatPhone = (e: React.FormEvent<HTMLInputElement>) => {
   el.value = d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
 }
 
+/** 봇 함정 칸: 사람에게는 안 보이고, 자동 입력 봇만 채움 (채워지면 서버가 거절) */
+function Honeypot() {
+  return (
+    <div aria-hidden className="sr-only">
+      <label>
+        웹사이트
+        <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
+      </label>
+    </div>
+  )
+}
+
 export function LoginForm({ next }: { next: string }) {
   const [state, action] = useActionState(login, null)
   return (
     <form action={action} onReset={keepInputs} className="space-y-4">
+      <Honeypot />
       <input type="hidden" name="next" value={next} />
       <div>
         <label className="label" htmlFor="phone">
@@ -70,6 +83,7 @@ export function SignupForm({ next }: { next: string }) {
   const [state, action] = useActionState(signup, null)
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
+      <Honeypot />
       <input type="hidden" name="next" value={next} />
       <section className="card space-y-4">
         <h2 className="font-bold">기본 정보 <span className="text-sm font-medium text-rose-500">필수</span></h2>

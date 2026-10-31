@@ -8,6 +8,8 @@ import type { Role } from './types'
 
 const COOKIE = 'alba_session'
 const MAX_AGE = 60 * 60 * 24 * 30 // 30일
+// 관리자는 개인정보를 모두 볼 수 있으므로 더 짧게 (휴대폰을 잃어버려도 일주일 뒤엔 다시 로그인)
+const ADMIN_MAX_AGE = 60 * 60 * 24 * 7
 
 export type SessionUser = {
   id: string
@@ -26,8 +28,9 @@ function sign(payload: string): string {
   return createHmac('sha256', secret()).update(payload).digest('base64url')
 }
 
-export async function createSession(userId: string, version: number) {
-  const exp = Math.floor(Date.now() / 1000) + MAX_AGE
+export async function createSession(userId: string, version: number, role: Role = 'worker') {
+  const maxAge = role === 'admin' ? ADMIN_MAX_AGE : MAX_AGE
+  const exp = Math.floor(Date.now() / 1000) + maxAge
   const payload = Buffer.from(JSON.stringify({ u: userId, v: version, e: exp })).toString('base64url')
   const jar = await cookies()
   jar.set(COOKIE, `${payload}.${sign(payload)}`, {
@@ -35,7 +38,7 @@ export async function createSession(userId: string, version: number) {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
     path: '/',
-    maxAge: MAX_AGE,
+    maxAge,
   })
 }
 
