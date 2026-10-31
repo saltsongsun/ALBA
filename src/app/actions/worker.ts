@@ -1,14 +1,16 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
 import { approvedCounts, ensurePendingDocs, getJob, getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN } from '@/lib/pay'
+import { adminIds, sendPush } from '@/lib/push'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
-import { fmtDateRange, hhmm, kstAt, kstDate } from '@/lib/time'
+import { fmtDateRange, hhmm, kstAt, kstDate, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str } from '@/lib/validate'
 import type { FormState } from './auth'
@@ -59,6 +61,14 @@ export async function applyJob(jobId: string, form: FormData) {
   else must(await db().from('applications').insert(row))
 
   if (status === 'approved') await ensurePendingDocs(job, user.id)
+  after(async () =>
+    sendPush(await adminIds(), {
+      title: status === 'approved' ? '✅ 자동 확정' : '🙋 새 지원',
+      body: `${user.name} · ${job.title}`,
+      url: `/admin/jobs/${jobId}?tab=apps`,
+      tag: `apply-${jobId}`,
+    }),
+  )
   revalidatePath('/me')
   back(path, status === 'approved' ? '근무가 확정됐어요! 내 근무에서 서류에 서명해 주세요.' : '지원이 접수됐어요. 확정되면 내 근무에 표시됩니다.')
 }
@@ -98,6 +108,14 @@ export async function cancelApplication(appId: string, form?: FormData) {
       .filter(Boolean)
       .join('\n')
     await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: app.job_id, body })
+    const title = app.job.title
+    after(async () =>
+      sendPush(await adminIds(), {
+        title: `⚠️ 확정 취소${hoursLeft < 24 ? ' (24시간 안)' : ''}`,
+        body: `${user.name} · ${title}${reason ? ` · ${reason}` : ''}`,
+        url: `/admin/chat/${user.id}`,
+      }),
+    )
     revalidatePath('/admin/chat')
   }
   revalidatePath('/me')
@@ -220,6 +238,16 @@ export async function answerOvertime(attendanceId: string, choice: 'request' | '
         ? { ot_minutes: 0, ot_by: 'worker', ot_status: 'rejected' }
         : { ot_status: 'agreed' }
   must(await db().from('attendance').update(patch).eq('id', attendanceId))
+  if (choice === 'request') {
+    const job = att.job
+    after(async () =>
+      sendPush(await adminIds(), {
+        title: '⏱ 연장 근무 확인 요청',
+        body: `${user.name} · ${job.title} · ${minutesText(afterMin)}`,
+        url: `/admin/jobs/${job.id}?tab=att&date=${att.work_date}`,
+      }),
+    )
+  }
   revalidatePath('/me')
 }
 

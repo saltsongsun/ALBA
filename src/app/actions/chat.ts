@@ -1,10 +1,12 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { audit, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary } from '@/lib/docs'
 import { won } from '@/lib/format'
+import { adminIds, sendPush } from '@/lib/push'
 import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
 import type { FormState } from './auth'
@@ -29,6 +31,7 @@ export async function sendInquiry(jobId: string | null, _: FormState, form: Form
   ])
   if ((count ?? 0) >= BURST_LIMIT) return { error: '메시지를 너무 많이 보냈어요. 잠시 후 다시 보내 주세요.' }
   must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: job?.id ?? null, body }))
+  after(async () => sendPush(await adminIds(), { title: `💬 ${user.name} 문의`, body, url: `/admin/chat/${user.id}`, tag: `chat-${user.id}` }))
   revalidatePath('/me/chat')
   return { ok: '보냈어요' }
 }
@@ -40,6 +43,7 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   const body = str(form, 'body', MAX_BODY)
   if (!body) return { error: '내용을 입력해 주세요.' }
   must(await db().from('messages').insert({ thread_user_id: userId, sender_id: admin.id, from_admin: true, body }))
+  after(() => sendPush([userId], { title: '💬 담당자 답장', body, url: '/me/chat', tag: 'chat' }))
   revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/admin/chat')
   return { ok: '보냈어요' }
@@ -76,6 +80,10 @@ export async function announceToJob(jobId: string, _: FormState, form: FormData)
       .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: jobId, body: `📢 공지\n${body}` }))),
   )
   await audit(admin.id, 'job.announce', null, `${jobId} ${target} ${to.length}명`)
+  after(async () => {
+    const job = await getJob(jobId)
+    await sendPush(to, { title: `📢 공지${job ? ` · ${job.title}` : ''}`, body, url: '/me', tag: `notice-${jobId}` })
+  })
   revalidatePath('/admin/chat')
   return { ok: `${to.length}명에게 앱으로 보냈어요` }
 }
@@ -102,6 +110,7 @@ export async function inviteToJob(jobId: string, _: FormState, form: FormData): 
   ].join('\n')
   must(await db().from('messages').insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: job.id, body }))))
   await audit(admin.id, 'job.invite', null, `${jobId} ${to.length}명`)
+  after(() => sendPush(to, { title: '📣 새 모집', body: `${job.title} · ${scheduleSummary(job)}`, url: `/jobs/${job.id}`, tag: `invite-${job.id}` }))
   revalidatePath('/admin/chat')
   return { ok: `${to.length}명에게 앱으로 알렸어요${applied.size ? ` (이미 지원한 ${applied.size}명 제외)` : ''}` }
 }

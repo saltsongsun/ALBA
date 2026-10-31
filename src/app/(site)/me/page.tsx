@@ -5,6 +5,7 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import { ShowMore } from '@/components/Fold'
 import { InstallBanner } from '@/components/InstallGuide'
+import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { SubmitButton } from '@/components/ui'
 import { ClockPanel } from '@/components/worker'
@@ -14,6 +15,7 @@ import { mapLinks } from '@/lib/map'
 import { won } from '@/lib/format'
 import { answerOvertime } from '@/app/actions/worker'
 import { calcDay, OT_ASK_MIN, scheduledEnd, settle } from '@/lib/pay'
+import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { fmtDate, fmtDateRange, hhmm, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
@@ -104,6 +106,8 @@ export default async function MePage(props: PageProps<'/me'>) {
     <div className="space-y-6">
       <Flash m={sp.m} />
       <InstallBanner />
+      {/* 아직 알림을 안 켰으면 (켰거나 지원 안 되는 기기면 안 보임) */}
+      <PushToggle publicKey={pushPublicKey()} variant="card" />
       <div className="flex items-end justify-between">
         <div>
           <p className="text-sm text-mute">{fmtDate(today)}</p>

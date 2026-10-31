@@ -6,10 +6,12 @@ import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
+import PushToggle from '@/components/PushToggle'
 import { SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
+import { pushPublicKey } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
 import { ageOn, fmtDate, fmtDateRange, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
@@ -124,6 +126,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
+      <div className="card p-4">
+        <PushToggle publicKey={pushPublicKey()} admin />
+      </div>
       {unreadChats > 0 && (
         <Link href="/admin/chat" className="flex animate-slide-down items-center justify-between rounded-2xl bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700 transition active:scale-[0.99]">
           <span>💬 새 문의 {unreadChats}건이 있어요</span>

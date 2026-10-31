@@ -1,10 +1,12 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import PhotoUpload from '@/components/PhotoUpload'
+import PushToggle from '@/components/PushToggle'
 import { PinForm, ProfileForm, WithdrawForm } from '@/components/worker'
 import { decrypt } from '@/lib/crypto'
 import { db } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
+import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 
 export const metadata: Metadata = { title: '내 정보' }
@@ -41,6 +43,9 @@ export default async function ProfilePage() {
           account_holder: me.account_holder ?? '',
         }}
       />
+      <div className="card p-4">
+        <PushToggle publicKey={pushPublicKey()} />
+      </div>
       <PinForm />
       <WithdrawForm />
     </div>

@@ -31,3 +31,38 @@ self.addEventListener('fetch', (event) => {
     })(),
   )
 })
+
+// 휴대폰 알림(웹 푸시): 받으면 알림을 띄우고, 누르면 해당 화면을 엶 (이미 열린 창이 있으면 그 창에서)
+self.addEventListener('push', (event) => {
+  let d = {}
+  try {
+    d = event.data ? event.data.json() : {}
+  } catch {
+    d = { body: event.data ? event.data.text() : '' }
+  }
+  event.waitUntil(
+    self.registration.showNotification(d.title || '소켓 알바', {
+      body: d.body || '',
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: d.tag,
+      data: { url: d.url || '/me' },
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const url = new URL((event.notification.data && event.notification.data.url) || '/me', self.location.origin).href
+  event.waitUntil(
+    (async () => {
+      const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const w of wins) {
+        if (new URL(w.url).origin !== self.location.origin) continue
+        await w.focus()
+        return w.navigate(url).catch(() => self.clients.openWindow(url))
+      }
+      return self.clients.openWindow(url)
+    })(),
+  )
+})

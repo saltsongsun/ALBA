@@ -2,13 +2,16 @@
 
 import { randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
 import { audit, ensurePendingDocs, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
+import { scheduleSummary } from '@/lib/docs'
 import { hiddenFromForm } from '@/lib/jobFields'
 import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN } from '@/lib/pay'
+import { sendPush } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
 import { fromKstInput, kstAt } from '@/lib/time'
 import type { Attendance, Job, JobCondition } from '@/lib/types'
@@ -198,6 +201,16 @@ export async function deleteJob(jobId: string) {
 
 // ───────────── 지원자 ─────────────
 
+/** 근무 확정 알림 (서류가 있으면 서명 안내) */
+function approvedPush(job: Job) {
+  return {
+    title: '✅ 근무가 확정됐어요',
+    body: `${job.title} · ${scheduleSummary(job)}${job.required_docs.length ? ' · 앱에서 서류에 서명해 주세요' : ''}`,
+    url: '/me',
+    tag: `approved-${job.id}`,
+  }
+}
+
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied') {
   await requireAdmin()
   if (!isUuid(appId) || !['approved', 'rejected', 'applied'].includes(status)) return
@@ -211,7 +224,10 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
   )
   if (status === 'approved') {
     const job = await getJob(app.job_id)
-    if (job) await ensurePendingDocs(job, app.user_id)
+    if (job) {
+      await ensurePendingDocs(job, app.user_id)
+      after(() => sendPush([app.user_id], approvedPush(job)))
+    }
   } else {
     await db().from('signed_docs').delete().eq('job_id', app.job_id).eq('user_id', app.user_id).eq('status', 'pending')
   }
@@ -234,6 +250,7 @@ export async function approveAllApplied(jobId: string) {
       .in('id', apps.map((a) => a.id)),
   )
   for (const a of apps) await ensurePendingDocs(job, a.user_id)
+  after(() => sendPush(apps.map((a) => a.user_id), approvedPush(job)))
   revalidatePath(`/admin/jobs/${jobId}`)
 }
 
@@ -409,6 +426,13 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
         : { ot_minutes: afterMin, ot_by: 'admin', ot_status: 'pending' }
   must(await db().from('attendance').update(patch).eq('id', attendanceId))
   await audit(admin.id, `overtime.${decision}`, att.user_id, `${att.work_date} ${afterMin}분`)
+  const msg =
+    decision === 'reject'
+      ? '담당자가 계약 시간 이후 근무를 인정하지 않았어요.'
+      : patch.ot_status === 'agreed'
+        ? '연장 근무가 확정돼 급여에 들어갔어요.'
+        : '담당자가 연장 근무를 인정했어요. 맞으면 앱에서 확인해 주세요.'
+  after(() => sendPush([att.user_id], { title: '⏱ 연장 근무', body: msg, url: '/me', tag: `ot-${attendanceId}` }))
   revalidatePath(`/admin/jobs/${att.job_id}`)
 }
 
