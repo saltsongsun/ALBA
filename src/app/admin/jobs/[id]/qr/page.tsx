@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import QRCode from 'qrcode'
+import AutoRefresh from '@/components/AutoRefresh'
 import { CopyButton, PrintButton } from '@/components/ui'
 import { getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
@@ -36,6 +37,32 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
         (a) => a.admin_memo === EMERGENCY_MEMO && a.decided_at && kstDate(a.decided_at) === today,
       )
     : []
+  // 합류한 사람의 진행 상태: 서명 대기 → 서명 완료 → 근무 중
+  const joinedIds = joined.map((a) => a.user_id)
+  const [pendingDocs, todayAtts] = joinedIds.length
+    ? await Promise.all([
+        db()
+          .from('signed_docs')
+          .select('user_id')
+          .eq('job_id', job.id)
+          .eq('status', 'pending')
+          .in('user_id', joinedIds)
+          .then((r) => must(r) as { user_id: string }[]),
+        db()
+          .from('attendance')
+          .select('user_id, clock_out')
+          .eq('job_id', job.id)
+          .eq('work_date', today)
+          .in('user_id', joinedIds)
+          .then((r) => must(r) as { user_id: string; clock_out: string | null }[]),
+      ])
+    : [[], []]
+  const stateOf = (uid: string) => {
+    const att = todayAtts.find((a) => a.user_id === uid)
+    if (att) return att.clock_out ? { label: '근무 종료', cls: 'bg-gray-100 text-sub' } : { label: '근무 중', cls: 'bg-emerald-50 text-emerald-700' }
+    const n = pendingDocs.filter((d) => d.user_id === uid).length
+    return n ? { label: `서명 대기 ${n}건`, cls: 'bg-amber-50 text-amber-700' } : { label: '출근 전', cls: 'bg-brand-50 text-brand-700' }
+  }
 
   return (
     <div className="space-y-4">
@@ -66,7 +93,11 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
       </div>
       {active && (
         <section className="no-print card mx-auto max-w-md">
-          <h2 className="font-bold">오늘 QR로 합류한 사람 {joined.length}명</h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold">오늘 QR로 합류한 사람 {joined.length}명</h2>
+            {/* QR을 띄워 둔 채로 합류·서명·출근이 바로 보이게 */}
+            <AutoRefresh seconds={10} />
+          </div>
           {joined.length === 0 ? (
             <p className="mt-1 text-sm text-mute">아직 없어요.</p>
           ) : (
@@ -76,7 +107,10 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
                   <Link href={`/admin/workers/${a.user_id}`} className="font-semibold">
                     {a.user?.name ?? '알 수 없음'}
                   </Link>
-                  <span className="text-mute">{kstTime(a.decided_at!)} 합류</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-xs text-mute">{kstTime(a.decided_at!)} 합류</span>
+                    <span className={`badge ${stateOf(a.user_id).cls}`}>{stateOf(a.user_id).label}</span>
+                  </span>
                 </li>
               ))}
             </ul>

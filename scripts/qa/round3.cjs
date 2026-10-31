@@ -117,6 +117,9 @@ const errs = []
   ok('QR로 바로 합류 → 내 근무', await see(ap, /합류했어요/, 15000))
   const app = (await rest(MF, `applications?job_id=eq.${J}&user_id=eq.${AP}`))[0]
   ok('확정 + 긴급 투입 표시', app.status === 'approved' && app.admin_memo === '긴급 투입(QR)')
+  await af.goto(`${F}/admin/jobs/${J}/qr`)
+  ok('QR 화면: 합류자 진행 상태 (서명 대기/출근 전)', await see(af, /서명 대기 \d+건|출근 전/))
+  ok('QR 화면: 10초마다 자동 갱신', await see(af, '10초마다 자동 갱신'))
   await af.goto(`${F}/admin/jobs/${J}?tab=att`)
   ok('출퇴근 탭: 긴급 투입 배지', await see(af, '🚨 긴급 투입'))
   const anonJoin = await pg(F)
