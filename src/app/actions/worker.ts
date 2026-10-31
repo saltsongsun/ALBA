@@ -7,7 +7,7 @@ import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
 import { approvedCounts, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
-import { calcDay, OT_ASK_MIN } from '@/lib/pay'
+import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
 import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
@@ -232,6 +232,67 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
   )
   revalidatePath('/me')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
+}
+
+/**
+ * 지난 근무의 종료를 깜빡했을 때 (다음 날 앱을 열면): 예정 종료 시각이나 직접 고른 시각으로 종료.
+ * 지금 누르면 다음 날 시각이 찍혀 연장 확인이 잘못 뜨므로 끝난 시각을 따로 받음.
+ * 예정 종료 시각 = 관리자 '일괄 종료'와 같은 기준, 그보다 늦은 시각은 기존처럼 서로 확인해야 급여에 들어감
+ */
+export async function closeForgotten(attendanceId: string, _: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  if (!isUuid(attendanceId)) return { error: '잘못된 요청입니다.' }
+  const { data } = await db()
+    .from('attendance')
+    .select('id, user_id, job_id, work_date, clock_in, clock_out, sched_start, sched_end, note, job:jobs(title, start_time, end_time)')
+    .eq('id', attendanceId)
+    .maybeSingle()
+  const att = data as
+    | (Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'work_date' | 'clock_in' | 'clock_out' | 'sched_start' | 'sched_end' | 'note'> & {
+        job: Pick<Job, 'title' | 'start_time' | 'end_time'> | null
+      })
+    | null
+  if (!att || att.user_id !== user.id || !att.job) return { error: '근무 기록을 찾을 수 없습니다.' }
+  if (att.clock_out) return { error: '이미 종료된 근무입니다.' }
+  const now = new Date()
+  const planned = scheduledEnd(shiftOf(att.job, att), att.work_date)
+  if (att.work_date >= kstDate() || now < planned) return { error: '아직 근무 시간이에요. 근무 종료 버튼을 눌러 주세요.' }
+
+  const clockIn = new Date(att.clock_in)
+  let end = planned
+  const custom = form.get('end') === 'custom'
+  if (custom) {
+    const t = str(form, 'end_time', 5)
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(t)) return { error: '끝난 시각을 골라 주세요.' }
+    end = kstAt(att.work_date, t)
+    // 자정을 넘겨 끝난 경우 (예: 22:00 시작 → 02:00 종료)
+    if (end <= clockIn) end = new Date(end.getTime() + 86_400_000)
+    if (end > now) return { error: '아직 오지 않은 시각이에요. 끝난 시각을 다시 골라 주세요.' }
+  }
+  if (end <= clockIn) return { error: `시작(${kstTime(att.clock_in)})보다 앞선 시각이에요. 담당자에게 문의해 주세요.` }
+
+  const memo = `근무자가 나중에 종료 입력 (${custom ? '직접 입력' : '예정 종료 시각'} ${kstTime(end.toISOString())})`
+  const { data: done } = await db()
+    .from('attendance')
+    .update({ clock_out: end.toISOString(), note: (att.note ? `${att.note} · ${memo}` : memo).slice(0, 300) })
+    .eq('id', att.id)
+    .is('clock_out', null)
+    .select('id')
+  if (!(done as { id: string }[] | null)?.length) return { error: '이미 종료된 근무입니다.' }
+  // 담당자가 문의함에서 확인할 수 있게 (안 읽음 표시)
+  await db()
+    .from('messages')
+    .insert({
+      thread_user_id: user.id,
+      sender_id: user.id,
+      from_admin: false,
+      job_id: att.job_id,
+      body: `🕒 근무 종료 늦게 입력\n${att.job.title} · ${fmtDate(att.work_date)} 근무 종료를 누르지 않아 ${kstTime(end.toISOString())} 종료로 입력했어요 (${custom ? '직접 입력' : '예정 종료 시각'}).`,
+    })
+  revalidatePath('/me')
+  revalidatePath('/admin/chat')
+  revalidatePath(`/admin/jobs/${att.job_id}`)
+  back('/me', `${fmtDate(att.work_date)} 근무를 ${kstTime(end.toISOString())} 종료로 기록했어요.`)
 }
 
 // ───────────── 현장 상황 알리기 (지각·위치 확인 실패) ─────────────

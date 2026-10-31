@@ -5,6 +5,7 @@ import {
   changePin,
   clockIn,
   clockOut,
+  closeForgotten,
   notifyLate,
   requestClockIn,
   signDocument,
@@ -303,6 +304,67 @@ export function ClockPanel({
       )}
       {useLocation && geo && !pending && <LocationHelp problem={geo} required={gpsRequired && !open} />}
     </div>
+  )
+}
+
+/**
+ * 지난 근무의 종료를 깜빡했을 때 (다음 날 열면 '근무 중 25시간'으로 보이던 것):
+ * 예정 종료 시각으로 한 번에, 또는 실제로 끝난 시각을 골라 종료
+ */
+export function ForgotClockOut({
+  attendanceId,
+  dateLabel,
+  startText,
+  endText,
+}: {
+  attendanceId: string
+  dateLabel: string
+  startText: string
+  endText: string
+}) {
+  const [state, action] = useActionState(closeForgotten.bind(null, attendanceId), null)
+  const [custom, setCustom] = useState(false)
+  return (
+    <form action={action} className="space-y-3 rounded-xl bg-amber-50 px-4 py-3.5 text-amber-900 ring-1 ring-amber-200">
+      <div>
+        <p className="font-bold">⏰ {dateLabel} 근무 종료를 누르지 않았어요</p>
+        <p className="mt-0.5 text-sm">
+          {startText}에 시작한 근무가 아직 ‘근무 중’이에요. 끝난 시각을 알려 주세요.
+        </p>
+      </div>
+      {!custom ? (
+        <>
+          <input type="hidden" name="end" value="planned" />
+          <SubmitButton className="btn-primary w-full" pendingText="기록 중…">
+            예정 종료 시각 {endText}에 끝났어요
+          </SubmitButton>
+          <button type="button" onClick={() => setCustom(true)} className="btn-gray btn-sm w-full">
+            다른 시각에 끝났어요
+          </button>
+        </>
+      ) : (
+        <>
+          <input type="hidden" name="end" value="custom" />
+          <label className="block">
+            <span className="label text-amber-900">실제로 끝난 시각</span>
+            <input type="time" name="end_time" defaultValue={endText} required className="input bg-white" />
+          </label>
+          <p className="text-xs">
+            예정 종료({endText})보다 늦게까지 일했다면 그 시간은 담당자와 서로 확인한 뒤 급여에 들어가요.
+          </p>
+          <div className="grid grid-cols-[1fr_2fr] gap-2">
+            <button type="button" onClick={() => setCustom(false)} className="btn-gray">
+              취소
+            </button>
+            <SubmitButton className="btn-primary" pendingText="기록 중…">
+              이 시각으로 종료
+            </SubmitButton>
+          </div>
+        </>
+      )}
+      <FormMessage state={state} />
+      <p className="text-xs text-amber-800">입력하면 담당자에게도 알려져요.</p>
+    </form>
   )
 }
 

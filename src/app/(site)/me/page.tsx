@@ -9,7 +9,7 @@ import PhotoPrompt from '@/components/PhotoPrompt'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { ClockPanel, LateNotice } from '@/components/worker'
+import { ClockPanel, ForgotClockOut, LateNotice } from '@/components/worker'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
@@ -375,6 +375,8 @@ export default async function MePage(props: PageProps<'/me'>) {
               const docsLeft = pendingDocs.filter((d) => d.job_id === job.id).length
               const notChosen = a.available_dates && !a.available_dates.includes(today)
               const map = mapLinks({ name: job.location_name, address: job.address, lat: job.lat, lng: job.lng })
+              // 지난 근무를 종료하지 않고 그 근무 시간도 끝났으면: 끝난 시각을 따로 받음 (지금 누르면 다음 날 시각이 찍힘)
+              const forgot = open && open.work_date < today && Date.now() >= scheduledEnd(shiftOf(job, open), open.work_date).getTime() ? open : null
               return (
                 <div key={a.id} className="card space-y-4">
                   <div>
@@ -451,7 +453,14 @@ export default async function MePage(props: PageProps<'/me'>) {
                     {notChosen && <p className="mt-1 text-xs text-amber-600">오늘은 근무 가능일로 고르지 않은 날이에요. 담당자 안내에 따라 주세요.</p>}
                   </div>
                   <ContractNote job={job} received={a.contract_received_at} />
-                  {docsLeft > 0 ? (
+                  {forgot ? (
+                    <ForgotClockOut
+                      attendanceId={forgot.id}
+                      dateLabel={fmtDate(forgot.work_date)}
+                      startText={kstTime(forgot.clock_in)}
+                      endText={hhmm(shiftOf(job, forgot).end_time)}
+                    />
+                  ) : docsLeft > 0 ? (
                     <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
                       위의 서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요.
                     </p>
