@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 
 /** 대화 화면에서 메시지를 읽을 때의 select (공고 제목·보낸 사람 이름 포함) */
@@ -34,7 +35,11 @@ export function ChatMessages({ messages, viewer }: { messages: ChatMessage[]; vi
             {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
             <div className={`flex animate-pop flex-col ${mine ? 'items-end' : 'items-start'}`}>
               {showName && <span className="mb-1 ml-1 text-xs font-semibold text-sub">{m.sender?.name ?? (m.from_admin ? '담당자' : '근무자')}</span>}
-              {m.job && <span className="mb-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-sub ring-1 ring-line">📌 {m.job.title}</span>}
+              {m.job && (
+                <Link href={`/jobs/${m.job.id}`} className="mb-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-semibold text-sub ring-1 ring-line active:bg-bg">
+                  📌 {m.job.title} <span className="text-brand-600">공고 보기 ›</span>
+                </Link>
+              )}
               <div className={`flex items-end gap-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
                 <p
                   className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${

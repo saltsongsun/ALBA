@@ -3,7 +3,9 @@
 import { revalidatePath } from 'next/cache'
 import { audit, getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
-import { requireAdmin, requireUser } from '@/lib/session'
+import { scheduleSummary } from '@/lib/docs'
+import { won } from '@/lib/format'
+import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
 import type { FormState } from './auth'
 
@@ -76,4 +78,30 @@ export async function announceToJob(jobId: string, _: FormState, form: FormData)
   await audit(admin.id, 'job.announce', null, `${jobId} ${target} ${to.length}명`)
   revalidatePath('/admin/chat')
   return { ok: `${to.length}명에게 앱으로 보냈어요` }
+}
+
+/** 예전에 일한 근무자들에게 새 공고 모집을 앱으로 알림 (각자 문의함에 공고 링크와 함께, 이미 지원한 사람은 뺌) */
+export async function inviteToJob(jobId: string, _: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  const ids = [...new Set(form.getAll('uid').map(String).filter(isUuid))].slice(0, 300)
+  if (!ids.length) return { error: '알릴 사람을 골라 주세요.' }
+  const applied = new Set(
+    (must(await db().from('applications').select('user_id').eq('job_id', jobId).in('user_id', ids)) as { user_id: string }[]).map((a) => a.user_id),
+  )
+  const to = ids.filter((id) => !applied.has(id))
+  if (!to.length) return { error: '고른 사람이 모두 이미 지원했어요.' }
+  const pay = job.pay_type === 'daily' ? `일급 ${won(job.daily_wage)}` : `시급 ${won(job.hourly_wage)}`
+  const body = [
+    '📣 새 모집',
+    job.title,
+    `${scheduleSummary(job)}${job.location_name ? ` · ${job.location_name}` : ''}`,
+    pay,
+    `지원하기: ${await siteOrigin()}/jobs/${job.id}`,
+  ].join('\n')
+  must(await db().from('messages').insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: job.id, body }))))
+  await audit(admin.id, 'job.invite', null, `${jobId} ${to.length}명`)
+  revalidatePath('/admin/chat')
+  return { ok: `${to.length}명에게 앱으로 알렸어요${applied.size ? ` (이미 지원한 ${applied.size}명 제외)` : ''}` }
 }

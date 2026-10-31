@@ -4,12 +4,13 @@ import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
+import InvitePast, { type PastWorker } from '@/components/InvitePast'
 import { APP_STATUS } from '@/components/JobCard'
 import { scoresByUser, StarAvg } from '@/components/Stars'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
-import { ageOn, fmtDate, kstDateTime } from '@/lib/time'
+import { ageOn, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
 
@@ -44,8 +45,41 @@ function Decide({ a, wide = false }: { a: AppRow; wide?: boolean }) {
   )
 }
 
-export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] }) {
+/** 예전에 다른 행사에서 일한 근무자 (이 공고에 아직 지원하지 않은 사람, 최근 근무 순 200명까지) */
+async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
+  const rows = must(
+    await db().from('attendance').select('user_id').neq('job_id', job.id).order('work_date', { ascending: false }).limit(3000),
+  ) as { user_id: string }[]
+  const applied = new Set(apps.map((a) => a.user_id))
+  const ids = [...new Set(rows.map((r) => r.user_id))].filter((u) => !applied.has(u)).slice(0, 200)
+  if (!ids.length) return []
+  const [users, rel, ratings] = await Promise.all([
+    db()
+      .from('users')
+      .select('id, name, phone, photo_at, active, role')
+      .in('id', ids)
+      .then((r) => must(r) as { id: string; name: string; phone: string; photo_at: string | null; active: boolean; role: string }[]),
+    reliabilityFor(ids),
+    db()
+      .from('worker_ratings')
+      .select('user_id, score')
+      .in('user_id', ids)
+      .then((r) => must(r) as { user_id: string; score: number }[]),
+  ])
+  const scores = scoresByUser(ratings)
+  return users
+    .filter((u) => u.active && u.role === 'worker')
+    .map((u) => {
+      const s = scores[u.id]
+      return { id: u.id, name: u.name, phone: u.phone, photo_at: u.photo_at, ...rel[u.id], avg: s?.length ? s.reduce((a, b) => a + b, 0) / s.length : null }
+    })
+    .sort((a, b) => a.noShow - b.noShow || (b.avg ?? 0) - (a.avg ?? 0) || b.days - a.days)
+}
+
+export default async function AppsTab({ job, apps, origin }: { job: Job; apps: AppRow[]; origin: string }) {
   const ids = apps.map((a) => a.user_id)
+  // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
+  const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
   // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
   const [rel, ratings] = ids.length
     ? await Promise.all([
@@ -134,6 +168,7 @@ export default async function AppsTab({ job, apps }: { job: Job; apps: AppRow[] 
           </form>
         </div>
       </div>
+      {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} link={`${origin}/jobs/${job.id}`} workers={past} />}
       {apps.length === 0 ? (
         <div className="card py-10 text-center text-mute">
           아직 지원자가 없습니다. 위의 모집 문구를 단톡방에 공유해 보세요.
