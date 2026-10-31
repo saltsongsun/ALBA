@@ -77,6 +77,19 @@ export default async function AttTab({
     if (kind === 'arrive' && !arriveOf.has(m.thread_user_id)) arriveOf.set(m.thread_user_id, { at: kstTime(m.created_at), distance: parseArriveDistance(m.body) })
   }
   const dayAtts = atts.filter((a) => a.work_date === date)
+  // 이날 지금 적용 중인 시간 (이날 동의받은 변경 → 출근 기록에 적용된 시간 → 공고 시간). 연장을 또 할 때 이 시각부터 더함
+  const dayShift = (() => {
+    const agreed = changes.find((c) => c.work_date === date && c.status === 'agreed')
+    if (agreed) return { start: agreed.start_time, end: agreed.end_time }
+    const tally = new Map<string, number>()
+    for (const a of dayAtts) if (a.sched_start && a.sched_end) tally.set(`${a.sched_start}|${a.sched_end}`, (tally.get(`${a.sched_start}|${a.sched_end}`) ?? 0) + 1)
+    const top = [...tally.entries()].sort((x, y) => y[1] - x[1])[0]?.[0]
+    if (top) {
+      const [start, end] = top.split('|')
+      return { start, end }
+    }
+    return { start: job.start_time, end: job.end_time }
+  })()
   const byUser = new Map(dayAtts.map((a) => [a.user_id, a]))
   const roster = [
     ...apps.filter((a) => !a.available_dates || a.available_dates.includes(date) || byUser.has(a.user_id)).map((a) => a.user_id),
@@ -126,8 +139,8 @@ export default async function AttTab({
           date={date}
           dateLabel={fmtDate(date)}
           canDay={date >= today}
-          start={job.start_time}
-          end={job.end_time}
+          start={dayShift.start}
+          end={dayShift.end}
           workers={apps
             .filter((a) => !a.available_dates || a.available_dates.includes(date))
             .map((a) => ({ id: a.user_id, name: a.user.name }))}

@@ -79,7 +79,7 @@ export default function ShiftChange({
         </div>
         {/* 퇴근 연장을 한 번에 */}
         <div className="flex flex-wrap gap-1.5">
-          <span className="self-center text-xs font-semibold text-mute">종료 {end.slice(0, 5)}에서</span>
+          <span className="self-center text-xs font-semibold text-mute">지금 종료 {end.slice(0, 5)}에서</span>
           {[30, 60, 90, 120].map((m) => (
             <button key={m} type="button" onClick={() => extend(m)} className="chip h-8 px-3 text-xs">
               +{m >= 60 ? `${m / 60}시간` : `${m}분`}
