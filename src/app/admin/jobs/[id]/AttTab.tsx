@@ -16,10 +16,12 @@ import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from 
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 import { EMERGENCY_MEMO } from '@/lib/emergency'
+import { staffByDay } from '@/lib/staffing'
 
 export default async function AttTab({
   job,
   apps,
+  waiting = [],
   atts,
   users,
   date,
@@ -31,6 +33,8 @@ export default async function AttTab({
 }: {
   job: Job
   apps: AppRow[]
+  /** 확정 대기 중인 지원자 (이날 모자란 인원을 채울 사람) */
+  waiting?: AppRow[]
   atts: Attendance[]
   users: Map<string, WorkerLite>
   date: string
@@ -120,6 +124,10 @@ export default async function AttTab({
   const absent = roster.filter((u) => !byUser.has(u))
   const nudgeable = absent.filter((u) => !lateOf.has(u) && !arriveOf.has(u)).length
   const today = kstDate()
+  // 날짜별 확정 인원 → 모집 인원보다 모자란 날 (지난 날은 빼고)
+  const byDay = staffByDay(dates, apps)
+  const shortOn = (d: string) => d >= today && byDay[d] < job.headcount
+  const waitToday = waiting.filter((a) => !a.available_dates || a.available_dates.includes(date)).length
   const working = dayAtts.filter((a) => !a.clock_out).length
   const done = dayAtts.filter((a) => a.clock_out).length
   // 배치: 같은 배치끼리 모아 보여 주고, 배치별로 거를 수 있게 (미배치는 맨 뒤)
@@ -148,6 +156,7 @@ export default async function AttTab({
             >
               {fmtDate(d)}
               {n > 0 && <span className={`rounded-full px-1.5 text-xs ${d === date ? 'bg-white/20' : 'bg-bg'}`}>{n}</span>}
+              {shortOn(d) && <span className="size-1.5 rounded-full bg-rose-500" aria-label="인원 부족" />}
             </Link>
           )
         })}
@@ -167,6 +176,19 @@ export default async function AttTab({
             .map((a) => ({ id: a.user_id, name: a.user.name }))}
           open={openShift}
         />
+      )}
+
+      {/* 이날 확정 인원이 모집 인원보다 적으면: 이날 가능한 대기자로 바로 채우기 */}
+      {shortOn(date) && !['done', 'cancelled', 'draft'].includes(job.status) && (
+        <Link
+          href={`/admin/jobs/${job.id}?tab=apps${dates.length > 1 ? `&day=${date}` : ''}`}
+          className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200 transition active:scale-[0.99]"
+        >
+          <span>
+            ⚠️ {fmtDate(date)} 확정 <b>{byDay[date]}</b>/{job.headcount}명 · <b>{job.headcount - byDay[date]}명 부족</b>
+          </span>
+          <span className="shrink-0 font-semibold">{waitToday > 0 ? `이날 가능한 대기자 ${waitToday}명 →` : '지원자 보기 →'}</span>
+        </Link>
       )}
 
       {/* 이날 현황: 근무 중 · 종료 · 미출근 */}

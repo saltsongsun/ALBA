@@ -283,8 +283,10 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         ))}
       </div>
 
-      {tab === 'apps' && <AppsTab job={job} apps={apps} origin={origin} sort={typeof sp.sort === 'string' ? sp.sort : 'time'} />}
-      {tab === 'att' && <AttTab job={job} apps={approved} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} />}
+      {tab === 'apps' && (
+        <AppsTab job={job} apps={apps} origin={origin} sort={typeof sp.sort === 'string' ? sp.sort : 'time'} day={typeof sp.day === 'string' && isDate(sp.day) ? sp.day : null} />
+      )}
+      {tab === 'att' && <AttTab job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
     </div>

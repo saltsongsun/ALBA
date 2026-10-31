@@ -11,14 +11,15 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
-import { ageOn, fmtDate, kstDate, kstDateTime } from '@/lib/time'
+import { staffByDay, fullDays } from '@/lib/staffing'
+import { ageOn, dateList, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
 import { careerText } from '@/lib/careers'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
 /** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
-function Decide({ a, wide = false, full = false }: { a: AppRow; wide?: boolean; full?: boolean }) {
+function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어요 · 확정?' }: { a: AppRow; wide?: boolean; full?: boolean; fullText?: string }) {
   const btn = (primary: boolean) => `${primary ? 'btn-primary' : 'btn-gray'} ${wide ? 'w-full' : 'btn-sm'}`
   const form = wide ? 'flex-1' : ''
   return (
@@ -26,7 +27,7 @@ function Decide({ a, wide = false, full = false }: { a: AppRow; wide?: boolean; 
       {a.status !== 'approved' && a.status !== 'cancelled' && (
         <form action={decideApplication.bind(null, a.id, 'approved')} className={form}>
           {full ? (
-            <ConfirmSubmit className={btn(true)} confirmText="인원 다 찼어요 · 확정?">
+            <ConfirmSubmit className={btn(true)} confirmText={fullText}>
               확정
             </ConfirmSubmit>
           ) : (
@@ -92,7 +93,20 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
     .sort((a, b) => a.noShow + a.dismissed - (b.noShow + b.dismissed) || (b.avg ?? 0) - (a.avg ?? 0) || b.days - a.days)
 }
 
-export default async function AppsTab({ job, apps, origin, sort = 'time' }: { job: Job; apps: AppRow[]; origin: string; sort?: string }) {
+export default async function AppsTab({
+  job,
+  apps,
+  origin,
+  sort = 'time',
+  day = null,
+}: {
+  job: Job
+  apps: AppRow[]
+  origin: string
+  sort?: string
+  /** 여러 날 행사: 이날 근무 가능한 사람만 보기 */
+  day?: string | null
+}) {
   const ids = apps.map((a) => a.user_id)
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
   const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
@@ -158,6 +172,20 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
   }
   const waiting = apps.filter((a) => a.status === 'applied').length
   const approved = apps.filter((a) => a.status === 'approved')
+  // 날짜별 확정 인원 (여러 날 행사는 사람마다 가능한 날이 달라서 날마다 셈)
+  const dates = dateList(job.start_date, job.end_date)
+  const multi = dates.length > 1
+  const byDay = staffByDay(dates, approved)
+  const waitByDay = staffByDay(dates, apps.filter((a) => a.status === 'applied'))
+  const fullOf = (a: AppRow) => {
+    const over = fullDays(a, dates, byDay, job.headcount)
+    return {
+      full: over.length > 0,
+      text: !multi ? '인원 다 찼어요 · 확정?' : over.length === dates.length || over.length > 2 ? '모든 날 인원 다 참 · 확정?' : `${over.map(fmtDate).join('·')} 다 참 · 확정?`,
+    }
+  }
+  const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
+  const shownDay = day && dates.includes(day) ? day : null
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   // 정렬: 지원순(기본) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
   const avg = (uid: string) => {
@@ -174,7 +202,9 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
     },
   }
   const cmp = by[sort] ?? by.time
-  const sorted = [...apps].sort((a, b) => order[a.status] - order[b.status] || cmp(a, b))
+  const sorted = [...apps]
+    .filter((a) => !shownDay || !a.available_dates || a.available_dates.includes(shownDay))
+    .sort((a, b) => order[a.status] - order[b.status] || cmp(a, b))
 
   // 휴대폰: 대기는 펼쳐 두고, 확정은 대기가 있으면 접어 둠, 미선발·취소는 접어 둠 (카드가 길어서)
   const mobileCard = (a: AppRow) => {
@@ -209,7 +239,7 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
         </div>
         <ContactButtons phone={a.user.phone} name={a.user.name} />
         {a.status === 'approved' && <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />}
-        <Decide a={a} wide full={approved.length >= job.headcount} />
+        <Decide a={a} wide full={fullOf(a).full} fullText={fullOf(a).text} />
       </div>
     )
   }
@@ -236,8 +266,11 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
           {waiting > 0 && (
             <form action={approveAllApplied.bind(null, job.id)}>
               {/* 모집 인원을 넘기게 되면 한 번 더 확인 */}
-              {approved.length + waiting > job.headcount ? (
-                <ConfirmSubmit className="btn-primary btn-sm" confirmText={`모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`}>
+              {allOver ? (
+                <ConfirmSubmit
+                  className="btn-primary btn-sm"
+                  confirmText={multi ? `모집 ${job.headcount}명을 넘는 날이 있어요 · 확정?` : `모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`}
+                >
                   대기 {waiting}명 모두 확정
                 </ConfirmSubmit>
               ) : (
@@ -251,6 +284,43 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
           </form>
         </div>
       </div>
+      {/* 여러 날 행사: 날짜별 확정 인원 (모자란 날은 빨갛게) · 누르면 그날 가능한 사람만 */}
+      {multi && (
+        <div className="space-y-2">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {dates.map((d) => {
+              const short = d >= today && byDay[d] < job.headcount
+              const on = shownDay === d
+              return (
+                <Link
+                  key={d}
+                  href={`/admin/jobs/${job.id}?tab=apps${sort === 'time' ? '' : `&sort=${sort}`}${on ? '' : `&day=${d}`}`}
+                  scroll={false}
+                  className={`flex shrink-0 flex-col items-center rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 transition active:scale-95 ${
+                    on ? 'bg-ink text-white ring-ink' : short ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-white text-sub ring-line'
+                  }`}
+                >
+                  <span>{fmtDate(d)}</span>
+                  <span className="tabular-nums">
+                    확정 {byDay[d]}/{job.headcount}
+                    {short && !on && ` · ${job.headcount - byDay[d]} 부족`}
+                  </span>
+                </Link>
+              )
+            })}
+          </div>
+          {shownDay && (
+            <p className="flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">
+              <span>
+                <b>{fmtDate(shownDay)}</b>에 근무할 수 있는 사람만 보는 중 · 대기 {waitByDay[shownDay]}명
+              </span>
+              <Link href={`/admin/jobs/${job.id}?tab=apps`} scroll={false} className="shrink-0 font-semibold underline">
+                전체 보기
+              </Link>
+            </p>
+          )}
+        </div>
+      )}
       {apps.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {(
@@ -263,7 +333,7 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
           ).map(([k, label]) => (
             <Link
               key={k}
-              href={`/admin/jobs/${job.id}?tab=apps${k === 'time' ? '' : `&sort=${k}`}`}
+              href={`/admin/jobs/${job.id}?tab=apps${k === 'time' ? '' : `&sort=${k}`}${shownDay ? `&day=${shownDay}` : ''}`}
               scroll={false}
               className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${
                 sort === k ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
@@ -362,7 +432,7 @@ export default async function AppsTab({ job, apps, origin, sort = 'time' }: { jo
                         <span className={`badge ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
                       </td>
                       <td className="whitespace-nowrap">
-                        <Decide a={a} full={approved.length >= job.headcount} />
+                        <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />
                       </td>
                     </tr>
                   )
