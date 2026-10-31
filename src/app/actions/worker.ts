@@ -15,7 +15,7 @@ import { note, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
 import { fixTime, SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
-import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
 import type { FormState } from './auth'
@@ -133,6 +133,91 @@ export async function cancelApplication(appId: string, form?: FormData) {
   }
   revalidatePath('/me')
   back(`/jobs/${app.job_id}`, '지원을 취소했어요.')
+}
+
+/**
+ * 여러 날 행사: 근무 가능한 날 바꾸기.
+ * 지원 중이면 자유롭게, 확정된 뒤에는 못 오는 날을 빼기만 (담당자에게 바로 알림 → 그날 빈자리를 채울 수 있게).
+ * 지난 날은 그대로 둠
+ */
+export async function changeDates(appId: string, form: FormData) {
+  const user = await requireUser()
+  const { data } = isUuid(appId)
+    ? await db()
+        .from('applications')
+        .select('id, user_id, job_id, status, available_dates, job:jobs(title, start_date, end_date, start_time)')
+        .eq('id', appId)
+        .maybeSingle()
+    : { data: null }
+  const app = data as
+    | (Pick<Application, 'id' | 'user_id' | 'job_id' | 'status' | 'available_dates'> & {
+        job: Pick<Job, 'title' | 'start_date' | 'end_date' | 'start_time'> | null
+      })
+    | null
+  if (!app || app.user_id !== user.id || !app.job) back('/me', '지원 내역을 찾을 수 없습니다.')
+  const path = `/jobs/${app.job_id}`
+  const job = app.job
+  const today = kstDate()
+  const all = dateList(job.start_date, job.end_date)
+  if (all.length < 2 || job.end_date < today) back(path, '바꿀 수 있는 날이 없어요.')
+  if (app.status !== 'applied' && app.status !== 'approved') back(path, '지원 중이거나 확정된 근무만 바꿀 수 있어요.')
+  const approved = app.status === 'approved'
+  const before = app.available_dates ?? all
+  const picked = new Set(form.getAll('dates').map(String))
+  const next = all.filter((d) => (d < today ? before.includes(d) : picked.has(d)))
+  const added = next.filter((d) => !before.includes(d))
+  const removed = before.filter((d) => d >= today && all.includes(d) && !next.includes(d))
+  if (!next.some((d) => d >= today)) {
+    back(path, approved ? '남은 날을 모두 빼려면 아래 ‘근무를 못 하게 됐어요’로 취소해 주세요.' : '근무 가능한 날을 하나 이상 골라 주세요.')
+  }
+  if (approved && added.length) back(path, '확정된 뒤에는 날을 더할 수 없어요. 담당자에게 문의해 주세요.')
+  if (!added.length && !removed.length) back(path, '바뀐 날이 없어요.')
+  if (approved) {
+    const { count } = await db()
+      .from('attendance')
+      .select('id', { count: 'exact', head: true })
+      .eq('job_id', app.job_id)
+      .eq('user_id', user.id)
+      .in('work_date', removed)
+    if (count) back(path, '이미 출근 기록이 있는 날은 뺄 수 없어요.')
+  }
+  const { data: done } = await db()
+    .from('applications')
+    .update({ available_dates: next.length === all.length ? null : next })
+    .eq('id', app.id)
+    .eq('status', app.status)
+    .select('id')
+  if (!(done as { id: string }[] | null)?.length) back(path, '지원 상태가 바뀌었어요. 화면을 새로 고쳐 주세요.')
+
+  if (approved) {
+    // 확정 근무에서 날을 뺐으면 담당자 문의함 + 휴대폰 알림 (그날 사람을 다시 구할 시간을 벌게)
+    const reason = str(form, 'reason', 100)
+    const hoursLeft = (kstAt(removed[0], job.start_time).getTime() - Date.now()) / 3_600_000
+    const soon = hoursLeft < 24
+    const days = removed.map(fmtDate).join(', ')
+    const body = [
+      `⚠️ 근무일 취소${soon ? ' (근무 24시간 안)' : ''}`,
+      `${job.title} · ${days} 근무를 못 하게 됐어요. (남은 근무일: ${next.filter((d) => d >= today).map(fmtDate).join(', ')})`,
+      reason && `사유: ${reason}`,
+    ]
+      .filter(Boolean)
+      .join('\n')
+    await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: app.job_id, body })
+    const jobId = app.job_id
+    after(async () =>
+      sendPush(await adminIds(), {
+        title: `⚠️ 근무일 취소${soon ? ' (24시간 안)' : ''}`,
+        body: `${user.name} · ${job.title} · ${days}${reason ? ` · ${reason}` : ''}`,
+        url: `/admin/jobs/${jobId}?tab=att&date=${removed[0]}`,
+        tag: `days-${jobId}-${user.id}`,
+      }),
+    )
+    revalidatePath('/admin/chat')
+    revalidatePath(`/admin/jobs/${jobId}`)
+  }
+  revalidatePath('/me')
+  revalidatePath(path)
+  back(path, approved ? `${removed.map(fmtDate).join(', ')} 근무를 뺐어요. 담당자에게 알렸어요.` : '근무 가능한 날을 바꿨어요.')
 }
 
 // ───────────── 출퇴근 ─────────────

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { applyJob, cancelApplication } from '@/app/actions/worker'
+import { applyJob, cancelApplication, changeDates } from '@/app/actions/worker'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import MessageChips from '@/components/MessageChips'
@@ -306,6 +306,39 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 </form>
               )}
             </div>
+            {/* 여러 날 행사: 근무 가능한 날 바꾸기 (확정 뒤에는 빼기만, 담당자에게 알림) */}
+            {(app.status === 'applied' || app.status === 'approved') && dates.length > 1 && !ended && (
+              <details className="text-sm">
+                <summary className="cursor-pointer py-1 font-semibold text-sub">
+                  📅 {app.status === 'approved' ? '이날은 못 가요 · 근무일 빼기' : '근무 가능한 날 바꾸기'}
+                </summary>
+                <form action={changeDates.bind(null, app.id)} className="mt-2 space-y-3 rounded-xl bg-bg p-3">
+                  <p className="text-sub">
+                    {app.status === 'approved'
+                      ? '못 오는 날의 체크를 풀고 저장하면 담당자에게 바로 알림이 가요. 확정된 뒤에는 날을 더할 수 없어요.'
+                      : '확정되기 전에는 자유롭게 바꿀 수 있어요.'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {dates.map((d) => {
+                      const mine = (app.available_dates ?? dates).includes(d)
+                      const locked = d < kstDate() || (app.status === 'approved' && !mine)
+                      return (
+                        <label key={d} className={locked ? 'opacity-40' : 'cursor-pointer'}>
+                          <input type="checkbox" name="dates" value={d} defaultChecked={mine} disabled={locked} className="peer sr-only" />
+                          <span className="inline-block rounded-xl border border-line bg-white px-3 py-2 text-sm font-semibold text-mute transition duration-150 select-none active:scale-95 peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">
+                            {fmtDate(d)}
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                  {app.status === 'approved' && <input name="reason" maxLength={100} className="input bg-white text-sm" placeholder="사유 (선택) 예: 둘째 날 학교 일정" />}
+                  <SubmitButton className="btn-primary w-full" pendingText="저장 중…">
+                    바꾼 날로 저장
+                  </SubmitButton>
+                </form>
+              </details>
+            )}
             {/* 확정된 근무 취소: 담당자에게 바로 알림이 가고, 사유를 고를 수 있음 */}
             {app.status === 'approved' && !ended && (
               <details className="text-sm">
