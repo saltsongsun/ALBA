@@ -6,14 +6,16 @@ import Flash from '@/components/Flash'
 import { ShowMore } from '@/components/Fold'
 import { InstallBanner } from '@/components/InstallGuide'
 import { APP_STATUS } from '@/components/JobCard'
+import { SubmitButton } from '@/components/ui'
 import { ClockPanel } from '@/components/worker'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
 import { won } from '@/lib/format'
-import { calcDay, settle } from '@/lib/pay'
+import { answerOvertime } from '@/app/actions/worker'
+import { calcDay, OT_ASK_MIN, scheduledEnd, settle } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
-import { fmtDate, fmtDateRange, kstDate, kstTime, minutesText } from '@/lib/time'
+import { fmtDate, fmtDateRange, hhmm, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
 
 export const metadata: Metadata = { title: '내 근무' }
@@ -63,6 +65,17 @@ export default async function MePage(props: PageProps<'/me'>) {
   const waiting = apps.filter((a) => a.status === 'applied' && a.job.end_date >= today)
   const pendingDocs = docs.filter((d) => d.status === 'pending')
   const jobsById = new Map(apps.map((a) => [a.job_id, a.job]))
+  const weekAgo = kstDate(new Date(Date.now() - 7 * 86_400_000).toISOString())
+  const otItems = atts
+    .filter((a) => a.clock_out && !a.paid)
+    .map((a) => {
+      const job = jobsById.get(a.job_id)
+      if (!job) return null
+      const d = calcDay(job, a)
+      const recentReject = a.ot_status === 'rejected' && a.ot_by === 'admin' && a.work_date >= weekAgo
+      return d.afterMin >= OT_ASK_MIN && (d.otOpen || recentReject) ? { a, job, afterMin: d.afterMin } : null
+    })
+    .filter((x) => x !== null)
 
   // 근무 내역: 공고별 정산
   const history = [...new Set(atts.map((a) => a.job_id))]
@@ -88,6 +101,64 @@ export default async function MePage(props: PageProps<'/me'>) {
           내 정보
         </Link>
       </div>
+
+      {/* 계약 종료 시각 이후로 기록된 근무: 서로 확인해야 급여에 들어감 */}
+      {otItems.length > 0 && (
+        <section className="card animate-pop space-y-3 border-2 border-amber-200 bg-amber-50/50">
+          <div>
+            <h2 className="font-bold">⏱ 계약 시간 이후 근무 확인</h2>
+            <p className="text-sm text-sub">계약 종료 시각 이후 시간은 담당자와 서로 확인한 뒤에만 급여에 들어가요.</p>
+          </div>
+          {otItems.map(({ a, job, afterMin }) => (
+            <div key={a.id} className="space-y-2 rounded-xl bg-white p-3.5 text-sm">
+              <p className="font-semibold">
+                {fmtDate(a.work_date)} · {job.title}
+              </p>
+              <p className="text-sub">
+                계약 종료 {hhmm(job.end_time)} 이후 <b className="text-ink">{minutesText(afterMin)}</b>이 더 기록됐어요. 지금은 {hhmm(job.end_time)}까지만
+                계산돼 있어요.
+              </p>
+              {!a.ot_status ? (
+                <div className="flex flex-wrap gap-2">
+                  <form action={answerOvertime.bind(null, a.id, 'request')}>
+                    <SubmitButton className="btn-primary btn-sm" pendingText="보내는 중…">
+                      연장 근무했어요 · 확인 요청
+                    </SubmitButton>
+                  </form>
+                  <form action={answerOvertime.bind(null, a.id, 'decline')}>
+                    <SubmitButton className="btn-gray btn-sm" pendingText="처리 중…">
+                      아니요, {hhmm(job.end_time)}에 끝났어요
+                    </SubmitButton>
+                  </form>
+                </div>
+              ) : a.ot_status === 'pending' && a.ot_by === 'worker' ? (
+                <p className="font-semibold text-amber-700">연장 {minutesText(a.ot_minutes)} 확인 요청함 · 담당자 확인을 기다리는 중</p>
+              ) : a.ot_status === 'pending' && a.ot_by === 'admin' ? (
+                <div className="space-y-2">
+                  <p className="font-semibold text-brand-700">담당자가 연장 {minutesText(Math.min(a.ot_minutes, afterMin))}을 인정했어요. 맞으면 확인을 눌러 주세요.</p>
+                  <div className="flex flex-wrap gap-2">
+                    <form action={answerOvertime.bind(null, a.id, 'accept')}>
+                      <SubmitButton className="btn-primary btn-sm" pendingText="확인 중…">
+                        맞아요, 확인
+                      </SubmitButton>
+                    </form>
+                    <Link href="/me/chat" className="btn-gray btn-sm">
+                      다르면 문의하기
+                    </Link>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-rose-600">
+                  담당자가 연장을 인정하지 않았어요.{' '}
+                  <Link href="/me/chat" className="font-semibold underline">
+                    문의하기
+                  </Link>
+                </p>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
 
       {pendingDocs.length > 0 && (
         <section className="card animate-pop border-2 border-amber-200 bg-amber-50/50">
@@ -192,6 +263,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <ClockPanel
                       jobId={job.id}
                       open={{ id: open.id, clock_in: open.clock_in, startText: kstTime(open.clock_in) }}
+                      endAt={scheduledEnd(job, open.work_date).toISOString()}
+                      endText={hhmm(job.end_time)}
                       useLocation={job.lat != null}
                       gpsRequired={job.gps_required}
                     />

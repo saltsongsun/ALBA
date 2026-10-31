@@ -89,12 +89,17 @@ export function ClockPanel({
   open,
   useLocation,
   gpsRequired = false,
+  endAt,
+  endText,
 }: {
   jobId: string
   open: { id: string; clock_in: string; startText: string } | null
   useLocation: boolean
   /** 현장 반경 안에서만 근무 시작 가능 */
   gpsRequired?: boolean
+  /** 계약 종료 시각 (지나면 근무 종료를 누르라고 안내) */
+  endAt?: string
+  endText?: string
 }) {
   const [pending, start] = useTransition()
   const [result, setResult] = useState<ClockResult | null>(null)
@@ -192,6 +197,11 @@ export function ClockPanel({
           </span>
           <span className="text-sm font-bold">{elapsedText(open.clock_in, now)}</span>
         </div>
+      )}
+      {open && endAt && now >= Date.parse(endAt) && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          계약 종료 시각({endText})이 지났어요. 일이 끝났으면 근무 종료를 눌러 주세요. 이후 시간은 담당자와 서로 확인한 뒤에만 급여에 들어가요.
+        </p>
       )}
       <button
         type="button"

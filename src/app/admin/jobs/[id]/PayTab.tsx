@@ -30,6 +30,8 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
   const unconfirmed = rows.reduce((t, r) => t + r.unconfirmed, 0)
   // 계좌가 없으면 입금을 못 하므로 정산 전에 한 번에 요청
   const noAccount = rows.filter((r) => !r.user?.bank_account_enc)
+  // 계약 종료 시각 이후 기록이 있는데 아직 서로 확인이 안 끝난 근무 (금액에서 빠져 있음)
+  const otWaiting = atts.filter((a) => a.clock_out && calcDay(job, a).otOpen).length
 
   return (
     <div className="space-y-4">
@@ -62,8 +64,9 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
           />
         </div>
       )}
-      {(incomplete > 0 || unconfirmed > 0) && (
+      {(incomplete > 0 || unconfirmed > 0 || otWaiting > 0) && (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {otWaiting > 0 && `계약 종료 시각 이후 근무 ${otWaiting}건은 아직 서로 확인되지 않아 종료 시각까지만 계산돼 있습니다. `}
           {incomplete > 0 && `퇴근 기록이 없는 근무 ${incomplete}건은 금액에서 빠져 있습니다. `}
           {unconfirmed > 0 && `아직 확정하지 않은 근무 ${unconfirmed}건이 있습니다. 출퇴근 탭에서 확인해 주세요.`}
         </p>

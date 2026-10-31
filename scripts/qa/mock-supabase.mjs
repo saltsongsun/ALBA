@@ -68,7 +68,7 @@ const tables = {
     id: ATT, job_id: JOB, user_id: WORKER, work_date: today, clock_in: new Date().toISOString(), clock_out: null,
     in_lat: null, in_lng: null, out_lat: null, out_lng: null, in_distance_m: null, out_distance_m: null, adj_in: null,
     adj_out: null, break_override: null, extra_pay: 0, deduction: 0, note: null, source: 'app', confirmed: false,
-    paid: false, paid_at: null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
+    paid: false, paid_at: null, ot_minutes: 0, ot_status: null, ot_by: null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
     job: jobLite, user: { ...workerLite, rrn_enc: null, is_foreigner: false },
   }],
   signed_docs: [
@@ -169,6 +169,10 @@ const server = http.createServer(async (req, res) => {
       for (const list of Object.values(tables))
         for (const row of list)
           for (const v of [row.user, row.worker]) if (v && rows.some((r) => r.id === v.id)) Object.assign(v, patch)
+    // 공고를 바꾸면 다른 표에 함께 담긴 공고(job)에도 반영
+    if (table === 'jobs')
+      for (const list of Object.values(tables))
+        for (const row of list) if (row.job && rows.some((r) => r.id === row.job.id)) Object.assign(row.job, patch)
     return send(200, rows)
   }
   if (req.method === 'POST') {
