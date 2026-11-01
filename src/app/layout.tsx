@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Suspense } from 'react'
+import { ErrorToast } from '@/components/ErrorCopy'
 import InstallGuide from '@/components/InstallGuide'
 import NavProgress from '@/components/NavProgress'
 // Pretendard 가변 폰트를 앱에 포함 (외부 CDN 없이, 화면에 쓰인 글자 묶음만 내려받음)
@@ -39,6 +40,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </Suspense>
         {children}
         <InstallGuide />
+        {/* 뒤에서 난 오류도 바로 복사해 보낼 수 있게 */}
+        <ErrorToast />
       </body>
     </html>
   )

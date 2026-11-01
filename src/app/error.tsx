@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect } from 'react'
+import { errorReport, ErrorCopyButton } from '@/components/ErrorCopy'
 import Logo from '@/components/Logo'
 import { APP_NAME } from '@/lib/brand'
 
@@ -26,6 +27,10 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         <Link href="/" className="btn-gray flex-1">
           {APP_NAME} 처음으로
         </Link>
+      </div>
+      {/* 오류 내용을 한 번에 복사 → 담당자에게 붙여 넣으면 오류 번호로 서버 기록을 바로 찾을 수 있음 */}
+      <div className="mt-3 w-full">
+        <ErrorCopyButton report={errorReport({ message: error.message, digest: error.digest, stack: error.stack, kind: offline ? '인터넷 끊김' : '화면 오류' })} />
       </div>
     </main>
   )
