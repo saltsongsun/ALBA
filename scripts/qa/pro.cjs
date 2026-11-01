@@ -69,7 +69,8 @@ const errs = []
   ok('전문가가 알바 공고 열면 안내', await see(ex, '아르바이트 회원만 지원할 수 있는 공고예요'))
   await ex.goto(`${D}/jobs/${JX}`)
   await ex.getByRole('button', { name: /의뢰 지원하기/ }).click()
-  ok('전문가: 의뢰 지원', await see(ex, '지원이 접수됐어요', 10000))
+  await ex.getByRole('button', { name: '한 번 더 누르면 의뢰에 지원돼요' }).click()
+  ok('전문가: 의뢰 지원 (두 번 눌러서)', await see(ex, '지원이 접수됐어요', 10000))
   const exApp = (await rest('applications')).find((a) => a.user_id === EX && a.job_id === JX)
   ok('지원 행 생김', !!exApp)
 

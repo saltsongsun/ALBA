@@ -22,8 +22,9 @@ const nums = (s) => (s.match(/[\d,]+원/g) ?? []).map((x) => Number(x.replace(/[
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
-  await p.goto(`${F}/jobs/${J}`)
+  await p.goto(`${F}/jobs/${J}?joined=1`)
   await p.waitForLoadState('networkidle')
+  ok('공고 링크로 가입 직후: 가입 완료 · 아직 지원 전 안내', (await see(p, '가입이 끝났어요')) && (await see(p, '지원하지 않았어요.')))
   const box = (d) => p.locator(`input[name=dates][value="${d}"]`)
   ok('지난 날은 못 고름', (await box(day(-1)).isDisabled()) && !(await box(day(-1)).isChecked()))
   ok('남은 날은 처음부터 골라져 있음', (await box(day(0)).isChecked()) && (await box(day(2)).isChecked()))
@@ -37,7 +38,12 @@ const nums = (s) => (s.match(/[\d,]+원/g) ?? []).map((x) => Number(x.replace(/[
   s = await summary()
   ok('하나 고르면 1일', s.includes('1일 선택') && nums(s)[0] === per, s)
   ok('모두 선택 버튼으로 바뀜', await p.getByRole('button', { name: '모두 선택' }).isVisible())
+  // 실수 지원 막기: 첫 번째 누름은 확인 문구만, 한 번 더 눌러야 지원
   await p.getByRole('button', { name: /으로 지원하기/ }).click()
+  ok('첫 번째 누름: 한 번 더 누르라는 안내', await see(p, '한 번 더 누르면 지원돼요'))
+  await p.waitForTimeout(800)
+  ok('첫 번째 누름만으로는 지원 안 됨', (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`)).length === 0)
+  await p.getByRole('button', { name: '한 번 더 누르면 지원돼요' }).click()
   ok('지원 완료', await see(p, '지원이 접수됐어요', 15000))
   const app = (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`))[0]
   ok('고른 날로 지원', JSON.stringify(app?.available_dates) === JSON.stringify([day(0)]), JSON.stringify(app?.available_dates))

@@ -139,7 +139,9 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   // 전문가: 회사가 이 휴대폰 번호로 외주사를 등록해 뒀으면 이어서 견적 요청을 앱으로 받게
   if (memberType === 'expert') await linkVendorAccount(data.id, null, phone)
   await createSession(data.id, data.session_version)
-  redirect(safeNext(str(form, 'next'), memberType === 'expert' ? '/pro' : '/me'))
+  // 공고 링크로 가입했으면 그 공고로 돌아가되 '가입 완료 · 아직 지원 전' 안내를 띄움 (지원 버튼을 가입 단계로 착각하지 않게)
+  const dest = safeNext(str(form, 'next'), memberType === 'expert' ? '/pro' : '/me')
+  redirect(/^\/jobs\/[^/?#]+$/.test(dest.split('#')[0].split('?')[0]) ? `${dest.split('#')[0]}${dest.includes('?') ? '&' : '?'}joined=1` : dest)
 }
 
 /**

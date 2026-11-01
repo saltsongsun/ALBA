@@ -132,6 +132,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     <div data-mode={expert ? 'pro' : undefined}>
       {expert && <ProMode />}
       <Flash m={sp.m} />
+      {/* 공고 링크로 가입한 직후: 가입이 끝났고 아직 지원은 안 됐다고 분명히 (지원 버튼을 가입 마지막 단계로 착각하지 않게) */}
+      {sp.joined === '1' && user && (!app || app.status === 'cancelled') && (
+        <div className="mb-3 animate-pop rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4">
+          <p className="font-bold text-emerald-800">🎉 가입이 끝났어요</p>
+          <p className="mt-1 text-sm text-emerald-900">
+            아직 이 {expert ? '의뢰' : '공고'}에 <b>지원하지 않았어요.</b> 내용을 보고 함께하고 싶을 때만 아래 지원 버튼을 눌러 주세요.
+          </p>
+        </div>
+      )}
       {job.status === 'cancelled' && (
         <div className="mb-3 animate-pop rounded-2xl border-2 border-rose-200 bg-rose-50 p-4">
           <p className="font-bold text-rose-700">❌ 취소된 행사예요</p>
@@ -413,9 +422,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <input id="message" name="message" className="input" placeholder="예) 행사 스태프 경험 3회, 운전 가능" maxLength={300} />
                 <MessageChips target="message" />
               </div>
-              <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="지원 중…">
+              {/* 실수로 눌러 지원되지 않게: 첫 번째 누름은 확인 문구만, 한 번 더 눌러야 지원 */}
+              <ConfirmSubmit className="btn-primary w-full py-3.5 text-base" confirmText={`한 번 더 누르면 ${expert ? '의뢰에 ' : ''}지원돼요`}>
                 {expert ? `${user.name}님으로 의뢰 지원하기` : `${user.name}님으로 지원하기`}
-              </SubmitButton>
+              </ConfirmSubmit>
             </form>
           )
         )}
