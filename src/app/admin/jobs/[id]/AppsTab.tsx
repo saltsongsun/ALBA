@@ -42,9 +42,10 @@ function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어�
       )}
       {a.status === 'applied' && (
         <form action={decideApplication.bind(null, a.id, 'rejected')} className={form}>
-          <SubmitButton className={btn(false)} pendingText="…">
+          {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
+          <ConfirmSubmit className={btn(false)} confirmText="미선발 알림 보낼까요?">
             미선발
-          </SubmitButton>
+          </ConfirmSubmit>
         </form>
       )}
       {(a.status === 'approved' || a.status === 'rejected') && (

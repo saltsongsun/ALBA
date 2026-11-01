@@ -377,10 +377,28 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
   })
 }
 
+/** 미선발 알림: 근무자가 결과를 몰라 계속 기다리거나 "확정됐나요?" 문의하지 않게 (문의함 + 휴대폰 알림) */
+async function tellNotSelected(job: Job, userIds: string[], adminId: string, closed: boolean) {
+  return tellWorkers(userIds, {
+    senderId: adminId,
+    companyId: job.company_id,
+    jobId: job.id,
+    title: '🙏 이번엔 함께하지 못해요',
+    text: `${job.title}\n${scheduleSummary(job)}\n${closed ? '모집이 마감돼 ' : ''}이번에는 함께하지 못하게 됐어요. 지원해 주셔서 고마워요. 다음 행사 때 다시 만나요!`,
+    url: '/',
+    tag: `notsel-${job.id}`,
+  })
+}
+
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied') {
   const admin = await requireAdmin()
   if (!isUuid(appId) || !['approved', 'rejected', 'applied'].includes(status)) return
-  const app = await companyRow<{ id: string; job_id: string; user_id: string; company_id: string }>(admin, 'applications', appId, 'id, job_id, user_id')
+  const app = await companyRow<{ id: string; job_id: string; user_id: string; company_id: string; status: string }>(
+    admin,
+    'applications',
+    appId,
+    'id, job_id, user_id, status',
+  )
   if (!app) return
   must(
     await db()
@@ -398,6 +416,11 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
     // 되돌리면(대기로·미선발) 서명 대기 서류는 지우고, 이미 서명한 서류도 무효로 (다시 확정하면 새로 서명)
     const voided = await releaseDocs(app.job_id, app.user_id)
     if (voided) await audit(admin.id, 'doc.void_on_revert', app.user_id, `${app.job_id} ${voided}건`, admin.companyId)
+    // 대기 중이던 지원을 미선발로 정하면 근무자에게 결과를 알림
+    if (status === 'rejected' && app.status === 'applied') {
+      const job = await getJob(app.job_id)
+      if (job) await tellNotSelected(job, [app.user_id], admin.id, false)
+    }
   }
   revalidatePath(`/admin/jobs/${app.job_id}`)
   revalidatePath('/admin')
@@ -472,18 +495,7 @@ export async function rejectWaiting(jobId: string) {
       .in('id', apps.map((a) => a.id))
       .eq('status', 'applied'),
   )
-  const n = await tellWorkers(
-    apps.map((a) => a.user_id),
-    {
-      senderId: admin.id,
-      companyId: job.company_id,
-      jobId,
-      title: '🙏 이번엔 함께하지 못해요',
-      text: `${job.title}\n${scheduleSummary(job)}\n모집이 마감돼 이번에는 함께하지 못하게 됐어요. 지원해 주셔서 고마워요. 다음 행사 때 다시 만나요!`,
-      url: '/',
-      tag: `notsel-${jobId}`,
-    },
-  )
+  const n = await tellNotSelected(job, apps.map((a) => a.user_id), admin.id, true)
   await audit(admin.id, 'app.reject_waiting', null, `${jobId} ${apps.length}명`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/admin')
