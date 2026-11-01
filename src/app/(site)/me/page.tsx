@@ -9,7 +9,8 @@ import PhotoPrompt from '@/components/PhotoPrompt'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { ClockPanel, FixRequest, ForgotClockOut, LateNotice } from '@/components/worker'
+import { ClockPanel, FixRequest, ForgotClockOut, LateNotice, StartCountdown } from '@/components/worker'
+import AutoRefresh from '@/components/AutoRefresh'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
@@ -188,6 +189,8 @@ export default async function MePage(props: PageProps<'/me'>) {
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
+      {/* 근무 날·답을 기다리는 일이 있으면: 담당자의 출근 처리·시간 변경·정정 결과가 새로 고치지 않아도 보이게 */}
+      {(todayApps.length > 0 || pendingShifts.length > 0) && <AutoRefresh seconds={60} quiet />}
       <InstallBanner />
       {/* 아직 알림을 안 켰으면 (켰거나 지원 안 되는 기기면 안 보임) */}
       <PushToggle publicKey={pushPublicKey()} variant="card" />
@@ -512,6 +515,12 @@ export default async function MePage(props: PageProps<'/me'>) {
                           {kstTime(todayAtt.adj_in ?? todayAtt.clock_in)} ~ {kstTime(todayAtt.adj_out ?? todayAtt.clock_out)} (
                           {minutesText(calcDay(job, todayAtt).paidMin)} 인정)
                         </p>
+                        {/* 오늘 번 돈 (세금 떼기 전, 연장은 서로 확인한 만큼만) */}
+                        {calcDay(job, todayAtt).gross > 0 && (
+                          <p className="mt-1 text-lg font-extrabold text-brand-700 tabular-nums">
+                            오늘 약 {won(calcDay(job, todayAtt).gross)} <span className="text-xs font-semibold text-mute">세전</span>
+                          </p>
+                        )}
                       </div>
                       {!todayAtt.paid && (
                         <FixRequest
@@ -523,7 +532,15 @@ export default async function MePage(props: PageProps<'/me'>) {
                       )}
                     </div>
                   ) : (
-                    <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
+                    <div className="space-y-3">
+                      <StartCountdown
+                        startAt={kstAt(today, todayShift(job).start_time).toISOString()}
+                        endAt={scheduledEnd(todayShift(job), today).toISOString()}
+                        startText={hhmm(todayShift(job).start_time)}
+                        serverNow={Date.now()}
+                      />
+                      <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
+                    </div>
                   )}
                   {/* 출근 전이고 근무가 끝나기 전: 늦으면 담당자에게 알리기 */}
                   {!todayAtt && !open && !notChosen && new Date() < scheduledEnd(todayShift(job), today) && (

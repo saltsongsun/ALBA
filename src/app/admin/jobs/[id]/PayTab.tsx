@@ -67,6 +67,12 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
           <a href={`/admin/export/settlement?job=${job.id}`} className="btn-primary btn-sm">
             정산표 엑셀(CSV)
           </a>
+          {/* 일한 사람 모두의 임금명세서를 한 사람에 한 장씩 */}
+          {rows.length > 0 && (
+            <Link href={`/print/payslip/${job.id}`} className="btn-gray btn-sm">
+              🖨 명세서 한 번에 인쇄
+            </Link>
+          )}
         </div>
       </div>
       {noAccount.length > 0 && (

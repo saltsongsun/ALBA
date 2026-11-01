@@ -130,7 +130,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 확인할 일: 공고마다 흩어진 '답을 기다리는 일'을 한곳에 (공고·날짜별로 묶어 바로 그 화면으로)
   const titleOf = new Map(activeJobs.map((j) => [j.id, j.title]))
   const outsideJobs = activeJobs.filter((j) => j.contract_method !== 'app' && j.start_date <= soon)
-  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, fixMsgs] = await Promise.all([
+  // 내일 근무하는데 앱 서류(근로계약서 등)에 아직 서명 안 한 확정자 (현장에서 출근이 막히지 않게 하루 전에)
+  const tomorrowJobs = activeJobs.filter((j) => j.start_date <= tomorrow && j.end_date >= tomorrow && j.contract_method !== 'paper' && j.contract_method !== 'external')
+  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs] = await Promise.all([
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
@@ -183,6 +185,25 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           .eq('status', 'approved')
           .then((r) => (must(r) as { job_id: string; contract_received_at: string | null }[]).filter((a) => !a.contract_received_at))
       : [],
+    tomorrowJobs.length
+      ? Promise.all([
+          db()
+            .from('applications')
+            .select('job_id, user_id, available_dates')
+            .in('job_id', tomorrowJobs.map((j) => j.id))
+            .eq('status', 'approved')
+            .then((r) => must(r) as { job_id: string; user_id: string; available_dates: string[] | null }[]),
+          db()
+            .from('signed_docs')
+            .select('job_id, user_id, status')
+            .in('job_id', tomorrowJobs.map((j) => j.id))
+            .eq('status', 'pending')
+            .then((r) => (must(r) as { job_id: string; user_id: string; status: string }[]).filter((d) => d.status === 'pending')),
+        ]).then(([apps, docs]) => {
+          const pending = new Set(docs.map((d) => `${d.job_id}|${d.user_id}`))
+          return apps.filter((a) => (!a.available_dates || a.available_dates.includes(tomorrow)) && pending.has(`${a.job_id}|${a.user_id}`))
+        })
+      : [],
     // 오늘 근무자가 보낸 기록 정정 요청과 그 답 (답하지 않은 것만 셈)
     todayIds.length
       ? db()
@@ -219,6 +240,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
       tone: 'text-violet-700',
+    })),
+    ...group(unsignedTomorrow, (a) => a.job_id).map((g) => ({
+      key: `unsigned-${g[0].job_id}`,
+      icon: '✍️',
+      text: `내일 근무 · 서명 안 함 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=docs`,
+      tone: 'text-amber-700',
     })),
     ...group(otAsk, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
       key: `ot-${g[0].job_id}-${g[0].work_date}`,

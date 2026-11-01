@@ -271,6 +271,22 @@ export default async function AttTab({
           )}
           <GroupContact copy={false} className="chip" phones={roster.map((u) => users.get(u)?.phone)} label={`전체 ${roster.length}명 문자`} body={`[${job.title}] `} />
           <CopyButton text={roster.map((u) => phoneFmt(users.get(u)?.phone)).filter(Boolean).join(', ')} label="번호 복사" className="chip" />
+          {/* 단톡방·현장 공유용 명단: 배치별로 이름·연락처 */}
+          <CopyButton
+            text={[
+              `[${job.title}] ${fmtDate(date)} 명단 ${roster.length}명`,
+              ...[...new Set(ordered.map((u) => posOf(u)))].flatMap((p) => {
+                const group = ordered.filter((u) => posOf(u) === p)
+                return [
+                  '',
+                  `■ ${p || '미배치'} (${group.length})`,
+                  ...group.map((u) => `${users.get(u)?.name ?? '알 수 없음'} ${phoneFmt(users.get(u)?.phone)}`.trim()),
+                ]
+              }),
+            ].join('\n')}
+            label="명단 복사"
+            className="chip"
+          />
           {working > 0 && (
             <form action={bulkClockOut.bind(null, job.id, date)} className="shrink-0">
               <ConfirmSubmit className="chip" confirmText={`${working}명 종료할까요?`}>

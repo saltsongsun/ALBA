@@ -88,6 +88,35 @@ function elapsedText(fromIso: string, now: number): string {
   return h ? `${h}시간 ${min % 60}분` : `${min}분`
 }
 
+/**
+ * 출근 전 오늘 근무 카드: 시작까지 남은 시간, 시작 시각이 지났으면 근무 시작을 누르라고 (30초마다 갱신)
+ * serverNow로 처음 그려서 서버·브라우저 화면이 같게
+ */
+export function StartCountdown({ startAt, endAt, startText, serverNow }: { startAt: string; endAt: string; startText: string; serverNow: number }) {
+  const [now, setNow] = useState(serverNow)
+  useEffect(() => {
+    setNow(Date.now())
+    const t = setInterval(() => setNow(Date.now()), 30_000)
+    return () => clearInterval(t)
+  }, [])
+  const diff = Math.round((Date.parse(startAt) - now) / 60_000)
+  const span = (m: number) => {
+    const h = Math.floor(m / 60)
+    return h ? `${h}시간${m % 60 ? ` ${m % 60}분` : ''}` : `${m}분`
+  }
+  // 3시간보다 많이 남았거나 근무 시간이 다 지났으면 표시 안 함
+  if (diff > 180 || now >= Date.parse(endAt)) return null
+  return diff > 0 ? (
+    <p className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700">
+      <span aria-hidden>⏱</span> {startText} 시작까지 {span(diff)}
+    </p>
+  ) : (
+    <p className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700">
+      <span aria-hidden>⚠️</span> 시작 시각({startText})이 {diff === 0 ? '됐어요' : `${span(-diff)} 지났어요`}. 도착했다면 근무 시작을 눌러 주세요.
+    </p>
+  )
+}
+
 export function ClockPanel({
   jobId,
   open,
@@ -674,6 +703,7 @@ export function ProfileForm({
         <input name="bank_account" className="input" inputMode="numeric" placeholder="계좌번호" defaultValue={initial.bank_account} />
       </div>
       <input name="account_holder" className="input" placeholder="예금주 (비우면 본인 이름)" defaultValue={initial.account_holder} />
+      <p className="hint -mt-2">계좌번호는 숫자만 넣어도 돼요 (10~16자리). 급여는 본인 명의 계좌로 받는 게 가장 빨라요.</p>
       <input name="address" className="input" placeholder="주소" defaultValue={initial.address} />
       <input name="emergency_phone" className="input" inputMode="tel" placeholder="비상연락처 (선택)" defaultValue={initial.emergency_phone} />
       <FormMessage state={state} />

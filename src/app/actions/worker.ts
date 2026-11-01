@@ -713,6 +713,12 @@ export async function updateProfile(_: FormState, form: FormData): Promise<FormS
   const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
   const bankName = account ? optStr(form, 'bank_name', 30) : null
   const holder = account ? optStr(form, 'account_holder', 30) || user.name : null
+  // 급여가 엉뚱한 곳으로 가거나 이체가 실패하지 않게: 은행·자리수 확인
+  if (account) {
+    const digits = account.replace(/\D/g, '').length
+    if (!bankName) return { error: '계좌의 은행을 골라 주세요.' }
+    if (digits < 10 || digits > 16) return { error: `계좌번호가 ${digits}자리예요. 숫자 10~16자리인지 다시 확인해 주세요.` }
+  }
   const prevAccount = decrypt(cur?.bank_account_enc)
   const bankChanged = (prevAccount ?? '') !== account || (cur?.bank_name ?? null) !== bankName || (cur?.account_holder ?? null) !== holder
   const emergency = str(form, 'emergency_phone')
@@ -730,6 +736,10 @@ export async function updateProfile(_: FormState, form: FormData): Promise<FormS
       .eq('id', user.id),
   )
   revalidatePath('/me/profile')
+  // 다른 사람 명의 계좌면 지급이 늦어질 수 있어 알려 줌 (저장은 그대로)
+  if (holder && holder.replace(/\s/g, '') !== user.name.replace(/\s/g, '')) {
+    return { ok: `저장했어요. 예금주(${holder})가 본인 이름과 달라요. 본인 명의 계좌가 아니면 지급이 늦어질 수 있어요.` }
+  }
   return { ok: '저장했어요.' }
 }
 

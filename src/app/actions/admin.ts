@@ -325,13 +325,26 @@ export async function cancelEvent(jobId: string, form: FormData) {
 // ───────────── 지원자 ─────────────
 
 /** 근무 확정 알림 (서류가 있으면 서명 안내) */
-function approvedPush(job: Job) {
-  return {
+/**
+ * 확정 알림: 근무자 문의함에 남기고(휴대폰 알림을 안 켠 사람도 앱에서 안 읽음 표시로 알게) 휴대폰 알림도.
+ * 서명할 서류가 있으면 함께 안내
+ */
+async function tellApproved(job: Job, userIds: string[], adminId: string | null) {
+  if (!userIds.length) return
+  await tellWorkers(userIds, {
+    senderId: adminId,
+    jobId: job.id,
     title: '✅ 근무가 확정됐어요',
-    body: `${job.title} · ${scheduleSummary(job)}${job.required_docs.length ? ' · 앱에서 서류에 서명해 주세요' : ''}`,
+    text: [
+      job.title,
+      `${scheduleSummary(job)}${job.location_name ? ` · ${job.location_name}` : ''}`,
+      job.required_docs.length ? '✍️ 앱 ‘내 근무’에서 서류에 서명해 주세요.' : '',
+    ]
+      .filter(Boolean)
+      .join('\n'),
     url: '/me',
     tag: `approved-${job.id}`,
-  }
+  })
 }
 
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied') {
@@ -349,7 +362,7 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
     const job = await getJob(app.job_id)
     if (job) {
       await ensurePendingDocs(job, app.user_id)
-      after(() => sendPush([app.user_id], approvedPush(job)))
+      await tellApproved(job, [app.user_id], admin.id)
     }
   } else {
     // 되돌리면(대기로·미선발) 서명 대기 서류는 지우고, 이미 서명한 서류도 무효로 (다시 확정하면 새로 서명)
@@ -361,7 +374,7 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
 }
 
 export async function approveAllApplied(jobId: string) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const job = isUuid(jobId) ? await getJob(jobId) : null
   if (!job) return
   const apps = must(
@@ -375,12 +388,39 @@ export async function approveAllApplied(jobId: string) {
       .in('id', apps.map((a) => a.id)),
   )
   for (const a of apps) await ensurePendingDocs(job, a.user_id)
-  after(() => sendPush(apps.map((a) => a.user_id), approvedPush(job)))
+  await tellApproved(job, apps.map((a) => a.user_id), admin.id)
   revalidatePath(`/admin/jobs/${jobId}`)
 }
 
+/** 근무자 정보 화면에서 모집 중인 공고에 바로 확정 (예전에 잘한 사람을 다시 부를 때) */
+export async function assignWorkerToJob(userId: string, form: FormData) {
+  const admin = await requireAdmin()
+  if (!isUuid(userId)) return
+  const path = `/admin/workers/${userId}`
+  const jobId = str(form, 'job_id', 40)
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job || !['open', 'closed'].includes(job.status) || job.end_date < kstDate()) back(path, '확정할 공고를 골라 주세요.')
+  const { data: u } = await db().from('users').select('id, name, active').eq('id', userId).maybeSingle()
+  if (!u || !u.active) back(path, '사용할 수 없는 계정이에요.')
+  const { data: cur } = await db().from('applications').select('status').eq('job_id', job.id).eq('user_id', userId).maybeSingle()
+  if ((cur as { status: string } | null)?.status === 'approved') back(path, `이미 「${job.title}」에 확정된 근무자예요.`)
+  must(
+    await db()
+      .from('applications')
+      .upsert(
+        { job_id: job.id, user_id: userId, status: 'approved', decided_at: new Date().toISOString(), admin_memo: '관리자 직접 추가' },
+        { onConflict: 'job_id,user_id' },
+      ),
+  )
+  await ensurePendingDocs(job, userId)
+  await tellApproved(job, [userId], admin.id)
+  revalidatePath(`/admin/jobs/${job.id}`)
+  revalidatePath(path)
+  back(path, `${u.name}님을 「${job.title}」에 확정했어요. 근무자에게 알렸어요.`)
+}
+
 export async function addWorkerToJob(jobId: string, form: FormData) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const job = isUuid(jobId) ? await getJob(jobId) : null
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=apps`
@@ -397,6 +437,7 @@ export async function addWorkerToJob(jobId: string, form: FormData) {
       ),
   )
   await ensurePendingDocs(job, u.id)
+  await tellApproved(job, [u.id], admin.id)
   revalidatePath(`/admin/jobs/${jobId}`)
   back(path, `${u.name}님을 확정 인원에 추가했습니다.`)
 }

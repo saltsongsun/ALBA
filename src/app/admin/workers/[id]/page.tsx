@@ -1,13 +1,14 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { deleteRating } from '@/app/actions/admin'
+import { assignWorkerToJob, deleteRating } from '@/app/actions/admin'
 import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
 import { ContactButtons } from '@/components/Contact'
 import Fold, { ShowMore } from '@/components/Fold'
 import PhotoUpload from '@/components/PhotoUpload'
 import { StarAvg, StarRow } from '@/components/Stars'
 import { ConfirmSubmit } from '@/components/ui'
+import Flash from '@/components/Flash'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
@@ -25,7 +26,9 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const admin = await requireAdmin()
   const { id } = await props.params
   if (!isUuid(id)) notFound()
-  const [{ data }, apps, atts, docs, ratings, relMap] = await Promise.all([
+  const sp = await props.searchParams
+  const today = kstDate()
+  const [{ data }, apps, atts, docs, ratings, relMap, openJobs] = await Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
     db()
       .from('applications')
@@ -53,6 +56,18 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           })[],
       ),
     reliabilityFor([id]),
+    // 바로 확정할 수 있는 공고 (모집 중·마감, 아직 끝나지 않음)
+    db()
+      .from('jobs')
+      .select('id, title, start_date, end_date, status')
+      .in('status', ['open', 'closed'])
+      .gte('end_date', today)
+      .order('start_date')
+      .then((r) =>
+        (must(r) as Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'status'>[]).filter(
+          (j) => ['open', 'closed'].includes(j.status) && j.end_date >= today,
+        ),
+      ),
   ])
   const u = data as UserRow | null
   if (!u) notFound()
@@ -71,8 +86,10 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
     .sort((a, b) => b.job.start_date.localeCompare(a.job.start_date))
   const recentBankChange = u.bank_changed_at && Date.now() - new Date(u.bank_changed_at).getTime() < 14 * 86_400_000
 
+  const assignable = openJobs.filter((j) => !apps.some((a) => a.job_id === j.id && a.status === 'approved'))
   return (
     <div className="space-y-5">
+      <Flash m={sp.m} />
       <Link href="/admin/workers" className="text-sm font-semibold text-sub">
         ← 근무자 목록
       </Link>
@@ -122,6 +139,9 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             <dd>
               {account ? `${u.bank_name ?? ''} ${account} (예금주 ${u.account_holder ?? u.name})` : <span className="text-rose-500">미등록</span>}
               {recentBankChange && <span className="badge ml-1 bg-amber-50 text-amber-700">최근 변경 {fmtDate(kstDate(u.bank_changed_at!))}</span>}
+              {account && u.account_holder && u.account_holder.replace(/\s/g, '') !== u.name.replace(/\s/g, '') && (
+                <span className="badge ml-1 bg-rose-50 text-rose-600">예금주 다름</span>
+              )}
             </dd>
             <dt className="text-mute">비상연락처</dt>
             <dd>{u.emergency_phone ? <ContactButtons phone={u.emergency_phone} name={`${u.name} 비상연락처`} /> : '-'}</dd>
@@ -130,6 +150,24 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               {kstDateTime(u.created_at)} · 개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}
             </dd>
           </dl>
+          {/* 모집 중인 공고에 바로 확정 (예전에 잘한 사람 다시 부르기) */}
+          {u.active && assignable.length > 0 && (
+            <form action={assignWorkerToJob.bind(null, u.id)} className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
+              <select name="job_id" className="input min-w-0 flex-1 py-2 text-sm" required defaultValue="">
+                <option value="" disabled>
+                  공고 골라 바로 확정
+                </option>
+                {assignable.map((j) => (
+                  <option key={j.id} value={j.id}>
+                    {fmtDateRange(j.start_date, j.end_date)} · {j.title}
+                  </option>
+                ))}
+              </select>
+              <ConfirmSubmit className="btn-primary btn-sm" confirmText="한 번 더 누르면 확정돼요">
+                확정으로 추가
+              </ConfirmSubmit>
+            </form>
+          )}
           <div className="border-t border-line pt-3">
             <ResetPin userId={u.id} />
           </div>
