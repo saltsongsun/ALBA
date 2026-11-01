@@ -11,6 +11,7 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
+import { estimateDay } from '@/lib/pay'
 import { staffByDay, fullDays } from '@/lib/staffing'
 import { ageOn, dateList, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
@@ -177,14 +178,27 @@ export default async function AppsTab({
   const multi = dates.length > 1
   const byDay = staffByDay(dates, approved)
   const waitByDay = staffByDay(dates, apps.filter((a) => a.status === 'applied'))
+  // 만 18세 미만: 야간(22~06시)·하루 7시간 넘는 근무는 제한 (근로기준법 제69·70조) → 이 공고가 해당하면 확정할 때 한 번 더
+  const est = estimateDay(job)
+  const minorLimits = [est.nightMin > 0 && '야간', est.paidMin > 420 && '7시간 초과'].filter((x): x is string => !!x)
+  const isMinor = (a: AppRow) => !!a.user.birth_date && ageOn(a.user.birth_date, job.start_date) < 18
+  const minorWarn = (a: AppRow) => (isMinor(a) && minorLimits.length ? `${minorLimits.join('·')} 근무 제한` : null)
   const fullOf = (a: AppRow) => {
     const over = fullDays(a, dates, byDay, job.headcount)
+    const warn = minorWarn(a)
     return {
-      full: over.length > 0,
-      text: !multi ? '인원 다 찼어요 · 확정?' : over.length === dates.length || over.length > 2 ? '모든 날 인원 다 참 · 확정?' : `${over.map(fmtDate).join('·')} 다 참 · 확정?`,
+      full: over.length > 0 || !!warn,
+      text: warn
+        ? `연소자 ${minorLimits.join('·')} · 확정?`
+        : !multi
+          ? '인원 다 찼어요 · 확정?'
+          : over.length === dates.length || over.length > 2
+            ? '모든 날 인원 다 참 · 확정?'
+            : `${over.map(fmtDate).join('·')} 다 참 · 확정?`,
     }
   }
-  const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
+  const minorsWaiting = minorLimits.length ? apps.filter((a) => a.status === 'applied' && isMinor(a)).length : 0
+  const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0
   const shownDay = day && dates.includes(day) ? day : null
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   // 정렬: 지원순(기본) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
@@ -220,6 +234,7 @@ export default async function AppsTab({
             {age != null && <span className="text-sm text-mute">만 {age}세</span>}
             {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
             {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
+            {minorWarn(a) && <span className="badge bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
             <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
           </div>
         </div>
@@ -269,7 +284,13 @@ export default async function AppsTab({
               {allOver ? (
                 <ConfirmSubmit
                   className="btn-primary btn-sm"
-                  confirmText={multi ? `모집 ${job.headcount}명을 넘는 날이 있어요 · 확정?` : `모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`}
+                  confirmText={
+                    minorsWaiting
+                      ? `연소자 ${minorsWaiting}명(${minorLimits.join('·')}) 포함 · 확정?`
+                      : multi
+                        ? `모집 ${job.headcount}명을 넘는 날이 있어요 · 확정?`
+                        : `모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`
+                  }
                 >
                   대기 {waiting}명 모두 확정
                 </ConfirmSubmit>
@@ -402,6 +423,7 @@ export default async function AppsTab({
                           </span>
                         )}
                         {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
+                        {minorWarn(a) && <span className="badge ml-1 bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
                         {a.status === 'approved' && (
                           <div className="mt-1">
                             <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />
