@@ -125,6 +125,7 @@ export function ClockPanel({
   gpsRequired = false,
   endAt,
   endText,
+  serverNow,
 }: {
   jobId: string
   open: { id: string; clock_in: string; startText: string } | null
@@ -134,10 +135,12 @@ export function ClockPanel({
   /** 계약 종료 시각 (지나면 근무 종료를 누르라고 안내) */
   endAt?: string
   endText?: string
+  /** 서버가 그린 시각: 처음 화면을 서버와 같게 그려서 (분이 바뀌는 순간에도) 경과 시간 글자가 어긋나지 않게 */
+  serverNow?: number
 }) {
   const [pending, start] = useTransition()
   const [result, setResult] = useState<ClockResult | null>(null)
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(() => serverNow ?? Date.now())
   const [step, setStep] = useState('')
   // 시작 직후 같은 자리의 버튼이 '근무 종료'로 바뀌므로, 두 번 눌러야 종료되게 해서 실수를 막음
   const [confirmOut, setConfirmOut] = useState(false)
@@ -175,6 +178,7 @@ export function ClockPanel({
 
   useEffect(() => {
     if (!open) return
+    setNow(Date.now())
     const t = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(t)
   }, [open])
@@ -733,7 +737,7 @@ export function ProfileForm({
       <input name="account_holder" className="input" placeholder="예금주 (비우면 본인 이름)" defaultValue={initial.account_holder} />
       <p className="hint -mt-2">계좌번호는 숫자만 넣어도 돼요 (10~16자리). 급여는 본인 명의 계좌로 받는 게 가장 빨라요.</p>
       <input name="address" className="input" placeholder="주소" defaultValue={initial.address} />
-      <input name="emergency_phone" className="input" inputMode="tel" placeholder="비상연락처 (선택)" defaultValue={initial.emergency_phone} />
+      <input name="emergency_phone" className="input" inputMode="tel" placeholder="비상연락처 (선택 · 현장에서 연락이 안 될 때 담당자가 연락해요)" defaultValue={initial.emergency_phone} />
       <FormMessage state={state} />
       <SubmitButton>저장</SubmitButton>
     </form>

@@ -124,6 +124,8 @@ export default async function AttTab({
   const absent = roster.filter((u) => !byUser.has(u))
   const nudgeable = absent.filter((u) => !lateOf.has(u) && !arriveOf.has(u)).length
   const today = kstDate()
+  // 이날 근무 시작 시각이 지났는지 (미출근자 비상연락처를 눈에 띄게)
+  const started = date < today || (date === today && Date.now() >= kstAt(date, dayShift.start).getTime())
   // 날짜별 확정 인원 → 모집 인원보다 모자란 날 (지난 날은 빼고)
   const byDay = staffByDay(dates, apps)
   const shortOn = (d: string) => d >= today && byDay[d] < job.headcount
@@ -573,7 +575,19 @@ export default async function AttTab({
               )}
 
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <ContactButtons phone={u?.phone} name={u?.name} showNumber={false} />
+                <span className="flex flex-wrap items-center gap-1.5">
+                  <ContactButtons phone={u?.phone} name={u?.name} showNumber={false} />
+                  {/* 연락이 안 되는 미출근자·현장 사고 때: 근무자가 넣어 둔 비상연락처로 바로 전화 */}
+                  {(u?.emergency_phone ?? '').replace(/\D/g, '').length >= 9 && (
+                    <a
+                      href={`tel:${u!.emergency_phone!.replace(/\D/g, '')}`}
+                      aria-label={`${u?.name ?? ''} 비상연락처에 전화`}
+                      className={`contact-btn ${!a && started ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' : 'bg-bg text-sub'}`}
+                    >
+                      🆘 비상연락처
+                    </a>
+                  )}
+                </span>
                 {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) */}
                 <span className="inline-flex items-center gap-1 text-xs text-mute">
                   평가

@@ -33,6 +33,8 @@ export type WorkerLite = {
   account_holder: string | null
   photo_at: string | null
   careers?: { event: string; period: string; role: string }[] | null
+  /** 비상연락처 (근무자가 내 정보에 넣었을 때만) */
+  emergency_phone?: string | null
 }
 export type AppRow = Application & { user: WorkerLite }
 
@@ -45,7 +47,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   if (!isUuid(id)) notFound()
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
-  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers'
+  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone'
   const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
     getJob(id),
     getSettings(),

@@ -505,6 +505,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       endText={hhmm(todayShift(job, open).end_time)}
                       useLocation={job.lat != null}
                       gpsRequired={job.gps_required}
+                      serverNow={Date.now()}
                     />
                   ) : todayAtt?.clock_out ? (
                     <div className="space-y-3">
