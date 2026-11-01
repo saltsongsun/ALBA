@@ -30,6 +30,9 @@ const errs = []
   await rest('users', 'POST', { ...admin1, id: A2, name: '이회사관리', phone: '01022223333', is_super: false })
   await rest('company_members', 'POST', { company_id: C2, user_id: A2, role: 'owner' })
   const [j1] = await rest(`jobs?id=eq.${J}`)
+  // 가입만 하고 아직 어디에도 지원 안 한 회원
+  const [wRow] = await rest(`users?id=eq.${W}`)
+  await rest('users', 'POST', { ...wRow, id: 'bbbbbbbb-0000-4000-8000-0000000000b9', name: '새내기회원', phone: '01012121212', attendance: [], ratings: [] })
   await rest('jobs', 'POST', { ...j1, id: J2, company_id: C2, company: { company_name: C2_NAME }, title: J2_TITLE, applications: [], required_docs: [] })
 
   const b = await chromium.launch()
@@ -53,15 +56,21 @@ const errs = []
   ok('회사2 → 회사1 공고 주소 막힘', await blocked(a2, `${D}/admin/jobs/${J}`))
   ok('회사2 → 회사1 공고 수정 화면 막힘', await blocked(a2, `${D}/admin/jobs/${J}/edit`))
   ok('회사2 → 회사1 출퇴근 QR 막힘', await blocked(a2, `${D}/admin/jobs/${J}/qr`))
-  ok('회사2 → 회사1 근무자 정보 막힘', await blocked(a2, `${D}/admin/workers/${W}`, '근무 내역'))
+  // 가입 회원은 모든 회사 공용: 화면은 열리지만 회사1 기록·민감 정보는 안 보임
+  await a2.goto(`${D}/admin/workers/${W}`)
+  ok('회사2 → 회사1 근무자: 회원 화면은 열림', await see(a2, '아직 우리 회사에 지원한 적 없는 회원이에요'))
+  ok('회사2 → 회사1 근무자: 회사1 공고·계좌·주민번호 안 보임', !(await see(a2, J_TITLE, 1000)) && (await a2.locator('dt', { hasText: /^(주민등록번호|계좌|주소)$/ }).count()) === 0)
+  ok('회사2 → 회사1 근무자: 사진 바꾸기 없음 (보기만)', !(await see(a2, '사진 올리기', 800)))
   ok('회사2 → 회사1 서명 서류 막힘', (await status(a2, `${D}/docs/${DOC_SIGNED}`)) === 404)
   ok('회사2 → 회사1 임금명세서 막힘', (await status(a2, `${D}/print/payslip/${J}/${W}`)) === 404)
   ok('회사2 → 회사1 한 번에 인쇄 막힘', (await status(a2, `${D}/print/payslip/${J}`)) === 404)
-  ok('회사2 → 회사1 근무자 사진 막힘', (await a2.request.get(`${D}/photo/${APPLICANT}`)).status() === 404)
+  ok('회사2 관리자도 가입 회원 사진은 봄 (공용)', (await a2.request.get(`${D}/photo/${APPLICANT}`)).status() === 200)
   ok('회사1 관리자는 사진 봄', (await a.request.get(`${D}/photo/${APPLICANT}`)).status() === 200)
   await a2.goto(`${D}/admin/workers`)
-  ok('회사2 근무자 목록: 아직 아무도 없음 (근무자 0명)', await see(a2, /근무자 [01]명/))
-  ok('회사2 근무자 목록: 회사1 지원자 이름 없음', !(await see(a2, '김지원', 1000)))
+  await a2.waitForLoadState('networkidle')
+  ok('회사2 근무자 목록: 가입 회원 전체가 보임', (await a2.locator('a[href^="/admin/workers/"]', { hasText: '김지원' }).count()) > 0)
+  await a2.goto(`${D}/admin/workers?f=mine`)
+  ok('회사2 근무자 목록: 우리 회사 지원자만 보면 아직 없음', !(await see(a2, '김지원', 1000)))
   await a2.goto(`${D}/admin/chat`)
   ok('회사2 문의함: 회사1 문의 안 보임', !(await see(a2, '내일 집결 장소가 어디인가요?', 1500)))
   ok('회사2 → 회사1 문의 대화 막힘', await blocked(a2, `${D}/admin/chat/${W}`, '촉석문 앞 운영본부 천막입니다.'))
@@ -71,6 +80,12 @@ const errs = []
   ok('회사2 → 회사 관리 주소 막힘', !a2.url().includes('/admin/companies') && !(await see(a2, '새 회사 만들기', 800)))
   const exp = await a2.request.get(`${D}/admin/export/settlement?job=${J}`)
   ok('회사2 → 회사1 정산표 내려받기 막힘', exp.status() === 404)
+
+  // 가입만 한 회원도 근무자 목록에 (지원 전이라도)
+  await a.goto(`${D}/admin/workers`)
+  ok('회사1 근무자 목록: 지원 안 한 가입 회원도 보임', await see(a, '새내기회원'))
+  await a.goto(`${D}/admin`)
+  ok('대시보드 가입 근무자 수: 가입 회원 전체', await see(a, '가입 근무자'))
 
   // ── 2. 회사 설정은 회사마다 ──
   await a2.goto(`${D}/admin/settings`)

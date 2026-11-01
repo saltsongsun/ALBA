@@ -31,38 +31,36 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
-  // 이 회사에 지원한 근무자와 이 회사 관리자만 (근무자 계정은 모든 회사 공용이지만 목록은 회사별)
+  // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
+  // 근무일수·평가는 이 회사 기록만, 주민번호·계좌 같은 민감 정보는 이 회사에 지원한 사람만 (근무자 화면에서)
   const [workerIds, { data: members }] = await Promise.all([
     companyWorkerIds(admin.companyId),
     db().from('company_members').select('user_id').eq('company_id', admin.companyId),
   ])
-  const ids = [...new Set([...workerIds, ...((members ?? []) as { user_id: string }[]).map((m) => m.user_id)])]
-  const f = sp.f === 'nophoto' || sp.f === 'noaccount' ? sp.f : null
-  // 가입 유형으로 거르기: 아르바이트 / 전문가 / 외주 업체
+  const applied = new Set(workerIds)
+  const memberIds = new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id))
+  const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'mine' ? sp.f : null
+  // 가입 유형으로 거르기: 아르바이트 / 전문가
   const t = isMemberType(sp.t) ? sp.t : null
-  // 근무일수·최근 근무를 세기 위해 이 회사 출퇴근 날짜도 같이 읽음 (주소가 너무 길어지지 않게 나눠서)
-  const page = (chunk: string[]) => {
-    let query = db()
-      .from('users')
-      .select('id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
-      .in('id', chunk)
-      .eq('attendance.company_id', admin.companyId)
-      .eq('ratings.company_id', admin.companyId)
-    if (q) {
-      const digits = q.replace(/\D/g, '')
-      const safe = q.replace(/[%,()]/g, '')
-      query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
-    }
-    // 빠른 거르기: 사진 없음 · 계좌 없음
-    if (f === 'nophoto') query = query.is('photo_at', null)
-    if (f === 'noaccount') query = query.is('bank_account_enc', null)
-    return query.then((r) => must(r) as Row[])
+  let query = db()
+    .from('users')
+    .select('id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
+    .eq('attendance.company_id', admin.companyId)
+    .eq('ratings.company_id', admin.companyId)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  if (q) {
+    const digits = q.replace(/\D/g, '')
+    const safe = q.replace(/[%,()]/g, '')
+    query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
   }
-  const chunks: string[][] = []
-  for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150))
-  const users = (await Promise.all(chunks.map(page)))
-    .flat()
-    .filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : true))
+  // 빠른 거르기: 사진 없음 · 계좌 없음
+  if (f === 'nophoto') query = query.is('photo_at', null)
+  if (f === 'noaccount') query = query.is('bank_account_enc', null)
+  const users = (must(await query) as Row[])
+    // 다른 회사 관리자·외주 업체 계정은 근무자 목록에서 뺌
+    .filter((u) => (u.role === 'admin' ? memberIds.has(u.id) : u.member_type !== 'vendor'))
+    .filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) || memberIds.has(u.id) : true))
     .filter((u) => !t || (u.member_type ?? 'worker') === t)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 300)
@@ -118,6 +116,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         {(
           [
             [null, null, '전체'],
+            [null, 'mine', '우리 회사 지원자'],
             ['worker', null, '🙋 알바'],
             ['expert', null, '🎛️ 전문가'],
             [null, 'nophoto', '사진 없음'],

@@ -6,6 +6,7 @@ import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/ad
 import { ContactButtons } from '@/components/Contact'
 import Fold, { ShowMore } from '@/components/Fold'
 import PhotoUpload from '@/components/PhotoUpload'
+import Avatar from '@/components/Avatar'
 import { StarAvg, StarRow } from '@/components/Stars'
 import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
@@ -24,11 +25,29 @@ import { careerText } from '@/lib/careers'
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
+/** 근무자 머리: 사진(바꾸기)·이름. 지원 전 회원이면 사진은 보기만 */
+function Head({ userId, name, photoAt, editable, children }: { userId: string; name: string; photoAt: string | null; editable: boolean; children: React.ReactNode }) {
+  if (editable) {
+    return (
+      <PhotoUpload userId={userId} name={name} photoAt={photoAt} admin>
+        {children}
+      </PhotoUpload>
+    )
+  }
+  return (
+    <div className="flex items-start gap-4">
+      <Avatar id={userId} name={name} photoAt={photoAt} size="xl" />
+      <div className="min-w-0 flex-1">{children}</div>
+    </div>
+  )
+}
+
 export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>) {
   const admin = await requireAdmin()
   const { id } = await props.params
-  // 이 회사에 지원한 근무자(또는 이 회사 관리자)만
-  if (!(await workerInCompany(admin.companyId, id))) notFound()
+  if (!isUuid(id)) notFound()
+  // 가입 회원은 모든 회사 공용이라 누구나 볼 수 있지만, 주민번호·계좌·주소·비상연락처·수정은 이 회사에 지원한 사람만
+  const related = await workerInCompany(admin.companyId, id)
   const sp = await props.searchParams
   const today = kstDate()
   const [{ data }, apps, atts, docs, ratings, relMap, openJobs, { data: note }, { data: member }] = await Promise.all([
@@ -76,7 +95,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
     db().from('company_members').select('role').eq('company_id', admin.companyId).eq('user_id', id).maybeSingle(),
   ])
   const found = data as UserRow | null
-  if (!found) notFound()
+  // 다른 회사 관리자·외주 업체 계정은 근무자 화면으로 열지 않음
+  if (!found || (!related && (found.role === 'admin' || found.member_type === 'vendor'))) notFound()
   // 메모·관리자 표시는 이 회사 기준 (다른 회사 메모·소속은 보이지 않게)
   const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]
@@ -103,7 +123,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       </Link>
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card space-y-3">
-          <PhotoUpload userId={u.id} name={u.name} photoAt={u.photo_at} admin>
+          {/* 우리 회사에 지원한 사람만 관리자가 사진을 바꿀 수 있음 (지원 전 회원은 보기만) */}
+          <Head userId={u.id} name={u.name} photoAt={u.photo_at} editable={related}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h1 className="text-2xl font-extrabold">{u.name}</h1>
               {age != null && <span className="text-sub">만 {age}세 {u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : ''}</span>}
@@ -143,7 +164,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                 ))}
               </ul>
             )}
-          </PhotoUpload>
+          </Head>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>
             <dd className="flex flex-wrap items-center gap-1.5">
@@ -152,12 +173,14 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                 앱 메시지
               </Link>
             </dd>
+            <dt className="text-mute">생년월일</dt>
+            <dd>{u.birth_date ? fmtDateLong(u.birth_date) : '-'}</dd>
+            {related && (
+              <>
             <dt className="text-mute">주민등록번호</dt>
             <dd>
               <RevealRrn userId={u.id} masked={u.rrn_masked} />
             </dd>
-            <dt className="text-mute">생년월일</dt>
-            <dd>{u.birth_date ? fmtDateLong(u.birth_date) : '-'}</dd>
             <dt className="text-mute">주소</dt>
             <dd>{u.address ?? '-'}</dd>
             <dt className="text-mute">계좌</dt>
@@ -170,6 +193,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             </dd>
             <dt className="text-mute">비상연락처</dt>
             <dd>{u.emergency_phone ? <ContactButtons phone={u.emergency_phone} name={`${u.name} 비상연락처`} /> : '-'}</dd>
+              </>
+            )}
             <dt className="text-mute">가입</dt>
             <dd>
               {kstDateTime(u.created_at)} · 개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}
@@ -193,10 +218,17 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               </ConfirmSubmit>
             </form>
           )}
-          <div className="border-t border-line pt-3">
-            <ResetPin userId={u.id} />
-          </div>
+          {related ? (
+            <div className="border-t border-line pt-3">
+              <ResetPin userId={u.id} />
+            </div>
+          ) : (
+            <p className="rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub">
+              아직 우리 회사에 지원한 적 없는 회원이에요. 공고에 확정하거나 이 사람이 지원하면 주민번호·계좌·주소를 볼 수 있어요.
+            </p>
+          )}
         </section>
+        {related && (
         <div className="self-start">
           <Fold
             title="정보 수정"
@@ -210,6 +242,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             />
           </Fold>
         </div>
+        )}
       </div>
 
       <Fold
@@ -244,7 +277,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             ))}
           />
         )}
-        <RatingForm userId={u.id} jobs={[...jobs.values()].filter(Boolean).map((j) => ({ id: j.id, title: j.title }))} />
+        {related && <RatingForm userId={u.id} jobs={[...jobs.values()].filter(Boolean).map((j) => ({ id: j.id, title: j.title }))} />}
         <p className="hint">개인정보 열람 요청이 오면 보여 줘야 할 수 있으니 사실 위주로 적어 주세요.</p>
       </Fold>
 

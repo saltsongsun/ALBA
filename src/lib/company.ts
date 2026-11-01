@@ -54,6 +54,9 @@ export async function companyWorkerIds(companyId: string): Promise<string[]> {
 export async function adminSeesWorker(user: SessionUser, workerId: string): Promise<boolean> {
   if (user.role !== 'admin' || !isUuid(workerId)) return false
   if (user.isSuper) return true
+  // 가입한 근무자(알바·전문가)는 모든 회사 공용 → 관리자는 얼굴 사진을 볼 수 있음 (목록·지원자 화면)
+  const { data: target } = await db().from('users').select('role, member_type').eq('id', workerId).maybeSingle()
+  if (target && target.role === 'worker' && target.member_type !== 'vendor') return true
   const ids = (await adminCompanies(user.id, false)).map((c) => c.id)
   if (!ids.length) return false
   const [{ count: apps }, { count: member }] = await Promise.all([

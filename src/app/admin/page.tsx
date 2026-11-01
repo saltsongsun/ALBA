@@ -9,7 +9,6 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
-import { companyWorkerIds } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
@@ -86,8 +85,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       ),
     db().from('attendance').select('job_id').eq('company_id', admin.companyId).is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
     db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('status', 'pending'),
-    // 이 회사에 지원한 근무자 수
-    companyWorkerIds(admin.companyId).then((ids) => ({ count: ids.length })),
+    // 가입한 근무자 수 (근무자 계정은 모든 회사 공용, 외주 업체 계정은 빼고)
+    db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true).neq('member_type', 'vendor'),
     unreadForAdmins(admin.companyId),
   ])
   const counts = countApps(activeJobs, 'approved')
