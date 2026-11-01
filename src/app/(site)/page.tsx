@@ -67,6 +67,9 @@ export default async function HomePage(props: PageProps<'/'>) {
   }
   // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
   const todayJob = jobs.find((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
+  // 로그인한 근무자: 소개 배너 대신 한 줄 인사 + 내 근무 현황 (공고 목록이 첫 화면에 보이게)
+  const upcomingCount = jobs.filter((j) => mine[j.id] === 'approved' && j.id !== todayJob?.id).length
+  const waitingCount = jobs.filter((j) => mine[j.id] === 'applied').length
 
   return (
     <>
@@ -90,40 +93,49 @@ export default async function HomePage(props: PageProps<'/'>) {
           <span className="shrink-0 text-sm font-bold text-emerald-700">출퇴근 →</span>
         </Link>
       )}
-      <section className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-6 text-white shadow-lg shadow-brand-600/20">
-        {/* 배경에 천천히 떠다니는 동그라미 */}
-        <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-44 animate-float rounded-full bg-white/10" />
-        <span aria-hidden className="pointer-events-none absolute right-14 -bottom-14 size-28 animate-float rounded-full bg-white/10 [animation-delay:1.4s]" />
-        <div className="relative">
-          <p className="text-sm font-semibold opacity-80">{APP_NAME}</p>
-          <h1 className="mt-1 text-2xl leading-tight font-extrabold">
-            행사 단기 알바,
-            <br />
-            지원부터 정산까지 한&nbsp;번에
-          </h1>
-          <p className="mt-2 text-sm opacity-90">한 번 가입하면 출퇴근 버튼만 누르면 됩니다. 근로계약서와 급여명세서도 여기서 받아요.</p>
-          {!user && (
-            <div className="mt-4 flex gap-2">
-              <Link href="/signup?type=worker" className="btn bg-white text-brand-700">
-                간편 가입
+      {user ? (
+        <Link href="/me" className="card-link mb-5 flex items-center gap-3 px-4 py-3.5">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-bold">{user.name}님, 안녕하세요</span>
+            <span className="block truncate text-sm text-sub">
+              {upcomingCount + waitingCount === 0
+                ? '함께하고 싶은 공고를 골라 지원해 보세요'
+                : [upcomingCount > 0 && `확정 ${upcomingCount}건`, waitingCount > 0 && `확정 대기 ${waitingCount}건`].filter(Boolean).join(' · ')}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-600">내 근무 →</span>
+        </Link>
+      ) : (
+        <section className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-6 text-white shadow-lg shadow-brand-600/20">
+          {/* 배경에 천천히 떠다니는 동그라미 */}
+          <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-44 animate-float rounded-full bg-white/10" />
+          <span aria-hidden className="pointer-events-none absolute right-14 -bottom-14 size-28 animate-float rounded-full bg-white/10 [animation-delay:1.4s]" />
+          <div className="relative">
+            <p className="text-sm font-semibold opacity-80">{APP_NAME}</p>
+            <h1 className="mt-1 text-2xl leading-tight font-extrabold">
+              행사 단기 알바,
+              <br />
+              지원부터 정산까지 한&nbsp;번에
+            </h1>
+            <p className="mt-2 text-sm opacity-90">한 번 가입하면 출퇴근 버튼만 누르면 됩니다. 근로계약서와 급여명세서도 여기서 받아요.</p>
+            {!user && (
+              <div className="mt-4 flex gap-2">
+                <Link href="/signup?type=worker" className="btn bg-white text-brand-700">
+                  간편 가입
+                </Link>
+                <Link href="/login" className="btn bg-white/15 text-white">
+                  로그인
+                </Link>
+              </div>
+            )}
+            {!user && (
+              <Link href="/pro" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-white/90 underline-offset-2 hover:underline">
+                🎛️ 음향·조명·영상 전문가나 외주 업체이신가요? →
               </Link>
-              <Link href="/login" className="btn bg-white/15 text-white">
-                로그인
-              </Link>
-            </div>
-          )}
-          {!user && (
-            <Link href="/pro" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-white/90 underline-offset-2 hover:underline">
-              🎛️ 음향·조명·영상 전문가나 외주 업체이신가요? →
-            </Link>
-          )}
-          {user && (
-            <Link href="/me" className="btn mt-4 bg-white text-brand-700">
-              {user.name}님 근무 보기 →
-            </Link>
-          )}
-        </div>
-      </section>
+            )}
+          </div>
+        </section>
+      )}
 
       <h2 id="jobs" className="section-title scroll-mt-20">
         모집 중인 알바 {listed.length > 0 && <span className="text-brand-600">{listed.length}</span>}
