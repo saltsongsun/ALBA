@@ -1,9 +1,10 @@
 import 'server-only'
 import { db, must } from './db'
 import { tellWorkers } from './notify'
+import { scheduledEnd, shiftOf } from './pay'
 import { SIGNAL } from './signals'
 import { fmtDate, hhmm, kstDate } from './time'
-import type { Job } from './types'
+import type { Attendance, Job } from './types'
 
 /**
  * 근무 전날 안내: 내일 근무하는 확정자에게 시간·장소·집결·복장·준비물과 남은 서류를 알림.
@@ -63,4 +64,54 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
     done++
   }
   return { date: tomorrow, jobs: done, sent }
+}
+
+/**
+ * 근무 종료를 깜빡한 지난 근무(최근 2주): 근무자에게 '끝난 시각을 알려 주세요' (기록마다 한 번만, audit_logs 'remind.clockout').
+ * 근무자 앱 '내 근무'에 예정 종료 시각·직접 입력으로 정리하는 카드가 있음
+ */
+export async function sendForgotClockOutReminders(now = new Date()): Promise<number> {
+  const today = kstDate(now)
+  const since = kstDate(new Date(now.getTime() - 14 * 86_400_000))
+  type Row = Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'work_date' | 'clock_out' | 'sched_start' | 'sched_end'> & {
+    job: Pick<Job, 'title' | 'start_time' | 'end_time'> | null
+  }
+  const open = (
+    must(
+      await db()
+        .from('attendance')
+        .select('id, user_id, job_id, work_date, clock_out, sched_start, sched_end, job:jobs(title, start_time, end_time)')
+        .is('clock_out', null)
+        .lt('work_date', today)
+        .gte('work_date', since)
+        .limit(200),
+    ) as unknown as Row[]
+  ).filter((a) => !a.clock_out && a.work_date < today && a.work_date >= since && a.job && scheduledEnd(shiftOf(a.job, a), a.work_date) <= now)
+  if (!open.length) return 0
+  const done = new Set(
+    (
+      must(
+        await db()
+          .from('audit_logs')
+          .select('detail')
+          .eq('action', 'remind.clockout')
+          .in('detail', open.map((a) => a.id)),
+      ) as { detail: string }[]
+    ).map((r) => r.detail),
+  )
+  let sent = 0
+  for (const a of open) {
+    if (done.has(a.id)) continue
+    // 먼저 보냈다고 남겨서 동시에 두 번 불려도 한 번만 가게
+    must(await db().from('audit_logs').insert({ actor_id: null, action: 'remind.clockout', detail: a.id }))
+    sent += await tellWorkers([a.user_id], {
+      senderId: null,
+      jobId: a.job_id,
+      title: '⏰ 근무 종료 확인',
+      text: `${a.job!.title} · ${fmtDate(a.work_date)} 근무 종료를 누르지 않았어요. 앱 ‘내 근무’에서 끝난 시각을 알려 주세요.`,
+      url: '/me',
+      tag: `forgot-${a.id}`,
+    })
+  }
+  return sent
 }
