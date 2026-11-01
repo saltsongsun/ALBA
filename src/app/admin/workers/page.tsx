@@ -39,7 +39,10 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   ])
   const applied = new Set(workerIds)
   const memberIds = new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id))
-  const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'mine' ? sp.f : null
+  const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'mine' || sp.f === 'new' ? sp.f : null
+  // 최근 7일 안에 가입한 회원 (단체로 가입했을 때 사진·계좌 확인하고 공고에 확정하기 쉽게)
+  const newSince = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  const isNew = (u: { created_at: string }) => u.created_at >= newSince
   // 가입 유형으로 거르기: 아르바이트 / 전문가
   const t = isMemberType(sp.t) ? sp.t : null
   let query = db()
@@ -60,7 +63,9 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const users = (must(await query) as Row[])
     // 다른 회사 관리자·외주 업체 계정은 근무자 목록에서 뺌
     .filter((u) => (u.role === 'admin' ? memberIds.has(u.id) : u.member_type !== 'vendor'))
-    .filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) || memberIds.has(u.id) : true))
+    .filter((u) =>
+      f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) || memberIds.has(u.id) : f === 'new' ? isNew(u) : true,
+    )
     .filter((u) => !t || (u.member_type ?? 'worker') === t)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 300)
@@ -86,6 +91,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   }
   const roleBadges = (u: Row) => (
     <>
+      {isNew(u) && u.role !== 'admin' && <span className="badge bg-emerald-50 text-emerald-700">🆕 새 가입</span>}
       <StarAvg scores={(u.ratings ?? []).map((r) => r.score)} />
       {u.member_type && u.member_type !== 'worker' && (
         <span className={`badge ${MEMBER_TYPES[u.member_type].badge}`}>
@@ -116,6 +122,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         {(
           [
             [null, null, '전체'],
+            [null, 'new', '🆕 새로 가입'],
             [null, 'mine', '우리 회사 지원자'],
             ['worker', null, '🙋 알바'],
             ['expert', null, '🎛️ 전문가'],
