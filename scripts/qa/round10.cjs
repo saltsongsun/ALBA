@@ -24,14 +24,14 @@ const errs = []
 
   // ── 직인: 큰 사진도 줄여서 저장 ──
   const ad = await pg(D, A)
-  const before = (await rest(MD, 'settings'))[0].seal_image
+  const before = (await rest(MD, 'companies'))[0].seal_image
   await ad.goto(`${D}/admin/settings`)
   await ad.waitForLoadState('networkidle')
   await ad.locator('input[type=file]').setInputFiles(BIG)
   ok('직인: 고르면 미리보기·저장 안내', await see(ad, '아래 ‘저장’을 눌러야 바뀌어요.'))
   await ad.getByRole('button', { name: /저장/ }).last().click()
   ok('직인: 저장됨', await see(ad, '저장했습니다.'))
-  const after = (await rest(MD, 'settings'))[0].seal_image
+  const after = (await rest(MD, 'companies'))[0].seal_image
   ok('직인: 1MB 사진이 줄어서 저장 (투명 PNG)', after !== before && after.startsWith('data:image/png;base64,') && after.length < 560000, `${after.length}자`)
 
   // ── 개선 8: 관리자 공고 검색 ──
