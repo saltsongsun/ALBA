@@ -56,7 +56,10 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
               🔒
             </p>
             <p className="mt-2 font-bold">관리자에게 문의해 주세요</p>
-            <p className="mt-1 text-sm text-sub">지원을 취소했거나 근무 확정이 취소돼 이 서류는 열 수 없어요. 서류가 필요하면 담당자에게 요청해 주세요.</p>
+            <p className="mt-1 text-sm text-balance text-sub">
+              지원을 취소했거나 근무 확정이 취소돼 <span className="whitespace-nowrap">이 서류는 열 수 없어요.</span>
+            </p>
+            <p className="text-sm text-balance text-sub">서류가 필요하면 담당자에게 요청해 주세요.</p>
             <Link href={docInquiryHref(doc.job_id)} className="btn-primary mt-5">
               💬 담당자에게 문의
             </Link>
