@@ -107,7 +107,7 @@ const errs = []
   await af.goto(`${F}/admin/jobs/${J}?tab=apps`)
   await af.getByText(/^확정 \d+명$/).first().click() // 대기자가 있으면 확정 목록은 접혀 있음
   await af.getByRole('button', { name: '대기로' }).first().click()
-  await af.getByRole('button', { name: '서명도 취소돼요 · 대기로?' }).click()
+  await af.getByRole('button', { name: '서명 취소·알림 가요 · 대기로?' }).click()
   await af.waitForTimeout(2000)
   const app = (await rest(MF, `applications?id=eq.${APP_W}`))[0]
   const docs = await rest(MF, `signed_docs?user_id=eq.${WK}&job_id=eq.${J}`)

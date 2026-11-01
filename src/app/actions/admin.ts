@@ -421,6 +421,21 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
       const job = await getJob(app.job_id)
       if (job) await tellNotSelected(job, [app.user_id], admin.id, false)
     }
+    // 확정을 되돌리면(아직 끝나지 않은 행사): 확정된 줄 알고 현장에 나오지 않게 근무자에게 알림
+    if (app.status === 'approved') {
+      const job = await getJob(app.job_id)
+      if (job && job.end_date >= kstDate()) {
+        await tellWorkers([app.user_id], {
+          senderId: admin.id,
+          companyId: job.company_id,
+          jobId: job.id,
+          title: '↩️ 근무 확정이 취소됐어요',
+          text: `${job.title}\n${scheduleSummary(job)}\n담당자가 확정을 ${status === 'rejected' ? '취소' : '대기로 바꿨'}어요. 다시 확정되기 전에는 현장에 나오지 않아도 돼요. 궁금한 점은 여기로 물어봐 주세요.`,
+          url: '/me/chat',
+          tag: `unapproved-${job.id}`,
+        })
+      }
+    }
   }
   revalidatePath(`/admin/jobs/${app.job_id}`)
   revalidatePath('/admin')

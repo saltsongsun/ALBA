@@ -51,8 +51,8 @@ function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어�
       {(a.status === 'approved' || a.status === 'rejected') && (
         <form action={decideApplication.bind(null, a.id, 'applied')} className={form}>
           {a.status === 'approved' ? (
-            // 확정을 되돌리면 서명한 서류도 무효가 되므로 한 번 더 확인
-            <ConfirmSubmit className={btn(false)} confirmText="서명도 취소돼요 · 대기로?">
+            // 확정을 되돌리면 서명한 서류도 무효가 되고 근무자에게 알림이 가므로 한 번 더 확인
+            <ConfirmSubmit className={btn(false)} confirmText="서명 취소·알림 가요 · 대기로?">
               대기로
             </ConfirmSubmit>
           ) : (
