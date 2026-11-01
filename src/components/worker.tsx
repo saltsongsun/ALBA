@@ -1,6 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import {
   changePin,
   clockIn,
@@ -642,6 +643,32 @@ export function SignaturePad({ name, reuse = null }: { name: string; /** 앞 서
   )
 }
 
+/**
+ * 긴 서류를 휴대폰으로 볼 때: 서명란이 화면에 안 보이는 동안 아래에 '서명하러 가기' 버튼 (누르면 서명란으로)
+ */
+export function JumpToSign() {
+  const [show, setShow] = useState(false)
+  useEffect(() => {
+    const el = document.getElementById('sign')
+    if (!el || !('IntersectionObserver' in window)) return
+    const io = new IntersectionObserver(([e]) => setShow(!e.isIntersecting), { rootMargin: '0px 0px -10% 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+  if (!show) return null
+  // 화면 전환 효과(transform) 안에서는 fixed가 화면이 아니라 그 상자 기준이 되므로 body에 붙임
+  return createPortal(
+    <button
+      type="button"
+      onClick={() => document.getElementById('sign')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+      className="no-print fixed inset-x-4 bottom-[calc(84px+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md animate-pop rounded-2xl bg-brand-600 py-3.5 text-base font-bold text-white shadow-lg shadow-brand-600/30 active:scale-[0.98] sm:bottom-6"
+    >
+      ✍️ 다 읽었어요 · 서명하러 가기 ↓
+    </button>,
+    document.body,
+  )
+}
+
 /** 이 기기에서 방금 한 서명 (서류가 여러 건이면 같은 서명을 다시 그리지 않게). 같은 계정·30분 안에만 */
 const LAST_SIGNATURE = 'hw-last-signature'
 const REUSE_MS = 30 * 60_000
@@ -668,7 +695,8 @@ export function SignForm({ docId, title, userId }: { docId: string; title: strin
           } catch {}
         }
       }}
-      className="card no-print space-y-4"
+      id="sign"
+      className="card no-print scroll-mt-20 space-y-4"
     >
       <h2 className="font-bold">근로자 서명</h2>
       <SignaturePad name="signature" reuse={saved} />

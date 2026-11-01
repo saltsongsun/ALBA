@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import DocSheet from '@/components/DocSheet'
 import Flash from '@/components/Flash'
 import { PrintButton } from '@/components/ui'
-import { SignForm } from '@/components/worker'
+import { JumpToSign, SignForm } from '@/components/worker'
 import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
 import { buildDocVars, renderTemplate, type DocPerson } from '@/lib/docs'
@@ -84,6 +84,18 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   }
 
   const mine = doc.user_id === user.id
+  // 서명할 서류가 여러 건이면 몇 번째인지 (같은 공고 먼저, 만든 순서)
+  const queue =
+    doc.status === 'pending' && mine
+      ? (
+          (
+            await db().from('signed_docs').select('id, job_id, created_at, status').eq('user_id', user.id).eq('status', 'pending')
+          ).data as { id: string; job_id: string; created_at: string; status: string }[] | null ?? []
+        )
+          .filter((d) => d.status === 'pending')
+          .sort((a, b) => Number(b.job_id === doc.job_id) - Number(a.job_id === doc.job_id) || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+      : []
+  const pos = queue.findIndex((d) => d.id === doc.id)
   const Guard = admin ? Fragment : DocGuard
   return (
     <div className="space-y-4">
@@ -95,9 +107,24 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         {doc.status === 'signed' ? (
           <PrintButton />
         ) : (
-          <span className="badge bg-amber-50 text-amber-700">서명 대기</span>
+          <span className="badge bg-amber-50 text-amber-700">
+            서명 대기{queue.length > 1 && pos >= 0 ? ` · ${pos + 1}/${queue.length}` : ''}
+          </span>
         )}
       </div>
+      {/* 서명할 서류가 여러 건이면 몇 번째인지 */}
+      {queue.length > 1 && pos >= 0 && (
+        <div className="no-print flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5 text-sm text-brand-700">
+          <span className="font-bold">
+            서명할 서류 {pos + 1}/{queue.length}
+          </span>
+          <span className="flex flex-1 gap-1" aria-hidden>
+            {queue.map((d, i) => (
+              <span key={d.id} className={`h-1.5 flex-1 rounded-full ${i < pos ? 'bg-brand-600' : i === pos ? 'bg-brand-500' : 'bg-white'}`} />
+            ))}
+          </span>
+        </div>
+      )}
       {doc.status === 'void' && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">무효 처리된 서류입니다.</p>}
       {/* 근무자 화면: 복사·저장 막기 + 열람 일시·열람자 워터마크 */}
       <Guard>
@@ -113,7 +140,12 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         signedIp={doc.signed_ip}
       />
       </Guard>
-      {doc.status === 'pending' && mine && <SignForm docId={doc.id} title={doc.title} userId={user.id} />}
+      {doc.status === 'pending' && mine && (
+        <>
+          <SignForm docId={doc.id} title={doc.title} userId={user.id} />
+          <JumpToSign />
+        </>
+      )}
     </div>
   )
 }
