@@ -5,6 +5,7 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import type { Job, SignedDoc } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
+import { contractNameOf } from '@/lib/members'
 
 type DocLite = Pick<SignedDoc, 'id' | 'user_id' | 'template_id' | 'title' | 'status' | 'signed_at' | 'created_at'>
 
@@ -34,6 +35,7 @@ export default function DocsTab({
 
   // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 사람마다 받았는지 기록
   const outside = job.contract_method !== 'app'
+  const contractName = contractNameOf(job.audience)
   const notReceived = approved.filter((a) => !a.contract_received_at)
 
   return (
@@ -42,7 +44,7 @@ export default function DocsTab({
         <section className="card space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <h3 className="font-bold">📝 근로계약서 · {job.contract_method === 'paper' ? '종이(서면)로 받기' : '다른 서비스(모두싸인 등)'}</h3>
+              <h3 className="font-bold">📝 {contractName} · {job.contract_method === 'paper' ? '종이(서면)로 받기' : '다른 서비스(모두싸인 등)'}</h3>
               <p className="text-sm text-sub">
                 받음 <b className="text-ink">{approved.length - notReceived.length}</b> / 확정 {approved.length}명
                 {job.contract_url && (
@@ -100,7 +102,11 @@ export default function DocsTab({
               ))}
             </ul>
           )}
-          <p className="hint">근로계약서는 근무 시작 전에 줘야 해요(근로기준법 제17조). 받은 계약서는 3년 동안 보관해 주세요.</p>
+          <p className="hint">
+            {job.audience === 'expert'
+              ? '용역계약서는 일을 시작하기 전에 주고받아 주세요. 받은 계약서는 보관해 주세요.'
+              : '근로계약서는 근무 시작 전에 줘야 해요(근로기준법 제17조). 받은 계약서는 3년 동안 보관해 주세요.'}
+          </p>
         </section>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">

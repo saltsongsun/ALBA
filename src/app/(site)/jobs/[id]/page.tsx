@@ -23,7 +23,7 @@ import { isUuid } from '@/lib/validate'
 import JobViewBeacon from '@/components/JobViewBeacon'
 import ApplySteps from '@/components/ApplySteps'
 import ApplyDays from '@/components/ApplyDays'
-import { canApplyTo } from '@/lib/members'
+import { canApplyTo, contractNameOf } from '@/lib/members'
 import ProMode from '@/components/ProMode'
 
 async function load(id: string) {
@@ -242,8 +242,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {(docs.length > 0 || job.contract_method !== 'app') && shows(job, 'docs') && (
             <Row k="서류">
               {[
-                job.contract_method === 'paper' && '근로계약서 (현장에서 종이로 작성)',
-                job.contract_method === 'external' && '근로계약서 (모두싸인 등 전자계약)',
+                job.contract_method === 'paper' && `${contractNameOf(job.audience)} (현장에서 종이로 작성)`,
+                job.contract_method === 'external' && `${contractNameOf(job.audience)} (모두싸인 등 전자계약)`,
                 docs.length > 0 && `${docs.map((d) => d.title).join(', ')} (확정 후 앱에서 전자서명)`,
               ]
                 .filter(Boolean)

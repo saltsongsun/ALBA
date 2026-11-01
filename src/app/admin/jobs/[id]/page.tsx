@@ -170,7 +170,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           )}
           {job.contract_method !== 'app' && approved.length > 0 && (
             <Link href={`/admin/jobs/${job.id}?tab=docs`} className="mt-1.5 inline-block text-sm">
-              📝 근로계약서 {job.contract_method === 'paper' ? '종이' : '모두싸인 등'} · 받음{' '}
+              📝 {contractName} {job.contract_method === 'paper' ? '종이' : '모두싸인 등'} · 받음{' '}
               <b className={approved.some((a) => !a.contract_received_at) ? 'text-rose-600' : 'text-emerald-600'}>
                 {approved.filter((a) => a.contract_received_at).length}/{approved.length}
               </b>

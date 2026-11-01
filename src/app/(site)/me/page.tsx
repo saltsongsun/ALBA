@@ -24,27 +24,30 @@ import { parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals
 import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
+import { contractNameOf } from '@/lib/members'
 
 export const metadata: Metadata = { title: '내 근무' }
 
 /** 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 아직 안 받았으면 안내 */
 function ContractNote({ job, received, compact = false }: { job: Job; received: string | null; compact?: boolean }) {
   if (!job.contract_method || job.contract_method === 'app' || received) return null
+  // 전문가 의뢰는 용역계약서 (근로자로 오해하지 않게)
+  const name = contractNameOf(job.audience)
   if (compact) {
     return (
       <p className="mt-1 text-xs font-semibold text-amber-700">
-        📝 근로계약서 {job.contract_method === 'paper' ? '현장에서 종이로 작성' : '전자계약(모두싸인 등)으로 서명 필요'}
+        📝 {name} {job.contract_method === 'paper' ? '현장에서 종이로 작성' : '전자계약(모두싸인 등)으로 서명 필요'}
       </p>
     )
   }
   return job.contract_method === 'paper' ? (
     <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-      📝 <b>근로계약서는 종이로 작성해요.</b> 근무 시작 전에 현장 담당자에게 받아 서명해 주세요.
+      📝 <b>{name}는 종이로 작성해요.</b> 근무 시작 전에 현장 담당자에게 받아 서명해 주세요.
     </p>
   ) : (
     <div className="space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-1 ring-brand-100">
       <p>
-        ✍️ <b>근로계약서를 전자계약(모두싸인 등)으로 서명해 주세요.</b>{' '}
+        ✍️ <b>{name}를 전자계약(모두싸인 등)으로 서명해 주세요.</b>{' '}
         {job.contract_url ? '' : '문자·카카오톡으로 온 서명 링크를 확인해 주세요.'}
       </p>
       {job.contract_url && (

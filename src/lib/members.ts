@@ -51,3 +51,6 @@ export function bizNoFmt(v: string | null | undefined): string {
   const d = (v ?? '').replace(/\D/g, '')
   return d.length === 10 ? `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}` : (v ?? '')
 }
+
+/** 계약서 이름: 전문가 의뢰는 용역계약서(사업소득), 아르바이트는 근로계약서 */
+export const contractNameOf = (audience: string | null | undefined) => (audience === 'expert' ? '용역계약서' : '근로계약서')

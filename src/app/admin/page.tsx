@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { decideApplication, setJobStatus } from '@/app/actions/admin'
+import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
@@ -318,7 +319,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...group(outsideApps, (a) => a.job_id).map((g) => ({
       key: `contract-${g[0].job_id}`,
       icon: '📝',
-      text: `근로계약서 미수령 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      text: `${contractNameOf(activeJobs.find((j) => j.id === g[0].job_id)?.audience)} 미수령 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=docs`,
       tone: 'text-rose-600',
