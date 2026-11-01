@@ -508,9 +508,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                       )}
                     </form>
                     <form action={decideApplication.bind(null, p.id, 'rejected')}>
-                      <SubmitButton className="btn-gray w-full" pendingText="처리 중…">
+                      {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
+                      <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림 보낼까요?">
                         미선발
-                      </SubmitButton>
+                      </ConfirmSubmit>
                     </form>
                   </div>
                 </div>
@@ -567,9 +568,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                             )}
                           </form>
                           <form action={decideApplication.bind(null, p.id, 'rejected')}>
-                            <SubmitButton className="btn-gray btn-sm" pendingText="…">
+                            <ConfirmSubmit className="btn-gray btn-sm" confirmText="미선발 알림 보낼까요?">
                               미선발
-                            </SubmitButton>
+                            </ConfirmSubmit>
                           </form>
                         </div>
                       </td>

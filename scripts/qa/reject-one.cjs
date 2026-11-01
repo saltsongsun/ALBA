@@ -1,4 +1,4 @@
-// 지원자 한 명을 '미선발'로 정하면: 두 번 눌러야 처리 · 그 근무자에게만 '이번엔 함께하지 못해요' 알림
+// 지원자 한 명을 '미선발'로 정하면 (공고 지원자 탭·대시보드): 두 번 눌러야 처리 · 그 근무자에게만 '이번엔 함께하지 못해요' 알림
 // node scripts/qa/reject-one.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -51,6 +51,19 @@ const NOTE = '🙏 이번엔 함께하지 못해요'
   await p.waitForTimeout(1500)
   ok('대기로 되돌림', (await statusOf(X.app)) === 'applied')
   ok('되돌릴 때는 알림 없음', (await notes(X.uid)).length === 1)
+
+  // 대시보드의 '확정 대기 지원자'에서도 두 번 눌러야 미선발 + 알림
+  await p.goto(`${D}/admin`)
+  await p.waitForLoadState('networkidle')
+  const dash = () => p.locator('div.card', { hasText: '김지원' }).filter({ has: p.getByRole('button', { name: /미선발/ }) }).last()
+  await dash().getByRole('button', { name: '미선발', exact: true }).click()
+  ok('대시보드: 첫 누름은 확인만', await see(p, '미선발 알림 보낼까요?'))
+  await p.waitForTimeout(600)
+  const apApp = (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`))[0]
+  ok('대시보드: 첫 누름만으로는 그대로', apApp?.status === 'applied')
+  await dash().getByRole('button', { name: '미선발 알림 보낼까요?' }).click()
+  await p.waitForTimeout(1500)
+  ok('대시보드: 미선발 + 알림', (await statusOf(apApp.id)) === 'rejected' && (await notes(AP)).length === 1)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
