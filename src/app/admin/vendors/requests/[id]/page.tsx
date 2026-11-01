@@ -19,11 +19,11 @@ import { QUOTE_STATUS, quoteLink, quoteMessage } from '@/lib/vendors'
 export const metadata: Metadata = { title: '견적 비교' }
 
 export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/requests/[id]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
   if (!isUuid(id)) notFound()
-  const { data } = await db().from('quote_requests').select('*').eq('id', id).maybeSingle()
+  const { data } = await db().from('quote_requests').select('*').eq('company_id', admin.companyId).eq('id', id).maybeSingle()
   const req = data as QuoteRequest | null
   if (!req) notFound()
   const [quotes, vendors, job, settings, origin] = await Promise.all([
@@ -34,10 +34,10 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
       .then((r) => (must(r) as Quote[]).filter((q) => q.request_id === id)),
     db()
       .from('vendors')
-      .select('*')
+      .select('*').eq('company_id', admin.companyId)
       .then((r) => must(r) as Vendor[]),
     req.job_id ? getJob(req.job_id) : null,
-    getSettings(),
+    getSettings(admin.companyId),
     siteOrigin(),
   ])
   const vendorOf = new Map(vendors.map((v) => [v.id, v]))

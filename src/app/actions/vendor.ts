@@ -5,12 +5,13 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { encrypt } from '@/lib/crypto'
-import { audit, getJob } from '@/lib/data'
+import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
 import { adminIds, sendPush } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
-import { requireAdmin } from '@/lib/session'
+import { requireAdmin, type AdminUser } from '@/lib/session'
+import { companyJob, companyRow } from '@/lib/company'
 import { kstDate } from '@/lib/time'
 import type { Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types'
 import { isDate, isUuid, optStr, str } from '@/lib/validate'
@@ -34,6 +35,15 @@ const dateOrNull = (form: FormData, key: string) => {
 }
 
 const newToken = () => randomBytes(24).toString('base64url')
+
+/** 이 회사 견적 요청에 딸린 견적 (다른 회사 것이면 null) */
+async function companyQuote<T extends Pick<Quote, 'request_id'>>(admin: AdminUser, quoteId: string, cols = '*'): Promise<T | null> {
+  if (!isUuid(quoteId)) return null
+  const { data } = await db().from('quotes').select(cols).eq('id', quoteId).maybeSingle()
+  const q = data as T | null
+  if (!q || !(await companyRow(admin, 'quote_requests', q.request_id, 'id'))) return null
+  return q
+}
 
 function refresh(...paths: string[]) {
   revalidatePath('/admin/vendors')
@@ -75,15 +85,16 @@ export async function saveVendor(id: string | null, _: FormState, form: FormData
     row.bank_account_enc = null
   }
   if (id) {
+    if (!(await companyRow(admin, 'vendors', id, 'id'))) return { error: '외주사를 찾을 수 없어요.' }
     row.active = form.get('active') === 'on'
-    must(await db().from('vendors').update(row).eq('id', id))
-    await audit(admin.id, 'vendor.edit', null, name)
+    must(await db().from('vendors').update(row).eq('id', id).eq('company_id', admin.companyId))
+    await audit(admin.id, 'vendor.edit', null, name, admin.companyId)
     refresh(`/admin/vendors/${id}`)
     return { ok: '저장했어요.' }
   }
-  const { data, error } = await db().from('vendors').insert({ ...row, active: true }).select('id').single()
+  const { data, error } = await db().from('vendors').insert({ ...row, company_id: admin.companyId, active: true }).select('id').single()
   if (error || !data) return { error: '등록하지 못했어요. 다시 시도해 주세요.' }
-  await audit(admin.id, 'vendor.add', null, name)
+  await audit(admin.id, 'vendor.add', null, name, admin.companyId)
   refresh()
   back('/admin/vendors?tab=list', `${name}을(를) 외주사로 등록했어요.`)
 }
@@ -96,17 +107,18 @@ export async function createQuoteRequest(_: FormState, form: FormData): Promise<
   const title = str(form, 'title', 80)
   if (title.length < 2) return { error: '무엇을 요청하는지 제목을 적어 주세요. (예: 무대 음향 장비 2일)' }
   const jobId = str(form, 'job_id', 40)
-  const job = jobId && isUuid(jobId) ? await getJob(jobId) : null
+  const job = jobId ? await companyJob(admin, jobId) : null
   if (jobId && !job) return { error: '연결할 공고를 찾을 수 없어요.' }
   const vendorIds = [...new Set(form.getAll('vendor').map(String).filter(isUuid))]
   if (!vendorIds.length) return { error: '견적을 받을 업체를 한 곳 이상 골라 주세요.' }
-  const vendors = (must(await db().from('vendors').select('id, active').in('id', vendorIds)) as Pick<Vendor, 'id' | 'active'>[]).filter(
+  const vendors = (must(await db().from('vendors').select('id, active').eq('company_id', admin.companyId).in('id', vendorIds)) as Pick<Vendor, 'id' | 'active'>[]).filter(
     (v) => v.active && vendorIds.includes(v.id),
   )
   if (!vendors.length) return { error: '고른 업체를 찾을 수 없어요.' }
   const { data, error } = await db()
     .from('quote_requests')
     .insert({
+      company_id: admin.companyId,
       title,
       details: optStr(form, 'details', 2000),
       due_date: dateOrNull(form, 'due_date'),
@@ -118,18 +130,20 @@ export async function createQuoteRequest(_: FormState, form: FormData): Promise<
     .single()
   if (error || !data) return { error: '견적 요청을 만들지 못했어요. 다시 시도해 주세요.' }
   must(await db().from('quotes').insert(vendors.map((v) => ({ request_id: data.id, vendor_id: v.id, token: newToken(), status: 'requested', vat_included: true }))))
-  await audit(admin.id, 'quote.request', null, `${title} · ${vendors.length}곳`)
+  await audit(admin.id, 'quote.request', null, `${title} · ${vendors.length}곳`, admin.companyId)
   refresh()
   back(`/admin/vendors/requests/${data.id}`, `견적 요청을 만들었어요. 업체마다 링크를 보내 주세요.`)
 }
 
 /** 견적 요청에 업체 더 넣기 */
 export async function addVendorsToRequest(requestId: string, form: FormData) {
-  await requireAdmin()
-  if (!isUuid(requestId)) return
+  const admin = await requireAdmin()
+  if (!(await companyRow(admin, 'quote_requests', requestId, 'id'))) return
   const path = `/admin/vendors/requests/${requestId}`
-  const ids = [...new Set(form.getAll('vendor').map(String).filter(isUuid))]
-  if (!ids.length) back(path, '더할 업체를 골라 주세요.')
+  const picked = [...new Set(form.getAll('vendor').map(String).filter(isUuid))]
+  if (!picked.length) back(path, '더할 업체를 골라 주세요.')
+  // 이 회사 외주사만
+  const ids = (must(await db().from('vendors').select('id').eq('company_id', admin.companyId).in('id', picked)) as { id: string }[]).map((v) => v.id)
   const have = new Set((must(await db().from('quotes').select('vendor_id').eq('request_id', requestId)) as { vendor_id: string }[]).map((q) => q.vendor_id))
   const add = ids.filter((v) => !have.has(v))
   if (add.length) must(await db().from('quotes').insert(add.map((v) => ({ request_id: requestId, vendor_id: v, token: newToken(), status: 'requested', vat_included: true }))))
@@ -143,8 +157,7 @@ export async function recordQuote(quoteId: string, _: FormState, form: FormData)
   if (!isUuid(quoteId)) return { error: '잘못된 요청입니다.' }
   const amount = amountOf(form)
   if (amount == null) return { error: '견적 금액을 숫자로 적어 주세요.' }
-  const { data } = await db().from('quotes').select('id, request_id, status').eq('id', quoteId).maybeSingle()
-  const q = data as Pick<Quote, 'id' | 'request_id' | 'status'> | null
+  const q = await companyQuote<Pick<Quote, 'id' | 'request_id' | 'status'>>(admin, quoteId, 'id, request_id, status')
   if (!q) return { error: '견적을 찾을 수 없어요.' }
   if (q.status === 'selected') return { error: '선정한 견적은 바꿀 수 없어요. 선정을 취소한 뒤 고쳐 주세요.' }
   must(
@@ -160,7 +173,7 @@ export async function recordQuote(quoteId: string, _: FormState, form: FormData)
       })
       .eq('id', quoteId),
   )
-  await audit(admin.id, 'quote.record', null, `${quoteId} ${amount}`)
+  await audit(admin.id, 'quote.record', null, `${quoteId} ${amount}`, admin.companyId)
   refresh(`/admin/vendors/requests/${q.request_id}`)
   return { ok: `${won(amount)}으로 기록했어요.` }
 }
@@ -168,9 +181,7 @@ export async function recordQuote(quoteId: string, _: FormState, form: FormData)
 /** 견적 선정: 이 견적을 선정하고 같은 요청의 다른 견적은 미선정, 요청은 마감, 대금 지급에 올림 */
 export async function selectQuote(quoteId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(quoteId)) return
-  const { data } = await db().from('quotes').select('*').eq('id', quoteId).maybeSingle()
-  const q = data as Quote | null
+  const q = await companyQuote<Quote>(admin, quoteId)
   if (!q) return
   const path = `/admin/vendors/requests/${q.request_id}`
   if (q.amount == null) back(path, '금액이 있는 견적만 선정할 수 있어요.')
@@ -188,6 +199,7 @@ export async function selectQuote(quoteId: string) {
   if (!count) {
     must(
       await db().from('vendor_payments').insert({
+        company_id: req.company_id,
         vendor_id: q.vendor_id,
         job_id: req.job_id,
         quote_id: q.id,
@@ -197,7 +209,7 @@ export async function selectQuote(quoteId: string) {
       }),
     )
   }
-  await audit(admin.id, 'quote.select', null, `${req.title} ${q.amount}`)
+  await audit(admin.id, 'quote.select', null, `${req.title} ${q.amount}`, admin.companyId)
   refresh(path, req.job_id ? `/admin/jobs/${req.job_id}` : '/admin/vendors')
   back(path, `선정했어요. 대금 지급에 ${won(q.amount)}을 올렸어요. 지급 예정일을 정해 주세요.`)
 }
@@ -205,9 +217,7 @@ export async function selectQuote(quoteId: string) {
 /** 선정 취소 (실수했을 때): 견적들을 다시 비교할 수 있게 되돌리고, 아직 지급 안 한 지급 건은 지움 */
 export async function unselectQuote(quoteId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(quoteId)) return
-  const { data } = await db().from('quotes').select('id, request_id, status').eq('id', quoteId).maybeSingle()
-  const q = data as Pick<Quote, 'id' | 'request_id' | 'status'> | null
+  const q = await companyQuote<Pick<Quote, 'id' | 'request_id' | 'status'>>(admin, quoteId, 'id, request_id, status')
   if (!q || q.status !== 'selected') return
   const path = `/admin/vendors/requests/${q.request_id}`
   const pays = must(await db().from('vendor_payments').select('id, paid_at').eq('quote_id', q.id)) as Pick<VendorPayment, 'id' | 'paid_at'>[]
@@ -216,16 +226,16 @@ export async function unselectQuote(quoteId: string) {
   const all = must(await db().from('quotes').select('id, amount').eq('request_id', q.request_id)) as Pick<Quote, 'id' | 'amount'>[]
   for (const o of all) must(await db().from('quotes').update({ status: o.amount == null ? 'requested' : 'submitted' }).eq('id', o.id))
   must(await db().from('quote_requests').update({ status: 'open' }).eq('id', q.request_id))
-  await audit(admin.id, 'quote.unselect', null, q.id)
+  await audit(admin.id, 'quote.unselect', null, q.id, admin.companyId)
   refresh(path)
   back(path, '선정을 취소했어요. 다시 비교해서 골라 주세요.')
 }
 
 /** 견적 요청 마감·다시 열기·취소 */
 export async function setRequestStatus(requestId: string, status: QuoteRequest['status']) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   if (!isUuid(requestId) || !['open', 'closed', 'cancelled'].includes(status)) return
-  must(await db().from('quote_requests').update({ status }).eq('id', requestId))
+  must(await db().from('quote_requests').update({ status }).eq('id', requestId).eq('company_id', admin.companyId))
   const path = `/admin/vendors/requests/${requestId}`
   refresh(path)
   back(path, status === 'open' ? '견적 요청을 다시 열었어요.' : status === 'closed' ? '견적 요청을 마감했어요.' : '견적 요청을 취소했어요.')
@@ -244,7 +254,9 @@ export async function savePayment(id: string | null, _: FormState, form: FormDat
   const amount = amountOf(form)
   if (amount == null) return { error: '금액을 숫자로 적어 주세요.' }
   const jobId = str(form, 'job_id', 40)
-  if (jobId && !isUuid(jobId)) return { error: '연결할 공고를 다시 골라 주세요.' }
+  if (jobId && !(await companyJob(admin, jobId))) return { error: '연결할 공고를 다시 골라 주세요.' }
+  if (!(await companyRow(admin, 'vendors', vendorId, 'id'))) return { error: '외주사를 골라 주세요.' }
+  if (id && !(await companyRow(admin, 'vendor_payments', id, 'id'))) return { error: '지급 건을 찾을 수 없어요.' }
   const row = {
     vendor_id: vendorId,
     job_id: jobId || null,
@@ -255,20 +267,20 @@ export async function savePayment(id: string | null, _: FormState, form: FormDat
     memo: optStr(form, 'memo', 500),
   }
   if (id) {
-    must(await db().from('vendor_payments').update(row).eq('id', id))
+    must(await db().from('vendor_payments').update(row).eq('id', id).eq('company_id', admin.companyId))
   } else {
-    must(await db().from('vendor_payments').insert(row))
+    must(await db().from('vendor_payments').insert({ ...row, company_id: admin.companyId }))
   }
-  await audit(admin.id, id ? 'vpay.edit' : 'vpay.add', null, `${title} ${amount}`)
+  await audit(admin.id, id ? 'vpay.edit' : 'vpay.add', null, `${title} ${amount}`, admin.companyId)
   refresh(jobId ? `/admin/jobs/${jobId}` : '/admin/vendors')
   return { ok: id ? '저장했어요.' : `${won(amount)} 지급 건을 등록했어요.` }
 }
 
 /** 지급 예정일만 바꾸기 (목록에서 바로) */
 export async function setPaymentDue(paymentId: string, form: FormData) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   if (!isUuid(paymentId)) return
-  must(await db().from('vendor_payments').update({ due_date: dateOrNull(form, 'due_date') }).eq('id', paymentId))
+  must(await db().from('vendor_payments').update({ due_date: dateOrNull(form, 'due_date') }).eq('id', paymentId).eq('company_id', admin.companyId))
   refresh()
 }
 
@@ -276,8 +288,8 @@ export async function setPaymentDue(paymentId: string, form: FormData) {
 export async function markInvoice(paymentId: string, received: boolean) {
   const admin = await requireAdmin()
   if (!isUuid(paymentId)) return
-  must(await db().from('vendor_payments').update({ invoice_at: received ? kstDate() : null }).eq('id', paymentId))
-  await audit(admin.id, received ? 'vpay.invoice' : 'vpay.invoice_undo', null, paymentId)
+  must(await db().from('vendor_payments').update({ invoice_at: received ? kstDate() : null }).eq('id', paymentId).eq('company_id', admin.companyId))
+  await audit(admin.id, received ? 'vpay.invoice' : 'vpay.invoice_undo', null, paymentId, admin.companyId)
   refresh()
 }
 
@@ -285,9 +297,10 @@ export async function markInvoice(paymentId: string, received: boolean) {
 export async function markVendorPaid(paymentId: string, paid: boolean) {
   const admin = await requireAdmin()
   if (!isUuid(paymentId)) return
-  const { data } = await db().from('vendor_payments').select('job_id').eq('id', paymentId).maybeSingle()
-  must(await db().from('vendor_payments').update({ paid_at: paid ? kstDate() : null }).eq('id', paymentId))
-  await audit(admin.id, paid ? 'vpay.paid' : 'vpay.unpaid', null, paymentId)
+  const data = await companyRow<{ job_id: string | null; company_id: string }>(admin, 'vendor_payments', paymentId, 'job_id')
+  if (!data) return
+  must(await db().from('vendor_payments').update({ paid_at: paid ? kstDate() : null }).eq('id', paymentId).eq('company_id', admin.companyId))
+  await audit(admin.id, paid ? 'vpay.paid' : 'vpay.unpaid', null, paymentId, admin.companyId)
   refresh(data?.job_id ? `/admin/jobs/${data.job_id}` : '/admin/vendors')
 }
 
@@ -295,10 +308,10 @@ export async function markVendorPaid(paymentId: string, paid: boolean) {
 export async function deletePayment(paymentId: string) {
   const admin = await requireAdmin()
   if (!isUuid(paymentId)) return
-  const { data } = await db().from('vendor_payments').select('paid_at, title').eq('id', paymentId).maybeSingle()
+  const data = await companyRow<{ paid_at: string | null; title: string; company_id: string }>(admin, 'vendor_payments', paymentId, 'paid_at, title')
   if (!data || data.paid_at) back('/admin/vendors?tab=pay', '이미 지급한 건은 지울 수 없어요.')
-  must(await db().from('vendor_payments').delete().eq('id', paymentId))
-  await audit(admin.id, 'vpay.delete', null, data.title)
+  must(await db().from('vendor_payments').delete().eq('id', paymentId).eq('company_id', admin.companyId))
+  await audit(admin.id, 'vpay.delete', null, data.title, admin.companyId)
   refresh()
   back('/admin/vendors?tab=pay', '지급 건을 지웠어요.')
 }
@@ -337,7 +350,7 @@ export async function submitQuote(token: string, _: FormState, form: FormData): 
   )
   const name = (vendor as { name: string } | null)?.name ?? '외주사'
   after(async () =>
-    sendPush(await adminIds(), {
+    sendPush(await adminIds(req.company_id), {
       title: '📄 견적 도착',
       body: `${name} · ${req.title} · ${won(amount)}`,
       url: `/admin/vendors/requests/${req.id}`,

@@ -9,6 +9,7 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { companyWorkerIds } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
@@ -53,22 +54,22 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 }
 
 export default async function AdminHome(props: PageProps<'/admin'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
   const today = kstDate()
   const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount, unreadChats] = await Promise.all([
-    getSettings(),
-    hasSeal(),
+    getSettings(admin.companyId),
+    hasSeal(admin.companyId),
     db()
       .from('jobs')
-      .select(JOB_WITH_APP_STATUS)
+      .select(JOB_WITH_APP_STATUS).eq('company_id', admin.companyId)
       .in('status', ['open', 'closed'])
       .gte('end_date', today)
       .order('start_date')
       .then((r) => must(r) as JobWithAppStatus[]),
     db()
       .from('applications')
-      .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date, photo_at)')
+      .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date, photo_at)').eq('company_id', admin.companyId)
       .eq('status', 'applied')
       .order('created_at', { ascending: false })
       .limit(30)
@@ -83,10 +84,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             user: { id: string; name: string; phone: string; birth_date: string | null; photo_at: string | null }
           }[],
       ),
-    db().from('attendance').select('job_id').is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
-    db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
-    db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true),
-    unreadForAdmins(),
+    db().from('attendance').select('job_id').eq('company_id', admin.companyId).is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
+    db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('status', 'pending'),
+    // 이 회사에 지원한 근무자 수
+    companyWorkerIds(admin.companyId).then((ids) => ({ count: ids.length })),
+    unreadForAdmins(admin.companyId),
   ])
   const counts = countApps(activeJobs, 'approved')
   const waitingBy = countApps(activeJobs, 'applied')
@@ -103,13 +105,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ? await Promise.all([
         db()
           .from('applications')
-          .select('job_id, user_id, available_dates')
+          .select('job_id, user_id, available_dates').eq('company_id', admin.companyId)
           .in('job_id', todayIds)
           .eq('status', 'approved')
           .then((r) => must(r) as { job_id: string; user_id: string; available_dates: string[] | null }[]),
         db()
           .from('attendance')
-          .select('job_id, user_id')
+          .select('job_id, user_id').eq('company_id', admin.companyId)
           .in('job_id', todayIds)
           .eq('work_date', today)
           .then((r) => must(r) as { job_id: string; user_id: string }[]),
@@ -137,7 +139,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
-      .select('job_id, work_date, job:jobs(title)')
+      .select('job_id, work_date, job:jobs(title)').eq('company_id', admin.companyId)
       .eq('ot_status', 'pending')
       .eq('ot_by', 'worker')
       .eq('paid', false)
@@ -146,14 +148,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     // 근무시간 변경에 아직 답하지 않은 근무자
     db()
       .from('shift_changes')
-      .select('job_id, work_date, status')
+      .select('job_id, work_date, status').eq('company_id', admin.companyId)
       .eq('status', 'pending')
       .limit(500)
       .then((r) => (must(r) as { job_id: string; work_date: string | null; status: string }[]).filter((c) => c.status === 'pending')),
     // 지난 날짜인데 근무 종료를 안 누른 기록
     db()
       .from('attendance')
-      .select('job_id, work_date, clock_out, job:jobs(title)')
+      .select('job_id, work_date, clock_out, job:jobs(title)').eq('company_id', admin.companyId)
       .is('clock_out', null)
       .lt('work_date', today)
       .limit(200)
@@ -166,7 +168,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     todayIds.length
       ? db()
           .from('messages')
-          .select('thread_user_id, job_id, body, created_at')
+          .select('thread_user_id, job_id, body, created_at').eq('company_id', admin.companyId)
           .in('job_id', todayIds)
           .eq('from_admin', false)
           .gte('created_at', kstAt(today, '00:00').toISOString())
@@ -181,7 +183,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     outsideJobs.length
       ? db()
           .from('applications')
-          .select('job_id, contract_received_at')
+          .select('job_id, contract_received_at').eq('company_id', admin.companyId)
           .in('job_id', outsideJobs.map((j) => j.id))
           .eq('status', 'approved')
           .then((r) => (must(r) as { job_id: string; contract_received_at: string | null }[]).filter((a) => !a.contract_received_at))
@@ -190,13 +192,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       ? Promise.all([
           db()
             .from('applications')
-            .select('job_id, user_id, available_dates')
+            .select('job_id, user_id, available_dates').eq('company_id', admin.companyId)
             .in('job_id', tomorrowJobs.map((j) => j.id))
             .eq('status', 'approved')
             .then((r) => must(r) as { job_id: string; user_id: string; available_dates: string[] | null }[]),
           db()
             .from('signed_docs')
-            .select('job_id, user_id, status')
+            .select('job_id, user_id, status').eq('company_id', admin.companyId)
             .in('job_id', tomorrowJobs.map((j) => j.id))
             .eq('status', 'pending')
             .then((r) => (must(r) as { job_id: string; user_id: string; status: string }[]).filter((d) => d.status === 'pending')),
@@ -209,7 +211,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     todayIds.length
       ? db()
           .from('messages')
-          .select('thread_user_id, job_id, body, created_at, from_admin')
+          .select('thread_user_id, job_id, body, created_at, from_admin').eq('company_id', admin.companyId)
           .in('job_id', todayIds)
           .gte('created_at', kstAt(today, '00:00').toISOString())
           .limit(500)
@@ -228,11 +230,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const [vpays, vreqs, vquotes] = await Promise.all([
     db()
       .from('vendor_payments')
-      .select('id, due_date, paid_at, invoice_at')
+      .select('id, due_date, paid_at, invoice_at').eq('company_id', admin.companyId)
       .then((r) => (r.error ? [] : (r.data as { id: string; due_date: string | null; paid_at: string | null; invoice_at: string | null }[]))),
     db()
       .from('quote_requests')
-      .select('id, title, due_date, status')
+      .select('id, title, due_date, status').eq('company_id', admin.companyId)
       .eq('status', 'open')
       .then((r) => (r.error ? [] : (r.data as { id: string; title: string; due_date: string | null; status: string }[]).filter((q) => q.status === 'open'))),
     db()

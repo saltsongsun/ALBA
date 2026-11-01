@@ -13,9 +13,9 @@ export const metadata: Metadata = { title: '서류 서식' }
 const KIND: Record<DocTemplate['kind'], string> = { contract: '근로계약서', pledge: '서약서', consent: '동의서', other: '기타' }
 
 export default async function DocsPage(props: PageProps<'/admin/docs'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
-  const tpls = must(await db().from('doc_templates').select('*').order('created_at')) as DocTemplate[]
+  const tpls = must(await db().from('doc_templates').select('*').eq('company_id', admin.companyId).order('created_at')) as DocTemplate[]
   return (
     <div className="space-y-4">
       <Flash m={sp.m} />

@@ -40,9 +40,15 @@ export function ResetPin({ userId }: { userId: string }) {
 export function WorkerEditForm({
   userId,
   initial,
+  canSuspend = false,
+  canGrant = false,
 }: {
   userId: string
   initial: { name: string; phone: string; role: string; active: boolean; admin_memo: string }
+  /** 계정 정지는 모든 회사에 영향 → 최고 관리자만 */
+  canSuspend?: boolean
+  /** 이 회사 관리자 추가·해제 → 최고 관리자·대표 관리자만 */
+  canGrant?: boolean
 }) {
   const [state, action] = useActionState(updateWorker.bind(null, userId), null)
   return (
@@ -58,18 +64,24 @@ export function WorkerEditForm({
         </label>
       </div>
       <label className="block">
-        <span className="label">관리자 메모 (근무자에게 보이지 않음)</span>
+        <span className="label">관리자 메모 (근무자·다른 회사에는 보이지 않음)</span>
         <textarea name="admin_memo" rows={3} className="input" defaultValue={initial.admin_memo} placeholder="성실함, 무대 경험 있음 등" />
       </label>
       <div className="flex flex-wrap gap-4 text-sm">
-        <label className="flex items-center gap-2">
-          <input type="checkbox" name="role" value="admin" defaultChecked={initial.role === 'admin'} className="size-5 accent-brand-600" />
-          관리자 권한
-        </label>
-        <label className="flex items-center gap-2">
-          <input type="checkbox" name="inactive" defaultChecked={!initial.active} className="size-5 accent-brand-600" />
-          로그인 정지 (탈퇴 처리)
-        </label>
+        {canGrant ? (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="role" value="admin" defaultChecked={initial.role === 'admin'} className="size-5 accent-brand-600" />
+            이 회사 관리자
+          </label>
+        ) : (
+          initial.role === 'admin' && <input type="hidden" name="role" value="admin" />
+        )}
+        {canSuspend && (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" name="inactive" defaultChecked={!initial.active} className="size-5 accent-brand-600" />
+            로그인 정지 (모든 회사)
+          </label>
+        )}
       </div>
       <FormMessage state={state} />
       <SubmitButton className="btn-primary btn-sm">저장</SubmitButton>

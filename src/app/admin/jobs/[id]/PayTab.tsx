@@ -16,13 +16,13 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
   // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
   const vpays = await db()
     .from('vendor_payments')
-    .select('*')
+    .select('*').eq('company_id', job.company_id)
     .eq('job_id', job.id)
     .then((r) => (r.error ? [] : (r.data as VendorPayment[]).filter((p) => p.job_id === job.id)))
   const vnames = vpays.length
     ? await db()
         .from('vendors')
-        .select('id, name')
+        .select('id, name').eq('company_id', job.company_id)
         .in('id', [...new Set(vpays.map((p) => p.vendor_id))])
         .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((v) => [v.id, v.name])))
     : new Map<string, string>()

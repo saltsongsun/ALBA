@@ -26,13 +26,14 @@ export type MonthRow = {
   jobs: string[]
 }
 
-/** 한 달(근무일 기준) 근무자별 합계. 소득세는 공고(지급)별로 계산해 더합니다. */
-export async function monthlyRows(ym: string): Promise<MonthRow[]> {
+/** 한 회사의 한 달(근무일 기준) 근무자별 합계. 소득세는 공고(지급)별로 계산해 더합니다. */
+export async function monthlyRows(ym: string, companyId: string): Promise<MonthRow[]> {
   const [from, to] = monthRange(ym)
   const atts = must(
     await db()
       .from('attendance')
       .select('*, job:jobs(*), user:users(id, name, phone, birth_date, rrn_enc, is_foreigner)')
+      .eq('company_id', companyId)
       .gte('work_date', from)
       .lte('work_date', to)
       .order('work_date'),

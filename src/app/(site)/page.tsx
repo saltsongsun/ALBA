@@ -2,7 +2,8 @@ import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import JobCard from '@/components/JobCard'
-import { countApps, getSettings, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
+import { countApps, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
+import { APP_NAME } from '@/lib/brand'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { getUser } from '@/lib/session'
@@ -11,9 +12,8 @@ import { kstDate } from '@/lib/time'
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
   const today = kstDate()
-  const [user, settings, jobs, myApps] = await Promise.all([
+  const [user, jobs, myApps] = await Promise.all([
     getUser(),
-    getSettings(),
     db()
       .from('jobs')
       .select(JOB_WITH_APP_STATUS)
@@ -89,7 +89,7 @@ export default async function HomePage(props: PageProps<'/'>) {
         <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-44 animate-float rounded-full bg-white/10" />
         <span aria-hidden className="pointer-events-none absolute right-14 -bottom-14 size-28 animate-float rounded-full bg-white/10 [animation-delay:1.4s]" />
         <div className="relative">
-          <p className="text-sm font-semibold opacity-80">{settings.company_name}</p>
+          <p className="text-sm font-semibold opacity-80">{APP_NAME}</p>
           <h1 className="mt-1 text-2xl leading-tight font-extrabold">
             행사 단기 알바,
             <br />

@@ -25,40 +25,42 @@ const TABS = [
 ] as const
 
 export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
   const tab = TABS.find(([k]) => k === sp.tab)?.[0] ?? 'quotes'
   const show = sp.show === 'paid' ? 'paid' : sp.show === 'all' ? 'all' : 'unpaid'
   const presetJob = typeof sp.job === 'string' && isUuid(sp.job) ? sp.job : ''
   const today = kstDate()
-  const [vendors, requests, quotes, payments, jobs] = await Promise.all([
+  const [vendors, requests, payments, jobs] = await Promise.all([
     db()
       .from('vendors')
-      .select('*')
+      .select('*').eq('company_id', admin.companyId)
       .then((r) => (must(r) as Vendor[]).sort((a, b) => a.name.localeCompare(b.name, 'ko'))),
     db()
       .from('quote_requests')
-      .select('*')
+      .select('*').eq('company_id', admin.companyId)
       .order('created_at', { ascending: false })
       .limit(200)
       .then((r) => (must(r) as QuoteRequest[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
     db()
-      .from('quotes')
-      .select('id, request_id, vendor_id, amount, status')
-      .then((r) => must(r) as Pick<Quote, 'id' | 'request_id' | 'vendor_id' | 'amount' | 'status'>[]),
-    db()
       .from('vendor_payments')
-      .select('*')
+      .select('*').eq('company_id', admin.companyId)
       .then((r) => must(r) as VendorPayment[]),
     // 연결할 공고: 최근 끝났거나 앞으로 있을 공고
     db()
       .from('jobs')
-      .select('id, title, start_date, end_date, status')
+      .select('id, title, start_date, end_date, status').eq('company_id', admin.companyId)
       .gte('end_date', kstDate(new Date(Date.now() - 90 * 86_400_000)))
       .order('start_date', { ascending: false })
       .limit(200)
       .then((r) => (must(r) as Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'status'>[]).filter((j) => j.status !== 'draft')),
   ])
+  // 견적은 이 회사 견적 요청에 딸린 것만
+  const quotes = requests.length
+    ? (must(
+        await db().from('quotes').select('id, request_id, vendor_id, amount, status').in('request_id', requests.map((r) => r.id)),
+      ) as Pick<Quote, 'id' | 'request_id' | 'vendor_id' | 'amount' | 'status'>[])
+    : []
   const vendorOf = new Map(vendors.map((v) => [v.id, v]))
   const jobOf = new Map(jobs.map((j) => [j.id, j]))
   const jobOpts = jobs.map((j) => ({ id: j.id, label: `${fmtDate(j.start_date)} · ${j.title}` }))

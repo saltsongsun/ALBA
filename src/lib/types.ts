@@ -1,5 +1,8 @@
 export type Role = 'worker' | 'admin'
 
+/** 회사 (회사마다 상호·대표·직인·기본 시급) */
+export type Company = Settings & { id: string; active: boolean; created_at: string }
+
 export type UserRow = {
   id: string
   role: Role
@@ -40,6 +43,7 @@ export type JobStatus = 'draft' | 'open' | 'closed' | 'done' | 'cancelled'
 export type JobCondition = { label: string; value: string }
 
 export type Job = {
+  company_id: string
   id: string
   title: string
   event_name: string | null
@@ -93,6 +97,7 @@ export type ContractMethod = 'app' | 'paper' | 'external'
 
 /** 근무시간 변경 요청과 근무자 동의 (work_date가 null이면 공고 전체 일정) */
 export type ShiftChange = {
+  company_id: string
   id: string
   job_id: string
   user_id: string
@@ -110,6 +115,7 @@ export type ShiftChange = {
 }
 
 export type Application = {
+  company_id: string
   id: string
   job_id: string
   user_id: string
@@ -126,6 +132,7 @@ export type Application = {
 }
 
 export type Attendance = {
+  company_id: string
   id: string
   job_id: string
   user_id: string
@@ -160,6 +167,7 @@ export type Attendance = {
 export type DocKind = 'contract' | 'pledge' | 'consent' | 'other'
 
 export type DocTemplate = {
+  company_id: string
   id: string
   kind: DocKind
   title: string
@@ -170,6 +178,7 @@ export type DocTemplate = {
 }
 
 export type SignedDoc = {
+  company_id: string
   id: string
   job_id: string
   user_id: string
@@ -210,6 +219,7 @@ export type CompanySnapshot = Pick<
 
 /** 문의 채팅 (근무자 한 명당 대화방 하나, thread_user_id = 그 근무자) */
 export type Message = {
+  company_id: string
   id: number
   thread_user_id: string
   sender_id: string | null
@@ -222,6 +232,7 @@ export type Message = {
 
 /** 관리자끼리만 보는 근무자 평점 */
 export type WorkerRating = {
+  company_id: string
   id: string
   user_id: string
   job_id: string | null
@@ -234,6 +245,7 @@ export type WorkerRating = {
 
 /** 외주사 (우리가 일을 맡기는 협력업체) */
 export type Vendor = {
+  company_id: string
   id: string
   name: string
   category: string | null
@@ -251,6 +263,7 @@ export type Vendor = {
 
 /** 견적 요청 (여러 업체에 같은 내용을 요청) */
 export type QuoteRequest = {
+  company_id: string
   id: string
   job_id: string | null
   title: string
@@ -278,6 +291,7 @@ export type Quote = {
 
 /** 외주 대금 지급 */
 export type VendorPayment = {
+  company_id: string
   id: string
   vendor_id: string
   job_id: string | null

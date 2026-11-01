@@ -15,6 +15,7 @@ import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
+import { workerInCompany } from '@/lib/company'
 import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
@@ -25,27 +26,28 @@ export const metadata: Metadata = { title: '근무자 정보' }
 export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>) {
   const admin = await requireAdmin()
   const { id } = await props.params
-  if (!isUuid(id)) notFound()
+  // 이 회사에 지원한 근무자(또는 이 회사 관리자)만
+  if (!(await workerInCompany(admin.companyId, id))) notFound()
   const sp = await props.searchParams
   const today = kstDate()
-  const [{ data }, apps, atts, docs, ratings, relMap, openJobs] = await Promise.all([
+  const [{ data }, apps, atts, docs, ratings, relMap, openJobs, { data: note }, { data: member }] = await Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
     db()
       .from('applications')
-      .select('*, job:jobs(*)')
+      .select('*, job:jobs(*)').eq('company_id', admin.companyId)
       .eq('user_id', id)
       .order('created_at', { ascending: false })
       .then((r) => must(r) as (Application & { job: Job })[]),
-    db().from('attendance').select('*').eq('user_id', id).then((r) => must(r) as Attendance[]),
+    db().from('attendance').select('*').eq('company_id', admin.companyId).eq('user_id', id).then((r) => must(r) as Attendance[]),
     db()
       .from('signed_docs')
-      .select('id, job_id, title, status, signed_at')
+      .select('id, job_id, title, status, signed_at').eq('company_id', admin.companyId)
       .eq('user_id', id)
       .order('created_at', { ascending: false })
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title' | 'status' | 'signed_at'>[]),
     db()
       .from('worker_ratings')
-      .select('id, job_id, rater_id, score, comment, updated_at, job:jobs(title), rater:users!worker_ratings_rater_id_fkey(name)')
+      .select('id, job_id, rater_id, score, comment, updated_at, job:jobs(title), rater:users!worker_ratings_rater_id_fkey(name)').eq('company_id', admin.companyId)
       .eq('user_id', id)
       .order('updated_at', { ascending: false })
       .then(
@@ -55,11 +57,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             rater: { name: string } | null
           })[],
       ),
-    reliabilityFor([id]),
+    reliabilityFor(admin.companyId, [id]),
     // 바로 확정할 수 있는 공고 (모집 중·마감, 아직 끝나지 않음)
     db()
       .from('jobs')
-      .select('id, title, start_date, end_date, status')
+      .select('id, title, start_date, end_date, status').eq('company_id', admin.companyId)
       .in('status', ['open', 'closed'])
       .gte('end_date', today)
       .order('start_date')
@@ -68,9 +70,14 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           (j) => ['open', 'closed'].includes(j.status) && j.end_date >= today,
         ),
       ),
+    // 이 회사에만 보이는 메모 · 이 회사 관리자인지
+    db().from('company_worker_notes').select('memo').eq('company_id', admin.companyId).eq('user_id', id).maybeSingle(),
+    db().from('company_members').select('role').eq('company_id', admin.companyId).eq('user_id', id).maybeSingle(),
   ])
-  const u = data as UserRow | null
-  if (!u) notFound()
+  const found = data as UserRow | null
+  if (!found) notFound()
+  // 메모·관리자 표시는 이 회사 기준 (다른 회사 메모·소속은 보이지 않게)
+  const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]
   const account = decrypt(u.bank_account_enc)
   const age = u.birth_date ? ageOn(u.birth_date, kstDate()) : null
@@ -180,6 +187,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             <WorkerEditForm
               userId={u.id}
               initial={{ name: u.name, phone: u.phone, role: u.role, active: u.active, admin_memo: u.admin_memo ?? '' }}
+              canSuspend={admin.isSuper}
+              canGrant={admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'}
             />
           </Fold>
         </div>

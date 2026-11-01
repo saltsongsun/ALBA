@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { LoginForm } from '@/components/AuthForms'
-import { getSettings } from '@/lib/data'
+import { getPlatformSettings } from '@/lib/data'
 import { phoneFmt } from '@/lib/format'
 import { getUser } from '@/lib/session'
 import { safePath } from '@/lib/validate'
@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: '로그인' }
 export default async function LoginPage(props: PageProps<'/login'>) {
   const sp = await props.searchParams
   const next = safePath(sp.next, '')
-  const [user, settings] = await Promise.all([getUser(), getSettings()])
+  const [user, settings] = await Promise.all([getUser(), getPlatformSettings()])
   if (user) redirect(next || '/me')
   return (
     <div className="pt-6">

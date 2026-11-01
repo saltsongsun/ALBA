@@ -9,7 +9,7 @@ import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
 import { buildDocVars, renderTemplate, type DocPerson } from '@/lib/docs'
 import { phoneFmt } from '@/lib/format'
-import { requireUser } from '@/lib/session'
+import { canManageCompany, requireUser } from '@/lib/session'
 import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import DocGuard from '@/components/DocGuard'
@@ -34,10 +34,11 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           .then((r) => r.data as (SignedDoc & { worker: DocPerson | null }) | null)
       : null,
   ])
-  if (!doc || (doc.user_id !== user.id && user.role !== 'admin')) notFound()
+  // 본인 서류이거나, 그 서류 회사의 관리자만 (다른 회사 관리자는 못 봄)
+  const admin = !!doc && doc.user_id !== user.id && (await canManageCompany(user, doc.company_id))
+  if (!doc || (doc.user_id !== user.id && !admin)) notFound()
   const worker = doc.worker
   if (!worker) notFound()
-  const admin = user.role === 'admin'
   // 근무자: 근무가 확정된 동안만 열 수 있음. 지원 취소·확정 되돌림·행사 취소면 (이미 서명했어도) 담당자에게 문의
   if (!admin) {
     let blocked = doc.status === 'void'
@@ -75,7 +76,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   if (doc.status !== 'signed') {
     const [job, settings, { data: tpl }] = await Promise.all([
       getJob(doc.job_id),
-      getSettings({ seal: true }),
+      getSettings(doc.company_id, { seal: true }),
       doc.template_id ? db().from('doc_templates').select('*').eq('id', doc.template_id).maybeSingle() : { data: null },
     ])
     if (!job || !tpl) {

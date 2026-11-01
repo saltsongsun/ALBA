@@ -12,16 +12,22 @@ const LATE_MIN = 5 // 출퇴근 탭의 '지각' 표시와 같은 기준
  * 근무자별 지난 근무 성실도: 근무한 날 수, 지각, 노쇼.
  * 노쇼 = 확정됐고 근무 가능하다고 한 지난 날짜에 출근 기록이 없음. 단, 그날 그 공고에 출근 기록이 하나도 없으면
  * (앱으로 출퇴근을 안 받은 날) 세지 않음. exceptJobId는 지금 보고 있는 공고를 빼고 셀 때.
+ * 이 회사 근무만 셈 (다른 회사에서의 근무 기록은 보이지 않게)
  */
-export async function reliabilityFor(userIds: string[], exceptJobId?: string): Promise<Record<string, Reliability>> {
+export async function reliabilityFor(companyId: string, userIds: string[], exceptJobId?: string): Promise<Record<string, Reliability>> {
   const out: Record<string, Reliability> = {}
   if (!userIds.length) return out
   for (const u of userIds) out[u] = { days: 0, late: 0, noShow: 0, dismissed: 0 }
   const today = kstDate()
-  let attQ = db().from('attendance').select('user_id, job_id, work_date, clock_in, note, job:jobs(start_time)').in('user_id', userIds)
+  let attQ = db()
+    .from('attendance')
+    .select('user_id, job_id, work_date, clock_in, note, job:jobs(start_time)')
+    .eq('company_id', companyId)
+    .in('user_id', userIds)
   let appQ = db()
     .from('applications')
     .select('user_id, job_id, available_dates, job:jobs(start_date, end_date)')
+    .eq('company_id', companyId)
     .in('user_id', userIds)
     .eq('status', 'approved')
   if (exceptJobId) {

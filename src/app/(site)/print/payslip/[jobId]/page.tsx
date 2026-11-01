@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import PayslipSheet from '@/components/PayslipSheet'
 import { PrintButton } from '@/components/ui'
-import { getJob } from '@/lib/data'
+import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { loadWorkerPay } from '@/lib/payroll'
 import { requireAdmin } from '@/lib/session'
@@ -17,7 +17,7 @@ export default async function AllPayslipsPage(props: PageProps<'/print/payslip/[
   const { jobId } = await props.params
   const viewer = await requireAdmin()
   if (!isUuid(jobId)) notFound()
-  const job = await getJob(jobId)
+  const job = await companyJob(viewer, jobId)
   if (!job) notFound()
   const ids = [
     ...new Set((must(await db().from('attendance').select('user_id').eq('job_id', jobId)) as { user_id: string }[]).map((a) => a.user_id)),

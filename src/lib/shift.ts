@@ -42,7 +42,7 @@ export async function applyAgreedShift(c: ShiftChange) {
  * prevOf: 그 사람의 지금 시간. 바뀌는 게 없는 사람은 뺌. 요청한 사람 수를 돌려줌
  */
 export async function requestShiftChange(o: {
-  job: Pick<Job, 'id' | 'title'>
+  job: Pick<Job, 'id' | 'title' | 'company_id'>
   adminId: string
   userIds: string[]
   workDate: string | null
@@ -84,6 +84,7 @@ export async function requestShiftChange(o: {
       rows.map((r) => r.user_id),
       {
         senderId: o.adminId,
+        companyId: o.job.company_id,
         jobId: o.job.id,
         title: SIGNAL.change,
         text: (uid) =>

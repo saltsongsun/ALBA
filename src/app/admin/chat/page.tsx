@@ -21,14 +21,14 @@ type Row = {
 }
 
 export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
   const onlyUnread = sp.unread === '1'
   // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
   const rows = must(
     await db()
       .from('messages')
-      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at)')
+      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at)').eq('company_id', admin.companyId)
       .order('created_at', { ascending: false })
       .limit(1000),
   ) as unknown as Row[]

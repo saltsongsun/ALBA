@@ -56,6 +56,7 @@ export async function applyJob(jobId: string, form: FormData) {
     if ((counts[jobId] ?? 0) < job.headcount) status = 'approved'
   }
   const row = {
+    company_id: job.company_id,
     job_id: jobId,
     user_id: user.id,
     status,
@@ -68,7 +69,7 @@ export async function applyJob(jobId: string, form: FormData) {
 
   if (status === 'approved') await ensurePendingDocs(job, user.id)
   after(async () =>
-    sendPush(await adminIds(), {
+    sendPush(await adminIds(job.company_id), {
       title: status === 'approved' ? '✅ 자동 확정' : '🙋 새 지원',
       body: `${user.name} · ${job.title}`,
       url: `/admin/jobs/${jobId}?tab=apps`,
@@ -83,13 +84,14 @@ export async function cancelApplication(appId: string, form?: FormData) {
   const user = await requireUser()
   const { data } = await db()
     .from('applications')
-    .select('id, job_id, user_id, status, job:jobs(title, start_date, end_date, start_time)')
+    .select('id, job_id, user_id, company_id, status, job:jobs(title, start_date, end_date, start_time)')
     .eq('id', appId)
     .maybeSingle()
   const app = data as {
     id: string
     job_id: string
     user_id: string
+    company_id: string
     status: string
     job: { title: string; start_date: string; end_date: string; start_time: string } | null
   } | null
@@ -114,9 +116,10 @@ export async function cancelApplication(appId: string, form?: FormData) {
     ]
       .filter(Boolean)
       .join('\n')
-    await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: app.job_id, body })
+    await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: app.company_id, job_id: app.job_id, body })
     const title = app.job.title
     const jobId = app.job_id
+    const companyId = app.company_id
     after(async () => {
       // 빈자리와 대기 인원을 함께 알려 바로 채울 수 있게
       const [job, { count: waiting }] = await Promise.all([
@@ -124,7 +127,7 @@ export async function cancelApplication(appId: string, form?: FormData) {
         db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'applied'),
       ])
       const left = job ? job.headcount - ((await approvedCounts([jobId]))[jobId] ?? 0) : 0
-      await sendPush(await adminIds(), {
+      await sendPush(await adminIds(companyId), {
         title: `⚠️ 확정 취소${hoursLeft < 24 ? ' (24시간 안)' : ''}`,
         body: `${user.name} · ${title}${reason ? ` · ${reason}` : ''}${left > 0 ? ` · 빈자리 ${left}명, 대기 ${waiting ?? 0}명` : ''}`,
         url: `/admin/jobs/${jobId}?tab=apps`,
@@ -146,12 +149,12 @@ export async function changeDates(appId: string, form: FormData) {
   const { data } = isUuid(appId)
     ? await db()
         .from('applications')
-        .select('id, user_id, job_id, status, available_dates, job:jobs(title, start_date, end_date, start_time)')
+        .select('id, user_id, job_id, company_id, status, available_dates, job:jobs(title, start_date, end_date, start_time)')
         .eq('id', appId)
         .maybeSingle()
     : { data: null }
   const app = data as
-    | (Pick<Application, 'id' | 'user_id' | 'job_id' | 'status' | 'available_dates'> & {
+    | (Pick<Application, 'id' | 'user_id' | 'job_id' | 'company_id' | 'status' | 'available_dates'> & {
         job: Pick<Job, 'title' | 'start_date' | 'end_date' | 'start_time'> | null
       })
     | null
@@ -203,10 +206,11 @@ export async function changeDates(appId: string, form: FormData) {
     ]
       .filter(Boolean)
       .join('\n')
-    await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: app.job_id, body })
+    await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: app.company_id, job_id: app.job_id, body })
     const jobId = app.job_id
+    const companyId = app.company_id
     after(async () =>
-      sendPush(await adminIds(), {
+      sendPush(await adminIds(companyId), {
         title: `⚠️ 근무일 취소${soon ? ' (24시간 안)' : ''}`,
         body: `${user.name} · ${job.title} · ${days}${reason ? ` · ${reason}` : ''}`,
         url: `/admin/jobs/${jobId}?tab=att&date=${removed[0]}`,
@@ -333,11 +337,11 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
   const reason = optStr(form, 'reason', 100)
   const { data } = await db()
     .from('attendance')
-    .select('id, user_id, job_id, work_date, clock_in, clock_out, adj_in, adj_out, paid, job:jobs(title)')
+    .select('id, user_id, job_id, company_id, work_date, clock_in, clock_out, adj_in, adj_out, paid, job:jobs(title)')
     .eq('id', attendanceId)
     .maybeSingle()
   const att = data as
-    | (Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'work_date' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'paid'> & {
+    | (Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'company_id' | 'work_date' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'paid'> & {
         job: { title: string } | null
       })
     | null
@@ -372,11 +376,11 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
   ]
     .filter(Boolean)
     .join('\n')
-  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: att.job_id, body }))
-  const { job_id: jobId, work_date: date } = att
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: att.company_id, job_id: att.job_id, body }))
+  const { job_id: jobId, work_date: date, company_id: companyId } = att
   const title = att.job.title
   after(async () =>
-    sendPush(await adminIds(), {
+    sendPush(await adminIds(companyId), {
       title: SIGNAL.fix,
       body: `${user.name} · ${title} · 실제 ${word} ${time}${reason ? ` · ${reason}` : ''}`,
       url: `/admin/jobs/${jobId}?tab=att&date=${date}`,
@@ -497,10 +501,11 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
   ]
     .filter(Boolean)
     .join('\n')
-  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: jobId, body }))
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: r.job.company_id, job_id: jobId, body }))
   const title = r.job.title
+  const companyId = r.job.company_id
   after(async () =>
-    sendPush(await adminIds(), {
+    sendPush(await adminIds(companyId), {
       title: `${SIGNAL.late} · ${minutes}분`,
       body: `${user.name} · ${title} · ${kstTime(eta)} 도착 예정${reason ? ` · ${reason}` : ''}`,
       url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
@@ -535,10 +540,11 @@ export async function requestClockIn(jobId: string, lat: number | null, lng: num
     SIGNAL.arrive,
     `${r.job.title} · ${kstTime(now)}에 현장에 도착했는데 위치 확인이 안 돼요${distance != null ? ` (행사장에서 약 ${distance.toLocaleString()}m로 잡힘)` : ' (위치를 못 읽음)'}`,
   ].join('\n')
-  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: jobId, body }))
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: r.job.company_id, job_id: jobId, body }))
   const title = r.job.title
+  const companyId = r.job.company_id
   after(async () =>
-    sendPush(await adminIds(), {
+    sendPush(await adminIds(companyId), {
       title: SIGNAL.arrive,
       body: `${user.name} · ${title} · ${kstTime(now)} 도착 · 앱에서 출근 처리해 주세요`,
       url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
@@ -595,9 +601,9 @@ export async function answerShift(changeId: string, choice: 'agree' | 'decline')
     `${title} · ${when} ${span(c.prev_start, c.prev_end)} → ${span(c.start_time, c.end_time)} ${changeWord(c)}에 응하기 어려워요.`,
     c.work_date ? `원래 시간(${hhmm(c.prev_end)})에 마칠게요.` : cancelled ? '근무 확정이 취소됐어요.' : '남은 일정은 담당자와 상의할게요.',
   ].join('\n')
-  await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, job_id: c.job_id, body })
+  await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: c.company_id, job_id: c.job_id, body })
   after(async () =>
-    sendPush(await adminIds(), {
+    sendPush(await adminIds(c.company_id), {
       title: `⚠️ 근무시간 ${changeWord(c)} 어려움${cancelled ? ' · 확정 취소' : ''}`,
       body: `${user.name} · ${title} · ${when} ${span(c.start_time, c.end_time)}`,
       url: `/admin/jobs/${c.job_id}?tab=att${c.work_date ? `&date=${c.work_date}` : ''}`,
@@ -632,7 +638,7 @@ export async function answerOvertime(attendanceId: string, choice: 'request' | '
   if (choice === 'request') {
     const job = att.job
     after(async () =>
-      sendPush(await adminIds(), {
+      sendPush(await adminIds(job.company_id), {
         title: '⏱ 연장 근무 확인 요청',
         body: `${user.name} · ${job.title} · ${minutesText(afterMin)}`,
         url: `/admin/jobs/${job.id}?tab=att&date=${att.work_date}`,
@@ -663,7 +669,7 @@ export async function signDocument(docId: string, _: FormState, form: FormData):
 
   const [job, settings, { data: tpl }, { data: me }, { data: app }] = await Promise.all([
     getJob(d.job_id),
-    getSettings({ seal: true }),
+    getSettings(d.company_id, { seal: true }),
     db().from('doc_templates').select('*').eq('id', d.template_id).maybeSingle(),
     db().from('users').select('name, phone, birth_date, address').eq('id', user.id).single(),
     db().from('applications').select('status').eq('job_id', d.job_id).eq('user_id', user.id).maybeSingle(),
@@ -760,11 +766,12 @@ export async function joinNow(jobId: string, code: string) {
   if ((existing as { status: string } | null)?.status !== 'approved') {
     const row = { status: 'approved', decided_at: now, admin_memo: EMERGENCY_MEMO, available_dates: null }
     if (existing) must(await db().from('applications').update(row).eq('id', (existing as { id: string }).id))
-    else must(await db().from('applications').insert({ job_id: jobId, user_id: user.id, ...row }))
+    else must(await db().from('applications').insert({ company_id: job.company_id, job_id: jobId, user_id: user.id, ...row }))
     await ensurePendingDocs(job, user.id)
     const title = job.title
+    const companyId = job.company_id
     after(async () =>
-      sendPush(await adminIds(), {
+      sendPush(await adminIds(companyId), {
         title: '🚨 긴급 투입 합류',
         body: `${user.name} · ${title} · QR로 합류했어요`,
         url: `/admin/jobs/${jobId}?tab=att`,

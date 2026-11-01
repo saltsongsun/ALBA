@@ -17,8 +17,9 @@ import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
 import { DISMISS_NOTE, DISMISS_REASONS, fixTime, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
+import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
-import type { Attendance, Job, JobCondition, ShiftChange } from '@/lib/types'
+import type { Attendance, Job, JobCondition, ShiftChange, SignedDoc } from '@/lib/types'
 import {
   bool,
   formatRrn,
@@ -57,7 +58,7 @@ function parseConditions(raw: string): JobCondition[] | null {
     .slice(0, 15)
 }
 
-function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error?: string } {
+function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'company_id'>; error?: string } {
   const title = str(form, 'title', 100)
   if (!title) return { error: '공고 제목을 입력해 주세요.' }
   const start_date = str(form, 'start_date')
@@ -130,7 +131,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at'>; error
     status,
     conditions,
     hidden_fields: hiddenFromForm(form),
-  } satisfies Omit<Job, 'id' | 'created_at'>
+  } satisfies Omit<Job, 'id' | 'created_at' | 'company_id'>
 
   // 최저임금 확인
   if (pay_type === 'hourly' && row.hourly_wage < MIN_WAGE_2026) {
@@ -164,11 +165,19 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
   const admin = await requireAdmin()
   const { row, error } = parseJob(form)
   if (!row) return { error }
+  // 서류 서식은 이 회사 것만
+  if (row.required_docs.length) {
+    const own = must(
+      await db().from('doc_templates').select('id').eq('company_id', admin.companyId).in('id', row.required_docs),
+    ) as { id: string }[]
+    const ok = new Set(own.map((t) => t.id))
+    row.required_docs = row.required_docs.filter((d) => ok.has(d))
+  }
   let id = jobId
   let note = ''
   if (id) {
     if (!isUuid(id)) return { error: '잘못된 요청입니다.' }
-    const before = await getJob(id)
+    const before = await companyJob(admin, id)
     if (!before) return { error: '공고를 찾을 수 없습니다.' }
     // 취소한 행사는 '행사 취소' 상태로만 남김 (다시 모집하려면 복사해서 새 공고로)
     if (before.status === 'cancelled') row.status = 'cancelled'
@@ -195,6 +204,7 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
         apps.map((a) => a.user_id),
         {
           senderId: admin.id,
+          companyId: admin.companyId,
           jobId: id,
           title: SIGNAL.change,
           text: `${job.title}의 내용이 바뀌었어요.\n${changes.join('\n')}\n${timeChanged ? "확정된 분은 앱 '내 근무'에서 계속 근무할지 알려 주세요." : '못 오게 되면 앱에서 담당자에게 알려 주세요.'}`,
@@ -202,7 +212,7 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
           tag: `change-${id}`,
         },
       )
-      await audit(admin.id, 'job.change_notice', null, `${id} ${n}명 ${changes.map((c) => c.split(':')[0]).join(',')}`)
+      await audit(admin.id, 'job.change_notice', null, `${id} ${n}명 ${changes.map((c) => c.split(':')[0]).join(',')}`, admin.companyId)
       // 근무시간이 바뀌면 확정자에게 '계속하시겠습니까' 동의를 받음 (알림은 위에서 보냄)
       if (timeChanged && approved.length) {
         await requestShiftChange({
@@ -227,7 +237,7 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
       revalidatePath('/admin/chat')
     }
   } else {
-    const created = must(await db().from('jobs').insert({ ...row, created_by: admin.id }).select('id').single()) as { id: string }
+    const created = must(await db().from('jobs').insert({ ...row, company_id: admin.companyId, created_by: admin.id }).select('id').single()) as { id: string }
     id = created.id
   }
   revalidatePath('/admin/jobs')
@@ -236,24 +246,24 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
 }
 
 export async function setJobStatus(jobId: string, status: Job['status']) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   if (!isUuid(jobId) || !['draft', 'open', 'closed', 'done'].includes(status)) return
   // 취소한 행사는 되돌리지 않음 (지원이 모두 취소됨 → 복사해서 새 공고로)
-  must(await db().from('jobs').update({ status }).eq('id', jobId).neq('status', 'cancelled'))
+  must(await db().from('jobs').update({ status }).eq('id', jobId).eq('company_id', admin.companyId).neq('status', 'cancelled'))
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/')
 }
 
 export async function duplicateJob(jobId: string) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) back('/admin/jobs', '공고를 찾을 수 없습니다.')
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { id, created_at, updated_at, ...rest } = job as Job & { updated_at?: string }
   const created = must(
     await db()
       .from('jobs')
-      .insert({ ...rest, title: `${job.title} (복사)`, status: 'draft', created_by: admin.id })
+      .insert({ ...rest, company_id: admin.companyId, title: `${job.title} (복사)`, status: 'draft', created_by: admin.id })
       .select('id')
       .single(),
   ) as { id: string }
@@ -262,7 +272,7 @@ export async function duplicateJob(jobId: string) {
 
 export async function deleteJob(jobId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(jobId)) return
+  if (!(await companyJob(admin, jobId))) return
   const [{ count: atts }, { count: signed }] = await Promise.all([
     db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', jobId),
     db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'signed'),
@@ -271,7 +281,7 @@ export async function deleteJob(jobId: string) {
     back(`/admin/jobs/${jobId}`, '근무 기록이나 서명된 서류가 있어 삭제할 수 없습니다. 상태를 "종료"로 바꿔 주세요.')
   }
   must(await db().from('jobs').delete().eq('id', jobId))
-  await audit(admin.id, 'job.delete', null, jobId)
+  await audit(admin.id, 'job.delete', null, jobId, admin.companyId)
   revalidatePath('/admin/jobs')
   back('/admin/jobs', '공고를 삭제했습니다.')
 }
@@ -282,7 +292,7 @@ export async function deleteJob(jobId: string) {
  */
 export async function cancelEvent(jobId: string, form: FormData) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return
   const path = `/admin/jobs/${jobId}`
   if (job.status === 'cancelled') back(path, '이미 취소한 행사입니다.')
@@ -293,7 +303,7 @@ export async function cancelEvent(jobId: string, form: FormData) {
   const apps = must(
     await db().from('applications').select('id, user_id, status').eq('job_id', jobId).in('status', ['approved', 'applied']),
   ) as { id: string; user_id: string; status: string }[]
-  must(await db().from('jobs').update({ status: 'cancelled' }).eq('id', jobId))
+  must(await db().from('jobs').update({ status: 'cancelled' }).eq('id', jobId).eq('company_id', admin.companyId))
   if (apps.length) {
     must(
       await db()
@@ -308,6 +318,7 @@ export async function cancelEvent(jobId: string, form: FormData) {
     apps.map((a) => a.user_id),
     {
       senderId: admin.id,
+      companyId: job.company_id,
       jobId,
       title: SIGNAL.cancel,
       text: `${job.title} (${fmtDateRange(job.start_date, job.end_date)} ${hhmm(job.start_time)}) 행사가 취소됐어요.\n사유: ${reason}\n지원·확정은 모두 취소 처리됐어요. 불편을 드려 죄송합니다.`,
@@ -315,7 +326,7 @@ export async function cancelEvent(jobId: string, form: FormData) {
       tag: `cancel-${jobId}`,
     },
   )
-  await audit(admin.id, 'job.cancel', null, `${jobId} ${n}명 ${reason}`.slice(0, 500))
+  await audit(admin.id, 'job.cancel', null, `${jobId} ${n}명 ${reason}`.slice(0, 500), admin.companyId)
   revalidatePath('/admin/jobs')
   revalidatePath('/admin')
   revalidatePath('/')
@@ -333,6 +344,7 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
   if (!userIds.length) return
   await tellWorkers(userIds, {
     senderId: adminId,
+    companyId: job.company_id,
     jobId: job.id,
     title: '✅ 근무가 확정됐어요',
     text: [
@@ -350,7 +362,7 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied') {
   const admin = await requireAdmin()
   if (!isUuid(appId) || !['approved', 'rejected', 'applied'].includes(status)) return
-  const { data: app } = await db().from('applications').select('id, job_id, user_id').eq('id', appId).maybeSingle()
+  const app = await companyRow<{ id: string; job_id: string; user_id: string; company_id: string }>(admin, 'applications', appId, 'id, job_id, user_id')
   if (!app) return
   must(
     await db()
@@ -367,7 +379,7 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
   } else {
     // 되돌리면(대기로·미선발) 서명 대기 서류는 지우고, 이미 서명한 서류도 무효로 (다시 확정하면 새로 서명)
     const voided = await releaseDocs(app.job_id, app.user_id)
-    if (voided) await audit(admin.id, 'doc.void_on_revert', app.user_id, `${app.job_id} ${voided}건`)
+    if (voided) await audit(admin.id, 'doc.void_on_revert', app.user_id, `${app.job_id} ${voided}건`, admin.companyId)
   }
   revalidatePath(`/admin/jobs/${app.job_id}`)
   revalidatePath('/admin')
@@ -375,7 +387,7 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
 
 export async function approveAllApplied(jobId: string) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return
   const apps = must(
     await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('status', 'applied'),
@@ -395,7 +407,7 @@ export async function approveAllApplied(jobId: string) {
 /** 지원자 탭에서 고른 사람만 한 번에 확정 (대기 중인 지원만) */
 export async function approveSelected(jobId: string, form: FormData) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=apps`
   const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))]
@@ -428,7 +440,7 @@ export async function assignWorkerToJob(userId: string, form: FormData) {
   if (!isUuid(userId)) return
   const path = `/admin/workers/${userId}`
   const jobId = str(form, 'job_id', 40)
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job || !['open', 'closed'].includes(job.status) || job.end_date < kstDate()) back(path, '확정할 공고를 골라 주세요.')
   const { data: u } = await db().from('users').select('id, name, active').eq('id', userId).maybeSingle()
   if (!u || !u.active) back(path, '사용할 수 없는 계정이에요.')
@@ -451,7 +463,7 @@ export async function assignWorkerToJob(userId: string, form: FormData) {
 
 export async function addWorkerToJob(jobId: string, form: FormData) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=apps`
   const phone = normalizePhone(str(form, 'phone'))
@@ -476,12 +488,12 @@ export async function addWorkerToJob(jobId: string, form: FormData) {
 
 export async function saveAttendance(attId: string, form: FormData) {
   const admin = await requireAdmin()
-  if (!isUuid(attId)) return
-  const { data: att } = await db()
-    .from('attendance')
-    .select('id, job_id, user_id, work_date, clock_in, clock_out')
-    .eq('id', attId)
-    .maybeSingle()
+  const att = await companyRow<Pick<Attendance, 'id' | 'job_id' | 'user_id' | 'work_date' | 'clock_in' | 'clock_out' | 'company_id'>>(
+    admin,
+    'attendance',
+    attId,
+    'id, job_id, user_id, work_date, clock_in, clock_out',
+  )
   if (!att) return
   const path = `/admin/jobs/${att.job_id}?tab=att&date=${att.work_date}`
   const inV = str(form, 'adj_in')
@@ -513,14 +525,14 @@ export async function saveAttendance(attId: string, form: FormData) {
       })
       .eq('id', attId),
   )
-  await audit(admin.id, 'attendance.edit', att.user_id, `${att.work_date} ${inV || '-'}~${outV || '-'}`)
+  await audit(admin.id, 'attendance.edit', att.user_id, `${att.work_date} ${inV || '-'}~${outV || '-'}`, admin.companyId)
   revalidatePath(`/admin/jobs/${att.job_id}`)
   back(path, '근무 기록을 저장했습니다.')
 }
 
 export async function addAttendance(jobId: string, form: FormData) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return
   const userId = str(form, 'user_id')
   const date = str(form, 'work_date')
@@ -543,7 +555,7 @@ export async function addAttendance(jobId: string, form: FormData) {
     ...(await agreedShiftFor(jobId, userId, date)),
   })
   if (error) back(path, error.code === '23505' ? '그날 이미 기록이 있습니다. 기존 기록을 고쳐 주세요.' : '등록하지 못했습니다.')
-  await audit(admin.id, 'attendance.add', userId, `${date} ${inT}~${outT || '-'}`)
+  await audit(admin.id, 'attendance.add', userId, `${date} ${inT}~${outT || '-'}`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
   back(path, '근무 기록을 추가했습니다.')
 }
@@ -554,7 +566,7 @@ export async function addAttendance(jobId: string, form: FormData) {
  */
 export async function approveArrival(jobId: string, userId: string, date: string) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) && isUuid(userId) && isDate(date) ? await getJob(jobId) : null
+  const job = isUuid(userId) && isDate(date) ? await companyJob(admin, jobId) : null
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
   const rows = must(
@@ -580,9 +592,10 @@ export async function approveArrival(jobId: string, userId: string, date: string
     ...(await agreedShiftFor(jobId, userId, date)),
   })
   if (error) back(path, error.code === '23505' ? '이미 출근 기록이 있어요.' : '출근 처리하지 못했어요.')
-  await audit(admin.id, 'attendance.arrive_ok', userId, `${date} ${kstTime(req.created_at)}`)
+  await audit(admin.id, 'attendance.arrive_ok', userId, `${date} ${kstTime(req.created_at)}`, admin.companyId)
   await tellWorkers([userId], {
     senderId: admin.id,
+    companyId: admin.companyId,
     jobId,
     title: '✅ 출근 처리됐어요',
     text: `${job.title} · ${kstTime(req.created_at)} 출근으로 기록했어요. 일이 끝나면 앱에서 '근무 종료'를 눌러 주세요.`,
@@ -595,7 +608,7 @@ export async function approveArrival(jobId: string, userId: string, date: string
 /** 근무자의 기록 정정 요청에 답하기: accept면 요청한 시각으로 보정(adj_in/adj_out), 아니면 그대로 두고 알림 */
 export async function decideFix(jobId: string, userId: string, date: string, accept: boolean) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) && isUuid(userId) && isDate(date) ? await getJob(jobId) : null
+  const job = isUuid(userId) && isDate(date) ? await companyJob(admin, jobId) : null
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
   const [msgs, { data }] = await Promise.all([
@@ -619,6 +632,7 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
   if (!accept) {
     await tellWorkers([userId], {
       senderId: admin.id,
+      companyId: admin.companyId,
       jobId,
       title: SIGNAL.fixNo,
       text: `${job.title} · ${day} 근무를 요청한 ${word} ${fix.time}(으)로 고치지 않고 그대로 두었어요. 궁금한 점은 문의함으로 물어봐 주세요.`,
@@ -641,9 +655,10 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
       })
       .eq('id', att.id),
   )
-  await audit(admin.id, 'attendance.fix_ok', userId, `${date} ${word} ${fix.time}`)
+  await audit(admin.id, 'attendance.fix_ok', userId, `${date} ${word} ${fix.time}`, admin.companyId)
   await tellWorkers([userId], {
     senderId: admin.id,
+    companyId: admin.companyId,
     jobId,
     title: SIGNAL.fixDone,
     text: `${job.title} · ${day} 근무의 ${word} 시각을 ${fix.time}(으)로 고쳤어요.`,
@@ -660,7 +675,7 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
  */
 export async function changeShift(jobId: string, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return { error: '공고를 찾을 수 없습니다.' }
   if (['done', 'cancelled', 'draft'].includes(job.status)) return { error: '진행 중인 공고만 근무시간을 바꿀 수 있어요.' }
   const today = kstDate()
@@ -723,7 +738,7 @@ export async function changeShift(jobId: string, _: FormState, form: FormData): 
     })
   }
   if (!n) return { error: '바뀌는 사람이 없어요. 이미 그 시간이에요.' }
-  await audit(admin.id, 'shift.change', null, `${jobId} ${scope} ${start}~${end} ${n}명`)
+  await audit(admin.id, 'shift.change', null, `${jobId} ${scope} ${start}~${end} ${n}명`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/admin/chat')
   const date = scope === 'all' ? (dateList(job.start_date, job.end_date).includes(today) ? today : job.start_date) : scope
@@ -733,9 +748,7 @@ export async function changeShift(jobId: string, _: FormState, form: FormData): 
 /** 근무자가 앱을 못 쓸 때: 현장에서 말로 동의받은 것을 관리자가 기록 (누가 기록했는지 남음) */
 export async function answerShiftByAdmin(changeId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(changeId)) return
-  const { data } = await db().from('shift_changes').select('*').eq('id', changeId).maybeSingle()
-  const c = data as ShiftChange | null
+  const c = await companyRow<ShiftChange>(admin, 'shift_changes', changeId)
   if (!c || c.status !== 'pending') return
   must(
     await db()
@@ -745,7 +758,7 @@ export async function answerShiftByAdmin(changeId: string) {
       .eq('status', 'pending'),
   )
   await applyAgreedShift(c)
-  await audit(admin.id, 'shift.agree_onsite', c.user_id, `${c.job_id} ${c.work_date ?? 'all'} ${c.start_time}~${c.end_time}`)
+  await audit(admin.id, 'shift.agree_onsite', c.user_id, `${c.job_id} ${c.work_date ?? 'all'} ${c.start_time}~${c.end_time}`, admin.companyId)
   revalidatePath(`/admin/jobs/${c.job_id}`)
 }
 
@@ -758,7 +771,7 @@ export async function dismissWorker(attId: string, form: FormData) {
   if (!isUuid(attId)) return
   const { data } = await db().from('attendance').select('*, job:jobs(*)').eq('id', attId).maybeSingle()
   const att = data as (Attendance & { job: Job | null }) | null
-  if (!att || !att.job) return
+  if (!att || !att.job || att.company_id !== admin.companyId) return
   const path = `/admin/jobs/${att.job_id}?tab=att&date=${att.work_date}`
   if (att.clock_out) back(path, '이미 근무가 끝난 기록이에요.')
   const reason = DISMISS_REASONS.find((r) => r === str(form, 'reason'))
@@ -783,9 +796,10 @@ export async function dismissWorker(attId: string, form: FormData) {
         .eq('user_id', att.user_id),
     )
   }
-  await audit(admin.id, 'attendance.dismiss', att.user_id, `${att.job_id} ${att.work_date} ${reason}${restCancelled ? ' +남은 날 취소' : ''}`)
+  await audit(admin.id, 'attendance.dismiss', att.user_id, `${att.job_id} ${att.work_date} ${reason}${restCancelled ? ' +남은 날 취소' : ''}`, admin.companyId)
   await tellWorkers([att.user_id], {
     senderId: admin.id,
+    companyId: admin.companyId,
     jobId: att.job_id,
     title: '🏠 귀가 조치 안내',
     text: [
@@ -805,19 +819,18 @@ export async function dismissWorker(attId: string, form: FormData) {
 
 export async function deleteAttendance(attId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(attId)) return
-  const { data: att } = await db().from('attendance').select('id, job_id, user_id, work_date').eq('id', attId).maybeSingle()
+  const att = await companyRow<Pick<Attendance, 'id' | 'job_id' | 'user_id' | 'work_date' | 'company_id'>>(admin, 'attendance', attId, 'id, job_id, user_id, work_date')
   if (!att) return
   must(await db().from('attendance').delete().eq('id', attId))
-  await audit(admin.id, 'attendance.delete', att.user_id, att.work_date)
+  await audit(admin.id, 'attendance.delete', att.user_id, att.work_date, admin.companyId)
   revalidatePath(`/admin/jobs/${att.job_id}`)
   back(`/admin/jobs/${att.job_id}?tab=att&date=${att.work_date}`, '근무 기록을 삭제했습니다.')
 }
 
 /** 아직 종료를 안 누른 사람들을 공고 종료 시각(이미 지났다면)이나 지금 시각으로 일괄 종료 */
 export async function bulkClockOut(jobId: string, date: string) {
-  await requireAdmin()
-  const job = isUuid(jobId) && isDate(date) ? await getJob(jobId) : null
+  const admin = await requireAdmin()
+  const job = isDate(date) ? await companyJob(admin, jobId) : null
   if (!job) return
   const open = must(
     await db().from('attendance').select('id, clock_in, sched_start, sched_end').eq('job_id', jobId).eq('work_date', date).is('clock_out', null),
@@ -834,8 +847,8 @@ export async function bulkClockOut(jobId: string, date: string) {
 }
 
 export async function confirmDay(jobId: string, date: string) {
-  await requireAdmin()
-  if (!isUuid(jobId) || !isDate(date)) return
+  const admin = await requireAdmin()
+  if (!isDate(date) || !(await companyJob(admin, jobId))) return
   must(
     await db().from('attendance').update({ confirmed: true }).eq('job_id', jobId).eq('work_date', date).not('clock_out', 'is', null),
   )
@@ -853,6 +866,7 @@ async function tellPaid(adminId: string, jobId: string, userIds: string[]) {
   const net = new Map(userIds.map((u) => [u, settle(job, rows.filter((r) => r.user_id === u).map((r) => calcDay(job, r))).net]))
   await tellWorkers(userIds, {
     senderId: adminId,
+    companyId: job.company_id,
     jobId,
     title: SIGNAL.paid,
     text: (uid) => {
@@ -866,7 +880,7 @@ async function tellPaid(adminId: string, jobId: string, userIds: string[]) {
 
 export async function setPaid(jobId: string, userId: string, paid: boolean) {
   const admin = await requireAdmin()
-  if (!isUuid(jobId) || !isUuid(userId)) return
+  if (!isUuid(userId) || !(await companyJob(admin, jobId))) return
   // 이번에 새로 지급 완료가 되는 근무가 있을 때만 알림 (눌렀다 풀었다 해도 한 번만)
   const { count: newlyPaid } = paid
     ? await db()
@@ -885,7 +899,7 @@ export async function setPaid(jobId: string, userId: string, paid: boolean) {
       .eq('user_id', userId)
       .not('clock_out', 'is', null),
   )
-  await audit(admin.id, paid ? 'pay.mark_paid' : 'pay.unmark_paid', userId, jobId)
+  await audit(admin.id, paid ? 'pay.mark_paid' : 'pay.unmark_paid', userId, jobId, admin.companyId)
   if (newlyPaid) await tellPaid(admin.id, jobId, [userId])
   revalidatePath(`/admin/jobs/${jobId}`)
 }
@@ -899,7 +913,7 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
   if (!isUuid(attendanceId) || !['approve', 'reject'].includes(decision)) return
   const { data } = await db().from('attendance').select('*, job:jobs(*)').eq('id', attendanceId).maybeSingle()
   const att = data as (Attendance & { job: Job | null }) | null
-  if (!att || !att.job || att.paid) return
+  if (!att || !att.job || att.paid || att.company_id !== admin.companyId) return
   const { afterMin } = calcDay(att.job, att)
   if (afterMin < OT_ASK_MIN) return
   const patch =
@@ -909,7 +923,7 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
         ? { ot_status: 'agreed' }
         : { ot_minutes: afterMin, ot_by: 'admin', ot_status: 'pending' }
   must(await db().from('attendance').update(patch).eq('id', attendanceId))
-  await audit(admin.id, `overtime.${decision}`, att.user_id, `${att.work_date} ${afterMin}분`)
+  await audit(admin.id, `overtime.${decision}`, att.user_id, `${att.work_date} ${afterMin}분`, admin.companyId)
   const msg =
     decision === 'reject'
       ? '담당자가 계약 시간 이후 근무를 인정하지 않았어요.'
@@ -926,7 +940,7 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
  */
 export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout' | 'account' | 'contract', date: string | null) {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job || !['sign', 'clockin', 'clockout', 'account', 'contract'].includes(kind)) return
   if ((kind === 'clockin' || kind === 'clockout') && (!date || !isDate(date))) return
   let to: string[] = []
@@ -1003,9 +1017,9 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
   must(
     await db()
       .from('messages')
-      .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, job_id: jobId, body: `${title}\n${text}` }))),
+      .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, company_id: job.company_id, job_id: jobId, body: `${title}\n${text}` }))),
   )
-  await audit(admin.id, `nudge.${kind}`, null, `${jobId} ${date ?? ''} ${to.length}명`)
+  await audit(admin.id, `nudge.${kind}`, null, `${jobId} ${date ?? ''} ${to.length}명`, admin.companyId)
   after(() => sendPush(to, { title, body: text, url: kind === 'account' ? '/me/profile' : '/me', tag: `${kind}-${jobId}` }))
   revalidatePath('/admin/chat')
   redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}`)
@@ -1017,7 +1031,7 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
  */
 export async function transferList(jobId: string): Promise<{ ok?: string; error?: string; n?: number }> {
   const admin = await requireAdmin()
-  const job = isUuid(jobId) ? await getJob(jobId) : null
+  const job = await companyJob(admin, jobId)
   if (!job) return { error: '공고를 찾을 수 없습니다.' }
   if (await overLimit(`export:${admin.id}`, 30, 3600)) return { error: '내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
   const rows = must(
@@ -1041,14 +1055,14 @@ export async function transferList(jobId: string): Promise<{ ok?: string; error?
     .filter((x) => x.net > 0)
     .sort((a, b) => a.u.name.localeCompare(b.u.name, 'ko'))
   if (!lines.length) return { error: '지급할 금액이 없어요.' }
-  await audit(admin.id, 'pay.transfer_list', null, `${jobId} ${lines.length}명`)
+  await audit(admin.id, 'pay.transfer_list', null, `${jobId} ${lines.length}명`, admin.companyId)
   return { ok: ['은행\t계좌번호\t예금주\t금액', ...lines.map((x) => x.line)].join('\n'), n: lines.length }
 }
 
 /** 입금을 마친 뒤 한 번에: 이 공고의 퇴근까지 기록된 미지급 근무를 모두 지급 완료로 */
 export async function setAllPaid(jobId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(jobId)) return
+  if (!(await companyJob(admin, jobId))) return
   const unpaid = must(
     await db().from('attendance').select('user_id').eq('job_id', jobId).eq('paid', false).not('clock_out', 'is', null),
   ) as { user_id: string }[]
@@ -1060,7 +1074,7 @@ export async function setAllPaid(jobId: string) {
       .eq('paid', false)
       .not('clock_out', 'is', null),
   )
-  await audit(admin.id, 'pay.mark_paid_all', null, jobId)
+  await audit(admin.id, 'pay.mark_paid_all', null, jobId, admin.companyId)
   const paidTo = [...new Set(unpaid.map((r) => r.user_id))]
   await tellPaid(admin.id, jobId, paidTo)
   revalidatePath(`/admin/jobs/${jobId}`)
@@ -1071,52 +1085,51 @@ export async function setAllPaid(jobId: string) {
 
 export async function voidDoc(docId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(docId)) return
-  const { data: doc } = await db().from('signed_docs').select('id, job_id, user_id, status').eq('id', docId).maybeSingle()
+  const doc = await companyRow<{ id: string; job_id: string; user_id: string; status: string; company_id: string }>(admin, 'signed_docs', docId, 'id, job_id, user_id, status')
   if (!doc) return
   if (doc.status === 'pending') must(await db().from('signed_docs').delete().eq('id', docId))
   else must(await db().from('signed_docs').update({ status: 'void' }).eq('id', docId))
-  await audit(admin.id, 'doc.void', doc.user_id, docId)
+  await audit(admin.id, 'doc.void', doc.user_id, docId, admin.companyId)
   revalidatePath(`/admin/jobs/${doc.job_id}`)
 }
 
 /** 종이·다른 서비스(모두싸인 등)로 받은 근로계약서를 받았다고 표시하거나 취소 */
 export async function setContractReceived(appId: string, received: boolean) {
   const admin = await requireAdmin()
-  if (!isUuid(appId)) return
-  const { data: app } = await db().from('applications').select('id, job_id, user_id').eq('id', appId).maybeSingle()
+  const app = await companyRow<{ id: string; job_id: string; user_id: string; company_id: string }>(admin, 'applications', appId, 'id, job_id, user_id')
   if (!app) return
   must(await db().from('applications').update({ contract_received_at: received ? new Date().toISOString() : null }).eq('id', appId))
-  await audit(admin.id, received ? 'contract.received' : 'contract.unreceived', app.user_id, app.job_id)
+  await audit(admin.id, received ? 'contract.received' : 'contract.unreceived', app.user_id, app.job_id, admin.companyId)
   revalidatePath(`/admin/jobs/${app.job_id}`)
 }
 
 /** 무효 처리 후 같은 서식으로 다시 서명 요청 */
 export async function rerequestDoc(docId: string) {
   const admin = await requireAdmin()
-  if (!isUuid(docId)) return
-  const { data: doc } = await db().from('signed_docs').select('*').eq('id', docId).maybeSingle()
+  const doc = await companyRow<SignedDoc>(admin, 'signed_docs', docId)
   if (!doc || doc.status !== 'signed') return
   must(await db().from('signed_docs').update({ status: 'void' }).eq('id', docId))
   must(
     await db()
       .from('signed_docs')
-      .insert({ job_id: doc.job_id, user_id: doc.user_id, template_id: doc.template_id, kind: doc.kind, title: doc.title }),
+      .insert({ company_id: doc.company_id, job_id: doc.job_id, user_id: doc.user_id, template_id: doc.template_id, kind: doc.kind, title: doc.title }),
   )
-  await audit(admin.id, 'doc.rerequest', doc.user_id, docId)
+  await audit(admin.id, 'doc.rerequest', doc.user_id, docId, admin.companyId)
   revalidatePath(`/admin/jobs/${doc.job_id}`)
 }
 
 export async function saveTemplate(id: string | null, _: FormState, form: FormData): Promise<FormState> {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const title = str(form, 'title', 100)
   const body = str(form, 'body', 20_000).replace(/\r\n?/g, '\n')
   if (!title || !body) return { error: '제목과 내용을 입력해 주세요.' }
   const kind = (['contract', 'pledge', 'consent', 'other'] as const).find((k) => k === str(form, 'kind')) ?? 'other'
   const row = { title, body, kind, is_default: bool(form, 'is_default'), active: !bool(form, 'inactive') }
-  if (id && isUuid(id)) must(await db().from('doc_templates').update(row).eq('id', id))
-  else {
-    const created = must(await db().from('doc_templates').insert(row).select('id').single()) as { id: string }
+  if (id && isUuid(id)) {
+    if (!(await companyRow(admin, 'doc_templates', id, 'id'))) return { error: '서식을 찾을 수 없습니다.' }
+    must(await db().from('doc_templates').update(row).eq('id', id).eq('company_id', admin.companyId))
+  } else {
+    const created = must(await db().from('doc_templates').insert({ ...row, company_id: admin.companyId }).select('id').single()) as { id: string }
     id = created.id
   }
   revalidatePath('/admin/docs')
@@ -1124,11 +1137,11 @@ export async function saveTemplate(id: string | null, _: FormState, form: FormDa
 }
 
 export async function restoreDefaultTemplates() {
-  await requireAdmin()
-  const existing = must(await db().from('doc_templates').select('title')) as { title: string }[]
+  const admin = await requireAdmin()
+  const existing = must(await db().from('doc_templates').select('title').eq('company_id', admin.companyId)) as { title: string }[]
   const titles = new Set(existing.map((t) => t.title))
   const missing = DEFAULT_TEMPLATES.filter((t) => !titles.has(t.title))
-  if (missing.length) must(await db().from('doc_templates').insert(missing))
+  if (missing.length) must(await db().from('doc_templates').insert(missing.map((t) => ({ ...t, company_id: admin.companyId }))))
   revalidatePath('/admin/docs')
   back('/admin/docs', missing.length ? `기본 서식 ${missing.length}개를 추가했습니다.` : '기본 서식이 이미 모두 있습니다.')
 }
@@ -1137,19 +1150,19 @@ export async function restoreDefaultTemplates() {
 
 export async function revealRrn(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
-  if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
+  if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
   // 관리자 계정이 털려도 주민번호를 한꺼번에 빼 가지 못하게 열람 횟수 제한
   if (await overLimit(`rrn-view:${admin.id}`, 30, 3600)) return { error: '주민등록번호 열람이 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
   const { data } = await db().from('users').select('rrn_enc').eq('id', userId).maybeSingle()
   const rrn = decrypt(data?.rrn_enc)
   if (!rrn) return { error: '등록된 주민등록번호가 없습니다.' }
-  await audit(admin.id, 'rrn.view', userId, '관리자 화면 열람')
+  await audit(admin.id, 'rrn.view', userId, '관리자 화면 열람', admin.companyId)
   return { ok: formatRrn(rrn) }
 }
 
 export async function resetPin(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
-  if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
+  if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
   const { data } = await db().from('users').select('session_version').eq('id', userId).maybeSingle()
   if (!data) return { error: '근무자를 찾을 수 없습니다.' }
   // 임시 비밀번호도 추측하기 쉬운 번호는 피함
@@ -1161,27 +1174,55 @@ export async function resetPin(userId: string, _: FormState): Promise<FormState>
       .update({ pin_hash: await hashPin(temp), session_version: data.session_version + 1, failed_logins: 0, locked_until: null })
       .eq('id', userId),
   )
-  await audit(admin.id, 'pin.reset', userId)
+  await audit(admin.id, 'pin.reset', userId, null, admin.companyId)
   return { ok: temp }
 }
 
+/**
+ * 근무자 정보 고치기 (이 회사에 지원한 근무자만). 근무자 계정은 모든 회사 공용이라
+ * · 관리자 체크 = 이 회사의 관리자로 추가/해제 (다른 회사 소속은 그대로)
+ * · 메모 = 이 회사에만 보이는 메모
+ * · 계정 정지는 모든 회사에 영향을 주므로 최고 관리자만
+ */
 export async function updateWorker(userId: string, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
-  if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
+  if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
   const name = str(form, 'name', 30)
   const phone = normalizePhone(str(form, 'phone'))
   if (name.length < 2 || !phone) return { error: '이름과 휴대폰 번호를 확인해 주세요.' }
   const { data: dup } = await db().from('users').select('id').eq('phone', phone).neq('id', userId).maybeSingle()
   if (dup) return { error: '다른 계정이 쓰는 휴대폰 번호입니다.' }
-  const role = str(form, 'role') === 'admin' ? 'admin' : 'worker'
-  if (userId === admin.id && role !== 'admin') return { error: '자기 자신의 관리자 권한은 해제할 수 없습니다.' }
+  const makeAdmin = str(form, 'role') === 'admin'
+  if (userId === admin.id && !makeAdmin) return { error: '자기 자신의 관리자 권한은 해제할 수 없습니다.' }
+  const { data: cur } = await db().from('users').select('role, active, is_super').eq('id', userId).maybeSingle()
+  if (!cur) return { error: '근무자를 찾을 수 없습니다.' }
+  if (cur.is_super && !makeAdmin) return { error: '최고 관리자의 관리자 권한은 해제할 수 없습니다.' }
+  // 이 회사 관리자 추가·해제: 최고 관리자나 이 회사 대표 관리자만 (일반 관리자는 그대로 둠)
+  const canGrant = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  const { data: curMember } = await db().from('company_members').select('role').eq('company_id', admin.companyId).eq('user_id', userId).maybeSingle()
+  if (!canGrant && makeAdmin !== !!curMember) return { error: '관리자 추가·해제는 대표 관리자만 할 수 있어요.' }
+  if (!canGrant) {
+    // 권한 변경 없음
+  } else if (makeAdmin) {
+    if (!curMember) must(await db().from('company_members').insert({ company_id: admin.companyId, user_id: userId, role: 'admin' }))
+  } else if (curMember) {
+    must(await db().from('company_members').delete().eq('company_id', admin.companyId).eq('user_id', userId))
+  }
+  const { count: left } = await db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('user_id', userId)
+  const role = makeAdmin || (left ?? 0) > 0 || cur.is_super ? 'admin' : 'worker'
   must(
     await db()
       .from('users')
-      .update({ name, phone, role, active: !bool(form, 'inactive'), admin_memo: optStr(form, 'admin_memo', 1000) })
+      .update({ name, phone, role, ...(admin.isSuper ? { active: !bool(form, 'inactive') } : {}) })
       .eq('id', userId),
   )
-  await audit(admin.id, 'user.edit', userId, role)
+  // 이 회사에만 보이는 메모
+  must(
+    await db()
+      .from('company_worker_notes')
+      .upsert({ company_id: admin.companyId, user_id: userId, memo: optStr(form, 'admin_memo', 1000), updated_at: new Date().toISOString() }, { onConflict: 'company_id,user_id' }),
+  )
+  await audit(admin.id, 'user.edit', userId, makeAdmin ? 'admin' : 'worker', admin.companyId)
   revalidatePath(`/admin/workers/${userId}`)
   return { ok: '저장했습니다.' }
 }
@@ -1191,7 +1232,7 @@ export async function updateWorker(userId: string, _: FormState, form: FormData)
 const SEAL_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 export async function saveSettings(_: FormState, form: FormData): Promise<FormState> {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const company_name = str(form, 'company_name', 100)
   if (!company_name) return { error: '상호를 입력해 주세요.' }
   const update: Record<string, unknown> = {
@@ -1219,7 +1260,8 @@ export async function saveSettings(_: FormState, form: FormData): Promise<FormSt
   } else if (bool(form, 'remove_seal')) {
     update.seal_image = null
   }
-  must(await db().from('settings').update(update).eq('id', 1))
+  must(await db().from('companies').update(update).eq('id', admin.companyId))
+  await audit(admin.id, 'company.settings', null, company_name, admin.companyId)
   revalidatePath('/admin/settings')
   return { ok: '저장했습니다.' }
 }
@@ -1232,11 +1274,11 @@ const SCORE_RANGE = (n: number) => n >= 1 && n <= 5
 export async function rateQuick(userId: string, jobId: string, form: FormData) {
   const admin = await requireAdmin()
   const score = int(form, 'score', 0)
-  if (!isUuid(userId) || !isUuid(jobId) || !SCORE_RANGE(score)) return
+  if (!isUuid(userId) || !SCORE_RANGE(score) || !(await companyJob(admin, jobId))) return
   must(
     await db()
       .from('worker_ratings')
-      .upsert({ user_id: userId, job_id: jobId, rater_id: admin.id, score }, { onConflict: 'user_id,job_id,rater_id' }),
+      .upsert({ company_id: admin.companyId, user_id: userId, job_id: jobId, rater_id: admin.id, score }, { onConflict: 'user_id,job_id,rater_id' }),
   )
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath(`/admin/workers/${userId}`)
@@ -1245,15 +1287,17 @@ export async function rateQuick(userId: string, jobId: string, form: FormData) {
 /** 근무자 정보 화면에서 별점·메모 저장 (공고를 고르지 않으면 일반 메모로 새로 추가) */
 export async function rateWorker(userId: string, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
-  if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
+  if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
   const score = int(form, 'score', 0)
   if (!SCORE_RANGE(score)) return { error: '별점을 골라 주세요.' }
   const jobId = str(form, 'job_id')
+  const job = jobId ? await companyJob(admin, jobId) : null
+  if (jobId && !job) return { error: '공고를 찾을 수 없습니다.' }
   must(
     await db()
       .from('worker_ratings')
       .upsert(
-        { user_id: userId, job_id: isUuid(jobId) ? jobId : null, rater_id: admin.id, score, comment: optStr(form, 'comment', 500) },
+        { company_id: admin.companyId, user_id: userId, job_id: job?.id ?? null, rater_id: admin.id, score, comment: optStr(form, 'comment', 500) },
         { onConflict: 'user_id,job_id,rater_id' },
       ),
   )
@@ -1265,16 +1309,16 @@ export async function rateWorker(userId: string, _: FormState, form: FormData): 
 export async function deleteRating(ratingId: string, userId: string) {
   const admin = await requireAdmin()
   if (!isUuid(ratingId)) return
-  must(await db().from('worker_ratings').delete().eq('id', ratingId).eq('rater_id', admin.id))
+  must(await db().from('worker_ratings').delete().eq('id', ratingId).eq('rater_id', admin.id).eq('company_id', admin.companyId))
   revalidatePath(`/admin/workers/${userId}`)
 }
 
 /** 확정 근무자의 현장 배치 (빈칸이면 미배치) */
 export async function setPosition(appId: string, _: FormState, form: FormData): Promise<FormState> {
-  await requireAdmin()
+  const admin = await requireAdmin()
   if (!isUuid(appId)) return { error: '잘못된 요청입니다.' }
   const position = str(form, 'position', 30) || null
-  const app = must(await db().from('applications').update({ position }).eq('id', appId).select('job_id').maybeSingle()) as {
+  const app = must(await db().from('applications').update({ position }).eq('id', appId).eq('company_id', admin.companyId).select('job_id').maybeSingle()) as {
     job_id: string
   } | null
   if (!app) return { error: '지원 내역을 찾을 수 없습니다.' }

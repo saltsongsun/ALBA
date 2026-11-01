@@ -17,6 +17,7 @@ const DOC_SIGNED = 'dddddddd-0000-4000-8000-000000000005'
 const ATT = 'eeeeeeee-0000-4000-8000-000000000006'
 const TPL = 'ffffffff-0000-4000-8000-000000000007'
 const APPLICANT = '33333333-0000-4000-8000-000000000011' // 확정 대기 중인 지원자
+const COMPANY = '99999999-0000-4000-8000-000000000099' // 기본 회사 (예전 settings 1행)
 
 // 400KB 직인 → base64 약 533KB
 const SEAL = 'data:image/png;base64,' + Buffer.alloc(400_000, 7).toString('base64')
@@ -28,14 +29,14 @@ const user = (id, role, name, phone) => ({
   id, role, name, phone, pin_hash: 's1:x:y', rrn_enc: null, rrn_hash: null, rrn_masked: '900101-1******',
   birth_date: '1990-01-01', gender: 'M', is_foreigner: false, address: '서울', bank_name: '국민',
   bank_account_enc: null, account_holder: name, bank_changed_at: null, emergency_phone: null, admin_memo: null,
-  active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1,
+  active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1, is_super: role === 'admin',
   photo_at: id === APPLICANT ? FACE_AT : null, careers: id === APPLICANT ? [{ event: '부산국제영화제', period: '2025.10', role: '안내' }] : [], created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
 const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444'), user(APPLICANT, 'worker', '김지원', '01077778888')]
 const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자', photo_at: null }
 
 const job = {
-  id: JOB, title: '경상남도 생활체육대축전 행사장 안내 스태프', event_name: '2026 경상남도 생활체육대축전', description: '설명', task: '안내', location_name: '광장',
+  id: JOB, company_id: COMPANY, company: { company_name: '주식회사 테스트' }, title: '경상남도 생활체육대축전 행사장 안내 스태프', event_name: '2026 경상남도 생활체육대축전', description: '설명', task: '안내', location_name: '광장',
   address: '서울 중구', lat: 37.5, lng: 127.0, gps_required: false, gps_radius_m: 300, start_date: today, end_date: today,
   start_time: '09:00:00', end_time: '18:00:00', headcount: 5, pay_type: 'hourly', hourly_wage: 10320, daily_wage: 0,
   break_mode: 'auto', break_minutes: 0, round_unit: 1, early_clamp: false, premium_enabled: false, allowance: 0,
@@ -56,6 +57,13 @@ const tables = {
     company_phone: '0212345678', contact_name: '담당', contact_phone: '01012345678', seal_image: SEAL,
     default_hourly_wage: 10320, workplace_5plus: true, updated_at: '2026-10-01T00:00:00Z',
   }],
+  companies: [{
+    id: COMPANY, company_name: '주식회사 테스트', ceo_name: '대표', business_no: '123-45-67890', company_address: '서울',
+    company_phone: '0212345678', contact_name: '담당', contact_phone: '01012345678', seal_image: SEAL,
+    default_hourly_wage: 10320, workplace_5plus: true, active: true, created_at: '2026-09-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z',
+  }],
+  company_members: [{ company_id: COMPANY, user_id: ADMIN, role: 'owner', created_at: '2026-09-01T00:00:00Z' }],
+  company_worker_notes: [],
   jobs: [job],
   applications: [{
     id: '11111111-0000-4000-8000-000000000008', job_id: JOB, user_id: WORKER, status: 'approved', available_dates: null, position: 'A게이트', contract_received_at: null,
@@ -99,6 +107,21 @@ const tables = {
   rate_events: [],
   job_views: [],
   audit_logs: [{ id: 1, actor_id: ADMIN, action: 'user.edit', target_user_id: WORKER, detail: 'admin', ip: '1.1.1.1', created_at: '2026-10-01T00:00:00Z', actor: { name: '관리자' }, target: { name: '근무자' } }],
+}
+
+// 회사별 표의 시드 행은 모두 기본 회사 (실제 DB 이전 작업과 같게)
+const COMPANY_TABLES = ['jobs', 'applications', 'attendance', 'signed_docs', 'shift_changes', 'messages', 'worker_ratings', 'doc_templates', 'vendors', 'quote_requests', 'vendor_payments', 'audit_logs']
+for (const t of COMPANY_TABLES) for (const r of tables[t] ?? []) r.company_id ??= COMPANY
+// 실제 DB 트리거처럼: 공고에 딸린 행은 공고의 회사, 그 밖에 비어 있으면 기본 회사
+const FROM_JOB = ['applications', 'attendance', 'signed_docs', 'shift_changes']
+const FROM_JOB_OR_GIVEN = ['messages', 'worker_ratings', 'quote_requests', 'vendor_payments']
+function fillCompany(table, row) {
+  if (!COMPANY_TABLES.includes(table) || table === 'audit_logs') return row
+  const jobCo = row.job_id ? tables.jobs.find((j) => j.id === row.job_id)?.company_id : undefined
+  if (FROM_JOB.includes(table) && jobCo) row.company_id = jobCo
+  else if (FROM_JOB_OR_GIVEN.includes(table) && jobCo) row.company_id = jobCo
+  row.company_id ??= [...tables.companies].sort((a, b) => a.created_at.localeCompare(b.created_at))[0]?.id
+  return row
 }
 
 // select의 최상위 항목만 고름 (괄호 안은 무시). "*"면 전부.
@@ -189,10 +212,16 @@ const server = http.createServer(async (req, res) => {
     for (let row of Array.isArray(parsed) ? parsed : [parsed]) {
       // 실제 DB의 기본값 (가입 후 바로 로그인되게)
       if (table === 'users') row = { role: 'worker', active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
+      // 회사 소속·회사별 메모는 (회사, 사람)이 열쇠
+      const pair = table === 'company_members' || table === 'company_worker_notes'
       const key = table === 'user_photos' ? 'user_id' : 'id'
-      if (key === 'id') row.id ??= crypto.randomUUID()
+      if (key === 'id' && !pair) row.id ??= crypto.randomUUID()
+      fillCompany(table, row)
+      if (table === 'companies') row.active ??= true
       row.created_at ??= new Date().toISOString() // 실제 DB 기본값처럼
-      const found = row[key] != null && list.find((r) => r[key] === row[key])
+      const found = pair
+        ? list.find((r) => r.company_id === row.company_id && r.user_id === row.user_id)
+        : row[key] != null && list.find((r) => r[key] === row[key])
       if (found) Object.assign(found, row)
       else list.push(row)
       out.push(found || row)

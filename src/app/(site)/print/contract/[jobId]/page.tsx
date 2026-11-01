@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { DocBody } from '@/components/DocSheet'
 import { PrintButton } from '@/components/ui'
-import { getJob, getSettings } from '@/lib/data'
+import { getSettings } from '@/lib/data'
+import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { phoneFmt } from '@/lib/format'
@@ -22,7 +23,7 @@ type Person = { id: string; name: string; phone: string; birth_date: string | nu
  * ?u=근무자 → 그 사람만, ?blank=1 → 근무자 칸을 비운 한 장 (현장에서 새로 온 사람용), 없으면 확정자 모두
  */
 export default async function PaperContractPage(props: PageProps<'/print/contract/[jobId]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { jobId } = await props.params
   const sp = await props.searchParams
   if (!isUuid(jobId)) notFound()
@@ -30,9 +31,14 @@ export default async function PaperContractPage(props: PageProps<'/print/contrac
   const only = typeof sp.u === 'string' && isUuid(sp.u) ? sp.u : null
 
   const [job, settings, templates, apps] = await Promise.all([
-    getJob(jobId),
-    getSettings({ seal: true }),
-    db().from('doc_templates').select('id, kind, title, body, is_default, active').eq('kind', 'contract').then((r) => must(r) as DocTemplate[]),
+    companyJob(admin, jobId),
+    getSettings(admin.companyId, { seal: true }),
+    db()
+      .from('doc_templates')
+      .select('id, kind, title, body, is_default, active')
+      .eq('company_id', admin.companyId)
+      .eq('kind', 'contract')
+      .then((r) => must(r) as DocTemplate[]),
     db()
       .from('applications')
       .select('user_id, user:users(id, name, phone, birth_date, address)')

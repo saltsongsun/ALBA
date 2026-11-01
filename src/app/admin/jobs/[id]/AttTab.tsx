@@ -50,7 +50,7 @@ export default async function AttTab({
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
   const changes = (
     must(
-      await db().from('shift_changes').select('*').eq('job_id', job.id).neq('status', 'superseded').order('created_at', { ascending: false }).limit(500),
+      await db().from('shift_changes').select('*').eq('company_id', job.company_id).eq('job_id', job.id).neq('status', 'superseded').order('created_at', { ascending: false }).limit(500),
     ) as Change[]
   )
     .filter((c) => (c.work_date === date || c.work_date === null) && c.status !== 'superseded')
@@ -62,7 +62,7 @@ export default async function AttTab({
     must(
       await db()
         .from('messages')
-        .select('thread_user_id, body, created_at')
+        .select('thread_user_id, body, created_at').eq('company_id', job.company_id)
         .eq('job_id', job.id)
         .eq('from_admin', false)
         .gte('created_at', kstAt(date, '00:00').toISOString())
@@ -85,7 +85,7 @@ export default async function AttTab({
     must(
       await db()
         .from('messages')
-        .select('thread_user_id, body, created_at, from_admin')
+        .select('thread_user_id, body, created_at, from_admin').eq('company_id', job.company_id)
         .eq('job_id', job.id)
         .gte('created_at', kstAt(date, '00:00').toISOString())
         .order('created_at', { ascending: false })

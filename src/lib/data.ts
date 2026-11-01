@@ -20,21 +20,36 @@ const DEFAULT_SETTINGS: Settings = {
   workplace_5plus: true,
 }
 
-/** 회사 정보. 직인 이미지(data URL, 수백 KB)는 화면에 그릴 때만 { seal: true }로 함께 읽습니다. */
-export async function getSettings(): Promise<CompanySettings>
-export async function getSettings(opts: { seal: true }): Promise<Settings>
-export async function getSettings(opts?: { seal: true }): Promise<CompanySettings | Settings> {
+/**
+ * 회사 정보 (회사마다 상호·대표·직인·기본 시급). 공고·서류는 그 공고의 회사(job.company_id),
+ * 관리자 화면은 지금 보고 있는 회사(admin.companyId).
+ * 직인 이미지(data URL, 수백 KB)는 화면에 그릴 때만 { seal: true }로 함께 읽습니다.
+ */
+export async function getSettings(companyId: string): Promise<CompanySettings>
+export async function getSettings(companyId: string, opts: { seal: true }): Promise<Settings>
+export async function getSettings(companyId: string, opts?: { seal: true }): Promise<CompanySettings | Settings> {
   const cols = opts?.seal ? `${COMPANY_COLS}, seal_image` : COMPANY_COLS
-  const data = must(await db().from('settings').select(cols).eq('id', 1).maybeSingle())
+  const data = must(await db().from('companies').select(cols).eq('id', companyId).maybeSingle())
   return (data as Settings | null) ?? DEFAULT_SETTINGS
 }
 
+/** 기본 회사 (가장 먼저 만든 회사 = 앱 운영 회사): 로그인 화면 문의처 등 회사가 정해지지 않은 곳 */
+export const platformCompanyId = cache(async (): Promise<string | null> => {
+  const { data } = await db().from('companies').select('id, created_at').eq('active', true).order('created_at').limit(1)
+  return ((data ?? []) as { id: string }[])[0]?.id ?? null
+})
+
+export async function getPlatformSettings(): Promise<CompanySettings> {
+  const id = await platformCompanyId()
+  return id ? getSettings(id) : DEFAULT_SETTINGS
+}
+
 /** 직인이 등록돼 있는지만 (이미지는 읽지 않음) */
-export async function hasSeal(): Promise<boolean> {
+export async function hasSeal(companyId: string): Promise<boolean> {
   const { count } = await db()
-    .from('settings')
+    .from('companies')
     .select('id', { count: 'exact', head: true })
-    .eq('id', 1)
+    .eq('id', companyId)
     .not('seal_image', 'is', null)
   return (count ?? 0) > 0
 }
@@ -45,8 +60,8 @@ export async function getJob(id: string): Promise<Job | null> {
 }
 
 /** 공고 목록과 지원 상태를 한 번에 읽을 때의 select (공고별 인원은 countApps로 셉니다) */
-export const JOB_WITH_APP_STATUS = '*, applications(status)'
-export type JobWithAppStatus = Job & { applications: { status: string }[] | null }
+export const JOB_WITH_APP_STATUS = '*, applications(status), company:companies(company_name)'
+export type JobWithAppStatus = Job & { applications: { status: string }[] | null; company?: { company_name: string } | null }
 
 /** select(JOB_WITH_APP_STATUS) 결과에서 공고별로 해당 상태의 지원 수를 셉니다. */
 export function countApps(jobs: JobWithAppStatus[], status: Application['status']): Record<string, number> {
@@ -111,9 +126,10 @@ export async function audit(
   action: string,
   targetUserId: string | null = null,
   detail: string | null = null,
+  companyId: string | null = null,
 ) {
   const { ip } = await clientInfo()
-  await db().from('audit_logs').insert({ actor_id: actorId, action, target_user_id: targetUserId, detail, ip })
+  await db().from('audit_logs').insert({ actor_id: actorId, action, target_user_id: targetUserId, detail, ip, company_id: companyId })
 }
 
 /** 근무자가 해야 할 일 수: 서명할 서류 + 근무시간 변경 답 + 담당자가 인정한 연장 확인 (아래 탭 '내 근무' 배지) */
@@ -137,11 +153,12 @@ export const unreadForWorker = cache(async (userId: string): Promise<number> => 
   return count ?? 0
 })
 
-/** 관리자가 아직 안 읽은 근무자 문의 수 */
-export const unreadForAdmins = cache(async (): Promise<number> => {
+/** 관리자가 아직 안 읽은 근무자 문의 수 (이 회사로 온 문의만) */
+export const unreadForAdmins = cache(async (companyId: string): Promise<number> => {
   const { count } = await db()
     .from('messages')
     .select('id', { count: 'exact', head: true })
+    .eq('company_id', companyId)
     .eq('from_admin', false)
     .is('read_at', null)
   return count ?? 0

@@ -20,11 +20,11 @@ const STATUS: Record<Job['status'], [string, string]> = {
 }
 
 export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
   const tab = sp.tab === 'past' ? 'past' : sp.tab === 'draft' ? 'draft' : 'active'
   const today = kstDate()
-  let q = db().from('jobs').select(JOB_WITH_APP_STATUS)
+  let q = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('company_id', admin.companyId)
   if (tab === 'active') q = q.in('status', ['open', 'closed']).gte('end_date', today).order('start_date')
   else if (tab === 'draft') q = q.eq('status', 'draft').order('created_at', { ascending: false })
   else q = q.or(`status.in.(done,cancelled),end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false }).limit(100)

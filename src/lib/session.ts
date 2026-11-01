@@ -16,7 +16,18 @@ export type SessionUser = {
   role: Role
   name: string
   phone: string
+  /** 최고 관리자: 회사를 만들고 관리자를 초대, 모든 회사에 들어갈 수 있음 */
+  isSuper: boolean
 }
+
+/** 관리자가 들어갈 수 있는 회사 (role: 회사 관리자 구분, 최고 관리자는 소속이 아니어도 'super') */
+export type AdminCompany = { id: string; name: string; role: 'owner' | 'admin' | 'super' }
+
+/** 관리자 + 지금 보고 있는 회사 */
+export type AdminUser = SessionUser & { companyId: string; companyName: string; companies: AdminCompany[] }
+
+/** 관리자가 지금 보고 있는 회사 (회사 id만 담음, 매 요청마다 소속을 다시 확인) */
+export const COMPANY_COOKIE = 'hw_company'
 
 function secret(): string {
   const s = process.env.SESSION_SECRET
@@ -71,12 +82,38 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
   if (!parsed) return null
   const { data } = await db()
     .from('users')
-    .select('id, role, name, phone, active, session_version')
+    .select('id, role, name, phone, active, session_version, is_super')
     .eq('id', parsed.u)
     .maybeSingle()
   if (!data || !data.active || data.session_version !== parsed.v) return null
-  return { id: data.id, role: data.role, name: data.name, phone: data.phone }
+  return { id: data.id, role: data.role, name: data.name, phone: data.phone, isSuper: data.role === 'admin' && data.is_super === true }
 })
+
+/** 관리자가 들어갈 수 있는 회사 목록 (최고 관리자는 모든 회사) */
+export const adminCompanies = cache(async (userId: string, isSuper: boolean): Promise<AdminCompany[]> => {
+  const [{ data: members }, { data: all }] = await Promise.all([
+    db().from('company_members').select('company_id, role').eq('user_id', userId),
+    isSuper
+      ? db().from('companies').select('id, company_name, created_at').eq('active', true).order('created_at')
+      : { data: null },
+  ])
+  const mine = new Map(((members ?? []) as { company_id: string; role: 'owner' | 'admin' }[]).map((m) => [m.company_id, m.role]))
+  let rows = (all ?? []) as { id: string; company_name: string; created_at: string }[]
+  if (!isSuper) {
+    if (!mine.size) return []
+    const { data } = await db().from('companies').select('id, company_name, created_at').in('id', [...mine.keys()]).eq('active', true)
+    rows = (data ?? []) as typeof rows
+  }
+  return rows
+    .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    .map((c) => ({ id: c.id, name: c.company_name, role: mine.get(c.id) ?? 'super' }))
+})
+
+/** 관리자(최고 관리자 포함)가 이 회사의 자료를 볼 수 있는지 */
+export async function canManageCompany(user: SessionUser | null, companyId: string | null | undefined): Promise<boolean> {
+  if (!user || user.role !== 'admin' || !companyId) return false
+  return (await adminCompanies(user.id, user.isSuper)).some((c) => c.id === companyId)
+}
 
 export async function requireUser(next?: string): Promise<SessionUser> {
   const user = await getUser()
@@ -84,11 +121,26 @@ export async function requireUser(next?: string): Promise<SessionUser> {
   return user
 }
 
-export async function requireAdmin(): Promise<SessionUser> {
+/**
+ * 관리자 확인 + 지금 보고 있는 회사. 관리자 화면·동작은 모두 이 회사(companyId) 자료만 다룸.
+ * 회사는 화면 위 회사 고르기(쿠키)로 바꾸고, 소속이 아닌 회사 id면 첫 회사로.
+ */
+export async function requireAdmin(): Promise<AdminUser> {
   const user = await getUser()
   if (!user) redirect('/login?next=/admin')
   if (user.role !== 'admin') redirect('/')
-  return user
+  const companies = await adminCompanies(user.id, user.isSuper)
+  if (!companies.length) redirect(`/?m=${encodeURIComponent('소속된 회사가 없어요. 최고 관리자에게 회사 초대를 요청해 주세요.')}`)
+  const want = (await cookies()).get(COMPANY_COOKIE)?.value
+  const cur = companies.find((c) => c.id === want) ?? companies[0]
+  return { ...user, companyId: cur.id, companyName: cur.name, companies }
+}
+
+/** 최고 관리자만 (회사 만들기·관리자 초대) */
+export async function requireSuper(): Promise<AdminUser> {
+  const admin = await requireAdmin()
+  if (!admin.isSuper) redirect('/admin')
+  return admin
 }
 
 export async function clientInfo() {

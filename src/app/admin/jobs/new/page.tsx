@@ -8,12 +8,12 @@ import { requireAdmin } from '@/lib/session'
 export const metadata: Metadata = { title: '새 공고' }
 
 export default async function NewJobPage() {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const [settings, templates] = await Promise.all([
-    getSettings(),
+    getSettings(admin.companyId),
     db()
       .from('doc_templates')
-      .select('id, title, kind, is_default')
+      .select('id, title, kind, is_default').eq('company_id', admin.companyId)
       .eq('active', true)
       .order('created_at')
       .then((r) => must(r) as { id: string; title: string; kind: string; is_default: boolean }[]),

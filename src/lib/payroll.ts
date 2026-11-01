@@ -3,7 +3,7 @@ import { decrypt } from './crypto'
 import { getJob, getSettings } from './data'
 import { db, must } from './db'
 import { calcDay, settle, type DayPay, type Settlement } from './pay'
-import type { SessionUser } from './session'
+import { canManageCompany, type SessionUser } from './session'
 import type { Attendance, Job, Settings } from './types'
 import { isUuid } from './validate'
 
@@ -24,13 +24,14 @@ export type WorkerPay = {
   total: Settlement
 }
 
-/** 본인 또는 관리자만 */
+/** 본인 또는 그 공고 회사의 관리자만 */
 export async function loadWorkerPay(viewer: SessionUser, jobId: string, userId: string): Promise<WorkerPay | null> {
   if (!isUuid(jobId) || !isUuid(userId)) return null
-  if (viewer.id !== userId && viewer.role !== 'admin') return null
-  const [job, settings, { data: worker }, rows] = await Promise.all([
-    getJob(jobId),
-    getSettings({ seal: true }),
+  const job = await getJob(jobId)
+  if (!job) return null
+  if (viewer.id !== userId && !(await canManageCompany(viewer, job.company_id))) return null
+  const [settings, { data: worker }, rows] = await Promise.all([
+    getSettings(job.company_id, { seal: true }),
     db()
       .from('users')
       .select('id, name, phone, birth_date, address, bank_name, bank_account_enc, account_holder')
@@ -44,7 +45,7 @@ export async function loadWorkerPay(viewer: SessionUser, jobId: string, userId: 
       .order('work_date')
       .then((r) => must(r) as Attendance[]),
   ])
-  if (!job || !worker) return null
+  if (!worker) return null
   const withPay = rows.map((r) => ({ ...r, pay: calcDay(job, r) }))
   return {
     job,

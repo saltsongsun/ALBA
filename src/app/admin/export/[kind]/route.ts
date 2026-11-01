@@ -1,10 +1,11 @@
 import { decrypt } from '@/lib/crypto'
-import { audit, getJob } from '@/lib/data'
+import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { calcDay, settle } from '@/lib/pay'
 import { monthlyRows, toCsv } from '@/lib/reports'
 import { overLimit } from '@/lib/ratelimit'
-import { getUser } from '@/lib/session'
+import { getUser, requireAdmin } from '@/lib/session'
+import { companyJob, companyWorkerIds } from '@/lib/company'
 import type { Attendance, UserRow } from '@/lib/types'
 import { formatRrn, isUuid } from '@/lib/validate'
 
@@ -21,8 +22,9 @@ function csvResponse(name: string, body: string) {
 }
 
 export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'>) {
-  const admin = await getUser()
-  if (!admin || admin.role !== 'admin') return new Response('권한이 없습니다.', { status: 403 })
+  const user = await getUser()
+  if (!user || user.role !== 'admin') return new Response('권한이 없습니다.', { status: 403 })
+  const admin = await requireAdmin()
   // 관리자 계정이 털려도 개인정보 파일을 대량으로 내려받지 못하게
   if (await overLimit(`export:${admin.id}`, 30, 3600)) return new Response('내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.', { status: 429 })
   const { kind } = await ctx.params
@@ -32,7 +34,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
 
   if (kind === 'settlement') {
     const jobId = url.searchParams.get('job') ?? ''
-    const job = isUuid(jobId) ? await getJob(jobId) : null
+    const job = await companyJob(admin, jobId)
     if (!job) return new Response('공고를 찾을 수 없습니다.', { status: 404 })
     const atts = must(await db().from('attendance').select('*').eq('job_id', jobId)) as Attendance[]
     const ids = [...new Set(atts.map((a) => a.user_id))]
@@ -71,7 +73,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
           paid ? '지급완료' : '미지급',
         ]
       })
-    await audit(admin.id, 'export.settlement', null, job.title)
+    await audit(admin.id, 'export.settlement', null, job.title, admin.companyId)
     return csvResponse(
       `정산표_${job.title}.csv`,
       toCsv([
@@ -82,10 +84,14 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
   }
 
   if (kind === 'workers') {
-    const users = must(
-      await db().from('users').select('id, name, gender, birth_date, phone, address, active, created_at').eq('role', 'worker').order('name'),
-    ) as Pick<UserRow, 'id' | 'name' | 'gender' | 'birth_date' | 'phone' | 'address' | 'active' | 'created_at'>[]
-    const atts = must(await db().from('attendance').select('user_id, job_id, work_date')) as Pick<Attendance, 'user_id' | 'job_id' | 'work_date'>[]
+    // 이 회사에 지원한 근무자만
+    const ids = await companyWorkerIds(admin.companyId)
+    const users = ids.length
+      ? (must(
+          await db().from('users').select('id, name, gender, birth_date, phone, address, active, created_at').in('id', ids).eq('role', 'worker').order('name'),
+        ) as Pick<UserRow, 'id' | 'name' | 'gender' | 'birth_date' | 'phone' | 'address' | 'active' | 'created_at'>[])
+      : []
+    const atts = must(await db().from('attendance').select('user_id, job_id, work_date').eq('company_id', admin.companyId)) as Pick<Attendance, 'user_id' | 'job_id' | 'work_date'>[]
     const rows = users.map((u) => {
       const mine = atts.filter((a) => a.user_id === u.id).map((a) => a.work_date).sort()
       return [
@@ -102,7 +108,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
         u.active ? '' : '탈퇴',
       ]
     })
-    await audit(admin.id, 'export.workers')
+    await audit(admin.id, 'export.workers', null, null, admin.companyId)
     return csvResponse(
       '근로자명부.csv',
       toCsv([['성명', '성별', '생년월일', '연락처', '주소', '최초근무일', '최근근무일', '근무행사수', '근무일수', '가입일', '비고'], ...rows]),
@@ -110,7 +116,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
   }
 
   if (!validMonth) return new Response('month=YYYY-MM 값이 필요합니다.', { status: 400 })
-  const data = await monthlyRows(month)
+  const data = await monthlyRows(month, admin.companyId)
   const ym = month.replace('-', '')
 
   if (kind === 'daily-income') {
@@ -128,7 +134,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
         r.byTax.daily.localTax,
         r.user.phone,
       ])
-    await audit(admin.id, 'export.daily_income', null, `${month} ${rows.length}명 (주민번호 포함)`)
+    await audit(admin.id, 'export.daily_income', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
       `일용근로소득_지급명세_${month}.csv`,
       toCsv([['귀속연월', '성명', '주민등록번호', '내외국인', '근무일수', '과세소득', '비과세소득', '소득세', '지방소득세', '연락처'], ...rows]),
@@ -149,7 +155,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
         r.byTax.business.incomeTax,
         r.byTax.business.localTax,
       ])
-    await audit(admin.id, 'export.business_income', null, `${month} ${rows.length}명 (주민번호 포함)`)
+    await audit(admin.id, 'export.business_income', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
       `사업소득_간이지급명세_${month}.csv`,
       toCsv([['귀속연월', '성명', '주민등록번호', '내외국인', '업종코드', '지급액', '세율', '소득세', '지방소득세'], ...rows]),
@@ -173,7 +179,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
           r.user.phone,
         ]
       })
-    await audit(admin.id, 'export.employment', null, `${month} ${rows.length}명 (주민번호 포함)`)
+    await audit(admin.id, 'export.employment', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
       `근로내용확인신고_${month}.csv`,
       toCsv([['귀속연월', '성명', '주민등록번호', '근로일자', '근로일수', '일평균근로시간', '보수총액(과세)', '임금총액', '연락처'], ...rows]),

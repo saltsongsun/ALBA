@@ -67,7 +67,7 @@ function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어�
 /** 예전에 다른 행사에서 일한 근무자 (이 공고에 아직 지원하지 않은 사람, 최근 근무 순 200명까지) */
 async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
   const rows = must(
-    await db().from('attendance').select('user_id').neq('job_id', job.id).order('work_date', { ascending: false }).limit(3000),
+    await db().from('attendance').select('user_id').eq('company_id', job.company_id).neq('job_id', job.id).order('work_date', { ascending: false }).limit(3000),
   ) as { user_id: string }[]
   const applied = new Set(apps.map((a) => a.user_id))
   const ids = [...new Set(rows.map((r) => r.user_id))].filter((u) => !applied.has(u)).slice(0, 200)
@@ -78,10 +78,10 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
       .select('id, name, phone, photo_at, active, role')
       .in('id', ids)
       .then((r) => must(r) as { id: string; name: string; phone: string; photo_at: string | null; active: boolean; role: string }[]),
-    reliabilityFor(ids),
+    reliabilityFor(job.company_id, ids),
     db()
       .from('worker_ratings')
-      .select('user_id, score')
+      .select('user_id, score').eq('company_id', job.company_id)
       .in('user_id', ids)
       .then((r) => must(r) as { user_id: string; score: number }[]),
   ])
@@ -115,16 +115,16 @@ export default async function AppsTab({
   // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
   const [rel, ratings, others] = ids.length
     ? await Promise.all([
-        reliabilityFor(ids, job.id),
+        reliabilityFor(job.company_id, ids, job.id),
         db()
           .from('worker_ratings')
-          .select('user_id, score')
+          .select('user_id, score').eq('company_id', job.company_id)
           .in('user_id', ids)
           .then((r) => must(r) as { user_id: string; score: number }[]),
         // 같은 사람이 다른 행사에 확정된 근무 (같은 시간에 겹치면 표시)
         db()
           .from('applications')
-          .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+          .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)').eq('company_id', job.company_id)
           .in('user_id', ids)
           .eq('status', 'approved')
           .neq('job_id', job.id)

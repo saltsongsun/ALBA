@@ -5,7 +5,7 @@ import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { photoBase64 } from '@/lib/photo'
 import { requireAdmin, requireUser } from '@/lib/session'
-import { isUuid } from '@/lib/validate'
+import { workerInCompany } from '@/lib/company'
 import type { FormState } from './auth'
 
 /**
@@ -17,7 +17,7 @@ export async function savePhoto(target: string | null, _: FormState, form: FormD
   let byId: string
   if (target) {
     const admin = await requireAdmin()
-    if (!isUuid(target)) return { error: '잘못된 요청입니다.' }
+    if (!(await workerInCompany(admin.companyId, target))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
     userId = target
     byId = admin.id
   } else {

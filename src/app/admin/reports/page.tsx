@@ -34,15 +34,15 @@ function shiftMonth(ym: string, delta: number): string {
 }
 
 export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
   const thisMonth = kstDate().slice(0, 7)
   const month = typeof sp.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) ? sp.month : thisMonth
   const [rows, logs] = await Promise.all([
-    monthlyRows(month),
+    monthlyRows(month, admin.companyId),
     db()
       .from('audit_logs')
-      .select('id, action, detail, ip, created_at, actor:users!audit_logs_actor_id_fkey(name), target:users!audit_logs_target_user_id_fkey(name)')
+      .select('id, action, detail, ip, created_at, actor:users!audit_logs_actor_id_fkey(name), target:users!audit_logs_target_user_id_fkey(name)').eq('company_id', admin.companyId)
       .order('created_at', { ascending: false })
       .limit(40)
       .then(

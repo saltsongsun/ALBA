@@ -5,6 +5,7 @@ import { ContactButtons } from '@/components/Contact'
 import { StarAvg } from '@/components/Stars'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
+import { companyWorkerIds } from '@/lib/company'
 import { ageOn, fmtDate, kstDate } from '@/lib/time'
 
 export const metadata: Metadata = { title: '근무자' }
@@ -24,25 +25,41 @@ type Row = {
 }
 
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const sp = await props.searchParams
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
-  // 근무일수·최근 근무를 세기 위해 출퇴근 날짜도 같이 읽음
-  let query = db()
-    .from('users')
-    .select('id, name, phone, role, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
-    .order('created_at', { ascending: false })
-    .limit(300)
-  if (q) {
-    const digits = q.replace(/\D/g, '')
-    const safe = q.replace(/[%,()]/g, '')
-    query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
-  }
-  // 빠른 거르기: 사진 없음 · 계좌 없음
+  // 이 회사에 지원한 근무자와 이 회사 관리자만 (근무자 계정은 모든 회사 공용이지만 목록은 회사별)
+  const [workerIds, { data: members }] = await Promise.all([
+    companyWorkerIds(admin.companyId),
+    db().from('company_members').select('user_id').eq('company_id', admin.companyId),
+  ])
+  const ids = [...new Set([...workerIds, ...((members ?? []) as { user_id: string }[]).map((m) => m.user_id)])]
   const f = sp.f === 'nophoto' || sp.f === 'noaccount' ? sp.f : null
-  if (f === 'nophoto') query = query.is('photo_at', null)
-  if (f === 'noaccount') query = query.is('bank_account_enc', null)
-  const users = (must(await query) as Row[]).filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : true))
+  // 근무일수·최근 근무를 세기 위해 이 회사 출퇴근 날짜도 같이 읽음 (주소가 너무 길어지지 않게 나눠서)
+  const page = (chunk: string[]) => {
+    let query = db()
+      .from('users')
+      .select('id, name, phone, role, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
+      .in('id', chunk)
+      .eq('attendance.company_id', admin.companyId)
+      .eq('ratings.company_id', admin.companyId)
+    if (q) {
+      const digits = q.replace(/\D/g, '')
+      const safe = q.replace(/[%,()]/g, '')
+      query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
+    }
+    // 빠른 거르기: 사진 없음 · 계좌 없음
+    if (f === 'nophoto') query = query.is('photo_at', null)
+    if (f === 'noaccount') query = query.is('bank_account_enc', null)
+    return query.then((r) => must(r) as Row[])
+  }
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += 150) chunks.push(ids.slice(i, i + 150))
+  const users = (await Promise.all(chunks.map(page)))
+    .flat()
+    .filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : true))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 300)
   const stat: Record<string, { days: number; last: string }> = {}
   for (const u of users) {
     for (const a of u.attendance ?? []) {

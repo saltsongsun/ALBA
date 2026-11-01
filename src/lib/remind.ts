@@ -45,6 +45,7 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
     ].filter(Boolean)
     sent += await tellWorkers(to, {
       senderId: null,
+      companyId: job.company_id,
       jobId: job.id,
       title: SIGNAL.remind,
       text: (uid) =>
@@ -73,14 +74,14 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
 export async function sendForgotClockOutReminders(now = new Date()): Promise<number> {
   const today = kstDate(now)
   const since = kstDate(new Date(now.getTime() - 14 * 86_400_000))
-  type Row = Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'work_date' | 'clock_out' | 'sched_start' | 'sched_end'> & {
+  type Row = Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'company_id' | 'work_date' | 'clock_out' | 'sched_start' | 'sched_end'> & {
     job: Pick<Job, 'title' | 'start_time' | 'end_time'> | null
   }
   const open = (
     must(
       await db()
         .from('attendance')
-        .select('id, user_id, job_id, work_date, clock_out, sched_start, sched_end, job:jobs(title, start_time, end_time)')
+        .select('id, user_id, job_id, company_id, work_date, clock_out, sched_start, sched_end, job:jobs(title, start_time, end_time)')
         .is('clock_out', null)
         .lt('work_date', today)
         .gte('work_date', since)
@@ -106,6 +107,7 @@ export async function sendForgotClockOutReminders(now = new Date()): Promise<num
     must(await db().from('audit_logs').insert({ actor_id: null, action: 'remind.clockout', detail: a.id }))
     sent += await tellWorkers([a.user_id], {
       senderId: null,
+      companyId: a.company_id,
       jobId: a.job_id,
       title: '⏰ 근무 종료 확인',
       text: `${a.job!.title} · ${fmtDate(a.work_date)} 근무 종료를 누르지 않았어요. 앱 ‘내 근무’에서 끝난 시각을 알려 주세요.`,

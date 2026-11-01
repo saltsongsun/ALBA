@@ -59,8 +59,17 @@ export async function sendPush(userIds: string[], msg: PushMessage): Promise<voi
   }
 }
 
-/** 관리자 전원 */
-export async function adminIds(): Promise<string[]> {
-  const { data } = await db().from('users').select('id').eq('role', 'admin').eq('active', true)
+/** 그 회사 관리자 전원 (다른 회사 관리자에게는 알림이 가지 않음) */
+export async function adminIds(companyId: string): Promise<string[]> {
+  const { data } = await db().from('company_members').select('user_id').eq('company_id', companyId)
+  const ids = ((data ?? []) as { user_id: string }[]).map((m) => m.user_id)
+  if (!ids.length) return []
+  const { data: users } = await db().from('users').select('id').in('id', ids).eq('role', 'admin').eq('active', true)
+  return ((users ?? []) as { id: string }[]).map((u) => u.id)
+}
+
+/** 최고 관리자 (보안 경고 등 앱 전체 알림) */
+export async function superAdminIds(): Promise<string[]> {
+  const { data } = await db().from('users').select('id').eq('role', 'admin').eq('is_super', true).eq('active', true)
   return ((data ?? []) as { id: string }[]).map((u) => u.id)
 }

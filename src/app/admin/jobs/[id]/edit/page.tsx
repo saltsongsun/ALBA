@@ -3,7 +3,8 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Flash from '@/components/Flash'
 import JobForm from '@/components/JobForm'
-import { getJob, getSettings } from '@/lib/data'
+import { getSettings } from '@/lib/data'
+import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
@@ -11,16 +12,16 @@ import { isUuid } from '@/lib/validate'
 export const metadata: Metadata = { title: '공고 수정' }
 
 export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edit'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
   if (!isUuid(id)) notFound()
   const [job, settings, allTemplates] = await Promise.all([
-    getJob(id),
-    getSettings(),
+    companyJob(admin, id),
+    getSettings(admin.companyId),
     db()
       .from('doc_templates')
-      .select('id, title, kind, is_default, active')
+      .select('id, title, kind, is_default, active').eq('company_id', admin.companyId)
       .order('created_at')
       .then((r) => must(r) as { id: string; title: string; kind: string; is_default: boolean; active: boolean }[]),
   ])

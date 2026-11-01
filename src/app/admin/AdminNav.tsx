@@ -14,11 +14,13 @@ const ITEMS = [
   { href: '/admin/settings', label: '회사 설정' },
 ]
 
-export default function AdminNav({ unread = 0 }: { unread?: number }) {
+export default function AdminNav({ unread = 0, isSuper = false }: { unread?: number; isSuper?: boolean }) {
   const path = usePathname()
+  // 회사 관리는 최고 관리자만
+  const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }] : ITEMS
   return (
     <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-2 text-sm font-semibold">
-      {ITEMS.map((it) => {
+      {items.map((it) => {
         const active = it.exact ? path === it.href : path.startsWith(it.href)
         return (
           <Link

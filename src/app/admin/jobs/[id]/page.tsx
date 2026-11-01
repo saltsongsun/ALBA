@@ -6,7 +6,8 @@ import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { getJob, getSettings } from '@/lib/data'
+import { getSettings } from '@/lib/data'
+import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
@@ -49,32 +50,32 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
   const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone'
   const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
-    getJob(id),
-    getSettings(),
+    companyJob(admin, id),
+    getSettings(admin.companyId),
     siteOrigin(),
     db()
       .from('applications')
-      .select(`*, user:users(${userCols})`)
+      .select(`*, user:users(${userCols})`).eq('company_id', admin.companyId)
       .eq('job_id', id)
       .order('created_at')
       .then((r) => must(r) as AppRow[]),
     db()
       .from('attendance')
-      .select('*')
+      .select('*').eq('company_id', admin.companyId)
       .eq('job_id', id)
       .order('work_date')
       .then((r) => must(r) as Attendance[]),
     db()
       .from('signed_docs')
-      .select('id, user_id, template_id, title, status, signed_at, created_at')
+      .select('id, user_id, template_id, title, status, signed_at, created_at').eq('company_id', admin.companyId)
       .eq('job_id', id)
       .order('created_at')
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'user_id' | 'template_id' | 'title' | 'status' | 'signed_at' | 'created_at'>[]),
-    db().from('doc_templates').select('id, title, kind').then((r) => must(r) as { id: string; title: string; kind: string }[]),
+    db().from('doc_templates').select('id, title, kind').eq('company_id', admin.companyId).then((r) => must(r) as { id: string; title: string; kind: string }[]),
     // 내가 이 공고 근무자들에게 매긴 별점 (출퇴근 화면의 빠른 평가)
     db()
       .from('worker_ratings')
-      .select('user_id, score')
+      .select('user_id, score').eq('company_id', admin.companyId)
       .eq('job_id', id)
       .eq('rater_id', admin.id)
       .then((r) => must(r) as { user_id: string; score: number }[]),

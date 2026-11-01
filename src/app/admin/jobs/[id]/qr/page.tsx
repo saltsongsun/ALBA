@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import QRCode from 'qrcode'
 import AutoRefresh from '@/components/AutoRefresh'
 import { CopyButton, PrintButton } from '@/components/ui'
-import { getJob } from '@/lib/data'
+import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { EMERGENCY_MEMO, joinCode } from '@/lib/emergency'
@@ -16,10 +16,10 @@ export const metadata: Metadata = { title: '긴급 투입 QR' }
 
 /** 행사 중 긴급 투입: 이 QR을 새 인력이 찍으면 가입·로그인 후 바로 확정 (오늘만 쓸 수 있는 코드) */
 export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]/qr'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   if (!isUuid(id)) notFound()
-  const job = await getJob(id)
+  const job = await companyJob(admin, id)
   if (!job) notFound()
   const today = kstDate()
   const active = ['open', 'closed'].includes(job.status) && dateList(job.start_date, job.end_date).includes(today)
@@ -29,7 +29,7 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
     ? (must(
         await db()
           .from('applications')
-          .select('user_id, decided_at, admin_memo, user:users(name)')
+          .select('user_id, decided_at, admin_memo, user:users(name)').eq('company_id', admin.companyId)
           .eq('job_id', job.id)
           .eq('status', 'approved')
           .eq('admin_memo', EMERGENCY_MEMO),
@@ -43,14 +43,14 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
     ? await Promise.all([
         db()
           .from('signed_docs')
-          .select('user_id')
+          .select('user_id').eq('company_id', admin.companyId)
           .eq('job_id', job.id)
           .eq('status', 'pending')
           .in('user_id', joinedIds)
           .then((r) => must(r) as { user_id: string }[]),
         db()
           .from('attendance')
-          .select('user_id, clock_out')
+          .select('user_id, clock_out').eq('company_id', admin.companyId)
           .eq('job_id', job.id)
           .eq('work_date', today)
           .in('user_id', joinedIds)

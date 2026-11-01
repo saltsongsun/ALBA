@@ -9,7 +9,7 @@ import JobCard, { APP_STATUS, wageBadge } from '@/components/JobCard'
 import StickyApply from '@/components/StickyApply'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
-import { approvedCounts, countApps, getJob, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
+import { approvedCounts, countApps, getJob, getSettings, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
@@ -58,7 +58,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const [counts, app, docs, mine, myPending] = await Promise.all([
+  const [counts, app, docs, mine, myPending, company] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -97,6 +97,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .eq('status', 'pending')
           .then((r) => r.count ?? 0)
       : 0,
+    // 공고를 낸 회사 (여러 회사가 함께 씀)
+    getSettings(job.company_id),
   ])
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
@@ -148,6 +150,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
         </div>
         <h1 className="text-[22px] leading-snug font-extrabold">{job.title}</h1>
+        <p className="mt-1 text-sm font-semibold text-sub">🏢 {company.company_name}</p>
         <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">
           {shows(job, 'estimate') ? (
             <>

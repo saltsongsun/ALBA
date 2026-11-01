@@ -11,6 +11,8 @@ export async function tellWorkers(
   to: string[],
   o: {
     senderId: string | null
+    /** 어느 회사 문의함에 남길지 (공고가 있으면 공고의 회사) */
+    companyId: string
     jobId: string | null
     title: string
     text: string | ((uid: string) => string)
@@ -29,6 +31,7 @@ export async function tellWorkers(
           thread_user_id: uid,
           sender_id: o.senderId,
           from_admin: true,
+          company_id: o.companyId,
           job_id: o.jobId,
           body: `${o.title}\n${textOf(uid)}`.slice(0, 2000),
         })),

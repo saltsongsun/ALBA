@@ -21,13 +21,14 @@ export default async function VendorQuotePage(props: PageProps<'/quote/[token]'>
   const { data } = await db().from('quotes').select('*').eq('token', token).maybeSingle()
   const q = data as Quote | null
   if (!q) notFound()
-  const [{ data: reqData }, { data: vendor }, settings] = await Promise.all([
+  const [{ data: reqData }, { data: vendor }] = await Promise.all([
     db().from('quote_requests').select('*').eq('id', q.request_id).maybeSingle(),
     db().from('vendors').select('name').eq('id', q.vendor_id).maybeSingle(),
-    getSettings(),
   ])
   const req = reqData as QuoteRequest | null
   if (!req) notFound()
+  // 견적을 요청한 회사
+  const settings = await getSettings(req.company_id)
   const job = req.job_id ? await getJob(req.job_id) : null
   const company = settings.company_name || '해피워크'
   const open = req.status === 'open' && (q.status === 'requested' || q.status === 'submitted')

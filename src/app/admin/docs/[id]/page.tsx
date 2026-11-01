@@ -11,13 +11,13 @@ import { isUuid } from '@/lib/validate'
 export const metadata: Metadata = { title: '서식 편집' }
 
 export default async function TemplatePage(props: PageProps<'/admin/docs/[id]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
   let tpl: DocTemplate | null = null
   if (id !== 'new') {
     if (!isUuid(id)) notFound()
-    const { data } = await db().from('doc_templates').select('*').eq('id', id).maybeSingle()
+    const { data } = await db().from('doc_templates').select('*').eq('company_id', admin.companyId).eq('id', id).maybeSingle()
     if (!data) notFound()
     tpl = data as DocTemplate
   }

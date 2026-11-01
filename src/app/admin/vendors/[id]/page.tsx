@@ -17,11 +17,11 @@ import { payState, QUOTE_STATUS } from '@/lib/vendors'
 export const metadata: Metadata = { title: '외주사 정보' }
 
 export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { id } = await props.params
   const sp = await props.searchParams
   if (!isUuid(id)) notFound()
-  const { data } = await db().from('vendors').select('*').eq('id', id).maybeSingle()
+  const { data } = await db().from('vendors').select('*').eq('company_id', admin.companyId).eq('id', id).maybeSingle()
   const v = data as Vendor | null
   if (!v) notFound()
   const [quotes, payments] = await Promise.all([
@@ -32,13 +32,13 @@ export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>
       .then((r) => must(r) as Pick<Quote, 'id' | 'request_id' | 'amount' | 'status' | 'submitted_at'>[]),
     db()
       .from('vendor_payments')
-      .select('*')
+      .select('*').eq('company_id', admin.companyId)
       .eq('vendor_id', id)
       .then((r) => (must(r) as VendorPayment[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
   ])
   const reqIds = [...new Set(quotes.map((q) => q.request_id))]
   const requests = reqIds.length
-    ? (must(await db().from('quote_requests').select('id, title, created_at').in('id', reqIds)) as Pick<QuoteRequest, 'id' | 'title' | 'created_at'>[])
+    ? (must(await db().from('quote_requests').select('id, title, created_at').eq('company_id', admin.companyId).in('id', reqIds)) as Pick<QuoteRequest, 'id' | 'title' | 'created_at'>[])
     : []
   const reqOf = new Map(requests.map((r) => [r.id, r]))
   const account = decrypt(v.bank_account_enc)

@@ -6,8 +6,9 @@ import { redirect } from 'next/navigation'
 import { blindIndex, encrypt, hashPin, verifyPin } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
+import { platformCompanyId } from '@/lib/data'
 import { photoBase64 } from '@/lib/photo'
-import { adminIds, sendPush } from '@/lib/push'
+import { sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, note, overLimit, recent } from '@/lib/ratelimit'
 import { createSession, destroySession } from '@/lib/session'
 import { ageOn, minutesText } from '@/lib/time'
@@ -34,7 +35,7 @@ async function noteLoginFail(ipBucket: string) {
   await note(ipBucket, 'login-fail:all')
   if ((await recent('login-fail:all', 600)) >= 100 && !(await overLimit('alert:login-surge', 1, 3600))) {
     after(async () =>
-      sendPush(await adminIds(), {
+      sendPush(await superAdminIds(), {
         title: '🚨 로그인 실패 급증',
         body: '10분 사이 로그인 실패가 100번을 넘었어요. 자동화된 공격일 수 있어요. 잠긴 계정은 자동으로 풀립니다.',
         url: '/admin',
@@ -223,7 +224,7 @@ export async function setupAdmin(_: FormState, form: FormData): Promise<FormStat
     if (!(await verifyPin(pin, existing.pin_hash))) {
       return { error: '이미 가입된 번호입니다. 그 계정의 비밀번호를 입력하면 관리자로 전환됩니다.' }
     }
-    must(await db().from('users').update({ role: 'admin' }).eq('id', existing.id))
+    must(await db().from('users').update({ role: 'admin', is_super: true }).eq('id', existing.id))
     userId = existing.id
     version = existing.session_version
   } else {
@@ -232,7 +233,7 @@ export async function setupAdmin(_: FormState, form: FormData): Promise<FormStat
     const created = must(
       await db()
         .from('users')
-        .insert({ role: 'admin', name, phone, pin_hash: await hashPin(pin), privacy_agreed_at: new Date().toISOString() })
+        .insert({ role: 'admin', is_super: true, name, phone, pin_hash: await hashPin(pin), privacy_agreed_at: new Date().toISOString() })
         .select('id, session_version')
         .single(),
     ) as { id: string; session_version: number }
@@ -240,8 +241,15 @@ export async function setupAdmin(_: FormState, form: FormData): Promise<FormStat
     version = created.session_version
   }
 
-  const { count: tplCount } = await db().from('doc_templates').select('id', { count: 'exact', head: true })
-  if (!tplCount) must(await db().from('doc_templates').insert(DEFAULT_TEMPLATES))
+  // 첫 관리자 = 최고 관리자: 기본 회사(없으면 만듦)의 대표 관리자로, 서류 서식도 기본으로
+  let companyId = await platformCompanyId()
+  if (!companyId) {
+    const c = must(await db().from('companies').insert({ company_name: '회사명 (설정에서 입력)', active: true }).select('id').single()) as { id: string }
+    companyId = c.id
+  }
+  must(await db().from('company_members').upsert({ company_id: companyId, user_id: userId, role: 'owner' }, { onConflict: 'company_id,user_id' }))
+  const { count: tplCount } = await db().from('doc_templates').select('id', { count: 'exact', head: true }).eq('company_id', companyId)
+  if (!tplCount) must(await db().from('doc_templates').insert(DEFAULT_TEMPLATES.map((t) => ({ ...t, company_id: companyId }))))
 
   await createSession(userId, version, 'admin')
   redirect('/admin')

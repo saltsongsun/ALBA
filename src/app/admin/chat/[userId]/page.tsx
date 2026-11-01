@@ -10,6 +10,7 @@ import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
+import { workerInCompany } from '@/lib/company'
 import { SIGNAL } from '@/lib/signals'
 import { isUuid } from '@/lib/validate'
 
@@ -30,22 +31,23 @@ function repliesFor(last: ChatMessage | undefined): string[] {
 }
 
 export default async function AdminChatThread(props: PageProps<'/admin/chat/[userId]'>) {
-  await requireAdmin()
+  const admin = await requireAdmin()
   const { userId } = await props.params
   if (!isUuid(userId)) notFound()
   const [{ data: worker }, messages] = await Promise.all([
     db().from('users').select('id, name, phone, photo_at').eq('id', userId).maybeSingle(),
     db()
       .from('messages')
-      .select(CHAT_MESSAGE_COLS)
+      .select(CHAT_MESSAGE_COLS).eq('company_id', admin.companyId)
       .eq('thread_user_id', userId)
       .order('created_at', { ascending: false })
       .limit(300)
       .then((r) => (must(r) as unknown as ChatMessage[]).sort((a, b) => a.created_at.localeCompare(b.created_at))),
-    // 근무자 문의를 읽음으로 (어느 관리자가 보든 한 번 읽으면 읽음)
-    db().from('messages').update({ read_at: new Date().toISOString() }).eq('thread_user_id', userId).eq('from_admin', false).is('read_at', null),
+    // 이 회사로 온 근무자 문의를 읽음으로 (이 회사 관리자 누구든 한 번 읽으면 읽음)
+    db().from('messages').update({ read_at: new Date().toISOString() }).eq('company_id', admin.companyId).eq('thread_user_id', userId).eq('from_admin', false).is('read_at', null),
   ])
-  if (!worker) notFound()
+  // 이 회사에 문의했거나 지원한 근무자만
+  if (!worker || (!messages.length && !(await workerInCompany(admin.companyId, userId)))) notFound()
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
