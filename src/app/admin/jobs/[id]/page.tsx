@@ -95,7 +95,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
   // 근로계약서를 받지 않는 공고는 위에 경고 (지난 공고·종료한 공고는 제외)
-  const noContract = job.contract_method === 'app' && !['done', 'cancelled'].includes(job.status) && job.end_date >= today && !templates.some((t) => t.kind === 'contract')
+  // 전문가 의뢰는 근로계약서가 아니라 용역계약서(service)로 계약 (저장할 때 근로계약서는 빠지고 용역계약서가 들어감)
+  const expertJob = job.audience === 'expert'
+  const contractKind = expertJob ? 'service' : 'contract'
+  const contractName = expertJob ? '용역계약서' : '근로계약서'
+  const noContract = job.contract_method === 'app' && !['done', 'cancelled'].includes(job.status) && job.end_date >= today && !templates.some((t) => t.kind === contractKind)
 
   // 출퇴근 기록은 있는데 지원 내역이 없는 사람(관리자 직접 등록 등)도 정산에 포함
   const known = new Set(apps.map((a) => a.user_id))
@@ -174,14 +178,14 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           )}
           {noContract && (
             <div className="mt-4 animate-pop rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4">
-              <p className="font-bold">✍️ 근로계약서를 받지 않는 공고예요</p>
+              <p className="font-bold">✍️ {contractName}를 받지 않는 {expertJob ? '의뢰' : '공고'}예요</p>
               <p className="mt-1 text-sm text-sub">
-                근로계약서는 근로기준법 제17조에 따라 서면(전자문서)으로 꼭 줘야 해요. 지정하면
+                {expertJob ? '전문가 의뢰는 용역계약서로 계약해요.' : '근로계약서는 근로기준법 제17조에 따라 서면(전자문서)으로 꼭 줘야 해요.'} 지정하면
                 {approved.length > 0 ? ` 이미 확정된 ${approved.length}명에게도 바로 ` : ' 확정되는 사람에게 '}
                 서명 요청이 가고, 서명 전에는 근무 시작 버튼이 잠겨요.
               </p>
               <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-primary btn-sm mt-3">
-                근로계약서 지정하기
+                {contractName} 지정하기
               </Link>
             </div>
           )}
