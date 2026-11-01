@@ -13,7 +13,7 @@ import { requireUser } from '@/lib/session'
 import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import DocGuard from '@/components/DocGuard'
-import { kstDateTime } from '@/lib/time'
+import { viewerMark } from '@/lib/watermark'
 import { Fragment } from 'react'
 
 export const metadata: Metadata = { title: '서류' }
@@ -129,7 +129,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
       {/* 근무자 화면: 복사·저장 막기 + 열람 일시·열람자 워터마크 */}
       <Guard>
       <DocSheet
-        watermark={admin ? undefined : `열람 ${kstDateTime(new Date())} · ${user.name} ${user.phone.slice(-4)}`}
+        watermark={viewerMark(user)}
         docId={doc.id}
         body={body}
         company={company ?? { company_name: '', ceo_name: null, business_no: null, company_address: null, company_phone: null }}

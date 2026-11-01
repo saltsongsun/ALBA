@@ -7,6 +7,7 @@ import { getJob } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { loadWorkerPay } from '@/lib/payroll'
 import { requireAdmin } from '@/lib/session'
+import { viewerMark } from '@/lib/watermark'
 import { isUuid } from '@/lib/validate'
 
 export const metadata: Metadata = { title: '임금명세서 한 번에 인쇄' }
@@ -36,7 +37,9 @@ export default async function AllPayslipsPage(props: PageProps<'/print/payslip/[
       {sheets.length === 0 ? (
         <div className="card py-10 text-center text-mute">아직 근무 기록이 없어요.</div>
       ) : (
-        sheets.map((d, i) => <PayslipSheet key={d.worker.id} data={d} className={i < sheets.length - 1 ? 'break-after-page' : ''} />)
+        sheets.map((d, i) => (
+          <PayslipSheet key={d.worker.id} data={d} className={i < sheets.length - 1 ? 'break-after-page' : ''} watermark={viewerMark(viewer)} />
+        ))
       )}
     </div>
   )

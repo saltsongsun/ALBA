@@ -5,6 +5,7 @@ import PayslipSheet from '@/components/PayslipSheet'
 import { PrintButton } from '@/components/ui'
 import { loadWorkerPay } from '@/lib/payroll'
 import { requireUser } from '@/lib/session'
+import { viewerMark } from '@/lib/watermark'
 
 export const metadata: Metadata = { title: '임금명세서' }
 
@@ -21,7 +22,7 @@ export default async function PayslipPage(props: PageProps<'/print/payslip/[jobI
         </Link>
         <PrintButton />
       </div>
-      <PayslipSheet data={data} />
+      <PayslipSheet data={data} watermark={viewerMark(viewer)} />
     </div>
   )
 }

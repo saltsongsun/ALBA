@@ -1,12 +1,13 @@
 import { maskAccount, won, wonKorean } from '@/lib/format'
 import type { WorkerPay } from '@/lib/payroll'
 import { fmtDate, fmtDateLong, kstDate, kstTime, minutesText } from '@/lib/time'
+import Watermark from './Watermark'
 import SealMark from './SealMark'
 
 const h = (min: number) => (min / 60).toFixed(min % 60 ? 2 : 0).replace(/\.?0+$/, '')
 
 /** 임금명세서 한 장 (근무자 1명). 한 사람 화면·공고 전체 한 번에 인쇄에서 같이 씀 */
-export default function PayslipSheet({ data, className = '' }: { data: WorkerPay; className?: string }) {
+export default function PayslipSheet({ data, className = '', watermark }: { data: WorkerPay; className?: string; /** 열람 일시·열람자 */ watermark?: string }) {
   const { job, settings, worker, rows, total } = data
   const hourly = job.pay_type === 'hourly'
   const paidDates = rows.filter((r) => r.paid_at).map((r) => r.paid_at!)
@@ -36,7 +37,8 @@ export default function PayslipSheet({ data, className = '' }: { data: WorkerPay
   if (total.deduction) deductions.push(['기타 공제', total.deduction, '관리자 공제'])
 
   return (
-      <article className={`print-sheet card px-5 py-7 sm:px-9 ${className}`}>
+      <article className={`print-sheet card relative px-5 py-7 sm:px-9 ${className}`}>
+        {watermark && <Watermark text={watermark} />}
         <h1 className="mb-6 text-center text-2xl font-extrabold tracking-[0.3em]">임금명세서</h1>
         <table className="table mb-5 border-t border-line">
           <tbody>

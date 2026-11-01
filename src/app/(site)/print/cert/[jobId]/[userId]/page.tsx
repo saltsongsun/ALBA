@@ -4,6 +4,8 @@ import { notFound } from 'next/navigation'
 import { PrintButton } from '@/components/ui'
 import { loadWorkerPay } from '@/lib/payroll'
 import { requireUser } from '@/lib/session'
+import { viewerMark } from '@/lib/watermark'
+import Watermark from '@/components/Watermark'
 import { fmtDateLong, kstDate, minutesText } from '@/lib/time'
 import SealMark from '@/components/SealMark'
 
@@ -31,7 +33,8 @@ export default async function CertPage(props: PageProps<'/print/cert/[jobId]/[us
         </form>
         <PrintButton />
       </div>
-      <article className="print-sheet card px-6 py-10 sm:px-12">
+      <article className="print-sheet card relative px-6 py-10 sm:px-12">
+        <Watermark text={viewerMark(viewer)} />
         <h1 className="mb-10 text-center text-3xl font-extrabold tracking-[0.4em]">근무확인서</h1>
         {worked.length === 0 ? (
           <p className="text-center text-mute">완료된 근무 기록이 없습니다.</p>
