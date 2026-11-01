@@ -47,7 +47,7 @@ const errs = []
   ok('관리자 화면도 관리자 열람 워터마크', !!adMark && adMark.startsWith('관리자 열람'), adMark)
   await rest(MD, `signed_docs?id=eq.${DOC_SIGNED}`, 'PATCH', { status: 'void' })
   await wd.reload()
-  ok('무효 서류는 근무자가 못 봄', await see(wd, '볼 수 없는 서류예요'))
+  ok('무효 서류는 근무자가 못 봄 (관리자 문의)', await see(wd, '관리자에게 문의해 주세요'))
   ok('관리자는 무효 서류도 봄', (await (await ad.reload(), ad.getByText('무효 처리된 서류입니다.').count())) === 1)
 
   // ── 개선: 진행 단계 · 내 근무 할 일 배지 · 다른 모집 공고 ──

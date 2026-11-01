@@ -22,6 +22,7 @@ import { requireUser } from '@/lib/session'
 import { parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
+import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 
 export const metadata: Metadata = { title: '내 근무' }
 
@@ -161,7 +162,10 @@ export default async function MePage(props: PageProps<'/me'>) {
     return n === 1 ? '내일' : `D-${n}`
   }
   const waiting = apps.filter((a) => a.status === 'applied' && a.job.end_date >= today)
-  const pendingDocs = docs.filter((d) => d.status === 'pending')
+  // 서류는 근무가 확정된 동안만 열 수 있음 (지원 취소·확정 되돌림이면 관리자 문의)
+  const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
+  const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
+  const pendingDocs = docs.filter((d) => d.status === 'pending' && docOpen(d.job_id))
   const jobsById = new Map(apps.map((a) => [a.job_id, a.job]))
   const weekAgo = kstDate(new Date(Date.now() - 7 * 86_400_000).toISOString())
   const otItems = atts
@@ -640,13 +644,19 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
                     근무확인서
                   </Link>
-                  {docs
-                    .filter((d) => d.job_id === job.id && d.status === 'signed')
-                    .map((d) => (
-                      <Link key={d.id} href={`/docs/${d.id}`} className="btn-gray btn-sm">
-                        {d.title}
-                      </Link>
-                    ))}
+                  {docOpen(job.id)
+                    ? docs
+                        .filter((d) => d.job_id === job.id && d.status === 'signed')
+                        .map((d) => (
+                          <Link key={d.id} href={`/docs/${d.id}`} className="btn-gray btn-sm">
+                            {d.title}
+                          </Link>
+                        ))
+                    : docs.some((d) => d.job_id === job.id && d.status === 'signed') && (
+                        <Link href={docInquiryHref(job.id)} className="btn-gray btn-sm text-mute">
+                          🔒 서류는 관리자 문의
+                        </Link>
+                      )}
                 </div>
               </div>
             ))}
@@ -665,12 +675,16 @@ export default async function MePage(props: PageProps<'/me'>) {
             items={docs
               .filter((d) => d.status === 'signed')
               .map((d) => (
-                <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <Link key={d.id} href={docOpen(d.job_id) ? `/docs/${d.id}` : docInquiryHref(d.job_id)} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span className="min-w-0">
-                    <b className="block">{d.title}</b>
+                    <b className={`block ${docOpen(d.job_id) ? '' : 'text-mute'}`}>{d.title}</b>
                     <span className="block truncate text-xs text-mute">{jobsById.get(d.job_id)?.title}</span>
                   </span>
-                  <span className="shrink-0 whitespace-nowrap text-mute">보기 →</span>
+                  {docOpen(d.job_id) ? (
+                    <span className="shrink-0 whitespace-nowrap text-mute">보기 →</span>
+                  ) : (
+                    <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-mute">🔒 관리자 문의</span>
+                  )}
                 </Link>
               ))}
           />

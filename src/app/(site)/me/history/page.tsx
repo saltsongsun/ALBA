@@ -7,12 +7,13 @@ import { calcDay, settle } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
 import { fmtDateRange, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
+import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 
 export const metadata: Metadata = { title: '지난 근무' }
 
 export default async function HistoryPage() {
   const user = await requireUser('/me/history')
-  const [atts, docs] = await Promise.all([
+  const [atts, docs, apps] = await Promise.all([
     db()
       .from('attendance')
       .select('*, job:jobs(*)')
@@ -25,7 +26,15 @@ export default async function HistoryPage() {
       .eq('user_id', user.id)
       .eq('status', 'signed')
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title'>[]),
+    db()
+      .from('applications')
+      .select('job_id, status')
+      .eq('user_id', user.id)
+      .then((r) => must(r) as { job_id: string; status: string }[]),
   ])
+  // 서류는 근무가 확정된 동안만 열 수 있음 (지원 취소·확정 되돌림이면 관리자 문의)
+  const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
+  const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
 
   // 공고별로 묶어 정산 (가장 최근에 일한 공고부터)
   const byJob = new Map<string, { job: Job; rows: Attendance[] }>()
@@ -129,13 +138,19 @@ export default async function HistoryPage() {
                       <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
                         근무확인서
                       </Link>
-                      {docs
-                        .filter((d) => d.job_id === job.id)
-                        .map((d) => (
-                          <Link key={d.id} href={`/docs/${d.id}`} className="btn-gray btn-sm">
-                            {d.title}
-                          </Link>
-                        ))}
+                      {docOpen(job.id)
+                        ? docs
+                            .filter((d) => d.job_id === job.id)
+                            .map((d) => (
+                              <Link key={d.id} href={`/docs/${d.id}`} className="btn-gray btn-sm">
+                                {d.title}
+                              </Link>
+                            ))
+                        : docs.some((d) => d.job_id === job.id) && (
+                            <Link href={docInquiryHref(job.id)} className="btn-gray btn-sm text-mute">
+                              🔒 서류는 관리자 문의
+                            </Link>
+                          )}
                     </div>
                   </div>
                 ))}

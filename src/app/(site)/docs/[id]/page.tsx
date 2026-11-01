@@ -14,6 +14,7 @@ import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import DocGuard from '@/components/DocGuard'
 import { viewerMark } from '@/lib/watermark'
+import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { Fragment } from 'react'
 
 export const metadata: Metadata = { title: '서류' }
@@ -37,15 +38,12 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   const worker = doc.worker
   if (!worker) notFound()
   const admin = user.role === 'admin'
-  // 근무자: 무효가 된 서류(확정을 되돌렸는데 실제로 일하지 않음)나, 확정이 풀렸고 일한 적도 없는 공고의 서류는 내용을 볼 수 없음
+  // 근무자: 근무가 확정된 동안만 열 수 있음. 지원 취소·확정 되돌림·행사 취소면 (이미 서명했어도) 담당자에게 문의
   if (!admin) {
     let blocked = doc.status === 'void'
     if (!blocked) {
-      const [{ data: app }, { count: worked }] = await Promise.all([
-        db().from('applications').select('status').eq('job_id', doc.job_id).eq('user_id', doc.user_id).maybeSingle(),
-        db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', doc.job_id).eq('user_id', doc.user_id),
-      ])
-      blocked = (app as { status: string } | null)?.status !== 'approved' && !worked
+      const { data: app } = await db().from('applications').select('status').eq('job_id', doc.job_id).eq('user_id', doc.user_id).maybeSingle()
+      blocked = !canOpenJobDocs((app as { status: string } | null)?.status)
     }
     if (blocked) {
       return (
@@ -53,12 +51,15 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           <Link href="/me" className="text-sm font-semibold text-sub">
             ← 내 근무
           </Link>
-          <div className="card py-12 text-center">
+          <div className="card px-6 py-12 text-center">
             <p className="text-3xl" aria-hidden>
               🔒
             </p>
-            <p className="mt-2 font-bold">볼 수 없는 서류예요</p>
-            <p className="mt-1 text-sm text-sub">근무 확정이 취소돼 이 서류는 무효가 됐어요. 궁금한 점은 문의함으로 물어봐 주세요.</p>
+            <p className="mt-2 font-bold">관리자에게 문의해 주세요</p>
+            <p className="mt-1 text-sm text-sub">지원을 취소했거나 근무 확정이 취소돼 이 서류는 열 수 없어요. 서류가 필요하면 담당자에게 요청해 주세요.</p>
+            <Link href={docInquiryHref(doc.job_id)} className="btn-primary mt-5">
+              💬 담당자에게 문의
+            </Link>
           </div>
         </div>
       )

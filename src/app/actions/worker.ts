@@ -18,6 +18,7 @@ import { clientInfo, createSession, destroySession, requireUser } from '@/lib/se
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
+import { canOpenJobDocs } from '@/lib/doc-access'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -660,12 +661,15 @@ export async function signDocument(docId: string, _: FormState, form: FormData):
   if (d.status !== 'pending') return { error: '이미 서명한 서류입니다.' }
   if (!d.template_id) return { error: '서식이 삭제된 서류입니다. 담당자에게 문의해 주세요.' }
 
-  const [job, settings, { data: tpl }, { data: me }] = await Promise.all([
+  const [job, settings, { data: tpl }, { data: me }, { data: app }] = await Promise.all([
     getJob(d.job_id),
     getSettings({ seal: true }),
     db().from('doc_templates').select('*').eq('id', d.template_id).maybeSingle(),
     db().from('users').select('name, phone, birth_date, address').eq('id', user.id).single(),
+    db().from('applications').select('status').eq('job_id', d.job_id).eq('user_id', user.id).maybeSingle(),
   ])
+  // 지원 취소·확정 되돌림 뒤에는 서명할 수 없음 (화면을 열어 둔 채로 취소된 경우)
+  if (!canOpenJobDocs((app as { status: string } | null)?.status)) return { error: '근무가 취소된 서류예요. 관리자에게 문의해 주세요.' }
   if (!job || !tpl || !me) return { error: '서식을 불러오지 못했습니다. 담당자에게 문의해 주세요.' }
 
   const today = kstDate()
