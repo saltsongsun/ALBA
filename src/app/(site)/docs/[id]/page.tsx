@@ -143,6 +143,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         signature={doc.signature}
         signedAt={doc.signed_at}
         signedIp={doc.signed_ip}
+        parties={doc.kind === 'service' ? 'service' : 'labor'}
       />
       </Guard>
       {doc.status === 'pending' && mine && (

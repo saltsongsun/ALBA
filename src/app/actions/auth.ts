@@ -14,6 +14,9 @@ import { createSession, destroySession } from '@/lib/session'
 import { ageOn, minutesText } from '@/lib/time'
 import { isPin, normalizePhone, optStr, parseRrn, safePath, str, weakPin } from '@/lib/validate'
 import { parseCareers } from '@/lib/careers'
+import { isMemberType, parseSpecialty } from '@/lib/members'
+import { linkVendorAccount } from '@/lib/partners'
+import type { MemberType } from '@/lib/types'
 
 export type FormState = { error?: string; ok?: string } | null
 
@@ -46,10 +49,20 @@ async function noteLoginFail(ipBucket: string) {
 
 const safeNext = (next: string, fallback: string) => safePath(next, fallback)
 
+/** 포트폴리오 주소: https만 */
+function portfolioUrl(form: FormData): string | null {
+  const v = str(form, 'portfolio_url', 300)
+  if (!v) return null
+  const url = /^https?:\/\//.test(v) ? v : `https://${v}`
+  return /^https:\/\/[^\s<>"']+\.[^\s<>"']+$/.test(url.replace(/^http:/, 'https:')) ? url.replace(/^http:/, 'https:') : null
+}
+
 export async function signup(_: FormState, form: FormData): Promise<FormState> {
   if (caughtByHoneypot(form)) return { error: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   // 한 곳에서 계정을 대량으로 만들거나 주민번호 가입 여부를 대량으로 알아보지 못하게
   if (await overLimit(await ipKey('signup-try'), 20, 3600)) return { error: '가입 시도가 너무 많아요. 한 시간 뒤에 다시 시도해 주세요.' }
+  const memberType = isMemberType(str(form, 'member_type')) ? (str(form, 'member_type') as MemberType) : 'worker'
+  if (memberType === 'vendor') return signupVendor(form)
   const name = str(form, 'name', 30)
   const phone = normalizePhone(str(form, 'phone'))
   const rrn = parseRrn(str(form, 'rrn1') + str(form, 'rrn2'))
@@ -108,6 +121,10 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
       privacy_agreed_at: new Date().toISOString(),
       photo_at: new Date().toISOString(),
       careers,
+      member_type: memberType,
+      ...(memberType === 'expert'
+        ? { specialty: parseSpecialty(str(form, 'specialty', 300)), intro: optStr(form, 'intro', 100), portfolio_url: portfolioUrl(form) }
+        : {}),
     })
     .select('id, session_version, photo_at')
     .single()
@@ -119,8 +136,59 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   // 사진만 실패하면 가입은 그대로 두고 나중에 내 정보에서 올리게 (내 근무 화면에 안내가 뜸)
   if (photoError) await db().from('users').update({ photo_at: null }).eq('id', data.id)
 
+  // 전문가: 회사가 이 휴대폰 번호로 외주사를 등록해 뒀으면 이어서 견적 요청을 앱으로 받게
+  if (memberType === 'expert') await linkVendorAccount(data.id, null, phone)
   await createSession(data.id, data.session_version)
-  redirect(safeNext(str(form, 'next'), '/me'))
+  redirect(safeNext(str(form, 'next'), memberType === 'expert' ? '/pro' : '/me'))
+}
+
+/**
+ * 외주 업체 가입: 상호·사업자등록번호·담당자 (주민번호·얼굴 사진 없음).
+ * 견적 요청·대금 현황을 앱에서 보고, 업체 사업자번호로 회사 외주사 목록과 이어짐
+ */
+async function signupVendor(form: FormData): Promise<FormState> {
+  const bizName = str(form, 'biz_name', 60)
+  const bizNo = str(form, 'biz_no', 20).replace(/\D/g, '')
+  const name = str(form, 'name', 30)
+  const phone = normalizePhone(str(form, 'phone'))
+  const pin = str(form, 'pin')
+  if (bizName.length < 2) return { error: '상호를 입력해 주세요.' }
+  if (bizNo.length !== 10) return { error: '사업자등록번호 10자리를 입력해 주세요.' }
+  if (name.length < 2) return { error: '담당자 이름을 입력해 주세요.' }
+  if (!phone) return { error: '휴대폰 번호를 정확히 입력해 주세요. (예: 010-1234-5678)' }
+  if (!isPin(pin)) return { error: '비밀번호는 숫자 6자리로 정해 주세요.' }
+  if (pin !== str(form, 'pin2')) return { error: '비밀번호 확인이 일치하지 않습니다.' }
+  const weak = weakPin(pin, { phone })
+  if (weak) return { error: weak }
+  if (form.get('agree_privacy') !== 'on') return { error: '필수 동의 항목에 체크해 주세요.' }
+  const { data: byPhone } = await db().from('users').select('id').eq('phone', phone).maybeSingle()
+  if (byPhone) return { error: '이미 가입된 휴대폰 번호입니다. 로그인해 주세요.' }
+  const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
+  const { data, error } = await db()
+    .from('users')
+    .insert({
+      name,
+      phone,
+      pin_hash: await hashPin(pin),
+      member_type: 'vendor',
+      biz_name: bizName,
+      biz_no: bizNo,
+      specialty: parseSpecialty(str(form, 'specialty', 300)),
+      intro: optStr(form, 'intro', 100),
+      portfolio_url: portfolioUrl(form),
+      bank_name: account ? optStr(form, 'bank_name', 30) : null,
+      bank_account_enc: account ? encrypt(account) : null,
+      account_holder: account ? optStr(form, 'account_holder', 40) || bizName : null,
+      privacy_agreed_at: new Date().toISOString(),
+    })
+    .select('id, session_version')
+    .single()
+  if (error || !data) return { error: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  await note(await ipKey('signup-ok'))
+  // 회사들이 이미 등록해 둔 외주사(같은 사업자번호·휴대폰)와 이어서 견적 요청을 앱으로 받게
+  await linkVendorAccount(data.id, bizNo, phone)
+  await createSession(data.id, data.session_version)
+  redirect(safeNext(str(form, 'next'), '/pro'))
 }
 
 export async function login(_: FormState, form: FormData): Promise<FormState> {
@@ -138,7 +206,7 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
 
   const { data: u } = await db()
     .from('users')
-    .select('id, role, pin_hash, active, failed_logins, locked_until, session_version')
+    .select('id, role, pin_hash, active, failed_logins, locked_until, session_version, member_type')
     .eq('phone', phone)
     .maybeSingle()
   if (!u || !u.active) {
@@ -183,7 +251,8 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
     await db().from('users').update({ failed_logins: 0, locked_until: null }).eq('id', u.id)
   }
   await createSession(u.id, u.session_version, u.role)
-  redirect(safeNext(str(form, 'next'), u.role === 'admin' ? '/admin' : '/me'))
+  // 관리자는 관리자 화면, 전문가·외주 업체는 전문가 화면, 아르바이트는 내 근무
+  redirect(safeNext(str(form, 'next'), u.role === 'admin' ? '/admin' : u.member_type === 'vendor' || u.member_type === 'expert' ? '/pro' : '/me'))
 }
 
 export async function logout() {

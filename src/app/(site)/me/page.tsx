@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
@@ -60,6 +61,8 @@ type AppWithJob = Application & { job: Job }
 export default async function MePage(props: PageProps<'/me'>) {
   const sp = await props.searchParams
   const user = await requireUser('/me')
+  // 외주 업체는 근무(출퇴근)가 없으므로 전문가 화면으로
+  if (user.memberType === 'vendor' && user.role !== 'admin') redirect('/pro')
   const today = kstDate()
 
   const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
@@ -639,7 +642,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Link href={`/print/payslip/${job.id}/${user.id}`} className="btn-soft btn-sm">
-                    임금명세서
+                    {job.tax_type === 'business' ? '지급명세서' : '임금명세서'}
                   </Link>
                   <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
                     근무확인서

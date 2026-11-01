@@ -12,7 +12,7 @@ import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
-import type { Application, Attendance, Job, SignedDoc } from '@/lib/types'
+import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
 import AppsTab from './AppsTab'
 import AttTab from './AttTab'
@@ -36,6 +36,9 @@ export type WorkerLite = {
   careers?: { event: string; period: string; role: string }[] | null
   /** 비상연락처 (근무자가 내 정보에 넣었을 때만) */
   emergency_phone?: string | null
+  /** 가입 유형 · 전문 분야 */
+  member_type?: MemberType
+  specialty?: string | null
 }
 export type AppRow = Application & { user: WorkerLite }
 
@@ -48,7 +51,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   if (!isUuid(id)) notFound()
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
-  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone'
+  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone, member_type, specialty'
   const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
     companyJob(admin, id),
     getSettings(admin.companyId),
@@ -135,6 +138,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             <span className={`badge ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{STATUS_LABEL[job.status]}</span>
             {job.event_name && <span className="text-sm font-semibold text-mute">{job.event_name}</span>}
           </div>
+          {job.audience === 'expert' && <span className="badge mt-1 bg-violet-50 text-violet-700">🎛️ 전문가 의뢰 · 용역계약 · 사업소득 3.3%</span>}
           <h1 className="mt-1 text-2xl font-extrabold">{job.title}</h1>
           <p className="mt-1 text-sub">
             {fmtDateRange(job.start_date, job.end_date)} {scheduleText(job)}

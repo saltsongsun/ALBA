@@ -6,6 +6,8 @@ import { StarAvg } from '@/components/Stars'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { companyWorkerIds } from '@/lib/company'
+import { isMemberType, MEMBER_TYPES } from '@/lib/members'
+import type { MemberType } from '@/lib/types'
 import { ageOn, fmtDate, kstDate } from '@/lib/time'
 
 export const metadata: Metadata = { title: '근무자' }
@@ -15,6 +17,7 @@ type Row = {
   name: string
   phone: string
   role: string
+  member_type?: MemberType
   birth_date: string | null
   active: boolean
   bank_account_enc: string | null
@@ -35,11 +38,13 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   ])
   const ids = [...new Set([...workerIds, ...((members ?? []) as { user_id: string }[]).map((m) => m.user_id)])]
   const f = sp.f === 'nophoto' || sp.f === 'noaccount' ? sp.f : null
+  // 가입 유형으로 거르기: 아르바이트 / 전문가 / 외주 업체
+  const t = isMemberType(sp.t) ? sp.t : null
   // 근무일수·최근 근무를 세기 위해 이 회사 출퇴근 날짜도 같이 읽음 (주소가 너무 길어지지 않게 나눠서)
   const page = (chunk: string[]) => {
     let query = db()
       .from('users')
-      .select('id, name, phone, role, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
+      .select('id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
       .in('id', chunk)
       .eq('attendance.company_id', admin.companyId)
       .eq('ratings.company_id', admin.companyId)
@@ -58,6 +63,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const users = (await Promise.all(chunks.map(page)))
     .flat()
     .filter((u) => (f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : true))
+    .filter((u) => !t || (u.member_type ?? 'worker') === t)
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 300)
   const stat: Record<string, { days: number; last: string }> = {}
@@ -83,6 +89,11 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const roleBadges = (u: Row) => (
     <>
       <StarAvg scores={(u.ratings ?? []).map((r) => r.score)} />
+      {u.member_type && u.member_type !== 'worker' && (
+        <span className={`badge ${MEMBER_TYPES[u.member_type].badge}`}>
+          {MEMBER_TYPES[u.member_type].emoji} {MEMBER_TYPES[u.member_type].short}
+        </span>
+      )}
       {u.role === 'admin' && <span className="badge bg-ink text-white">관리자</span>}
       {!u.active && <span className="badge bg-gray-100 text-mute">탈퇴·정지</span>}
     </>
@@ -106,15 +117,17 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {(
           [
-            [null, '전체'],
-            ['nophoto', '사진 없음'],
-            ['noaccount', '계좌 없음'],
+            [null, null, '전체'],
+            ['worker', null, '🙋 알바'],
+            ['expert', null, '🎛️ 전문가'],
+            [null, 'nophoto', '사진 없음'],
+            [null, 'noaccount', '계좌 없음'],
           ] as const
-        ).map(([k, label]) => (
+        ).map(([tk, fk, label]) => (
           <Link
             key={label}
-            href={`/admin/workers${k ? `?f=${k}` : ''}`}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold ${f === k ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}
+            href={`/admin/workers${tk ? `?t=${tk}` : fk ? `?f=${fk}` : ''}`}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold ${t === tk && f === fk ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}
           >
             {label}
           </Link>

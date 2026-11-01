@@ -55,6 +55,7 @@ export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>
       <section className="card space-y-2">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="text-2xl font-extrabold">{v.name}</h1>
+          {v.user_id && <span className="badge bg-violet-50 text-violet-700">📱 앱 연결 · 견적 요청이 앱으로 가요</span>}
           {v.category && <span className="badge bg-brand-50 text-brand-700">{v.category}</span>}
           {!v.active && <span className="badge bg-gray-100 text-mute">거래 중지</span>}
         </div>

@@ -225,6 +225,8 @@ export default function JobForm({
   const [payType, setPayType] = useState(job?.pay_type ?? 'hourly')
   const [breakMode, setBreakMode] = useState(job?.break_mode ?? 'auto')
   const [taxType, setTaxType] = useState(job?.tax_type ?? 'daily')
+  // 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서, 화면 색도 보라로)
+  const [audience, setAudience] = useState<'worker' | 'expert'>(job?.audience ?? 'worker')
   const [locMsg, setLocMsg] = useState('')
   const [mapSrc, setMapSrc] = useState<string | null>(null)
   const latRef = useRef<HTMLInputElement>(null)
@@ -278,7 +280,35 @@ export default function JobForm({
       // 접힌 칸에 빠진 필수 입력이 있으면 그 칸을 펼쳐서 바로 보이게
       onInvalidCapture={(e) => (e.target as HTMLElement).closest('details')?.setAttribute('open', '')}
       className="space-y-3"
+      data-mode={audience === 'expert' ? 'pro' : undefined}
     >
+      <fieldset className="grid grid-cols-2 gap-2" aria-label="모집 대상">
+        {(
+          [
+            ['worker', '🙋 아르바이트 모집', '근로계약 · 일용근로소득'],
+            ['expert', '🎛️ 전문가 의뢰', '용역계약 · 사업소득 3.3%'],
+          ] as const
+        ).map(([k, t, d]) => (
+          <label
+            key={k}
+            className={`cursor-pointer rounded-2xl border-2 px-4 py-3 transition ${audience === k ? 'border-brand-500 bg-brand-50' : 'border-line bg-white'}`}
+          >
+            <input
+              type="radio"
+              name="audience"
+              value={k}
+              checked={audience === k}
+              onChange={() => {
+                setAudience(k)
+                setTaxType(k === 'expert' ? 'business' : 'daily')
+              }}
+              className="sr-only"
+            />
+            <span className="block font-bold whitespace-nowrap">{t}</span>
+            <span className="block text-xs text-sub">{d}</span>
+          </label>
+        ))}
+      </fieldset>
       <Fold title="기본 정보" open summary={brief(v('title') || '제목을 적어 주세요')}>
         <Field label="공고 제목 *">
           <input name="title" className="input" defaultValue={job?.title} placeholder="예) 진주남강유등축제 안내·질서 스태프" required />
@@ -494,7 +524,12 @@ export default function JobForm({
           `${{ daily: '일용근로소득', business: '사업소득 3.3%', none: '공제 없음' }[taxType]}${taxType === 'daily' && fd?.get('employment_insurance') ? ' · 고용보험 0.9%' : ''}`,
         )}
       >
-        <div className="grid gap-2 sm:grid-cols-3">
+        {audience === 'expert' && (
+          <p className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700">
+            전문가 의뢰는 <b>사업소득 3.3%</b>(소득세 3% + 지방소득세 0.3%)를 떼고 지급해요. 서류는 근로계약서 대신 <b>용역계약서</b>로 받아요.
+          </p>
+        )}
+        <div className={`grid gap-2 sm:grid-cols-3 ${audience === 'expert' ? 'hidden' : ''}`}>
           {(
             [
               ['daily', '일용근로소득', '일급 15만원까지 비과세, 초과분 2.7% + 지방세. 근로계약 시 원칙'],

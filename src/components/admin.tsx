@@ -140,6 +140,7 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
             <input name="title" className="input" defaultValue={tpl?.title} placeholder="서식 이름 (예: 단기 근로계약서)" required />
             <select name="kind" className="input" defaultValue={tpl?.kind ?? 'contract'}>
               <option value="contract">근로계약서</option>
+              <option value="service">용역계약서 (전문가)</option>
               <option value="pledge">서약서</option>
               <option value="consent">동의서</option>
               <option value="other">기타</option>

@@ -12,6 +12,11 @@ import { db } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
+import { changeMemberType } from '@/app/actions/worker'
+import { ProInfoForm } from '@/components/pro'
+import { ConfirmSubmit } from '@/components/ui'
+import { bizNoFmt, MEMBER_TYPES } from '@/lib/members'
+import type { MemberType } from '@/lib/types'
 
 export const metadata: Metadata = { title: '내 정보' }
 
@@ -19,24 +24,34 @@ export default async function ProfilePage() {
   const user = await requireUser('/me/profile')
   const { data: me } = await db()
     .from('users')
-    .select('name, phone, rrn_masked, address, emergency_phone, bank_name, bank_account_enc, account_holder, photo_at, careers, created_at')
+    .select('name, phone, rrn_masked, address, emergency_phone, bank_name, bank_account_enc, account_holder, photo_at, careers, created_at, member_type, specialty, intro, portfolio_url, biz_name, biz_no')
     .eq('id', user.id)
     .single()
   if (!me) return null
-  // 정보 채우기: 비어 있는 항목을 눌러 바로 그 칸으로 (급여·현장 연락이 빨라지게)
-  const checks = [
-    { key: 'photo', label: '얼굴 사진', done: !!me.photo_at, href: '#photo', why: '현장에서 담당자가 알아봐요' },
-    { key: 'account', label: '급여 계좌', done: !!me.bank_account_enc, href: '#account', why: '급여를 바로 받아요' },
-    { key: 'emergency', label: '비상연락처', done: !!me.emergency_phone, href: '#account', why: '현장에서 연락이 안 될 때' },
-    { key: 'address', label: '주소', done: !!me.address, href: '#account', why: '근로계약서에 들어가요' },
-    { key: 'careers', label: '행사 경력', done: Array.isArray(me.careers) && me.careers.length > 0, href: '#careers', why: '확정될 때 참고해요' },
-  ]
+  const type: MemberType = me.member_type === 'expert' || me.member_type === 'vendor' ? me.member_type : 'worker'
+  const vendor = type === 'vendor'
+  // 정보 채우기: 비어 있는 항목을 눌러 바로 그 칸으로 (급여·현장 연락이 빨라지게). 유형마다 다름
+  const checks = vendor
+    ? [
+        { key: 'account', label: '대금 계좌', done: !!me.bank_account_enc, href: '#account', why: '대금을 바로 받아요' },
+        { key: 'specialty', label: '분야', done: !!me.specialty, href: '#pro', why: '맞는 견적 요청을 받아요' },
+        { key: 'intro', label: '한 줄 소개', done: !!me.intro, href: '#pro', why: '회사가 업체를 고를 때 봐요' },
+      ]
+    : [
+        { key: 'photo', label: '얼굴 사진', done: !!me.photo_at, href: '#photo', why: '현장에서 담당자가 알아봐요' },
+        { key: 'account', label: type === 'expert' ? '대금 계좌' : '급여 계좌', done: !!me.bank_account_enc, href: '#account', why: type === 'expert' ? '용역 대금을 바로 받아요' : '급여를 바로 받아요' },
+        { key: 'emergency', label: '비상연락처', done: !!me.emergency_phone, href: '#account', why: '현장에서 연락이 안 될 때' },
+        type === 'expert'
+          ? { key: 'specialty', label: '전문 분야', done: !!me.specialty, href: '#pro', why: '맞는 의뢰를 받아요' }
+          : { key: 'address', label: '주소', done: !!me.address, href: '#account', why: '근로계약서에 들어가요' },
+        { key: 'careers', label: type === 'expert' ? '참여한 행사' : '행사 경력', done: Array.isArray(me.careers) && me.careers.length > 0, href: '#careers', why: '확정될 때 참고해요' },
+      ]
   const doneN = checks.filter((c) => c.done).length
   return (
     <div className="space-y-4">
       <OpenOnHash />
-      <Link href="/me" className="text-sm font-semibold text-sub">
-        ← 내 근무
+      <Link href={vendor ? '/pro' : '/me'} className="text-sm font-semibold text-sub">
+        {vendor ? '← 홈' : '← 내 근무'}
       </Link>
       {doneN < checks.length && (
         <section className="card space-y-3 border-2 border-brand-100">
@@ -68,16 +83,58 @@ export default async function ProfilePage() {
           </ul>
         </section>
       )}
-      <div id="photo" className="card scroll-mt-20 space-y-3">
-        <PhotoUpload userId={user.id} name={me.name} photoAt={me.photo_at}>
-          <h1 className="text-xl font-extrabold">{me.name}</h1>
-          <p className="mt-0.5 text-sm text-sub">
-            <span className="whitespace-nowrap">{phoneFmt(me.phone)}</span> ·{' '}
-            <span className="whitespace-nowrap">{me.rrn_masked ?? '주민번호 미등록'}</span>
+      {vendor ? (
+        <div className="card space-y-1">
+          <p className={`badge ${MEMBER_TYPES.vendor.badge}`}>🏢 외주 업체</p>
+          <h1 className="text-xl font-extrabold">{me.biz_name ?? me.name}</h1>
+          <p className="text-sm text-sub">
+            담당 {me.name} · <span className="whitespace-nowrap">{phoneFmt(me.phone)}</span>
+            {me.biz_no && <span className="whitespace-nowrap"> · {bizNoFmt(me.biz_no)}</span>}
           </p>
-        </PhotoUpload>
-        <p className="hint">이름·주민등록번호·휴대폰 번호를 바꾸려면 담당자에게 요청해 주세요.</p>
-      </div>
+        </div>
+      ) : (
+        <div id="photo" className="card scroll-mt-20 space-y-3">
+          <PhotoUpload userId={user.id} name={me.name} photoAt={me.photo_at}>
+            <h1 className="text-xl font-extrabold">{me.name}</h1>
+            <p className="mt-0.5 text-sm text-sub">
+              <span className="whitespace-nowrap">{phoneFmt(me.phone)}</span> ·{' '}
+              <span className="whitespace-nowrap">{me.rrn_masked ?? '주민번호 미등록'}</span>
+            </p>
+          </PhotoUpload>
+          <p className="hint">이름·주민등록번호·휴대폰 번호를 바꾸려면 담당자에게 요청해 주세요.</p>
+        </div>
+      )}
+      {/* 가입 유형: 아르바이트 ↔ 전문가 (외주 업체는 사업자라 그대로) */}
+      <section id="type" className="card scroll-mt-20 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-bold">가입 유형</h2>
+          <span className={`badge ${MEMBER_TYPES[type].badge}`}>
+            {MEMBER_TYPES[type].emoji} {MEMBER_TYPES[type].label}
+          </span>
+        </div>
+        <p className="text-sm text-sub">{MEMBER_TYPES[type].desc}</p>
+        {!vendor && (
+          <form action={changeMemberType.bind(null, type === 'worker' ? 'expert' : 'worker')}>
+            <ConfirmSubmit className="btn-gray btn-sm" confirmText={type === 'worker' ? '전문가로 바꿀까요? 알바 공고 대신 전문가 의뢰를 봐요' : '아르바이트로 바꿀까요? 전문가 의뢰 대신 알바 공고를 봐요'}>
+              {type === 'worker' ? '🎛️ 전문가로 바꾸기' : '🙋 아르바이트로 바꾸기'}
+            </ConfirmSubmit>
+          </form>
+        )}
+      </section>
+      {type !== 'worker' && (
+        <div id="pro" className="scroll-mt-20">
+          <ProInfoForm
+            vendor={vendor}
+            initial={{
+              specialty: me.specialty ?? '',
+              intro: me.intro ?? '',
+              portfolio_url: me.portfolio_url ?? '',
+              biz_name: me.biz_name ?? '',
+              biz_no: me.biz_no ?? '',
+            }}
+          />
+        </div>
+      )}
       <div id="account" className="scroll-mt-20">
       <ProfileForm
         initial={{
@@ -89,9 +146,11 @@ export default async function ProfilePage() {
         }}
       />
       </div>
-      <div id="careers" className="scroll-mt-20">
-        <CareerForm initial={(me.careers as Career[] | null) ?? []} />
-      </div>
+      {!vendor && (
+        <div id="careers" className="scroll-mt-20">
+          <CareerForm initial={(me.careers as Career[] | null) ?? []} />
+        </div>
+      )}
       <div className="card p-4">
         <PushToggle publicKey={pushPublicKey()} />
       </div>

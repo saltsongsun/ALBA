@@ -17,6 +17,7 @@ import { staffByDay, fullDays } from '@/lib/staffing'
 import { ageOn, dateList, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
+import { MEMBER_TYPES } from '@/lib/members'
 import { careerText } from '@/lib/careers'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
@@ -241,6 +242,12 @@ export default async function AppsTab({
               {a.user.name}
             </Link>
             {age != null && <span className="text-sm text-mute">만 {age}세</span>}
+            {a.user.member_type && a.user.member_type !== 'worker' && (
+              <span className={`badge ${MEMBER_TYPES[a.user.member_type].badge}`}>
+                {MEMBER_TYPES[a.user.member_type].emoji} {MEMBER_TYPES[a.user.member_type].short}
+                {a.user.specialty ? ` · ${a.user.specialty.split(',').slice(0, 2).join('·')}` : ''}
+              </span>
+            )}
             {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
             {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
             {minorWarn(a) && <span className="badge bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}

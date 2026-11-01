@@ -12,6 +12,8 @@ import { adminIds, sendPush } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import { requireAdmin, type AdminUser } from '@/lib/session'
 import { companyJob, companyRow } from '@/lib/company'
+import { findPartnerAccount, tellPartner } from '@/lib/partners'
+import { siteOrigin } from '@/lib/session'
 import { kstDate } from '@/lib/time'
 import type { Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types'
 import { isDate, isUuid, optStr, str } from '@/lib/validate'
@@ -35,6 +37,18 @@ const dateOrNull = (form: FormData, key: string) => {
 }
 
 const newToken = () => randomBytes(24).toString('base64url')
+
+/** 견적 요청을 앱에 가입한 업체·전문가에게 알림 (그 사람의 견적 입력 화면으로) */
+async function askPartner(admin: AdminUser, vendorId: string, token: string, title: string, due: string | null, jobId: string | null) {
+  await tellPartner(vendorId, {
+    companyId: admin.companyId,
+    jobId,
+    title: '📄 견적 요청',
+    text: `${admin.companyName} · ${title}${due ? ` · 마감 ${due}` : ''}\n앱에서 금액을 적어 견적을 보내 주세요.`,
+    url: `${await siteOrigin()}/quote/${token}`.replace(/^https?:\/\/[^/]+/, ''),
+    tag: `quote-${token.slice(0, 8)}`,
+  })
+}
 
 /** 이 회사 견적 요청에 딸린 견적 (다른 회사 것이면 null) */
 async function companyQuote<T extends Pick<Quote, 'request_id'>>(admin: AdminUser, quoteId: string, cols = '*'): Promise<T | null> {
@@ -84,6 +98,8 @@ export async function saveVendor(id: string | null, _: FormState, form: FormData
     row.bank_name = null
     row.bank_account_enc = null
   }
+  // 가입한 전문가·외주 업체 계정과 이어 두면 견적 요청·대금이 그 사람 앱으로 감 (같은 휴대폰·사업자번호)
+  row.user_id = await findPartnerAccount(row.phone ?? null, row.business_no ?? null)
   if (id) {
     if (!(await companyRow(admin, 'vendors', id, 'id'))) return { error: '외주사를 찾을 수 없어요.' }
     row.active = form.get('active') === 'on'
@@ -129,7 +145,11 @@ export async function createQuoteRequest(_: FormState, form: FormData): Promise<
     .select('id')
     .single()
   if (error || !data) return { error: '견적 요청을 만들지 못했어요. 다시 시도해 주세요.' }
-  must(await db().from('quotes').insert(vendors.map((v) => ({ request_id: data.id, vendor_id: v.id, token: newToken(), status: 'requested', vat_included: true }))))
+  const rows = vendors.map((v) => ({ request_id: data.id, vendor_id: v.id, token: newToken(), status: 'requested', vat_included: true }))
+  must(await db().from('quotes').insert(rows))
+  // 앱에 가입한 업체·전문가에게는 바로 알림 (링크를 따로 보내지 않아도 됨)
+  const dueText = dateOrNull(form, 'due_date')
+  for (const r of rows) await askPartner(admin, r.vendor_id, r.token, title, dueText, job?.id ?? null)
   await audit(admin.id, 'quote.request', null, `${title} · ${vendors.length}곳`, admin.companyId)
   refresh()
   back(`/admin/vendors/requests/${data.id}`, `견적 요청을 만들었어요. 업체마다 링크를 보내 주세요.`)
@@ -146,7 +166,12 @@ export async function addVendorsToRequest(requestId: string, form: FormData) {
   const ids = (must(await db().from('vendors').select('id').eq('company_id', admin.companyId).in('id', picked)) as { id: string }[]).map((v) => v.id)
   const have = new Set((must(await db().from('quotes').select('vendor_id').eq('request_id', requestId)) as { vendor_id: string }[]).map((q) => q.vendor_id))
   const add = ids.filter((v) => !have.has(v))
-  if (add.length) must(await db().from('quotes').insert(add.map((v) => ({ request_id: requestId, vendor_id: v, token: newToken(), status: 'requested', vat_included: true }))))
+  if (add.length) {
+    const rows = add.map((v) => ({ request_id: requestId, vendor_id: v, token: newToken(), status: 'requested', vat_included: true }))
+    must(await db().from('quotes').insert(rows))
+    const req = await companyRow<QuoteRequest>(admin, 'quote_requests', requestId)
+    if (req) for (const r of rows) await askPartner(admin, r.vendor_id, r.token, req.title, req.due_date, req.job_id)
+  }
   refresh(path)
   back(path, add.length ? `${add.length}곳을 더했어요. 링크를 보내 주세요.` : '이미 들어 있는 업체예요.')
 }
@@ -211,6 +236,14 @@ export async function selectQuote(quoteId: string) {
   }
   await audit(admin.id, 'quote.select', null, `${req.title} ${q.amount}`, admin.companyId)
   refresh(path, req.job_id ? `/admin/jobs/${req.job_id}` : '/admin/vendors')
+  await tellPartner(q.vendor_id, {
+    companyId: admin.companyId,
+    jobId: req.job_id,
+    title: '🎉 견적이 선정됐어요',
+    text: `${admin.companyName} · ${req.title} · ${won(q.amount)}\n대금 지급 예정일은 앱 ‘견적·대금’에서 볼 수 있어요.`,
+    url: '/pro/money',
+    tag: `quote-sel-${q.id.slice(0, 8)}`,
+  })
   back(path, `선정했어요. 대금 지급에 ${won(q.amount)}을 올렸어요. 지급 예정일을 정해 주세요.`)
 }
 
@@ -297,11 +330,27 @@ export async function markInvoice(paymentId: string, received: boolean) {
 export async function markVendorPaid(paymentId: string, paid: boolean) {
   const admin = await requireAdmin()
   if (!isUuid(paymentId)) return
-  const data = await companyRow<{ job_id: string | null; company_id: string }>(admin, 'vendor_payments', paymentId, 'job_id')
+  const data = await companyRow<{ job_id: string | null; company_id: string; vendor_id: string; title: string; amount: number; paid_at: string | null }>(
+    admin,
+    'vendor_payments',
+    paymentId,
+    'job_id, vendor_id, title, amount, paid_at',
+  )
   if (!data) return
   must(await db().from('vendor_payments').update({ paid_at: paid ? kstDate() : null }).eq('id', paymentId).eq('company_id', admin.companyId))
   await audit(admin.id, paid ? 'vpay.paid' : 'vpay.unpaid', null, paymentId, admin.companyId)
-  refresh(data?.job_id ? `/admin/jobs/${data.job_id}` : '/admin/vendors')
+  // 새로 지급 완료가 되면 앱에 가입한 업체·전문가에게 알림
+  if (paid && !data.paid_at) {
+    await tellPartner(data.vendor_id, {
+      companyId: admin.companyId,
+      jobId: data.job_id,
+      title: '💸 대금을 보냈어요',
+      text: `${admin.companyName} · ${data.title} · ${won(data.amount)}`,
+      url: '/pro/money',
+      tag: `vpay-${paymentId.slice(0, 8)}`,
+    })
+  }
+  refresh(data.job_id ? `/admin/jobs/${data.job_id}` : '/admin/vendors')
 }
 
 /** 지급 건 지우기 (아직 지급하지 않은 것만) */

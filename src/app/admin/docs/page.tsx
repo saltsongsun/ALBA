@@ -10,7 +10,7 @@ import type { DocTemplate } from '@/lib/types'
 
 export const metadata: Metadata = { title: '서류 서식' }
 
-const KIND: Record<DocTemplate['kind'], string> = { contract: '근로계약서', pledge: '서약서', consent: '동의서', other: '기타' }
+const KIND: Record<DocTemplate['kind'], string> = { contract: '근로계약서', service: '용역계약서', pledge: '서약서', consent: '동의서', other: '기타' }
 
 export default async function DocsPage(props: PageProps<'/admin/docs'>) {
   const admin = await requireAdmin()

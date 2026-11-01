@@ -31,6 +31,7 @@ export function buildDocVars(
   const manager = [job.manager_name, phoneFmt(job.manager_phone)].filter(Boolean).join(' ')
   return {
     근로자명: person.name,
+    성명: person.name,
     생년월일: person.birth_date ? fmtDateLong(person.birth_date) : '',
     연락처: phoneFmt(person.phone),
     주소: person.address ?? '',
@@ -47,6 +48,7 @@ export function buildDocVars(
     근무시간: scheduleText(job),
     휴게시간: breakDescription(job),
     임금: wageText(job),
+    용역대금: wageText(job).replace(/^시급/, '시간당').replace(/^일급/, '1일'),
     수당: job.allowance > 0 ? `${job.allowance_label || '수당'} 1일 ${won(job.allowance)}` : '없음',
     가산수당: job.premium_enabled
       ? '1일 8시간 초과 연장근로 및 22시~06시 야간근로에 대해 통상임금의 50% 가산 지급'

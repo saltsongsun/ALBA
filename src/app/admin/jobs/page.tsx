@@ -90,7 +90,10 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     {waitingBy[j.id] > 0 && <span className="badge bg-amber-50 text-amber-700">대기 {waitingBy[j.id]}명</span>}
                     {j.event_name && <span className="text-xs font-semibold text-mute">{j.event_name}</span>}
                   </div>
-                  <p className="font-bold">{j.title}</p>
+                  <p className="font-bold">
+                    {j.audience === 'expert' && <span className="badge mr-1 bg-violet-50 align-middle text-violet-700">🎛️ 전문가</span>}
+                    {j.title}
+                  </p>
                   <p className="mt-0.5 text-sm text-sub">
                     {fmtDateRange(j.start_date, j.end_date)} {scheduleText(j)}
                   </p>
@@ -128,6 +131,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                   <tr key={j.id}>
                     <td>
                       <Link href={`/admin/jobs/${j.id}`} className="font-semibold hover:text-brand-600">
+                        {j.audience === 'expert' && <span className="badge mr-1 bg-violet-50 text-violet-700">🎛️ 전문가</span>}
                         {j.title}
                       </Link>
                       {j.event_name && <div className="text-xs text-mute">{j.event_name}</div>}

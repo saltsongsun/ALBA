@@ -42,6 +42,7 @@ export default function JobCard({
   return (
     <Link href={`/jobs/${job.id}`} className="card-link block">
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        {job.audience === 'expert' && <span className="badge bg-violet-50 text-violet-700">🎛️ 전문가 의뢰</span>}
         {when && <span className="badge bg-ink text-white">{when}</span>}
         {myStatus && APP_STATUS[myStatus] && (
           <span className={`badge ${APP_STATUS[myStatus].cls}`}>{APP_STATUS[myStatus].label}</span>

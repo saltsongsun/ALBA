@@ -29,14 +29,14 @@ const user = (id, role, name, phone) => ({
   id, role, name, phone, pin_hash: 's1:x:y', rrn_enc: null, rrn_hash: null, rrn_masked: '900101-1******',
   birth_date: '1990-01-01', gender: 'M', is_foreigner: false, address: '서울', bank_name: '국민',
   bank_account_enc: null, account_holder: name, bank_changed_at: null, emergency_phone: null, admin_memo: null,
-  active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1, is_super: role === 'admin',
+  active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1, is_super: role === 'admin', member_type: 'worker', biz_name: null, biz_no: null, specialty: null, intro: null, portfolio_url: null,
   photo_at: id === APPLICANT ? FACE_AT : null, careers: id === APPLICANT ? [{ event: '부산국제영화제', period: '2025.10', role: '안내' }] : [], created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
 const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444'), user(APPLICANT, 'worker', '김지원', '01077778888')]
 const workerLite = { id: WORKER, name: '근무자', phone: '01033334444', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: '근무자', photo_at: null }
 
 const job = {
-  id: JOB, company_id: COMPANY, company: { company_name: '주식회사 테스트' }, title: '경상남도 생활체육대축전 행사장 안내 스태프', event_name: '2026 경상남도 생활체육대축전', description: '설명', task: '안내', location_name: '광장',
+  id: JOB, company_id: COMPANY, audience: 'worker', company: { company_name: '주식회사 테스트' }, title: '경상남도 생활체육대축전 행사장 안내 스태프', event_name: '2026 경상남도 생활체육대축전', description: '설명', task: '안내', location_name: '광장',
   address: '서울 중구', lat: 37.5, lng: 127.0, gps_required: false, gps_radius_m: 300, start_date: today, end_date: today,
   start_time: '09:00:00', end_time: '18:00:00', headcount: 5, pay_type: 'hourly', hourly_wage: 10320, daily_wage: 0,
   break_mode: 'auto', break_minutes: 0, round_unit: 1, early_clamp: false, premium_enabled: false, allowance: 0,
@@ -211,13 +211,15 @@ const server = http.createServer(async (req, res) => {
     const out = []
     for (let row of Array.isArray(parsed) ? parsed : [parsed]) {
       // 실제 DB의 기본값 (가입 후 바로 로그인되게)
-      if (table === 'users') row = { role: 'worker', active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
+      if (table === 'users') row = { role: 'worker', member_type: 'worker', is_super: false, active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
       // 회사 소속·회사별 메모는 (회사, 사람)이 열쇠
       const pair = table === 'company_members' || table === 'company_worker_notes'
       const key = table === 'user_photos' ? 'user_id' : 'id'
       if (key === 'id' && !pair) row.id ??= crypto.randomUUID()
       fillCompany(table, row)
       if (table === 'companies') row.active ??= true
+      if (table === 'jobs') row.audience ??= 'worker'
+      if (table === 'vendors') row.user_id ??= null
       row.created_at ??= new Date().toISOString() // 실제 DB 기본값처럼
       const found = pair
         ? list.find((r) => r.company_id === row.company_id && r.user_id === row.user_id)

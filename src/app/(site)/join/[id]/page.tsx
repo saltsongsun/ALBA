@@ -48,7 +48,7 @@ export default async function JoinPage(props: PageProps<'/join/[id]'>) {
         <div className="card space-y-3 text-center">
           <p className="font-semibold">처음이면 1분 가입, 가입했으면 로그인하면 바로 합류돼요</p>
           <div className="grid grid-cols-2 gap-2">
-            <Link href={`/signup?next=${encodeURIComponent(here)}`} className="btn-primary">
+            <Link href={`/signup?type=worker&next=${encodeURIComponent(here)}`} className="btn-primary">
               1분 가입
             </Link>
             <Link href={`/login?next=${encodeURIComponent(here)}`} className="btn-gray">

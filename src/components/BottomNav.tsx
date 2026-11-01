@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const TABS: { href: string; label: string; on: (path: string) => boolean; icon: React.ReactNode }[] = [
+type Tab = { href: string; label: string; on: (path: string) => boolean; icon: React.ReactNode }
+
+const TABS: Tab[] = [
   {
     href: '/',
     label: '알바 찾기',
@@ -40,13 +42,40 @@ const TABS: { href: string; label: string; on: (path: string) => boolean; icon: 
   },
 ]
 
-/** 휴대폰 아래쪽 탭 (로그인한 근무자). 앱으로 설치했을 때 주소창 없이도 오가기 쉽게 */
-export default function BottomNav({ unread = 0, todo = 0 }: { unread?: number; todo?: number }) {
+const SEARCH = <path d="M21 21l-4.3-4.3M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14z" />
+const MONEY = (
+  <>
+    <rect x="2.5" y="6" width="19" height="12" rx="2.5" />
+    <circle cx="12" cy="12" r="2.6" />
+    <path d="M6 9.5v.01M18 14.5v.01" />
+  </>
+)
+const HOME = <path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" />
+
+/** 전문가: 의뢰 찾기 · 내 일 · 견적·대금 · 문의 · 내 정보 */
+const EXPERT_TABS: Tab[] = [
+  { href: '/pro', label: '의뢰 찾기', on: (p) => p === '/pro' || p.startsWith('/jobs'), icon: SEARCH },
+  { ...TABS[1], label: '내 일' },
+  { href: '/pro/money', label: '견적·대금', on: (p) => p.startsWith('/pro/money') || p.startsWith('/quote'), icon: MONEY },
+  TABS[2],
+  TABS[3],
+]
+/** 외주 업체: 홈 · 견적·대금 · 문의 · 내 정보 */
+const VENDOR_TABS: Tab[] = [
+  { href: '/pro', label: '홈', on: (p) => p === '/pro', icon: HOME },
+  { href: '/pro/money', label: '견적·대금', on: (p) => p.startsWith('/pro/money') || p.startsWith('/quote'), icon: MONEY },
+  TABS[2],
+  TABS[3],
+]
+
+/** 휴대폰 아래쪽 탭 (로그인한 회원). 아르바이트·전문가·외주 업체마다 탭이 다름 */
+export default function BottomNav({ unread = 0, todo = 0, mode = 'worker' }: { unread?: number; todo?: number; mode?: 'worker' | 'expert' | 'vendor' }) {
   const path = usePathname()
+  const tabs = mode === 'expert' ? EXPERT_TABS : mode === 'vendor' ? VENDOR_TABS : TABS
   return (
     <nav aria-label="주요 메뉴" data-bottom-nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-      <div className="mx-auto grid max-w-xl grid-cols-4">
-        {TABS.map((t) => {
+      <div className={`mx-auto grid max-w-xl ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+        {tabs.map((t) => {
           const active = t.on(path)
           return (
             <Link

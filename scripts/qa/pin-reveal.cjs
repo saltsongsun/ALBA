@@ -16,7 +16,7 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   await p.getByRole('button', { name: '🙈 비밀번호 숨기기' }).click()
   ok('로그인: 다시 누르면 가려짐', (await p.locator('input[name=pin]').getAttribute('type')) === 'password')
   ok('입력한 값은 그대로', (await p.locator('input[name=pin]').inputValue()) === '738291')
-  await p.goto(`${B}/signup`)
+  await p.goto(`${B}/signup?type=worker`)
   await p.waitForLoadState('networkidle')
   await p.getByRole('button', { name: '👁 비밀번호 보기' }).click()
   const types = await Promise.all(['pin', 'pin2'].map((n) => p.locator(`input[name=${n}]`).getAttribute('type')))

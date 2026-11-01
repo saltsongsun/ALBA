@@ -1,5 +1,11 @@
 export type Role = 'worker' | 'admin'
 
+/** 가입 유형: 아르바이트 / 전문가(개인, 사업소득 3.3%) / 외주 업체(사업자) */
+export type MemberType = 'worker' | 'expert' | 'vendor'
+
+/** 공고 모집 대상 */
+export type Audience = 'worker' | 'expert'
+
 /** 회사 (회사마다 상호·대표·직인·기본 시급) */
 export type Company = Settings & { id: string; active: boolean; created_at: string }
 
@@ -31,6 +37,14 @@ export type UserRow = {
   session_version: number
   /** 얼굴 사진을 올린 시각 (없으면 null, 사진은 user_photos) */
   photo_at: string | null
+  member_type: MemberType
+  /** 외주 업체 상호·사업자등록번호 */
+  biz_name: string | null
+  biz_no: string | null
+  /** 전문 분야 (쉼표로 여러 개) · 한 줄 소개 · 포트폴리오 주소 */
+  specialty: string | null
+  intro: string | null
+  portfolio_url: string | null
   created_at: string
 }
 
@@ -44,6 +58,8 @@ export type JobCondition = { label: string; value: string }
 
 export type Job = {
   company_id: string
+  /** 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서) */
+  audience: Audience
   id: string
   title: string
   event_name: string | null
@@ -164,7 +180,7 @@ export type Attendance = {
   sched_end: string | null
 }
 
-export type DocKind = 'contract' | 'pledge' | 'consent' | 'other'
+export type DocKind = 'contract' | 'service' | 'pledge' | 'consent' | 'other'
 
 export type DocTemplate = {
   company_id: string
@@ -246,6 +262,8 @@ export type WorkerRating = {
 /** 외주사 (우리가 일을 맡기는 협력업체) */
 export type Vendor = {
   company_id: string
+  /** 가입한 전문가·외주 업체 계정 (있으면 견적 요청·대금을 앱에서 봄) */
+  user_id: string | null
   id: string
   name: string
   category: string | null

@@ -133,7 +133,7 @@ export default async function HistoryPage() {
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <Link href={`/print/payslip/${job.id}/${user.id}`} className="btn-soft btn-sm">
-                        임금명세서
+                        {job.tax_type === 'business' ? '지급명세서' : '임금명세서'}
                       </Link>
                       <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
                         근무확인서

@@ -23,6 +23,8 @@ import { isUuid } from '@/lib/validate'
 import JobViewBeacon from '@/components/JobViewBeacon'
 import ApplySteps from '@/components/ApplySteps'
 import ApplyDays from '@/components/ApplyDays'
+import { canApplyTo } from '@/lib/members'
+import ProMode from '@/components/ProMode'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -103,7 +105,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
     must(
-      await db().from('jobs').select(JOB_WITH_APP_STATUS).eq('status', 'open').gte('end_date', kstDate()).neq('id', job.id).order('start_date').limit(3),
+      await db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', job.audience).eq('status', 'open').gte('end_date', kstDate()).neq('id', job.id).order('start_date').limit(3),
     ) as JobWithAppStatus[]
   ).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate())
   const otherCounts = countApps(others, 'approved')
@@ -114,6 +116,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const ended = job.end_date < kstDate()
   const canApply = job.status === 'open' && !ended
   const path = `/jobs/${job.id}`
+  // 전문가 의뢰는 전문가 화면(보라)·말투로, 지원도 가입 유형이 맞아야 (알바 공고는 알바, 전문가 의뢰는 전문가)
+  const expert = job.audience === 'expert'
+  const wrongType = !!user && user.role !== 'admin' && !canApplyTo(user.memberType, job.audience)
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
     canApply && (!app || app.status === 'cancelled')
@@ -124,7 +129,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       : []
 
   return (
-    <>
+    <div data-mode={expert ? 'pro' : undefined}>
+      {expert && <ProMode />}
       <Flash m={sp.m} />
       {job.status === 'cancelled' && (
         <div className="mb-3 animate-pop rounded-2xl border-2 border-rose-200 bg-rose-50 p-4">
@@ -139,8 +145,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       )}
       <div className="card">
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
+          {expert && <span className="badge bg-ink text-white">🎛️ 전문가 의뢰</span>}
           {canApply ? (
-            <span className="badge bg-brand-50 text-brand-700">모집중</span>
+            <span className="badge bg-brand-50 text-brand-700">{expert ? '지원 받는 중' : '모집중'}</span>
           ) : job.status === 'cancelled' ? (
             <span className="badge bg-rose-50 text-rose-600">행사 취소</span>
           ) : (
@@ -154,11 +161,20 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">
           {shows(job, 'estimate') ? (
             <>
-              <p className="text-sm text-sub">{wageBadge(job)}</p>
+              <p className="text-sm text-sub">
+                {wageBadge(job)}
+                {expert && ' · 용역 대금'}
+              </p>
               <p className="mt-0.5 text-2xl font-extrabold">하루 약 {won(est.gross)}</p>
               <p className="mt-1 text-xs text-mute">
                 <span className="whitespace-nowrap">{scheduleText(job)} 기준</span> · <span className="whitespace-nowrap">휴게 {est.breakMin}분 제외</span>{' '}
                 <span className="whitespace-nowrap">{minutesText(est.paidMin)} · 세전</span>
+                {expert && (
+                  <>
+                    {' '}
+                    · <span className="whitespace-nowrap">사업소득 3.3% 떼고 약 {won(Math.round(est.gross * 0.967))}</span>
+                  </>
+                )}
               </p>
             </>
           ) : (
@@ -269,7 +285,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <div className="card space-y-3 text-center">
               <p className="font-semibold">지원하려면 가입 또는 로그인이 필요해요</p>
               <div className="grid grid-cols-2 gap-2">
-                <Link href={`/signup?next=${encodeURIComponent(path)}`} className="btn-primary">
+                <Link href={`/signup?type=${job.audience === 'expert' ? 'expert' : 'worker'}&next=${encodeURIComponent(path)}`} className="btn-primary">
                   1분 가입
                 </Link>
                 <Link href={`/login?next=${encodeURIComponent(path)}`} className="btn-gray">
@@ -365,6 +381,22 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               </details>
             )}
           </div>
+        ) : wrongType ? (
+          canApply && (
+            <div className="card space-y-2 text-center">
+              <p className="font-semibold">{expert ? '전문가 회원만 지원할 수 있는 의뢰예요' : '아르바이트 회원만 지원할 수 있는 공고예요'}</p>
+              <p className="text-sm text-sub">
+                {user.memberType === 'vendor'
+                  ? '외주 업체는 담당 회사의 견적 요청으로 함께해요.'
+                  : '내 정보에서 가입 유형을 바꾸면 지원할 수 있어요.'}
+              </p>
+              {user.memberType !== 'vendor' && (
+                <Link href="/me/profile#type" className="btn-soft btn-sm">
+                  가입 유형 바꾸기
+                </Link>
+              )}
+            </div>
+          )
         ) : (
           canApply && (
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
@@ -382,7 +414,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <MessageChips target="message" />
               </div>
               <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="지원 중…">
-                {user.name}님으로 지원하기
+                {expert ? `${user.name}님으로 의뢰 지원하기` : `${user.name}님으로 지원하기`}
               </SubmitButton>
             </form>
           )
@@ -397,10 +429,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>
       </div>
-      {/* 다른 모집 중인 알바 (이 공고가 맞지 않을 때 바로 둘러보게) */}
+      {/* 다른 모집 중인 공고 (이 공고가 맞지 않을 때 바로 둘러보게) */}
       {others.length > 0 && (
         <section className="mt-8">
-          <h2 className="section-title">다른 모집 중인 알바</h2>
+          <h2 className="section-title">{expert ? '다른 전문가 의뢰' : '다른 모집 중인 알바'}</h2>
           <div className="space-y-3">
             {others.map((j) => (
               <JobCard key={j.id} job={j} approved={otherCounts[j.id] ?? 0} />
@@ -408,6 +440,6 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           </div>
         </section>
       )}
-    </>
+    </div>
   )
 }

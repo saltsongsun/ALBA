@@ -100,7 +100,7 @@ const errs = []
 
   // ── 가입 진행률 ──
   const signup = await pg(D)
-  await signup.goto(`${D}/signup`)
+  await signup.goto(`${D}/signup?type=worker`)
   ok('가입 진행률 표시', await see(signup, /필수 0\/7/))
   await signup.locator('#name').fill('홍길동')
   ok('입력하면 진행률 올라감', await see(signup, /필수 1\/7/))

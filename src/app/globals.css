@@ -26,6 +26,15 @@
   --animate-grow: grow 0.7s var(--ease-spring) 0.15s both;
 }
 
+/* 전문가·외주 업체 화면: 강조색을 보라로 바꿔 아르바이트 화면과 한눈에 구분 */
+[data-mode='pro'] {
+  --color-brand-50: #f4f0ff;
+  --color-brand-100: #e7defe;
+  --color-brand-500: #8159f5;
+  --color-brand-600: #6a3fe8;
+  --color-brand-700: #5630c8;
+}
+
 /* 애니메이션 모양 (@theme의 --animate-* 와 .stagger 등에서 사용) */
 @keyframes rise {
   from {

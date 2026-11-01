@@ -19,6 +19,8 @@ import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutes
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
 import { canOpenJobDocs } from '@/lib/doc-access'
+import { canApplyTo, parseSpecialty } from '@/lib/members'
+import { linkVendorAccount } from '@/lib/partners'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -34,6 +36,10 @@ export async function applyJob(jobId: string, form: FormData) {
   const path = `/jobs/${jobId}`
   if (job.status !== 'open') back(path, '모집이 마감된 공고입니다.')
   if (job.end_date < kstDate()) back(path, '이미 끝난 행사입니다.')
+  // 알바 공고는 아르바이트 회원, 전문가 의뢰는 전문가 회원만 (외주 업체는 견적 요청으로)
+  if (user.role !== 'admin' && !canApplyTo(user.memberType, job.audience)) {
+    back(path, job.audience === 'expert' ? '전문가 회원만 지원할 수 있는 의뢰예요.' : '아르바이트 회원만 지원할 수 있는 공고예요.')
+  }
 
   const dates = form
     .getAll('dates')
@@ -842,4 +848,45 @@ export async function withdraw(_: FormState, form: FormData): Promise<FormState>
   }
   await destroySession()
   redirect('/?m=' + encodeURIComponent('탈퇴가 완료됐습니다.'))
+}
+
+// ───────────── 가입 유형 · 전문가 정보 ─────────────
+
+/** 아르바이트 ↔ 전문가 바꾸기 (외주 업체는 사업자라 바꿀 수 없음). 화면·지원할 수 있는 공고가 바뀜 */
+export async function changeMemberType(type: 'worker' | 'expert') {
+  const user = await requireUser('/me/profile')
+  if (user.memberType === 'vendor' || !['worker', 'expert'].includes(type)) back('/me/profile', '바꿀 수 없는 가입 유형이에요.')
+  if (user.memberType === type) back('/me/profile', '이미 그 유형이에요.')
+  must(await db().from('users').update({ member_type: type }).eq('id', user.id))
+  // 전문가가 되면 회사들이 이 번호로 등록해 둔 외주사와 이어서 견적 요청도 받게
+  if (type === 'expert') await linkVendorAccount(user.id, null, user.phone)
+  revalidatePath('/', 'layout')
+  redirect(type === 'expert' ? `/pro?m=${encodeURIComponent('전문가로 바꿨어요. 전문가 의뢰에 지원할 수 있어요.')}` : `/?m=${encodeURIComponent('아르바이트로 바꿨어요.')}`)
+}
+
+/** 전문 분야·소개·포트폴리오 (외주 업체는 상호·사업자등록번호도) */
+export async function saveProInfo(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser('/me/profile')
+  if (user.memberType === 'worker') return { error: '전문가·외주 업체만 쓸 수 있어요.' }
+  const raw = str(form, 'portfolio_url', 300)
+  const url = raw ? (/^https?:\/\//.test(raw) ? raw : `https://${raw}`).replace(/^http:/, 'https:') : null
+  if (url && !/^https:\/\/[^\s<>"']+\.[^\s<>"']+$/.test(url)) return { error: '포트폴리오 주소를 확인해 주세요. (예: https://example.com)' }
+  const row: Record<string, unknown> = {
+    specialty: parseSpecialty(str(form, 'specialty', 300)),
+    intro: optStr(form, 'intro', 100),
+    portfolio_url: url,
+  }
+  if (user.memberType === 'vendor') {
+    const bizName = str(form, 'biz_name', 60)
+    const bizNo = str(form, 'biz_no', 20).replace(/\D/g, '')
+    if (bizName.length < 2) return { error: '상호를 입력해 주세요.' }
+    if (bizNo.length !== 10) return { error: '사업자등록번호 10자리를 입력해 주세요.' }
+    row.biz_name = bizName
+    row.biz_no = bizNo
+  }
+  must(await db().from('users').update(row).eq('id', user.id))
+  if (user.memberType === 'vendor') await linkVendorAccount(user.id, row.biz_no as string, user.phone)
+  revalidatePath('/me/profile')
+  revalidatePath('/pro')
+  return { ok: '저장했어요.' }
 }

@@ -42,6 +42,16 @@ const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n
 
 // ───────────── 공고 ─────────────
 
+/** 이 회사의 용역계약서 서식 id (없으면 기본 용역계약서를 넣고 그 id) */
+async function serviceTemplateId(companyId: string): Promise<string> {
+  const { data } = await db().from('doc_templates').select('id, active').eq('company_id', companyId).eq('kind', 'service')
+  const found = ((data ?? []) as { id: string; active: boolean }[]).find((t) => t.active !== false)
+  if (found) return found.id
+  const tpl = DEFAULT_TEMPLATES.find((t) => t.kind === 'service')!
+  const created = must(await db().from('doc_templates').insert({ ...tpl, company_id: companyId, active: true }).select('id').single()) as { id: string }
+  return created.id
+}
+
 /** 근무 조건: 화면에서 보낸 JSON 목록에서 빈 줄은 버리고 길이·개수를 제한 (형식이 틀리면 null) */
 function parseConditions(raw: string): JobCondition[] | null {
   if (!raw) return []
@@ -81,7 +91,9 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
 
   const pay_type = str(form, 'pay_type') === 'daily' ? 'daily' : 'hourly'
   const break_mode = (['auto', 'fixed', 'none'] as const).find((m) => m === str(form, 'break_mode')) ?? 'auto'
-  const tax_type = (['daily', 'business', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily'
+  // 모집 대상: 전문가 의뢰는 사업소득 3.3%로만 (근로계약이 아니므로 고용보험도 없음)
+  const audience = str(form, 'audience') === 'expert' ? 'expert' : 'worker'
+  const tax_type = audience === 'expert' ? 'business' : ((['daily', 'business', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily')
   const round = int(form, 'round_unit', 1)
   const status = (['draft', 'open', 'closed', 'done', 'cancelled'] as const).find((m) => m === str(form, 'status')) ?? 'open'
   const conditions = parseConditions(str(form, 'conditions', 5000))
@@ -117,7 +129,8 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
     allowance: clamp(int(form, 'allowance', 0), 0, 1_000_000),
     allowance_label: optStr(form, 'allowance_label', 20),
     tax_type,
-    employment_insurance: bool(form, 'employment_insurance'),
+    audience,
+    employment_insurance: audience === 'expert' ? false : bool(form, 'employment_insurance'),
     pay_day: optStr(form, 'pay_day', 100),
     dress_code: optStr(form, 'dress_code', 200),
     supplies: optStr(form, 'supplies', 200),
@@ -168,10 +181,15 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
   // 서류 서식은 이 회사 것만
   if (row.required_docs.length) {
     const own = must(
-      await db().from('doc_templates').select('id').eq('company_id', admin.companyId).in('id', row.required_docs),
-    ) as { id: string }[]
-    const ok = new Set(own.map((t) => t.id))
+      await db().from('doc_templates').select('id, kind').eq('company_id', admin.companyId).in('id', row.required_docs),
+    ) as { id: string; kind: string }[]
+    // 전문가 의뢰: 근로계약서 대신 용역계약서 (없으면 기본 용역계약서를 이 회사 서식에 넣음)
+    const ok = new Set(own.filter((t) => row.audience !== 'expert' || t.kind !== 'contract').map((t) => t.id))
     row.required_docs = row.required_docs.filter((d) => ok.has(d))
+  }
+  if (row.audience === 'expert') {
+    const service = await serviceTemplateId(admin.companyId)
+    if (!row.required_docs.includes(service)) row.required_docs = [service, ...row.required_docs]
   }
   let id = jobId
   let note = ''
@@ -1123,7 +1141,7 @@ export async function saveTemplate(id: string | null, _: FormState, form: FormDa
   const title = str(form, 'title', 100)
   const body = str(form, 'body', 20_000).replace(/\r\n?/g, '\n')
   if (!title || !body) return { error: '제목과 내용을 입력해 주세요.' }
-  const kind = (['contract', 'pledge', 'consent', 'other'] as const).find((k) => k === str(form, 'kind')) ?? 'other'
+  const kind = (['contract', 'service', 'pledge', 'consent', 'other'] as const).find((k) => k === str(form, 'kind')) ?? 'other'
   const row = { title, body, kind, is_default: bool(form, 'is_default'), active: !bool(form, 'inactive') }
   if (id && isUuid(id)) {
     if (!(await companyRow(admin, 'doc_templates', id, 'id'))) return { error: '서식을 찾을 수 없습니다.' }

@@ -8,6 +8,8 @@ import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 import CareerEditor from './CareerEditor'
 import SignupProgress from './SignupProgress'
+import { MEMBER_TYPES, SPECIALTIES } from '@/lib/members'
+import type { MemberType } from '@/lib/types'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
   const el = e.currentTarget
@@ -101,91 +103,217 @@ export function LoginForm({ next }: { next: string }) {
   )
 }
 
-export function SignupForm({ next }: { next: string }) {
+/** 가입 유형 고르기: 아르바이트 / 전문가 / 외주 업체 (고르면 그 유형의 가입 화면으로) */
+export function SignupTypePicker({ next }: { next: string }) {
+  const q = next ? `&next=${encodeURIComponent(next)}` : ''
+  return (
+    <div className="stagger space-y-3">
+      {(['worker', 'expert', 'vendor'] as const).map((t) => {
+        const m = MEMBER_TYPES[t]
+        return (
+          <Link
+            key={t}
+            href={`/signup?type=${t}${q}`}
+            data-mode={t === 'worker' ? undefined : 'pro'}
+            className={`card-link flex items-center gap-4 p-5 ${t === 'worker' ? '' : 'ring-1 ring-brand-100'}`}
+          >
+            <span aria-hidden className="grid size-14 shrink-0 place-items-center rounded-2xl bg-brand-50 text-3xl">
+              {m.emoji}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-lg font-extrabold">{m.label}</span>
+              <span className="mt-0.5 block text-sm text-sub">{m.desc}</span>
+            </span>
+            <span aria-hidden className="shrink-0 text-xl font-bold text-brand-600">
+              ›
+            </span>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+/** 전문 분야 고르기 (여러 개) → hidden specialty에 쉼표로 */
+function SpecialtyPicker() {
+  const [picked, setPicked] = useState<string[]>([])
+  return (
+    <div>
+      <span className="label">전문 분야 (여러 개 고를 수 있어요)</span>
+      <div className="flex flex-wrap gap-1.5">
+        {SPECIALTIES.map((sp) => {
+          const on = picked.includes(sp)
+          return (
+            <button
+              key={sp}
+              type="button"
+              aria-pressed={on}
+              onClick={() => setPicked((p) => (on ? p.filter((x) => x !== sp) : [...p, sp]))}
+              className={on ? 'chip-primary' : 'chip'}
+            >
+              {sp}
+            </button>
+          )
+        })}
+      </div>
+      <input type="hidden" name="specialty" value={picked.join(',')} />
+    </div>
+  )
+}
+
+const PERSON_REQUIRED: [string, string][] = [
+  ['photo', '사진'],
+  ['name', '이름'],
+  ['rrn2', '주민번호'],
+  ['phone', '휴대폰'],
+  ['pin2', '비밀번호'],
+  ['agree_privacy', '개인정보 동의'],
+  ['agree_rrn', '주민번호 동의'],
+]
+const VENDOR_REQUIRED: [string, string][] = [
+  ['biz_name', '상호'],
+  ['biz_no', '사업자번호'],
+  ['name', '담당자'],
+  ['phone', '휴대폰'],
+  ['pin2', '비밀번호'],
+  ['agree_privacy', '개인정보 동의'],
+]
+
+/** 비밀번호·확인 칸 (모든 유형 공통) */
+function PinFields() {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <div>
+        <label className="label" htmlFor="pin">
+          비밀번호
+        </label>
+        <input
+          id="pin"
+          name="pin"
+          type="password"
+          className="input tracking-[0.3em]"
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="숫자 6자리"
+          autoComplete="new-password"
+          onInput={digitsThenNext}
+          data-next="pin2"
+          required
+        />
+      </div>
+      <div>
+        <label className="label" htmlFor="pin2">
+          비밀번호 확인
+        </label>
+        <input id="pin2" name="pin2" type="password" className="input tracking-[0.3em]" inputMode="numeric" maxLength={6} autoComplete="new-password" onInput={digitsOnly} required />
+        <PinReveal names={['pin', 'pin2']} />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * 가입 화면 (유형별로 다름)
+ * · 아르바이트: 얼굴 사진·주민번호(급여 신고)·급여 계좌·행사 경력
+ * · 전문가: 아르바이트와 같은 본인 정보 + 전문 분야·소개·포트폴리오 (사업소득 3.3% 신고에 주민번호 필요)
+ * · 외주 업체: 상호·사업자등록번호·담당자 (주민번호·얼굴 사진 없음)
+ */
+export function SignupForm({ next, type }: { next: string; type: MemberType }) {
   const [state, action] = useActionState(signup, null)
+  const vendor = type === 'vendor'
+  const pro = type !== 'worker'
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
       <Honeypot />
-      <SignupProgress />
+      <SignupProgress required={vendor ? VENDOR_REQUIRED : PERSON_REQUIRED} />
       <input type="hidden" name="next" value={next} />
-      <section className="card space-y-4">
-        <h2 className="font-bold">기본 정보 <span className="text-sm font-medium text-rose-500">필수</span></h2>
-        <div>
-          <label className="label" htmlFor="name">
-            이름
-          </label>
-          <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
-        </div>
-        <PhotoField />
-        <div>
-          <label className="label">주민등록번호</label>
-          <div className="flex items-center gap-2">
-            <input name="rrn1" className="input min-w-0 text-center" inputMode="numeric" maxLength={6} placeholder="앞 6자리" onInput={digitsThenNext} data-next="rrn2" required />
-            <span className="text-mute">-</span>
-            <input
-              name="rrn2"
-              type="password"
-              className="input min-w-0 text-center tracking-widest"
-              inputMode="numeric"
-              maxLength={7}
-              placeholder="뒤 7자리"
-              autoComplete="off"
-              onInput={digitsThenNext}
-              data-next="phone"
-              required
-            />
-          </div>
-          <p className="hint">임금 지급 시 세금·보험 신고에 필요해요. 암호화해서 보관합니다.</p>
-        </div>
-        <div>
-          <label className="label" htmlFor="phone">
-            휴대폰 번호
-          </label>
-          <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
-          <p className="hint">로그인 아이디로 쓰여요.</p>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
+      <input type="hidden" name="member_type" value={type} />
+      {vendor ? (
+        <section className="card space-y-4">
+          <h2 className="font-bold">업체 정보 <span className="text-sm font-medium text-rose-500">필수</span></h2>
           <div>
-            <label className="label" htmlFor="pin">
-              비밀번호
+            <label className="label" htmlFor="biz_name">
+              상호
             </label>
-            <input
-              id="pin"
-              name="pin"
-              type="password"
-              className="input tracking-[0.3em]"
-              inputMode="numeric"
-              maxLength={6}
-              placeholder="숫자 6자리"
-              autoComplete="new-password"
-              onInput={digitsThenNext}
-              data-next="pin2"
-              required
-            />
+            <input id="biz_name" name="biz_name" className="input" autoComplete="organization" placeholder="예) ○○음향" required />
           </div>
           <div>
-            <label className="label" htmlFor="pin2">
-              비밀번호 확인
+            <label className="label" htmlFor="biz_no">
+              사업자등록번호
             </label>
-            <input
-              id="pin2"
-              name="pin2"
-              type="password"
-              className="input tracking-[0.3em]"
-              inputMode="numeric"
-              maxLength={6}
-              autoComplete="new-password"
-              onInput={digitsOnly}
-              required
-            />
-            <PinReveal names={['pin', 'pin2']} />
+            <input id="biz_no" name="biz_no" className="input" inputMode="numeric" maxLength={12} placeholder="숫자 10자리" onInput={digitsOnly} required />
+            <p className="hint">세금계산서·대금 지급에 쓰여요.</p>
           </div>
-        </div>
-      </section>
+          <div>
+            <label className="label" htmlFor="name">
+              담당자 이름
+            </label>
+            <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
+          </div>
+          <div>
+            <label className="label" htmlFor="phone">
+              담당자 휴대폰 번호
+            </label>
+            <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+            <p className="hint">로그인 아이디로 쓰여요. 견적 요청 알림도 이 번호의 앱으로 와요.</p>
+          </div>
+          <PinFields />
+        </section>
+      ) : (
+        <section className="card space-y-4">
+          <h2 className="font-bold">기본 정보 <span className="text-sm font-medium text-rose-500">필수</span></h2>
+          <div>
+            <label className="label" htmlFor="name">
+              이름
+            </label>
+            <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
+          </div>
+          <PhotoField />
+          <div>
+            <label className="label">주민등록번호</label>
+            <div className="flex items-center gap-2">
+              <input name="rrn1" className="input min-w-0 text-center" inputMode="numeric" maxLength={6} placeholder="앞 6자리" onInput={digitsThenNext} data-next="rrn2" required />
+              <span className="text-mute">-</span>
+              <input
+                name="rrn2"
+                type="password"
+                className="input min-w-0 text-center tracking-widest"
+                inputMode="numeric"
+                maxLength={7}
+                placeholder="뒤 7자리"
+                autoComplete="off"
+                onInput={digitsThenNext}
+                data-next="phone"
+                required
+              />
+            </div>
+            <p className="hint">{pro ? '용역 대금의 사업소득(3.3%) 신고에 필요해요.' : '임금 지급 시 세금·보험 신고에 필요해요.'} 암호화해서 보관합니다.</p>
+          </div>
+          <div>
+            <label className="label" htmlFor="phone">
+              휴대폰 번호
+            </label>
+            <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+            <p className="hint">로그인 아이디로 쓰여요.</p>
+          </div>
+          <PinFields />
+        </section>
+      )}
+
+      {pro && (
+        <section className="card space-y-4">
+          <h2 className="font-bold">
+            {vendor ? '업체 소개' : '전문 분야'} <span className="text-sm font-medium text-mute">선택 · 담당자가 의뢰할 때 참고해요</span>
+          </h2>
+          <SpecialtyPicker />
+          <input name="intro" className="input" maxLength={100} placeholder={vendor ? '한 줄 소개 (예: 행사 음향·조명 장비 임대·설치 10년)' : '한 줄 소개 (예: 공연·행사 음향 엔지니어 7년)'} />
+          <input name="portfolio_url" className="input" inputMode="url" placeholder="포트폴리오·홈페이지 주소 (https://…)" />
+        </section>
+      )}
 
       <section className="card space-y-4">
         <h2 className="font-bold">
-          급여 받을 계좌 <span className="text-sm font-medium text-mute">선택 · 나중에 입력해도 돼요</span>
+          {vendor ? '대금 받을 계좌' : pro ? '용역 대금 받을 계좌' : '급여 받을 계좌'} <span className="text-sm font-medium text-mute">선택 · 나중에 입력해도 돼요</span>
         </h2>
         <div className="grid grid-cols-[1fr_1.2fr] gap-3">
           <select name="bank_name" className="input" defaultValue="">
@@ -196,16 +324,18 @@ export function SignupForm({ next }: { next: string }) {
           </select>
           <input name="bank_account" className="input" inputMode="numeric" placeholder="계좌번호" />
         </div>
-        <input name="account_holder" className="input" placeholder="예금주 (비우면 본인 이름)" />
-        <input name="address" className="input" placeholder="주소 (선택)" autoComplete="street-address" />
+        <input name="account_holder" className="input" placeholder={vendor ? '예금주 (비우면 상호)' : '예금주 (비우면 본인 이름)'} />
+        {!vendor && <input name="address" className="input" placeholder="주소 (선택)" autoComplete="street-address" />}
       </section>
 
-      <section className="card space-y-3">
-        <h2 className="font-bold">
-          행사 경력 <span className="text-sm font-medium text-mute">선택 · 가입한 뒤에도 내 정보에서 고칠 수 있어요</span>
-        </h2>
-        <CareerEditor />
-      </section>
+      {!vendor && (
+        <section className="card space-y-3">
+          <h2 className="font-bold">
+            {pro ? '참여한 행사·공연' : '행사 경력'} <span className="text-sm font-medium text-mute">선택 · 가입한 뒤에도 내 정보에서 고칠 수 있어요</span>
+          </h2>
+          <CareerEditor />
+        </section>
+      )}
 
       <section className="card space-y-3 text-sm">
         <h2 className="font-bold">동의</h2>
@@ -226,18 +356,20 @@ export function SignupForm({ next }: { next: string }) {
             ))}
           </dl>
         </details>
-        <label className="flex items-start gap-2.5">
-          <input type="checkbox" name="agree_rrn" className="mt-0.5 size-5 accent-brand-600" required />
-          <span>
-            <b>[필수]</b> 고유식별정보(주민등록번호) 처리 안내를 확인했습니다.
-            <span className="mt-1 block text-[13px] text-mute">{RRN_NOTICE}</span>
-          </span>
-        </label>
+        {!vendor && (
+          <label className="flex items-start gap-2.5">
+            <input type="checkbox" name="agree_rrn" className="mt-0.5 size-5 accent-brand-600" required />
+            <span>
+              <b>[필수]</b> 고유식별정보(주민등록번호) 처리 안내를 확인했습니다.
+              <span className="mt-1 block text-[13px] text-mute">{RRN_NOTICE}</span>
+            </span>
+          </label>
+        )}
       </section>
 
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="가입 중…">
-        가입하기
+        {MEMBER_TYPES[type].label}로 가입하기
       </SubmitButton>
       <p className="text-center text-sm text-mute">
         이미 가입했나요?{' '}

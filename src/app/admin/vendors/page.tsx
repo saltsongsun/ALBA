@@ -303,6 +303,7 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
                     <Link href={`/admin/vendors/${v.id}`} className="min-w-0">
                       <p className="font-bold">
                         {v.name} {!v.active && <span className="badge bg-gray-100 text-mute">거래 중지</span>}
+                        {v.user_id && <span className="badge bg-violet-50 text-violet-700">📱 앱 연결</span>}
                       </p>
                       <p className="text-sm text-sub">
                         {[v.category, v.contact_name].filter(Boolean).join(' · ') || '분야·담당자 없음'}

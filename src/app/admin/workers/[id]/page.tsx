@@ -16,6 +16,7 @@ import { calcDay, settle } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
+import { MEMBER_TYPES } from '@/lib/members'
 import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
@@ -106,6 +107,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <h1 className="text-2xl font-extrabold">{u.name}</h1>
               {age != null && <span className="text-sub">만 {age}세 {u.gender === 'M' ? '남' : u.gender === 'F' ? '여' : ''}</span>}
+              {u.member_type && u.member_type !== 'worker' && (
+                <span className={`badge ${MEMBER_TYPES[u.member_type].badge}`}>
+                  {MEMBER_TYPES[u.member_type].emoji} {MEMBER_TYPES[u.member_type].label}
+                </span>
+              )}
               {u.is_foreigner && <span className="badge bg-brand-50 text-brand-700">외국인</span>}
               {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자 (친권자 동의 필요)</span>}
               {!u.active && <span className="badge bg-gray-100 text-mute">정지</span>}
@@ -116,6 +122,18 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               <span className={rel.noShow ? 'font-bold text-rose-600' : ''}>노쇼 {rel.noShow}회</span>
               {rel.dismissed > 0 && <b className="text-rose-600"> · 귀가 조치 {rel.dismissed}회</b>}
             </p>
+            {/* 전문가: 분야·소개·포트폴리오 */}
+            {(u.specialty || u.intro || u.portfolio_url) && (
+              <div className="mt-2 space-y-0.5 text-sm">
+                {u.specialty && <p className="font-semibold text-violet-700">🎛️ {u.specialty.split(',').join(' · ')}</p>}
+                {u.intro && <p className="text-sub">{u.intro}</p>}
+                {u.portfolio_url && (
+                  <a href={u.portfolio_url} target="_blank" rel="noopener noreferrer nofollow" className="font-semibold text-brand-600 underline">
+                    포트폴리오 보기 ↗
+                  </a>
+                )}
+              </div>
+            )}
             {!!u.careers?.length && (
               <ul className="mt-2 space-y-0.5 text-sm">
                 {u.careers.map((c, i) => (

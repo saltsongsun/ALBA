@@ -10,7 +10,7 @@ const SECRET = process.env.SESSION_SECRET
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', A = 'aaaaaaaa-0000-4000-8000-000000000001', J = 'cccccccc-0000-4000-8000-000000000003'
 const pages = [
-  ['anon', 'home-anon', '/'], ['anon', 'login', '/login'], ['anon', 'signup', '/signup'], ['anon', 'setup', '/setup'],
+  ['anon', 'home-anon', '/'], ['anon', 'login', '/login'], ['anon', 'signup', '/signup'], ['anon', 'signup-worker', '/signup?type=worker'], ['anon', 'signup-expert', '/signup?type=expert'], ['anon', 'signup-vendor', '/signup?type=vendor'], ['anon', 'setup', '/setup'],
   ['worker', 'home', '/'], ['worker', 'job', `/jobs/${J}`], ['worker', 'me', '/me'], ['worker', 'profile', '/me/profile'],
   ['worker', 'doc-pending', '/docs/dddddddd-0000-4000-8000-000000000004'], ['worker', 'payslip', `/print/payslip/${J}/${W}`],
   ['worker', 'cert', `/print/cert/${J}/${W}`],

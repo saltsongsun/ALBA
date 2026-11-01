@@ -4,7 +4,7 @@ import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { cache } from 'react'
 import { db } from './db'
-import type { Role } from './types'
+import type { MemberType, Role } from './types'
 
 const COOKIE = 'alba_session'
 const MAX_AGE = 60 * 60 * 24 * 30 // 30일
@@ -18,6 +18,8 @@ export type SessionUser = {
   phone: string
   /** 최고 관리자: 회사를 만들고 관리자를 초대, 모든 회사에 들어갈 수 있음 */
   isSuper: boolean
+  /** 가입 유형: 아르바이트 / 전문가 / 외주 업체 (화면이 다름) */
+  memberType: MemberType
 }
 
 /** 관리자가 들어갈 수 있는 회사 (role: 회사 관리자 구분, 최고 관리자는 소속이 아니어도 'super') */
@@ -80,23 +82,33 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
   const jar = await cookies()
   const parsed = parse(jar.get(COOKIE)?.value)
   if (!parsed) return null
-  const { data } = await db()
+  const { data, error } = await db()
     .from('users')
-    .select('id, role, name, phone, active, session_version, is_super')
+    .select('id, role, name, phone, active, session_version, is_super, member_type')
     .eq('id', parsed.u)
     .maybeSingle()
+  // DB에 닿지 않으면 로그아웃된 것처럼 보이지 않게 오류 화면으로 (오류 내용 복사 버튼)
+  if (error) throw new Error(`로그인 확인 실패: ${error.message}`)
   if (!data || !data.active || data.session_version !== parsed.v) return null
-  return { id: data.id, role: data.role, name: data.name, phone: data.phone, isSuper: data.role === 'admin' && data.is_super === true }
+  return {
+    id: data.id,
+    role: data.role,
+    name: data.name,
+    phone: data.phone,
+    isSuper: data.role === 'admin' && data.is_super === true,
+    memberType: data.member_type === 'expert' || data.member_type === 'vendor' ? data.member_type : 'worker',
+  }
 })
 
 /** 관리자가 들어갈 수 있는 회사 목록 (최고 관리자는 모든 회사) */
 export const adminCompanies = cache(async (userId: string, isSuper: boolean): Promise<AdminCompany[]> => {
-  const [{ data: members }, { data: all }] = await Promise.all([
+  const [{ data: members, error }, { data: all }] = await Promise.all([
     db().from('company_members').select('company_id, role').eq('user_id', userId),
     isSuper
       ? db().from('companies').select('id, company_name, created_at').eq('active', true).order('created_at')
       : { data: null },
   ])
+  if (error) throw new Error(`회사 확인 실패: ${error.message}`)
   const mine = new Map(((members ?? []) as { company_id: string; role: 'owner' | 'admin' }[]).map((m) => [m.company_id, m.role]))
   let rows = (all ?? []) as { id: string; company_name: string; created_at: string }[]
   if (!isSuper) {

@@ -39,7 +39,10 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
   return (
       <article className={`print-sheet card relative px-5 py-7 sm:px-9 ${className}`}>
         {watermark && <Watermark text={watermark} />}
-        <h1 className="mb-6 text-center text-2xl font-extrabold tracking-[0.3em]">임금명세서</h1>
+        {/* 전문가 의뢰(사업소득 3.3%)는 근로가 아니므로 '용역 대금 지급명세서' */}
+        <h1 className={`mb-6 text-center text-2xl font-extrabold ${job.tax_type === 'business' ? 'tracking-[0.1em]' : 'tracking-[0.3em]'}`}>
+          {job.tax_type === 'business' ? '용역 대금 지급명세서' : '임금명세서'}
+        </h1>
         {/* 한 줄에 한 항목 (휴대폰에서 네 칸으로 나누면 날짜·계좌가 두세 줄로 쪼개짐) */}
         <table className="table mb-5 border-t border-line">
           <tbody>
@@ -177,7 +180,7 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
           <p>
             대표 {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} />
           </p>
-          <p className="mt-2 text-[11px] text-mute">근로기준법 제48조 제2항에 따른 임금명세서 · <span className="whitespace-nowrap">발행 {fmtDateLong(kstDate())}</span></p>
+          <p className="mt-2 text-[11px] text-mute">{job.tax_type === 'business' ? '사업소득 원천징수(3.3%) 내역' : '근로기준법 제48조 제2항에 따른 임금명세서'} · <span className="whitespace-nowrap">발행 {fmtDateLong(kstDate())}</span></p>
         </div>
       </article>
   )

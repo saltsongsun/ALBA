@@ -7,16 +7,22 @@ import { APP_NAME } from '@/lib/brand'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { getUser } from '@/lib/session'
+import { redirect } from 'next/navigation'
+import { isPro } from '@/lib/members'
 import { kstDate } from '@/lib/time'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
   const today = kstDate()
+  // 전문가·외주 업체는 전문가 화면으로 (아르바이트 공고와 섞이지 않게)
+  const me = await getUser()
+  if (me && me.role !== 'admin' && isPro(me.memberType)) redirect('/pro')
   const [user, jobs, myApps] = await Promise.all([
     getUser(),
     db()
       .from('jobs')
       .select(JOB_WITH_APP_STATUS)
+      .eq('audience', 'worker')
       .in('status', ['open', 'closed'])
       .gte('end_date', today)
       .order('start_date')
@@ -98,13 +104,18 @@ export default async function HomePage(props: PageProps<'/'>) {
           <p className="mt-2 text-sm opacity-90">한 번 가입하면 출퇴근 버튼만 누르면 됩니다. 근로계약서와 급여명세서도 여기서 받아요.</p>
           {!user && (
             <div className="mt-4 flex gap-2">
-              <Link href="/signup" className="btn bg-white text-brand-700">
+              <Link href="/signup?type=worker" className="btn bg-white text-brand-700">
                 간편 가입
               </Link>
               <Link href="/login" className="btn bg-white/15 text-white">
                 로그인
               </Link>
             </div>
+          )}
+          {!user && (
+            <Link href="/pro" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-white/90 underline-offset-2 hover:underline">
+              🎛️ 음향·조명·영상 전문가나 외주 업체이신가요? →
+            </Link>
           )}
           {user && (
             <Link href="/me" className="btn mt-4 bg-white text-brand-700">
