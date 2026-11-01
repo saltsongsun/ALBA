@@ -324,10 +324,20 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 )}
               </div>
             )}
+            {app.status === 'applied' && job.status === 'closed' && !ended && (
+              <p className="text-sm font-semibold text-amber-700">모집 마감 · 결과는 알림으로 알려 드려요</p>
+            )}
             <div className="flex gap-2">
-              <Link href="/me" className="btn-primary flex-1">
-                {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
-              </Link>
+              {app.status === 'rejected' ? (
+                // 미선발: 다음으로 할 일은 다른 공고 찾기
+                <Link href={expert ? '/pro' : '/'} className="btn-primary flex-1">
+                  {expert ? '모집 중인 다른 의뢰 보기 →' : '모집 중인 다른 알바 보기 →'}
+                </Link>
+              ) : (
+                <Link href="/me" className="btn-primary flex-1">
+                  {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
+                </Link>
+              )}
               {app.status === 'applied' && !ended && (
                 <form action={cancelApplication.bind(null, app.id)}>
                   <ConfirmSubmit className="btn-gray" confirmText="정말 취소할까요?">

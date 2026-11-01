@@ -617,11 +617,13 @@ export default async function MePage(props: PageProps<'/me'>) {
           <div className="stagger space-y-2">
             {waiting.map((a) => (
               <Link key={a.id} href={`/jobs/${a.job_id}`} className="card-link flex items-center justify-between py-4">
-                <div>
+                <div className="min-w-0">
                   <p className="font-bold">{a.job.title}</p>
                   <p className="text-sm text-sub">{fmtDateRange(a.job.start_date, a.job.end_date)}</p>
+                  {/* 모집이 마감됐으면 결과를 기다리는 중이라고 (계속 지원 중인 줄 알지 않게) */}
+                  {a.job.status === 'closed' && <p className="text-xs font-semibold text-amber-700">모집 마감 · 결과를 곧 알려 드려요</p>}
                 </div>
-                <span className={`badge ${APP_STATUS.applied.cls}`}>지원완료</span>
+                <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
               </Link>
             ))}
           </div>
