@@ -81,7 +81,7 @@ const errs = []
   await ad.goto(`${D}/admin/jobs/${J}?tab=apps&sort=exp`)
   ok('지원자 정렬: 경험 많은 순', (await ad.getByRole('link', { name: '경험 많은 순' }).getAttribute('class')).includes('bg-ink'))
   await wd.goto(`${D}/me/profile`)
-  await wd.getByText('행사 경력').first().click()
+  await wd.locator('#careers summary').click()
   await wd.getByRole('button', { name: '+ 경력 추가' }).click()
   await wd.getByPlaceholder('행사명 (예: 부산국제영화제)').fill('서울재즈페스티벌')
   await wd.getByPlaceholder('기간 (예: 2025.10, 3일)').fill('2025.05')
