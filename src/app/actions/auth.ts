@@ -18,7 +18,8 @@ import { isMemberType, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
 import type { MemberType } from '@/lib/types'
 
-export type FormState = { error?: string; ok?: string } | null
+/** code: 화면이 오류에 맞춰 할 일 (dup_phone → 그 번호로 로그인하기 버튼, dup_rrn → 로그인·문의 안내) */
+export type FormState = { error?: string; ok?: string; code?: 'dup_phone' | 'dup_rrn' } | null
 
 const LOCK_AFTER = 5
 const LOCK_MINUTES = 10
@@ -95,9 +96,9 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
     db().from('users').select('id').eq('rrn_hash', rrnHash).maybeSingle(),
   ])
   if (byPhone || byRrn) await note(dupKey)
-  if (byPhone) return { error: '이미 가입된 휴대폰 번호입니다. 로그인해 주세요.' }
+  if (byPhone) return { error: '이미 가입된 휴대폰 번호예요.', code: 'dup_phone' }
   if (byRrn) {
-    return { error: '이미 가입된 주민등록번호입니다. 예전에 쓰던 번호로 로그인하거나 담당자에게 문의해 주세요.' }
+    return { error: '이미 가입된 주민등록번호입니다. 예전에 쓰던 번호로 로그인하거나 담당자에게 문의해 주세요.', code: 'dup_rrn' }
   }
 
   const careers = parseCareers(str(form, 'careers', 8000)) ?? []
@@ -164,7 +165,7 @@ async function signupVendor(form: FormData): Promise<FormState> {
   if (weak) return { error: weak }
   if (form.get('agree_privacy') !== 'on') return { error: '필수 동의 항목에 체크해 주세요.' }
   const { data: byPhone } = await db().from('users').select('id').eq('phone', phone).maybeSingle()
-  if (byPhone) return { error: '이미 가입된 휴대폰 번호입니다. 로그인해 주세요.' }
+  if (byPhone) return { error: '이미 가입된 휴대폰 번호예요.', code: 'dup_phone' }
   const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
   const { data, error } = await db()
     .from('users')

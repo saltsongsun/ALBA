@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useActionState, useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
@@ -62,8 +63,46 @@ function PinReveal({ names }: { names: string[] }) {
   )
 }
 
+/** 가입하다 '이미 가입된 번호'가 나오면 그 번호를 로그인 화면으로 넘김 (주소에 번호를 남기지 않게 이 탭 저장소로) */
+const LOGIN_PHONE_KEY = 'login-phone'
+
+/** 가입 화면: 이미 가입된 휴대폰 번호면 그 번호가 채워진 로그인 화면으로 (다시 입력하지 않게) */
+function LoginWithPhone({ next }: { next: string }) {
+  const router = useRouter()
+  return (
+    <button
+      type="button"
+      className="btn-primary w-full animate-pop py-3.5 text-base"
+      onClick={(e) => {
+        const phone = (e.currentTarget.form?.elements.namedItem('phone') as HTMLInputElement | null)?.value ?? ''
+        try {
+          sessionStorage.setItem(LOGIN_PHONE_KEY, phone)
+        } catch {}
+        router.push(`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`)
+      }}
+    >
+      이 번호로 로그인하기 →
+    </button>
+  )
+}
+
 export function LoginForm({ next }: { next: string }) {
   const [state, action] = useActionState(login, null)
+  const phoneRef = useRef<HTMLInputElement>(null)
+  const pinRef = useRef<HTMLInputElement>(null)
+  const [filled, setFilled] = useState(false)
+  // 가입 화면에서 넘어온 번호를 채우고 비밀번호 칸으로
+  useEffect(() => {
+    let phone: string | null = null
+    try {
+      phone = sessionStorage.getItem(LOGIN_PHONE_KEY)
+      sessionStorage.removeItem(LOGIN_PHONE_KEY)
+    } catch {}
+    if (!phone || !phoneRef.current) return
+    phoneRef.current.value = phone
+    setFilled(true)
+    pinRef.current?.focus()
+  }, [])
   return (
     <form action={action} onReset={keepInputs} className="space-y-4">
       <Honeypot />
@@ -72,13 +111,15 @@ export function LoginForm({ next }: { next: string }) {
         <label className="label" htmlFor="phone">
           휴대폰 번호
         </label>
-        <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+        <input ref={phoneRef} id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+        {filled && <p className="mt-1.5 text-sm font-medium text-emerald-700">✓ 가입된 번호를 채웠어요</p>}
       </div>
       <div>
         <label className="label" htmlFor="pin">
           비밀번호 (숫자 6자리)
         </label>
         <input
+          ref={pinRef}
           id="pin"
           name="pin"
           type="password"
@@ -368,7 +409,14 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
       </section>
 
       <FormMessage state={state} />
-      <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="가입 중…">
+      {state?.code === 'dup_phone' && <LoginWithPhone next={next} />}
+      {state?.code === 'dup_rrn' && (
+        <Link href={`/login${next ? `?next=${encodeURIComponent(next)}` : ''}`} className="btn-primary w-full animate-pop py-3.5 text-base">
+          로그인하러 가기 →
+        </Link>
+      )}
+      {/* 이미 가입된 사람이면 로그인이 먼저 보이게 가입 버튼은 회색으로 */}
+      <SubmitButton className={`${state?.code ? 'btn-gray' : 'btn-primary'} w-full py-3.5 text-base`} pendingText="가입 중…">
         {MEMBER_TYPES[type].label}로 가입하기
       </SubmitButton>
       <p className="text-center text-sm text-mute">
