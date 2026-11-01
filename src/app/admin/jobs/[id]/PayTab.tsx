@@ -218,20 +218,21 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
                 </Link>
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-2 text-center">
+            {/* 금액은 한 줄에 하나씩 (휴대폰 세 칸이면 큰 금액이 숫자 중간에서 꺾임) */}
+            <dl className="divide-y divide-line rounded-xl bg-bg px-4 text-sm">
               {(
                 [
-                  ['알바 인건비', labor, 'text-ink'],
-                  ['외주 비용', vendorSum, 'text-ink'],
-                  ['합계', labor + vendorSum, 'text-brand-700'],
+                  ['알바 인건비', labor, 'font-semibold text-ink'],
+                  ['외주 비용', vendorSum, 'font-semibold text-ink'],
+                  ['합계', labor + vendorSum, 'text-base font-extrabold text-brand-700'],
                 ] as const
               ).map(([k, v, tone]) => (
-                <div key={k} className="rounded-xl bg-bg px-2 py-2.5">
-                  <p className="text-xs text-mute">{k}</p>
-                  <p className={`font-extrabold tabular-nums ${tone}`}>{won(v)}</p>
+                <div key={k} className="flex items-center justify-between gap-3 py-2.5">
+                  <dt className="text-sub">{k}</dt>
+                  <dd className={`whitespace-nowrap tabular-nums ${tone}`}>{won(v)}</dd>
                 </div>
               ))}
-            </div>
+            </dl>
             {vpays.length > 0 && (
               <ul className="divide-y divide-line text-sm">
                 {vpays.map((p) => {

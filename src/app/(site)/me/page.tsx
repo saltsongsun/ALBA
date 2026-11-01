@@ -316,12 +316,12 @@ export default async function MePage(props: PageProps<'/me'>) {
           <p className="mb-3 text-sm text-sub">서명을 마쳐야 근무 시작 버튼을 누를 수 있어요.</p>
           <div className="space-y-2">
             {pendingDocs.map((d) => (
-              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between rounded-xl bg-white px-4 py-3 font-semibold transition active:scale-[0.98]">
-                <span>
-                  {d.title}
-                  <span className="ml-2 text-xs font-medium text-mute">{jobsById.get(d.job_id)?.title}</span>
+              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 font-semibold transition active:scale-[0.98]">
+                <span className="min-w-0">
+                  <span className="block">{d.title}</span>
+                  <span className="block truncate text-xs font-medium text-mute">{jobsById.get(d.job_id)?.title}</span>
                 </span>
-                <span className="text-brand-600">서명 →</span>
+                <span className="shrink-0 whitespace-nowrap text-brand-600">서명 →</span>
               </Link>
             ))}
           </div>
@@ -335,10 +335,10 @@ export default async function MePage(props: PageProps<'/me'>) {
             💳
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-bold">급여 받을 계좌를 등록해 주세요</span>
-            <span className="block text-sm text-sub">계좌가 있어야 근무 후 급여를 보내 드릴 수 있어요</span>
+            <span className="block font-bold">급여 계좌를 등록해 주세요</span>
+            <span className="block text-sm text-sub">급여를 받으려면 꼭 필요해요</span>
           </span>
-          <span className="shrink-0 text-sm font-semibold text-brand-600">등록 →</span>
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">등록 →</span>
         </Link>
       )}
 
@@ -351,9 +351,9 @@ export default async function MePage(props: PageProps<'/me'>) {
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-bold">얼굴 사진을 올려 주세요</span>
-            <span className="block text-sm text-sub">현장에서 담당자가 알아보기 쉬워요</span>
+            <span className="block text-sm text-sub">현장 담당자가 알아보기 쉬워요</span>
           </span>
-          <span className="shrink-0 text-sm font-semibold text-brand-600">올리기 →</span>
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">올리기 →</span>
         </Link>
       )}
 
@@ -620,17 +620,17 @@ export default async function MePage(props: PageProps<'/me'>) {
           <div className="stagger space-y-2">
             {history.slice(0, 3).map(({ job, s, paid }) => (
               <div key={job.id} className="card space-y-3">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <p className="font-bold">{job.title}</p>
                     <p className="text-sm text-sub">
                       {s.days}일 · {minutesText(s.paidMin)}
                       {s.incomplete > 0 && <span className="text-amber-600"> · 종료 기록 없음 {s.incomplete}일</span>}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-extrabold">{won(s.net)}</p>
-                    <p className="text-xs text-mute">{paid ? '지급완료' : '실수령 예상'}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="text-lg font-extrabold whitespace-nowrap">{won(s.net)}</p>
+                    <p className="text-xs whitespace-nowrap text-mute">{paid ? '지급완료' : '실수령 예상'}</p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -665,11 +665,12 @@ export default async function MePage(props: PageProps<'/me'>) {
             items={docs
               .filter((d) => d.status === 'signed')
               .map((d) => (
-                <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between py-3 text-sm">
-                  <span>
-                    <b>{d.title}</b> <span className="text-mute">{jobsById.get(d.job_id)?.title}</span>
+                <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 py-3 text-sm">
+                  <span className="min-w-0">
+                    <b className="block">{d.title}</b>
+                    <span className="block truncate text-xs text-mute">{jobsById.get(d.job_id)?.title}</span>
                   </span>
-                  <span className="text-mute">보기 →</span>
+                  <span className="shrink-0 whitespace-nowrap text-mute">보기 →</span>
                 </Link>
               ))}
           />

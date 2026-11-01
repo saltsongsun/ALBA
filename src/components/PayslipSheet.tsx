@@ -40,17 +40,20 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
       <article className={`print-sheet card relative px-5 py-7 sm:px-9 ${className}`}>
         {watermark && <Watermark text={watermark} />}
         <h1 className="mb-6 text-center text-2xl font-extrabold tracking-[0.3em]">임금명세서</h1>
+        {/* 한 줄에 한 항목 (휴대폰에서 네 칸으로 나누면 날짜·계좌가 두세 줄로 쪼개짐) */}
         <table className="table mb-5 border-t border-line">
           <tbody>
             <tr>
               <th className="w-24">성명</th>
               <td>{worker.name}</td>
-              <th className="w-24">생년월일</th>
+            </tr>
+            <tr>
+              <th>생년월일</th>
               <td>{worker.birth_date ? fmtDateLong(worker.birth_date) : '-'}</td>
             </tr>
             <tr>
               <th>근무</th>
-              <td colSpan={3}>
+              <td>
                 {job.title}
                 {job.event_name ? ` (${job.event_name})` : ''}
               </td>
@@ -58,6 +61,8 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
             <tr>
               <th>지급일</th>
               <td>{payDate ? fmtDateLong(payDate) : job.pay_day || '지급 예정'}</td>
+            </tr>
+            <tr>
               <th>지급계좌</th>
               <td>{worker.bank_account ? `${worker.bank_name ?? ''} ${maskAccount(worker.bank_account)}` : '-'}</td>
             </tr>
@@ -172,7 +177,7 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
           <p>
             대표 {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} />
           </p>
-          <p className="mt-2 text-[11px] text-mute">근로기준법 제48조 제2항에 따른 임금명세서 · 발행 {fmtDateLong(kstDate())}</p>
+          <p className="mt-2 text-[11px] text-mute">근로기준법 제48조 제2항에 따른 임금명세서 · <span className="whitespace-nowrap">발행 {fmtDateLong(kstDate())}</span></p>
         </div>
       </article>
   )

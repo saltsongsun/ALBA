@@ -68,9 +68,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">
-                <span className="rounded-md bg-white px-2 py-0.5 ring-1 ring-line">📌 {job.title}</span>
-                에 대한 문의
-                <Link href="/me/chat" className="ml-auto text-mute underline">
+                <span className="min-w-0 truncate rounded-md bg-white px-2 py-0.5 ring-1 ring-line">📌 {job.title}</span>
+                <span className="shrink-0 whitespace-nowrap">문의</span>
+                <Link href="/me/chat" className="ml-auto shrink-0 whitespace-nowrap text-mute underline">
                   공고 빼기
                 </Link>
               </p>

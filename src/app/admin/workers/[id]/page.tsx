@@ -244,7 +244,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               <tbody>
                 {perJob.map(({ job, s }) => (
                   <tr key={job.id}>
-                    <td>
+                    <td className="min-w-48">
                       <Link href={`/admin/jobs/${job.id}?tab=pay`} className="font-semibold">
                         {job.title}
                       </Link>
@@ -274,9 +274,9 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         >
           {apps.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
           {apps.map((a) => (
-            <Link key={a.id} href={`/admin/jobs/${a.job_id}?tab=apps`} className="flex justify-between py-2.5 text-sm">
-              <span>{a.job?.title}</span>
-              <span className="text-mute">{a.status === 'approved' ? '확정' : a.status === 'applied' ? '대기' : a.status === 'rejected' ? '미선발' : '취소'}</span>
+            <Link key={a.id} href={`/admin/jobs/${a.job_id}?tab=apps`} className="flex justify-between gap-3 py-2.5 text-sm">
+              <span className="min-w-0">{a.job?.title}</span>
+              <span className="shrink-0 whitespace-nowrap text-mute">{a.status === 'approved' ? '확정' : a.status === 'applied' ? '대기' : a.status === 'rejected' ? '미선발' : '취소'}</span>
             </Link>
           ))}
         </Fold>
@@ -287,11 +287,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         >
           {docs.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
           {docs.map((d) => (
-            <Link key={d.id} href={`/docs/${d.id}`} className="flex justify-between py-2.5 text-sm">
-              <span>
-                {d.title} <span className="text-mute">{jobs.get(d.job_id)?.title}</span>
+            <Link key={d.id} href={`/docs/${d.id}`} className="flex justify-between gap-3 py-2.5 text-sm">
+              <span className="min-w-0">
+                <span className="block">{d.title}</span>
+                <span className="block truncate text-xs text-mute">{jobs.get(d.job_id)?.title}</span>
               </span>
-              <span className={d.status === 'signed' ? 'text-emerald-600' : d.status === 'void' ? 'text-mute line-through' : 'text-amber-600'}>
+              <span className={`shrink-0 whitespace-nowrap ${d.status === 'signed' ? 'text-emerald-600' : d.status === 'void' ? 'text-mute line-through' : 'text-amber-600'}`}>
                 {d.status === 'signed' ? `서명 ${fmtDate(kstDate(d.signed_at!))}` : d.status === 'void' ? '무효' : '대기'}
               </span>
             </Link>

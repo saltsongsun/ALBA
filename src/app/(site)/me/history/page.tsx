@@ -75,7 +75,7 @@ export default async function HistoryPage() {
         </Empty>
       ) : (
         <>
-          <section className="grid animate-pop grid-cols-3 gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20">
+          <section className="grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20">
             {(
               [
                 ['근무', `${total.days}일`],
@@ -85,7 +85,7 @@ export default async function HistoryPage() {
             ).map(([k, v]) => (
               <div key={k}>
                 <p className="text-xs font-semibold opacity-80">{k}</p>
-                <p className="mt-0.5 text-lg font-extrabold tracking-tight tabular-nums">{v}</p>
+                <p className="mt-0.5 text-lg font-extrabold tracking-tight whitespace-nowrap tabular-nums">{v}</p>
               </div>
             ))}
           </section>

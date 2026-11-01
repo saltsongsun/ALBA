@@ -469,7 +469,7 @@ export default function JobForm({
         </div>
         <Check
           name="early_clamp"
-          label="시작 시각 전에 누른 출근은 공고 시작 시각부터 인정"
+          label="일찍 누른 출근은 공고 시작 시각부터 인정"
           defaultChecked={job?.early_clamp}
           hint="일찍 도착해 버튼을 누른 시간을 근무로 치지 않습니다. 사전 교육·준비를 지시했다면 끄거나 해당 근무를 보정하세요."
         />
@@ -483,7 +483,7 @@ export default function JobForm({
           <div className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700">
             공고 시간대로 일하면 하루 <b className="text-base">{won(est.gross)}</b> (휴게 {est.breakMin}분 제외 {minutesText(est.paidMin)}
             {est.overtimePay ? `, 연장 ${won(est.overtimePay)}` : ''}
-            {est.nightPay ? `, 야간 ${won(est.nightPay)}` : ''}) · 세전
+            {est.nightPay ? `, 야간 ${won(est.nightPay)}` : ''}) <span className="whitespace-nowrap">· 세전</span>
           </div>
         )}
       </Fold>

@@ -154,7 +154,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               <p className="text-sm text-sub">{wageBadge(job)}</p>
               <p className="mt-0.5 text-2xl font-extrabold">하루 약 {won(est.gross)}</p>
               <p className="mt-1 text-xs text-mute">
-                {scheduleText(job)} 기준 · 휴게 {est.breakMin}분 제외 {minutesText(est.paidMin)} · 세전
+                <span className="whitespace-nowrap">{scheduleText(job)} 기준</span> · <span className="whitespace-nowrap">휴게 {est.breakMin}분 제외</span>{' '}
+                <span className="whitespace-nowrap">{minutesText(est.paidMin)} · 세전</span>
               </p>
             </>
           ) : (

@@ -56,11 +56,12 @@ export default async function ProfilePage() {
               .filter((c) => !c.done)
               .map((c) => (
                 <li key={c.key}>
-                  <a href={c.href} className="flex items-center justify-between gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm transition active:scale-[0.99]">
-                    <span>
-                      <b>{c.label}</b> <span className="text-sub">· {c.why}</span>
+                  <a href={c.href} className="flex items-center justify-between gap-3 rounded-xl bg-bg px-3.5 py-2.5 text-sm transition active:scale-[0.99]">
+                    <span className="min-w-0">
+                      <b className="block">{c.label}</b>
+                      <span className="block text-xs text-sub">{c.why}</span>
                     </span>
-                    <span className="shrink-0 font-semibold text-brand-600">채우기 →</span>
+                    <span className="shrink-0 font-semibold whitespace-nowrap text-brand-600">채우기 →</span>
                   </a>
                 </li>
               ))}

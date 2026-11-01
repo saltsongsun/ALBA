@@ -69,6 +69,17 @@ const pages = [
               const lh = parseFloat(st.lineHeight) || parseFloat(st.fontSize) * 1.5
               if (txt.length >= 5 && r.width < 60 && r.height > lh * 3.2) out.push(`CRAMPED ${el.tagName.toLowerCase()} ${Math.round(r.width)}px 폭에 ${Math.round(r.height / lh)}줄 "${txt.slice(0, 20)}"`)
             }
+            // 짧은 이름(버튼·링크·표 머리·배지)이나 금액이 두 줄로 꺾임 (예: '서명 ⏎ →', '1,500,00 ⏎ 0원')
+            if (!el.children.length && el.childNodes.length) {
+              const txt = (el.textContent || '').trim()
+              const money = /^[+-]?[\d,]+원$/.test(txt)
+              if (txt && (money || (txt.length <= 10 && el.closest('button,a,label,th,dt,.badge,.chip')))) {
+                const rg = document.createRange()
+                rg.selectNodeContents(el)
+                const tops = [...rg.getClientRects()].filter((q) => q.width > 0).map((q) => q.top).sort((a, b) => a - b)
+                if (tops.length > 1 && tops[tops.length - 1] - tops[0] > 6) out.push(`WRAP ${el.tagName.toLowerCase()} ${Math.round(r.width)}px 폭에서 두 줄 "${txt}"`)
+              }
+            }
             // 가로 스크롤 영역 안은 의도된 것
             let p = el.parentElement, scroller = false
             while (p && p !== document.body) { const o = getComputedStyle(p).overflowX; if (o === 'auto' || o === 'scroll' || o === 'hidden') { scroller = true; break } p = p.parentElement }

@@ -25,18 +25,19 @@ const ICONS = {
 
 function Stat({ label, value, href, icon, tone }: { label: string; value: number; href: string; icon: keyof typeof ICONS; tone: string }) {
   return (
-    <Link href={href} className="card-link block py-4">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-semibold text-mute">{label}</p>
-        <span className={`grid size-8 place-items-center rounded-full ${tone}`}>
+    // 이름은 한 줄 (휴대폰 두 칸에서도 꺾이지 않게 그림은 숫자 옆으로)
+    <Link href={href} className="card-link block px-4 py-4 sm:px-5">
+      <p className="truncate text-sm font-semibold whitespace-nowrap text-mute">{label}</p>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <p className="text-3xl font-extrabold">
+          <LiveNumber value={value} />
+        </p>
+        <span className={`grid size-8 shrink-0 place-items-center rounded-full ${tone}`}>
           <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             {ICONS[icon]}
           </svg>
         </span>
       </div>
-      <p className="mt-1 text-3xl font-extrabold">
-        <LiveNumber value={value} />
-      </p>
     </Link>
   )
 }

@@ -175,7 +175,7 @@ export default function InstallGuide() {
   } else {
     body = (
       <p className="text-sm text-sub">
-        브라우저 메뉴(<b>⋮</b> 또는 <b>≡</b>)에서 <b className="text-ink">‘홈 화면에 추가’</b> 또는 <b className="text-ink">‘앱 설치’</b>를 눌러 주세요.
+        브라우저 메뉴(<b>⋮</b> 또는 <b>≡</b>)에서 <b className="whitespace-nowrap text-ink">‘홈 화면에 추가’</b> 또는 <b className="whitespace-nowrap text-ink">‘앱 설치’</b>를 눌러 주세요.
       </p>
     )
   }

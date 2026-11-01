@@ -65,20 +65,20 @@ export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>
         <p className="text-sm">
           계좌: {account ? `${v.bank_name ?? ''} ${maskAccount(account)} (예금주 ${v.account_holder ?? v.name})` : <span className="text-rose-600">미등록</span>}
         </p>
-        <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+        <dl className="divide-y divide-line rounded-xl bg-bg px-4 text-sm">
           {(
             [
-              ['견적', `${quotes.filter((q) => q.amount != null).length}건`],
+              ['받은 견적', `${quotes.filter((q) => q.amount != null).length}건`],
               ['지급 완료', won(paid)],
               ['미지급', won(unpaid)],
             ] as const
           ).map(([k, val]) => (
-            <div key={k} className="rounded-xl bg-bg px-2 py-2.5">
-              <p className="text-xs text-mute">{k}</p>
-              <p className="font-bold tabular-nums">{val}</p>
+            <div key={k} className="flex items-center justify-between gap-3 py-2.5">
+              <dt className="text-sub">{k}</dt>
+              <dd className="font-bold whitespace-nowrap tabular-nums">{val}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       </section>
 
       <Fold title="정보 수정" summary="연락처·계좌·메모·거래 여부" className="space-y-4">
