@@ -195,6 +195,38 @@ export default async function MePage(props: PageProps<'/me'>) {
     })
     .filter((x) => x !== null)
 
+  // 계좌·사진 등록 안내 (근무 날에는 오늘의 근무 아래에)
+  const profileNags = (
+    <>
+      {/* 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음) */}
+      {!hasAccount && (approved.length > 0 || atts.length > 0) && (
+        <Link href="/me/profile" className="card-link flex items-center gap-3 p-4 ring-2 ring-rose-100">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-50 text-xl">
+            💳
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">급여 계좌를 등록해 주세요</span>
+            <span className="block text-sm text-sub">급여를 받으려면 꼭 필요해요</span>
+          </span>
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">등록 →</span>
+        </Link>
+      )}
+
+      {!photoAt && (
+        <Link href="/me/profile#photo" className="card-link flex items-center gap-3 p-4">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
+            📷
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">얼굴 사진을 올려 주세요</span>
+            <span className="block text-sm text-sub">현장 담당자가 알아보기 쉬워요</span>
+          </span>
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">올리기 →</span>
+        </Link>
+      )}
+    </>
+  )
+
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
@@ -337,34 +369,10 @@ export default async function MePage(props: PageProps<'/me'>) {
         </section>
       )}
 
-      {/* 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음) */}
-      {!hasAccount && (approved.length > 0 || atts.length > 0) && (
-        <Link href="/me/profile" className="card-link flex items-center gap-3 p-4 ring-2 ring-rose-100">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-50 text-xl">
-            💳
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold">급여 계좌를 등록해 주세요</span>
-            <span className="block text-sm text-sub">급여를 받으려면 꼭 필요해요</span>
-          </span>
-          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">등록 →</span>
-        </Link>
-      )}
-
       {/* 사진이 없으면 (사진 필수 전에 가입한 사람 포함) 열 때 등록 창을 띄우고, 카드로도 계속 안내 */}
       {!photoAt && user.role === 'worker' && <PhotoPrompt userId={user.id} name={user.name} />}
-      {!photoAt && (
-        <Link href="/me/profile#photo" className="card-link flex items-center gap-3 p-4">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
-            📷
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold">얼굴 사진을 올려 주세요</span>
-            <span className="block text-sm text-sub">현장 담당자가 알아보기 쉬워요</span>
-          </span>
-          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">올리기 →</span>
-        </Link>
-      )}
+      {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
+      {todayApps.length === 0 && profileNags}
 
       <section>
         <h2 className="section-title">오늘의 {pro ? '일' : '근무'}</h2>
@@ -563,6 +571,7 @@ export default async function MePage(props: PageProps<'/me'>) {
           </div>
         )}
       </section>
+      {todayApps.length > 0 && profileNags}
 
       {upcoming.length > 0 && (
         <section>
