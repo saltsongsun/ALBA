@@ -392,6 +392,36 @@ export async function approveAllApplied(jobId: string) {
   revalidatePath(`/admin/jobs/${jobId}`)
 }
 
+/** 지원자 탭에서 고른 사람만 한 번에 확정 (대기 중인 지원만) */
+export async function approveSelected(jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await getJob(jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=apps`
+  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))]
+  if (!ids.length) back(path, '확정할 지원자를 골라 주세요.')
+  const apps = (
+    must(await db().from('applications').select('id, user_id, status, job_id').in('id', ids).eq('job_id', jobId).eq('status', 'applied')) as {
+      id: string
+      user_id: string
+      status: string
+      job_id: string
+    }[]
+  ).filter((a) => a.status === 'applied' && a.job_id === jobId && ids.includes(a.id))
+  if (!apps.length) back(path, '이미 처리된 지원이에요.')
+  must(
+    await db()
+      .from('applications')
+      .update({ status: 'approved', decided_at: new Date().toISOString() })
+      .in('id', apps.map((a) => a.id)),
+  )
+  for (const a of apps) await ensurePendingDocs(job, a.user_id)
+  await tellApproved(job, apps.map((a) => a.user_id), admin.id)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath('/admin')
+  back(path, `${apps.length}명을 확정했어요. 근무자에게 알렸어요.`)
+}
+
 /** 근무자 정보 화면에서 모집 중인 공고에 바로 확정 (예전에 잘한 사람을 다시 부를 때) */
 export async function assignWorkerToJob(userId: string, form: FormData) {
   const admin = await requireAdmin()

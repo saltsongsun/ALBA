@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { addWorkerToJob, approveAllApplied, decideApplication } from '@/app/actions/admin'
+import { addWorkerToJob, approveAllApplied, approveSelected, decideApplication } from '@/app/actions/admin'
+import { BULK_FORM, BulkApproveBar } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
@@ -221,11 +222,19 @@ export default async function AppsTab({
     .sort((a, b) => order[a.status] - order[b.status] || cmp(a, b))
 
   // 휴대폰: 대기는 펼쳐 두고, 확정은 대기가 있으면 접어 둠, 미선발·취소는 접어 둠 (카드가 길어서)
+  // 여러 명 골라 한 번에 확정 (대기 중인 지원자만)
+  const pickBox = (a: AppRow) =>
+    a.status === 'applied' && waiting > 1 ? (
+      <label className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg active:bg-bg" aria-label={`${a.user.name} 고르기`}>
+        <input type="checkbox" name="app" value={a.id} form={BULK_FORM} data-minor={minorWarn(a) ? '1' : undefined} className="size-5 accent-brand-600" />
+      </label>
+    ) : null
   const mobileCard = (a: AppRow) => {
     const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
     return (
       <div key={a.id} className={`card space-y-2.5 p-4 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-3">
+          {pickBox(a)}
           <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="lg" />
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
             <Link href={`/admin/workers/${a.user_id}`} className="text-[17px] font-bold">
@@ -410,6 +419,7 @@ export default async function AppsTab({
                   return (
                     <tr key={a.id} className={a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}>
                       <td className="whitespace-nowrap">
+                        <span className="mr-1 inline-block align-middle">{pickBox(a)}</span>
                         <span className="mr-2 inline-block align-middle">
                           <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="sm" />
                         </span>
@@ -470,6 +480,8 @@ export default async function AppsTab({
           있습니다.
         </p>
       )}
+      {/* 고른 지원자가 있으면 아래에 붙는 '선택 n명 확정' */}
+      {waiting > 1 && <BulkApproveBar action={approveSelected.bind(null, job.id)} headcount={job.headcount} approved={approved.length} />}
     </div>
   )
 }
