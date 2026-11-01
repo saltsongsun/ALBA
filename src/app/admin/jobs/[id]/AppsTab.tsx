@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addWorkerToJob, approveAllApplied, approveSelected, decideApplication } from '@/app/actions/admin'
+import { addWorkerToJob, approveAllApplied, approveSelected, decideApplication, rejectWaiting } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
@@ -201,6 +201,10 @@ export default async function AppsTab({
   }
   const minorsWaiting = minorLimits.length ? apps.filter((a) => a.status === 'applied' && isMinor(a)).length : 0
   const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0
+  // 모집이 끝났는데(마감·종료·지난 행사·남은 날 인원 다 참) 대기자가 남아 있으면: 미선발로 정리하고 결과 알리기
+  const recruitDone =
+    job.status !== 'open' || job.end_date < today || dates.filter((d) => d >= today).every((d) => byDay[d] >= job.headcount)
+  const canRejectWaiting = waiting > 0 && job.status !== 'cancelled' && recruitDone
   const shownDay = day && dates.includes(day) ? day : null
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   // 정렬: 지원순(기본) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
@@ -313,6 +317,13 @@ export default async function AppsTab({
               ) : (
                 <SubmitButton className="btn-primary btn-sm">대기 {waiting}명 모두 확정</SubmitButton>
               )}
+            </form>
+          )}
+          {canRejectWaiting && (
+            <form action={rejectWaiting.bind(null, job.id)}>
+              <ConfirmSubmit className="btn-gray btn-sm" confirmText={`대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
+                🙏 대기 {waiting}명 미선발 알림
+              </ConfirmSubmit>
             </form>
           )}
           <form action={addWorkerToJob.bind(null, job.id)} className="flex gap-1">

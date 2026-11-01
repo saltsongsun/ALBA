@@ -452,6 +452,44 @@ export async function approveSelected(jobId: string, form: FormData) {
   back(path, `${apps.length}명을 확정했어요. 근무자에게 알렸어요.`)
 }
 
+/**
+ * 모집이 끝났는데 남은 대기 지원자: 한 번에 미선발로 정리하고 '이번엔 함께하지 못해요' 알림
+ * (결과를 몰라 계속 기다리거나 "확정됐나요?" 문의하지 않게)
+ */
+export async function rejectWaiting(jobId: string) {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=apps`
+  const apps = must(
+    await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('company_id', admin.companyId).eq('status', 'applied'),
+  ) as { id: string; user_id: string }[]
+  if (!apps.length) back(path, '대기 중인 지원자가 없어요.')
+  must(
+    await db()
+      .from('applications')
+      .update({ status: 'rejected', decided_at: new Date().toISOString() })
+      .in('id', apps.map((a) => a.id))
+      .eq('status', 'applied'),
+  )
+  const n = await tellWorkers(
+    apps.map((a) => a.user_id),
+    {
+      senderId: admin.id,
+      companyId: job.company_id,
+      jobId,
+      title: '🙏 이번엔 함께하지 못해요',
+      text: `${job.title}\n${scheduleSummary(job)}\n모집이 마감돼 이번에는 함께하지 못하게 됐어요. 지원해 주셔서 고마워요. 다음 행사 때 다시 만나요!`,
+      url: '/',
+      tag: `notsel-${jobId}`,
+    },
+  )
+  await audit(admin.id, 'app.reject_waiting', null, `${jobId} ${apps.length}명`, admin.companyId)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath('/admin')
+  back(path, `대기 ${apps.length}명을 미선발로 정리하고 ${n}명에게 알렸어요.`)
+}
+
 /** 근무자 정보 화면에서 모집 중인 공고에 바로 확정 (예전에 잘한 사람을 다시 부를 때) */
 export async function assignWorkerToJob(userId: string, form: FormData) {
   const admin = await requireAdmin()
