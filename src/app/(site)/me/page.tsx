@@ -63,6 +63,8 @@ export default async function MePage(props: PageProps<'/me'>) {
   const user = await requireUser('/me')
   // 외주 업체는 근무(출퇴근)가 없으므로 전문가 화면으로
   if (user.memberType === 'vendor' && user.role !== 'admin') redirect('/pro')
+  // 전문가: '근무' 대신 '일', 빈 화면에서 전문가 의뢰 목록으로
+  const pro = user.memberType === 'expert' && user.role !== 'admin'
   const today = kstDate()
 
   const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
@@ -365,7 +367,7 @@ export default async function MePage(props: PageProps<'/me'>) {
       )}
 
       <section>
-        <h2 className="section-title">오늘의 근무</h2>
+        <h2 className="section-title">오늘의 {pro ? '일' : '근무'}</h2>
         {todayApps.length === 0 ? (
           nextApp ? (
             // 오늘 근무가 없으면 다음 근무를 크게 (며칠 남았는지·시간·장소·길찾기)
@@ -384,9 +386,10 @@ export default async function MePage(props: PageProps<'/me'>) {
               <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
             </Link>
           ) : (
-            <Empty icon="🌤️" title="오늘 예정된 근무가 없어요">
-              <Link href="/" className="font-semibold text-brand-600">
-                모집 중인 알바 보기 →
+            <Empty icon="🌤️" title={pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}>
+              {/* 전문가는 알바 공고가 아닌 전문가 의뢰 목록으로 */}
+              <Link href={pro ? '/pro' : '/'} className="font-semibold text-brand-600">
+                {pro ? '모집 중인 의뢰 보기 →' : '모집 중인 알바 보기 →'}
               </Link>
             </Empty>
           )

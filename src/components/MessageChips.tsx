@@ -2,8 +2,10 @@
 
 /** 지원할 때 '한마디' 칸에 자주 쓰는 말을 눌러 넣기 (이미 있는 말은 다시 안 넣음) */
 const PHRASES = ['행사 스태프 경험 있어요', '모든 날짜 가능해요', '일찍 도착할 수 있어요', '차량 있어요', '체력 자신 있어요', '처음이지만 열심히 할게요']
+/** 전문가 의뢰: 회사가 고를 때 궁금한 것 (경험·장비·포트폴리오·리허설) */
+const PRO_PHRASES = ['비슷한 행사 경험', '장비 지참 가능', '포트폴리오 있어요', '리허설 참여 가능', '모든 날짜 가능해요', '팀 구성 가능']
 
-export default function MessageChips({ target }: { target: string }) {
+export default function MessageChips({ target, pro = false }: { target: string; pro?: boolean }) {
   const add = (p: string) => {
     const el = document.getElementById(target) as HTMLInputElement | null
     if (!el) return
@@ -15,7 +17,7 @@ export default function MessageChips({ target }: { target: string }) {
   }
   return (
     <div className="mt-2 flex flex-wrap gap-1.5">
-      {PHRASES.map((p) => (
+      {(pro ? PRO_PHRASES : PHRASES).map((p) => (
         <button key={p} type="button" onClick={() => add(p)} className="chip h-8 px-3 text-xs">
           + {p}
         </button>

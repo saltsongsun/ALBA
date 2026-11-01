@@ -417,10 +417,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               )}
               <div>
                 <label className="label" htmlFor="message">
-                  한마디 (선택)
+                  {expert ? '경력·장비 한마디 (선택)' : '한마디 (선택)'}
                 </label>
-                <input id="message" name="message" className="input" placeholder="예) 행사 스태프 경험 3회, 운전 가능" maxLength={300} />
-                <MessageChips target="message" />
+                <input
+                  id="message"
+                  name="message"
+                  className="input"
+                  placeholder={expert ? '예) 공연 음향 7년, 장비 지참 가능' : '예) 행사 스태프 경험 3회, 운전 가능'}
+                  maxLength={300}
+                />
+                {/* 전문가 의뢰는 회사가 고를 때 궁금한 말(경험·장비·포트폴리오)로 */}
+                <MessageChips target="message" pro={expert} />
               </div>
               {/* 실수로 눌러 지원되지 않게: 첫 번째 누름은 확인 문구만, 한 번 더 눌러야 지원 */}
               <ConfirmSubmit className="btn-primary w-full py-3.5 text-base" confirmText={`한 번 더 누르면 ${expert ? '의뢰에 ' : ''}지원돼요`}>
