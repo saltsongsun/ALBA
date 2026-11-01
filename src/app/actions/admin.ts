@@ -12,6 +12,7 @@ import { scheduleSummary, wageText } from '@/lib/docs'
 import { hiddenFromForm } from '@/lib/jobFields'
 import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { tellWorkers } from '@/lib/notify'
+import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
@@ -225,7 +226,7 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
           companyId: admin.companyId,
           jobId: id,
           title: SIGNAL.change,
-          text: `${job.title}의 내용이 바뀌었어요.\n${changes.join('\n')}\n${timeChanged ? "확정된 분은 앱 '내 근무'에서 계속 근무할지 알려 주세요." : '못 오게 되면 앱에서 담당자에게 알려 주세요.'}`,
+          text: `${job.title}의 내용이 바뀌었어요.\n${changes.join('\n')}\n${timeChanged ? `확정된 분은 앱 '${myWorkTab(job.audience)}'에서 계속 ${job.audience === 'expert' ? '할지' : '근무할지'} 알려 주세요.` : '못 오게 되면 앱에서 담당자에게 알려 주세요.'}`,
           url: `/jobs/${id}`,
           tag: `change-${id}`,
         },
@@ -364,11 +365,11 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
     senderId: adminId,
     companyId: job.company_id,
     jobId: job.id,
-    title: '✅ 근무가 확정됐어요',
+    title: job.audience === 'expert' ? '✅ 의뢰가 확정됐어요' : '✅ 근무가 확정됐어요',
     text: [
       job.title,
       `${scheduleSummary(job)}${job.location_name ? ` · ${job.location_name}` : ''}`,
-      job.required_docs.length ? '✍️ 앱 ‘내 근무’에서 서류에 서명해 주세요.' : '',
+      job.required_docs.length ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.` : '',
     ]
       .filter(Boolean)
       .join('\n'),
@@ -1086,15 +1087,15 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
         : `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
   const [title, text] = {
-    sign: ['✍️ 서류 서명 요청', `${job.title} 근무 전에 앱 '내 근무'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
+    sign: ['✍️ 서류 서명 요청', `${job.title} ${job.audience === 'expert' ? '시작' : '근무'} 전에 앱 '${myWorkTab(job.audience)}'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
     clockin: ['⏰ 출근 확인', `${job.title} · 근무 시작 시각(${hhmm(job.start_time)})이 지났어요. 현장에 도착했으면 앱에서 '근무 시작'을 눌러 주세요.`],
     clockout: ['🏁 근무 종료 확인', `${job.title} · 일이 끝났으면 앱에서 '근무 종료'를 눌러 주세요. 계약 시간 이후는 서로 확인한 뒤에만 급여에 들어가요.`],
     account: [SIGNAL.account, `${job.title} 급여를 보내 드리려면 계좌가 필요해요. 앱 '내 정보'에서 은행·계좌번호·예금주를 등록해 주세요.`],
     contract: [
-      '📝 근로계약서 작성 안내',
+      `📝 ${contractNameOf(job.audience)} 작성 안내`,
       job.contract_method === 'paper'
-        ? `${job.title} 근로계약서는 종이로 작성해요. 근무 시작 전에 현장 담당자에게 받아 서명해 주세요.`
-        : `${job.title} 근로계약서는 전자계약(모두싸인 등)으로 받아요. ${job.contract_url ? `아래 링크에서 서명해 주세요.\n${job.contract_url}` : '문자·카카오톡으로 온 서명 링크를 확인해 서명해 주세요.'}`,
+        ? `${job.title} ${contractNameOf(job.audience)}는 종이로 작성해요. ${job.audience === 'expert' ? '시작' : '근무 시작'} 전에 현장 담당자에게 받아 서명해 주세요.`
+        : `${job.title} ${contractNameOf(job.audience)}는 전자계약(모두싸인 등)으로 받아요. ${job.contract_url ? `아래 링크에서 서명해 주세요.\n${job.contract_url}` : '문자·카카오톡으로 온 서명 링크를 확인해 서명해 주세요.'}`,
     ],
   }[kind]
   must(

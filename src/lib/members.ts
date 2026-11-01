@@ -54,3 +54,6 @@ export function bizNoFmt(v: string | null | undefined): string {
 
 /** 계약서 이름: 전문가 의뢰는 용역계약서(사업소득), 아르바이트는 근로계약서 */
 export const contractNameOf = (audience: string | null | undefined) => (audience === 'expert' ? '용역계약서' : '근로계약서')
+
+/** 근무자 앱의 일정 탭 이름: 전문가 화면은 '내 일', 아르바이트 화면은 '내 근무' (알림에서 탭 이름을 맞게 안내) */
+export const myWorkTab = (audience: string | null | undefined) => (audience === 'expert' ? '내 일' : '내 근무')

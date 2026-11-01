@@ -19,7 +19,7 @@ import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutes
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
 import { canOpenJobDocs } from '@/lib/doc-access'
-import { canApplyTo, parseSpecialty } from '@/lib/members'
+import { canApplyTo, myWorkTab, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
 import type { FormState } from './auth'
 
@@ -83,7 +83,14 @@ export async function applyJob(jobId: string, form: FormData) {
     }),
   )
   revalidatePath('/me')
-  back(path, status === 'approved' ? '근무가 확정됐어요! 내 근무에서 서류에 서명해 주세요.' : '지원이 접수됐어요. 확정되면 내 근무에 표시됩니다.')
+  // 전문가 의뢰는 전문가 화면의 '내 일' 탭으로 안내
+  const tab = myWorkTab(job.audience)
+  back(
+    path,
+    status === 'approved'
+      ? `${job.audience === 'expert' ? '의뢰가' : '근무가'} 확정됐어요! ${tab}에서 서류에 서명해 주세요.`
+      : `지원이 접수됐어요. 확정되면 ${tab}에 표시됩니다.`,
+  )
 }
 
 export async function cancelApplication(appId: string, form?: FormData) {
