@@ -2,6 +2,7 @@ import 'server-only'
 import { db, must } from './db'
 import { tellWorkers } from './notify'
 import { scheduledEnd, shiftOf } from './pay'
+import { contractNameOf, myWorkTab } from './members'
 import { SIGNAL } from './signals'
 import { fmtDate, hhmm, kstDate } from './time'
 import type { Attendance, Job } from './types'
@@ -54,8 +55,8 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
           unsigned.has(uid) && '✍️ 서명할 서류가 남았어요. 출근 전에 앱에서 먼저 서명해 주세요.',
           noContract.has(uid) &&
             (job.contract_method === 'paper'
-              ? '📝 근로계약서는 내일 현장에서 종이로 작성해요.'
-              : `📝 근로계약서를 전자계약(모두싸인 등)으로 먼저 서명해 주세요.${job.contract_url ? ` ${job.contract_url}` : ''}`),
+              ? `📝 ${contractNameOf(job.audience)}는 내일 현장에서 종이로 작성해요.`
+              : `📝 ${contractNameOf(job.audience)}를 전자계약(모두싸인 등)으로 먼저 서명해 주세요.${job.contract_url ? ` ${job.contract_url}` : ''}`),
           '늦거나 못 오게 되면 앱에서 바로 알려 주세요.',
         ]
           .filter(Boolean)
@@ -75,13 +76,13 @@ export async function sendForgotClockOutReminders(now = new Date()): Promise<num
   const today = kstDate(now)
   const since = kstDate(new Date(now.getTime() - 14 * 86_400_000))
   type Row = Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'company_id' | 'work_date' | 'clock_out' | 'sched_start' | 'sched_end'> & {
-    job: Pick<Job, 'title' | 'start_time' | 'end_time'> | null
+    job: Pick<Job, 'title' | 'start_time' | 'end_time' | 'audience'> | null
   }
   const open = (
     must(
       await db()
         .from('attendance')
-        .select('id, user_id, job_id, company_id, work_date, clock_out, sched_start, sched_end, job:jobs(title, start_time, end_time)')
+        .select('id, user_id, job_id, company_id, work_date, clock_out, sched_start, sched_end, job:jobs(title, start_time, end_time, audience)')
         .is('clock_out', null)
         .lt('work_date', today)
         .gte('work_date', since)
@@ -110,7 +111,7 @@ export async function sendForgotClockOutReminders(now = new Date()): Promise<num
       companyId: a.company_id,
       jobId: a.job_id,
       title: '⏰ 근무 종료 확인',
-      text: `${a.job!.title} · ${fmtDate(a.work_date)} 근무 종료를 누르지 않았어요. 앱 ‘내 근무’에서 끝난 시각을 알려 주세요.`,
+      text: `${a.job!.title} · ${fmtDate(a.work_date)} 근무 종료를 누르지 않았어요. 앱 ‘${myWorkTab(a.job!.audience)}’에서 끝난 시각을 알려 주세요.`,
       url: '/me',
       tag: `forgot-${a.id}`,
     })
