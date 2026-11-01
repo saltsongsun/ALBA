@@ -22,6 +22,7 @@ import type { Application, Job } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import JobViewBeacon from '@/components/JobViewBeacon'
 import ApplySteps from '@/components/ApplySteps'
+import ApplyDays from '@/components/ApplyDays'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -364,20 +365,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           canApply && (
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
               {dates.length > 1 && (
-                <div>
-                  <input type="hidden" name="date_choice" value="1" />
-                  <p className="label">근무 가능한 날짜</p>
-                  <div className="flex flex-wrap gap-2">
-                    {dates.map((d) => (
-                      <label key={d} className="cursor-pointer">
-                        <input type="checkbox" name="dates" value={d} defaultChecked className="peer sr-only" />
-                        <span className="inline-block rounded-xl border border-line px-3 py-2 text-sm font-semibold text-mute transition duration-150 select-none active:scale-95 peer-checked:border-brand-500 peer-checked:bg-brand-50 peer-checked:text-brand-700">
-                          {fmtDate(d)}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
+                <ApplyDays
+                  days={dates.map((d) => ({ value: d, label: fmtDate(d), past: d < kstDate() }))}
+                  perDay={shows(job, 'estimate') ? est.gross : null}
+                />
               )}
               <div>
                 <label className="label" htmlFor="message">
