@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Flash from '@/components/Flash'
-import { countApps, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
+import { countApps, JOB_WITH_APP_STATUS, unpaidByJob, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
@@ -35,8 +35,10 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
     ? all.filter((j) => [j.title, j.event_name, j.location_name].some((v) => v?.toLowerCase().includes(term.toLowerCase())))
     : all
   const counts = countApps(jobs, 'approved')
-  const views = await viewStats(jobs.map((j) => j.id))
+  // 지난 공고: 근무는 끝났는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (급여 지급을 빠뜨리지 않게)
+  const [views, unpaid] = await Promise.all([viewStats(jobs.map((j) => j.id)), tab === 'past' ? unpaidByJob(admin.companyId, today) : {}])
   const waitingBy = countApps(jobs, 'applied')
+  const unpaidOf = (id: string) => (unpaid as Record<string, { n: number }>)[id]?.n ?? 0
 
   return (
     <div className="space-y-4">
@@ -88,6 +90,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                   <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                     <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
                     {waitingBy[j.id] > 0 && <span className="badge bg-amber-50 text-amber-700">대기 {waitingBy[j.id]}명</span>}
+                    {unpaidOf(j.id) > 0 && <span className="badge bg-rose-50 text-rose-600">💰 미지급 {unpaidOf(j.id)}명</span>}
                     {j.event_name && <span className="text-xs font-semibold text-mute">{j.event_name}</span>}
                   </div>
                   <p className="font-bold">
@@ -149,6 +152,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     </td>
                     <td>
                       <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
+                      {unpaidOf(j.id) > 0 && <span className="badge ml-1 bg-rose-50 text-rose-600">💰 미지급 {unpaidOf(j.id)}명</span>}
                     </td>
                   </tr>
                 ))}

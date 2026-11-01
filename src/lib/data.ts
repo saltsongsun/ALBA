@@ -163,3 +163,25 @@ export const unreadForAdmins = cache(async (companyId: string): Promise<number> 
     .is('read_at', null)
   return count ?? 0
 })
+
+/**
+ * 끝난 행사에서 근무를 마쳤는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (공고별, 이 회사만).
+ * 급여 지급을 빠뜨리지 않게 대시보드 '확인할 일'·지난 공고 목록에 표시
+ */
+export async function unpaidByJob(companyId: string, today: string): Promise<Record<string, { title: string; n: number }>> {
+  const rows = (
+    must(
+      await db().from('attendance').select('job_id, user_id, clock_out, paid').eq('company_id', companyId).eq('paid', false).limit(3000),
+    ) as { job_id: string; user_id: string; clock_out: string | null; paid: boolean }[]
+  ).filter((r) => !r.paid && r.clock_out)
+  const ids = [...new Set(rows.map((r) => r.job_id))]
+  if (!ids.length) return {}
+  const jobs = must(await db().from('jobs').select('id, title, end_date, status').eq('company_id', companyId).in('id', ids)) as Pick<
+    Job,
+    'id' | 'title' | 'end_date' | 'status'
+  >[]
+  const ended = new Map(jobs.filter((j) => j.end_date < today && j.status !== 'cancelled').map((j) => [j.id, j.title]))
+  const users: Record<string, Set<string>> = {}
+  for (const r of rows) if (ended.has(r.job_id)) (users[r.job_id] ??= new Set()).add(r.user_id)
+  return Object.fromEntries(Object.entries(users).map(([id, s]) => [id, { title: ended.get(id)!, n: s.size }]))
+}

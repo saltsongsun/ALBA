@@ -8,7 +8,7 @@ import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
@@ -134,7 +134,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const outsideJobs = activeJobs.filter((j) => j.contract_method !== 'app' && j.start_date <= soon)
   // 내일 근무하는데 앱 서류(근로계약서 등)에 아직 서명 안 한 확정자 (현장에서 출근이 막히지 않게 하루 전에)
   const tomorrowJobs = activeJobs.filter((j) => j.start_date <= tomorrow && j.end_date >= tomorrow && j.contract_method !== 'paper' && j.contract_method !== 'external')
-  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs] = await Promise.all([
+  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid] = await Promise.all([
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
@@ -220,6 +220,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             ),
           )
       : [],
+    // 끝난 행사인데 아직 '지급 완료'로 처리하지 않은 근무자 (급여 지급을 빠뜨리지 않게)
+    unpaidByJob(admin.companyId, today),
   ])
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
     .map((g) => pendingFix(g, today))
@@ -320,6 +322,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=docs`,
       tone: 'text-rose-600',
+    })),
+    ...Object.entries(unpaid).map(([id, u]) => ({
+      key: `unpaid-${id}`,
+      icon: '💰',
+      text: `급여 지급 전 · ${u.title}`,
+      n: u.n,
+      href: `/admin/jobs/${id}?tab=pay`,
+      tone: 'text-amber-700',
     })),
     ...vendorTodos,
   ]
