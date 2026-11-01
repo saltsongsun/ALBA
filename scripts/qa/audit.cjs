@@ -21,6 +21,7 @@ const pages = [
   ['admin', 'a-chat', '/admin/chat'], ['admin', 'a-chat-thread', `/admin/chat/${W}`],
   ['admin', 'a-workers', '/admin/workers'], ['admin', 'a-worker', `/admin/workers/${W}`], ['admin', 'a-docs', '/admin/docs'],
   ['admin', 'a-doc', '/admin/docs/ffffffff-0000-4000-8000-000000000007'], ['admin', 'a-reports', '/admin/reports'], ['admin', 'a-settings', '/admin/settings'],
+  ['admin', 'a-vendors', '/admin/vendors'], ['admin', 'a-vendors-pay', '/admin/vendors?tab=pay'], ['admin', 'a-vendors-list', '/admin/vendors?tab=list'],
 ]
 ;(async () => {
   const browser = await chromium.launch()

@@ -5,12 +5,27 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { maskAccount, won } from '@/lib/format'
 import { calcDay, settle, TAX_LABEL } from '@/lib/pay'
-import { minutesText } from '@/lib/time'
-import type { Attendance, Job } from '@/lib/types'
+import { kstDate, minutesText } from '@/lib/time'
+import type { Attendance, Job, VendorPayment } from '@/lib/types'
+import { db } from '@/lib/db'
+import { payState } from '@/lib/vendors'
 import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
 
-export default function PayTab({ job, atts, users, origin }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string }) {
+export default async function PayTab({ job, atts, users, origin }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string }) {
+  // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
+  const vpays = await db()
+    .from('vendor_payments')
+    .select('*')
+    .eq('job_id', job.id)
+    .then((r) => (r.error ? [] : (r.data as VendorPayment[]).filter((p) => p.job_id === job.id)))
+  const vnames = vpays.length
+    ? await db()
+        .from('vendors')
+        .select('id, name')
+        .in('id', [...new Set(vpays.map((p) => p.vendor_id))])
+        .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((v) => [v.id, v.name])))
+    : new Map<string, string>()
   const userIds = [...new Set(atts.map((a) => a.user_id))]
   const rows = userIds
     .map((uid) => {
@@ -184,6 +199,67 @@ export default function PayTab({ job, atts, users, origin }: { job: Job; atts: A
           </table>
         </div>
       )}
+      {/* 행사 비용 합계: 알바 인건비(세전 지급총액) + 외주 대금 */}
+      {(() => {
+        const labor = sum('gross')
+        const vendorSum = vpays.reduce((t, p) => t + p.amount, 0)
+        const vendorUnpaid = vpays.filter((p) => !p.paid_at).reduce((t, p) => t + p.amount, 0)
+        const today = kstDate()
+        return (
+          <section className="card space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="font-bold">🧾 행사 비용 합계</h3>
+              <div className="flex flex-wrap gap-1.5">
+                <Link href={`/admin/vendors?tab=quotes&job=${job.id}`} className="chip h-8 px-3 text-xs">
+                  외주 견적 요청
+                </Link>
+                <Link href={`/admin/vendors?tab=pay&job=${job.id}`} className="chip h-8 px-3 text-xs">
+                  외주 대금 등록
+                </Link>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              {(
+                [
+                  ['알바 인건비', labor, 'text-ink'],
+                  ['외주 비용', vendorSum, 'text-ink'],
+                  ['합계', labor + vendorSum, 'text-brand-700'],
+                ] as const
+              ).map(([k, v, tone]) => (
+                <div key={k} className="rounded-xl bg-bg px-2 py-2.5">
+                  <p className="text-xs text-mute">{k}</p>
+                  <p className={`font-extrabold tabular-nums ${tone}`}>{won(v)}</p>
+                </div>
+              ))}
+            </div>
+            {vpays.length > 0 && (
+              <ul className="divide-y divide-line text-sm">
+                {vpays.map((p) => {
+                  const st = payState(p, today)
+                  return (
+                    <li key={p.id} className="flex items-center justify-between gap-2 py-2">
+                      <span className="min-w-0 truncate">
+                        <Link href={`/admin/vendors/${p.vendor_id}`} className="font-semibold">
+                          {vnames.get(p.vendor_id) ?? '외주사'}
+                        </Link>{' '}
+                        <span className="text-sub">{p.title}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        <b className="tabular-nums">{won(p.amount)}</b>
+                        <span className={`badge ${st.cls}`}>{st.label}</span>
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <p className="text-xs text-mute">
+              인건비는 세전 지급총액, 외주 비용은 등록한 대금(부가세 포함·별도는 건마다 다름) 기준이에요.
+              {vendorUnpaid > 0 && <b className="text-amber-700"> 외주 미지급 {won(vendorUnpaid)}.</b>}
+            </p>
+          </section>
+        )
+      })()}
       <p className="text-xs text-mute">
         소득세는 근무자별로 이 공고의 근무일을 한 번에 지급한다고 보고 계산합니다 (1천원 미만 소액부징수). 원천징수한 세금은 다음 달 10일까지 신고·납부하고,
         월별 신고자료는 정산·신고자료 메뉴에서 내려받으세요.

@@ -9,6 +9,7 @@ const ITEMS = [
   { href: '/admin/workers', label: '근무자' },
   { href: '/admin/chat', label: '문의' },
   { href: '/admin/reports', label: '정산 · 신고자료' },
+  { href: '/admin/vendors', label: '외주' },
   { href: '/admin/docs', label: '서류 서식' },
   { href: '/admin/settings', label: '회사 설정' },
 ]

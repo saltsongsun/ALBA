@@ -222,7 +222,42 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
     .map((g) => pendingFix(g, today))
     .filter((m) => m !== null)
-  type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string }
+  type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string; unit?: string }
+  // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
+  const [vpays, vreqs, vquotes] = await Promise.all([
+    db()
+      .from('vendor_payments')
+      .select('id, due_date, paid_at, invoice_at')
+      .then((r) => (r.error ? [] : (r.data as { id: string; due_date: string | null; paid_at: string | null; invoice_at: string | null }[]))),
+    db()
+      .from('quote_requests')
+      .select('id, title, due_date, status')
+      .eq('status', 'open')
+      .then((r) => (r.error ? [] : (r.data as { id: string; title: string; due_date: string | null; status: string }[]).filter((q) => q.status === 'open'))),
+    db()
+      .from('quotes')
+      .select('request_id, amount')
+      .then((r) => (r.error ? [] : (r.data as { request_id: string; amount: number | null }[]))),
+  ])
+  const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
+  const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
+  const paySoon = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date >= today && p.due_date <= in3)
+  const paidNoInvoice = vpays.filter((p) => p.paid_at && !p.invoice_at)
+  const quoteDue = vreqs.filter((r) => r.due_date && r.due_date <= today && vquotes.some((q) => q.request_id === r.id && q.amount != null))
+  const vendorTodos: Todo[] = ([
+    payOverdue.length > 0 && { key: 'vpay-overdue', icon: '💸', text: '외주 대금 지급일 지남', n: payOverdue.length, href: '/admin/vendors?tab=pay', tone: 'text-rose-600', unit: '건' },
+    paySoon.length > 0 && { key: 'vpay-soon', icon: '💸', text: '외주 대금 3일 안 지급', n: paySoon.length, href: '/admin/vendors?tab=pay', tone: 'text-amber-700', unit: '건' },
+    paidNoInvoice.length > 0 && { key: 'vpay-invoice', icon: '🧾', text: '지급했는데 세금계산서 안 받음', n: paidNoInvoice.length, href: '/admin/vendors?tab=pay&show=paid', tone: 'text-amber-700', unit: '건' },
+    quoteDue.length > 0 && {
+      key: 'quote-due',
+      icon: '📄',
+      text: quoteDue.length === 1 ? `견적 마감 · 비교하고 선정 · ${quoteDue[0].title}` : '견적 마감 · 비교하고 선정',
+      n: quoteDue.length,
+      href: quoteDue.length === 1 ? `/admin/vendors/requests/${quoteDue[0].id}` : '/admin/vendors?tab=quotes',
+      tone: 'text-brand-700',
+      unit: '건',
+    },
+  ] as (Todo | false)[]).filter((t): t is Todo => !!t)
   const group = group0
   const todos: Todo[] = [
     ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
@@ -284,6 +319,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       href: `/admin/jobs/${g[0].job_id}?tab=docs`,
       tone: 'text-rose-600',
     })),
+    ...vendorTodos,
   ]
   const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
   // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
@@ -322,7 +358,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     {t.icon}
                   </span>
                   <span className="min-w-0 flex-1 truncate">{t.text}</span>
-                  <b className={`shrink-0 ${t.tone}`}>{t.n}명</b>
+                  <b className={`shrink-0 ${t.tone}`}>
+                    {t.n}
+                    {t.unit ?? '명'}
+                  </b>
                   <span aria-hidden className="shrink-0 text-mute">
                     ›
                   </span>

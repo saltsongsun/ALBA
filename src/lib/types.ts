@@ -231,3 +231,63 @@ export type WorkerRating = {
   created_at: string
   updated_at: string
 }
+
+/** 외주사 (우리가 일을 맡기는 협력업체) */
+export type Vendor = {
+  id: string
+  name: string
+  category: string | null
+  contact_name: string | null
+  phone: string | null
+  email: string | null
+  business_no: string | null
+  bank_name: string | null
+  bank_account_enc: string | null
+  account_holder: string | null
+  memo: string | null
+  active: boolean
+  created_at: string
+}
+
+/** 견적 요청 (여러 업체에 같은 내용을 요청) */
+export type QuoteRequest = {
+  id: string
+  job_id: string | null
+  title: string
+  details: string | null
+  due_date: string | null
+  status: 'open' | 'closed' | 'cancelled'
+  created_by: string | null
+  created_at: string
+}
+
+/** 업체별 견적 (업체가 링크로 내거나 관리자가 기록) */
+export type Quote = {
+  id: string
+  request_id: string
+  vendor_id: string
+  token: string
+  amount: number | null
+  vat_included: boolean
+  note: string | null
+  status: 'requested' | 'submitted' | 'selected' | 'rejected'
+  submitted_at: string | null
+  submitted_by: 'vendor' | 'admin' | null
+  created_at: string
+}
+
+/** 외주 대금 지급 */
+export type VendorPayment = {
+  id: string
+  vendor_id: string
+  job_id: string | null
+  quote_id: string | null
+  title: string
+  amount: number
+  vat_included: boolean
+  due_date: string | null
+  invoice_at: string | null
+  paid_at: string | null
+  memo: string | null
+  created_at: string
+}
