@@ -231,7 +231,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
   // 대표 관리자: 승인을 기다리는 관리자 가입 신청
   const isOwner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
-  const [vpays, vreqs, vquotes, joinWait] = await Promise.all([
+  const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await Promise.all([
     db()
       .from('vendor_payments')
       .select('id, due_date, paid_at, invoice_at').eq('company_id', admin.companyId)
@@ -252,6 +252,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           .eq('company_id', admin.companyId)
           .then((r) => (r.error ? 0 : (r.count ?? 0)))
       : 0,
+    // 새 회사 시작하기 체크리스트: 공고를 올린 적·지원을 받은 적·관리자가 더 있는지
+    db().from('jobs').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
+    db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
+    db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
   ])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
@@ -354,6 +358,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     !sealSet && '직인 이미지',
     !settings.contact_phone && '문의 연락처',
   ].filter(Boolean)
+  // 새 회사가 처음 할 일 (필수 3가지를 마치면 사라짐, 관리자 초대는 대표 관리자에게만 · 선택)
+  const startSteps = [
+    { key: 'info', done: setupTodo.length === 0, title: '회사 정보 채우기', desc: '직인·주소 등 계약서에 들어가요', href: '/admin/settings', optional: false },
+    { key: 'job', done: jobsEver > 0, title: '첫 공고 올리기', desc: '시간·시급·장소만 넣으면 돼요', href: '/admin/jobs/new', optional: false },
+    { key: 'share', done: appsEver > 0, title: '근무자 모으기', desc: '공고 모음 링크를 단톡방에', href: '/admin/jobs', optional: false },
+    ...(isOwner ? [{ key: 'team', done: memberCount > 1, title: '함께 일할 관리자 초대', desc: '초대 코드로 직원 초대 (선택)', href: '/admin/settings#admins', optional: true }] : []),
+  ]
+  const showStart = startSteps.some((st) => !st.optional && !st.done)
+  const startDone = startSteps.filter((st) => st.done).length
 
   return (
     <div className="space-y-6">
@@ -441,7 +454,44 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           })}
         </section>
       )}
-      {setupTodo.length > 0 && (
+      {/* 새 회사: 무엇부터 하면 되는지 (다 하면 사라짐) */}
+      {showStart && (
+        <section className="card space-y-3 p-4" data-start-steps>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold">🚀 해피워크 시작하기</h2>
+            <span className="shrink-0 text-sm font-bold text-brand-600">
+              {startDone}/{startSteps.length}
+            </span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-bg">
+            <div className="h-full origin-left animate-grow rounded-full bg-brand-500" style={{ width: `${Math.round((startDone / startSteps.length) * 100)}%` }} />
+          </div>
+          <ol className="divide-y divide-line">
+            {startSteps.map((st, i) => (
+              <li key={st.key}>
+                <Link href={st.href} className="flex items-center gap-3 py-2.5 transition active:scale-[0.99]" data-done={st.done ? '1' : undefined}>
+                  <span
+                    aria-hidden
+                    className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${st.done ? 'bg-emerald-500 text-white' : 'bg-brand-50 text-brand-700'}`}
+                  >
+                    {st.done ? '✓' : i + 1}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className={`block truncate text-sm font-bold ${st.done ? 'text-mute line-through' : ''}`}>{st.title}</span>
+                    <span className="block truncate text-xs text-sub">{st.done ? '완료' : st.desc}</span>
+                  </span>
+                  {!st.done && (
+                    <span aria-hidden className="shrink-0 text-mute">
+                      ›
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      {!showStart && setupTodo.length > 0 && (
         <Link href="/admin/settings" className="block rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800">
           <b>회사 설정을 마무리해 주세요:</b> {setupTodo.join(', ')} — 근로계약서·임금명세서에 들어갑니다. →
         </Link>
