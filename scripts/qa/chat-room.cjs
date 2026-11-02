@@ -1,7 +1,7 @@
 // 같은 근무 단체방 + 이모티콘 + 대화 내려받기
 // · 확정자와 담당자만 (지원만 한 사람·다른 회사 관리자는 못 들어감) · 근무자끼리는 이름만 (번호 없음)
 // · 글·이모티콘 보내기 · 안 읽은 수 · 공지 고정(관리자)·내리기 · 행사 끝나고 7일 뒤엔 읽기만
-// · 1:1 문의에도 이모티콘 (병아리 그림 5개, 예전 이모티콘은 글자로) · 모든 대화 내려받기 (권한 확인) · 공고 화면에서 단체방으로 · 360px
+// · 1:1 문의에도 이모티콘 (병아리 그림, 예전 이모티콘은 글자로) · 모든 대화 내려받기 (권한 확인) · 공고 화면에서 단체방으로 · 360px
 // node scripts/qa/chat-room.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const path = require('node:path')
@@ -88,10 +88,15 @@ const download = (p, url) =>
   await wk.getByRole('button', { name: '보내기' }).click()
   ok('글 보내기', await see(wk, '안녕하세요 오늘 잘 부탁드려요'))
   await wk.getByRole('button', { name: '이모티콘', exact: true }).click()
-  ok('이모티콘 고르기 창 (5개)', (await wk.locator('[role=dialog][aria-label=이모티콘] button').count()) === 5)
   const pick = wk.locator('[role=dialog][aria-label=이모티콘] img')
-  await pick.last().evaluate((i) => i.complete || new Promise((r) => (i.onload = i.onerror = r))).catch(() => {})
-  ok('고르기 창: 병아리 그림이 실제로 뜸', (await pick.evaluateAll((l) => l.filter((i) => i.naturalWidth > 0).length)) === 5)
+  const nPick = await pick.count()
+  ok('이모티콘 고르기 창 (10개 이상)', nPick >= 10 && (await wk.locator('[role=dialog][aria-label=이모티콘] button').count()) === nPick, String(nPick))
+  await pick.first().evaluate((i) => i.complete || new Promise((r) => (i.onload = i.onerror = r))).catch(() => {})
+  ok('고르기 창: 첫 그림이 실제로 뜸', await pick.first().evaluate((i) => i.naturalWidth > 0))
+  // (아래쪽 그림은 스크롤해야 불러오므로, 파일이 모두 있는지 주소로 확인)
+  const srcs = await pick.evaluateAll((l) => l.map((i) => i.getAttribute('src')))
+  const got = await Promise.all(srcs.map((s) => wk.request.get(`${D}${s}`).then((r) => r.status() === 200 && r.headers()['content-type'] === 'image/webp', () => false)))
+  ok('고르기 창: 그림 파일 모두 있음', got.every(Boolean), srcs.filter((s, i) => !got[i]).join(' '))
   ok('입력칸 옆 이모티콘 버튼 그림', await wk.locator('button[aria-label="이모티콘"] img').evaluate((i) => i.complete && i.naturalWidth > 0))
   await wk.getByRole('button', { name: '확인했어요' }).click()
   await wk.locator('main ol img[alt="이모티콘: 확인했어요"]').first().waitFor({ timeout: 8000 }).catch(() => {})

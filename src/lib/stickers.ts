@@ -6,8 +6,13 @@ export const STICKERS = [
   { id: 'hi', label: '안녕하세요' },
   { id: 'ok', label: '확인했어요' },
   { id: 'thanks', label: '감사합니다' },
+  { id: 'goodjob', label: '수고하셨어요' },
   { id: 'wait', label: '잠시만요' },
   { id: 'sorry', label: '죄송해요' },
+  { id: 'schedule', label: '스케줄 확인해주세요' },
+  { id: 'retime', label: '시간 변경했어요' },
+  { id: 'brief', label: '업무 전달드려요' },
+  { id: 'complete', label: '처리 완료!' },
 ] as const
 
 /** 예전 이모티콘 (이미 보낸 대화에 남아 있음): 그림 없이 글자로 보여 줌. 새로 보낼 수는 없음 */
@@ -15,7 +20,6 @@ const OLD: Record<string, string> = {
   arrived: '도착했어요',
   late: '조금 늦어요',
   fighting: '화이팅!',
-  goodjob: '수고하셨어요',
   break: '쉬는 중',
   done: '퇴근!',
   question: '질문 있어요',
