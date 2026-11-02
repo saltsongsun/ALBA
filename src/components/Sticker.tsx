@@ -1,243 +1,270 @@
 import { STICKERS, type StickerId } from '@/lib/stickers'
 
-// 해피워크 캐릭터 '해피': 파란 몸, 노란 스태프 모자, 목에 STAFF 이름표
-const BLUE = '#3B7BFF'
-const ARM = '#2F6BF0'
-const DEEP = '#1D4ED8'
-const YEL = '#FFD43B'
-const YEL2 = '#F2B705'
-const CHEEK = '#FF8FAB'
+// 해피워크 이모티콘 캐릭터: 파란 STAFF 조끼를 입은 노란 병아리 '삐약이'
+const OL = '#3B2F2F' // 테두리
+const YEL = '#FFD84D'
+const BEAK = '#FF9F43'
+const BLUE = '#2F6BF0'
 const PINK = '#FF5C8A'
-const INK = '#13256B'
+const line = { stroke: OL, strokeWidth: 3.6, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const }
 
-type Arms = 'down' | 'wave' | 'thumb' | 'fist' | 'raise' | 'hold' | 'both'
-type Eyes = 'dot' | 'happy' | 'heart' | 'worried' | 'wink' | 'shut' | 'brave'
-type Mouth = 'smile' | 'open' | 'small' | 'wobbly'
+type Wing = 'down' | 'wave' | 'up' | 'hold' | 'fist' | 'front'
+type Eyes = 'dot' | 'happy' | 'brave' | 'worried' | 'shut' | 'heart' | 'wink' | 'relax'
+type Beak = 'closed' | 'open' | 'small'
 
 const heart = (x: number, y: number, s: number) =>
   `M${x} ${y + s * 0.9} C${x - s * 1.6} ${y - s * 0.2} ${x - s * 0.6} ${y - s * 1.4} ${x} ${y - s * 0.4} C${x + s * 0.6} ${y - s * 1.4} ${x + s * 1.6} ${y - s * 0.2} ${x} ${y + s * 0.9}Z`
 const sparkle = (x: number, y: number, s: number) =>
-  `M${x} ${y - s}L${x + s * 0.28} ${y - s * 0.28}L${x + s} ${y}L${x + s * 0.28} ${y + s * 0.28}L${x} ${y + s}L${x - s * 0.28} ${y + s * 0.28}L${x - s} ${y}L${x - s * 0.28} ${y - s * 0.28}Z`
+  `M${x} ${y - s}Q${x} ${y} ${x + s} ${y}Q${x} ${y} ${x} ${y + s}Q${x} ${y} ${x - s} ${y}Q${x} ${y} ${x} ${y - s}Z`
 
-function ArmsPart({ arms }: { arms: Arms }) {
-  const line = { stroke: ARM, strokeWidth: 10, strokeLinecap: 'round' as const, fill: 'none' }
-  const left = arms === 'hold' ? 'M46 96 Q54 110 68 108' : arms === 'both' ? 'M46 92 Q32 80 30 64' : 'M46 96 Q36 104 38 113'
-  const right =
-    arms === 'wave' ? 'M114 92 Q128 80 130 64' :
-    arms === 'thumb' ? 'M114 96 Q126 94 128 82' :
-    arms === 'fist' ? 'M114 90 Q123 74 124 58' :
-    arms === 'raise' ? 'M112 88 L120 54' :
-    arms === 'hold' ? 'M114 96 Q106 110 92 108' :
-    arms === 'both' ? 'M114 92 Q128 80 130 64' :
-    'M114 96 Q124 104 122 113'
-  return (
-    <g>
-      <path d={left} {...line} />
-      <path d={right} {...line} />
-      {arms === 'both' && <circle cx={29} cy={60} r={7} fill={BLUE} />}
-      {(arms === 'wave' || arms === 'both') && <circle cx={131} cy={60} r={7} fill={BLUE} />}
-      {arms === 'raise' && <circle cx={121} cy={50} r={7} fill={BLUE} />}
-      {arms === 'fist' && <circle cx={124} cy={54} r={8.5} fill={BLUE} stroke={DEEP} strokeWidth={2} />}
-      {arms === 'thumb' && (
-        <g>
-          <circle cx={128} cy={79} r={7.5} fill={BLUE} stroke={DEEP} strokeWidth={2} />
-          <path d="M128 72 L128 62" stroke={BLUE} strokeWidth={6.5} strokeLinecap="round" />
-        </g>
-      )}
-    </g>
-  )
+/** 날개 하나 (side: -1 왼쪽, 1 오른쪽) */
+function WingPart({ side, pose }: { side: -1 | 1; pose: Wing }) {
+  const x = 80 + side * 44
+  if (pose === 'wave' || pose === 'up' || pose === 'fist')
+    return (
+      <g>
+        <ellipse cx={x + side * 6} cy={74} rx={9} ry={18} transform={`rotate(${side * 35} ${x + side * 6} 74)`} fill={YEL} {...line} />
+        {pose === 'fist' && <circle cx={x + side * 14} cy={58} r={8} fill={YEL} {...line} />}
+        {pose === 'wave' && <path d={`M${x + side * 20} 52 l${side * 6} -6 M${x + side * 24} 66 l${side * 9} -1`} {...line} fill="none" />}
+      </g>
+    )
+  if (pose === 'hold' || pose === 'front')
+    return <ellipse cx={80 + side * 22} cy={120} rx={9} ry={15} transform={`rotate(${side * -60} ${80 + side * 22} 120)`} fill={YEL} {...line} />
+  return <ellipse cx={x} cy={114} rx={9} ry={16} transform={`rotate(${side * -20} ${x} 114)`} fill={YEL} {...line} />
 }
 
 function EyesPart({ eyes }: { eyes: Eyes }) {
-  const arc = { stroke: 'white', strokeWidth: 3.6, strokeLinecap: 'round' as const, fill: 'none' }
-  if (eyes === 'happy') return <g><path d="M62 78 q6 -8 12 0" {...arc} /><path d="M86 78 q6 -8 12 0" {...arc} /></g>
-  if (eyes === 'shut') return <g><path d="M62 77 h12" {...arc} /><path d="M86 77 h12" {...arc} /></g>
-  if (eyes === 'heart') return <g><path d={heart(68, 76, 6)} fill={PINK} /><path d={heart(92, 76, 6)} fill={PINK} /></g>
-  if (eyes === 'wink') return <g><path d="M62 78 q6 -8 12 0" {...arc} /><circle cx={92} cy={76} r={4.6} fill="white" /></g>
-  const dots = <g><circle cx={68} cy={76} r={4.6} fill="white" /><circle cx={92} cy={76} r={4.6} fill="white" /></g>
-  if (eyes === 'worried') return <g>{dots}<path d="M62 66 l10 3.5" {...arc} strokeWidth={3} /><path d="M98 66 l-10 3.5" {...arc} strokeWidth={3} /></g>
-  if (eyes === 'brave') return <g>{dots}<path d="M62 67 l10 5" {...arc} strokeWidth={3} /><path d="M98 67 l-10 5" {...arc} strokeWidth={3} /></g>
-  return dots
+  const lx = 65
+  const rx = 95
+  const y = 88
+  const arc = (cx: number, up = true) => <path d={`M${cx - 6} ${y + 2} q6 ${up ? -8 : 8} 12 0`} fill="none" {...line} />
+  const dot = (cx: number) => (
+    <g>
+      <ellipse cx={cx} cy={y} rx={5} ry={6.2} fill={OL} />
+      <circle cx={cx + 1.8} cy={y - 2.4} r={2} fill="white" />
+    </g>
+  )
+  if (eyes === 'happy') return <g>{arc(lx)}{arc(rx)}</g>
+  if (eyes === 'relax') return <g>{arc(lx, false)}{arc(rx, false)}</g>
+  if (eyes === 'shut') return <g><path d={`M${lx - 6} ${y} h12 M${rx - 6} ${y} h12`} {...line} /></g>
+  if (eyes === 'wink') return <g>{arc(lx)}{dot(rx)}</g>
+  if (eyes === 'heart') return <g><path d={heart(lx, y, 6.5)} fill={PINK} {...line} strokeWidth={2.4} /><path d={heart(rx, y, 6.5)} fill={PINK} {...line} strokeWidth={2.4} /></g>
+  if (eyes === 'brave')
+    return <g>{dot(lx)}{dot(rx)}<path d={`M${lx - 8} ${y - 12} l12 4 M${rx + 8} ${y - 12} l-12 4`} {...line} /></g>
+  if (eyes === 'worried')
+    return <g>{dot(lx)}{dot(rx)}<path d={`M${lx - 7} ${y - 9} l11 -4 M${rx + 7} ${y - 9} l-11 -4`} {...line} strokeWidth={3} /></g>
+  return <g>{dot(lx)}{dot(rx)}</g>
 }
 
-function MouthPart({ mouth }: { mouth: Mouth }) {
-  const stroke = { stroke: 'white', strokeLinecap: 'round' as const, fill: 'none' }
-  if (mouth === 'open')
+function BeakPart({ beak }: { beak: Beak }) {
+  if (beak === 'open')
     return (
       <g>
-        <path d="M69 86 q11 15 22 0 z" fill={INK} />
-        <ellipse cx={80} cy={93} rx={5} ry={2.6} fill={CHEEK} />
+        <path d="M71 101 q9 13 18 0 z" fill="#E8556B" {...line} strokeWidth={3} />
+        <path d="M71 101 q9 -9 18 0 q-9 4 -18 0z" fill={BEAK} {...line} strokeWidth={3} />
       </g>
     )
-  if (mouth === 'small') return <path d="M75 89 q5 5 10 0" {...stroke} strokeWidth={3.4} />
-  if (mouth === 'wobbly') return <path d="M70 91 q4 -4 7 0 q3.5 4 6.5 0 q3.5 -4 7 0" {...stroke} strokeWidth={3} />
-  return <path d="M68 87 q12 11 24 0" {...stroke} strokeWidth={4} />
+  if (beak === 'small') return <path d="M75 101 q5 -4 10 0 q-5 4 -10 0z" fill={BEAK} {...line} strokeWidth={3} />
+  return <path d="M73 100 q7 -7 14 0 q-7 7 -14 0z" fill={BEAK} {...line} strokeWidth={3} />
 }
 
-const POSE: Record<StickerId, { arms: Arms; eyes: Eyes; mouth: Mouth; tilt?: number; extra?: React.ReactNode }> = {
-  hi: { arms: 'wave', eyes: 'dot', mouth: 'open', extra: <g stroke={DEEP} strokeWidth={2.6} strokeLinecap="round"><path d="M141 52 l6 -5" /><path d="M143 63 l8 0" /></g> },
+const POSE: Record<StickerId, { l: Wing; r: Wing; eyes: Eyes; beak: Beak; tilt?: number; extra?: React.ReactNode }> = {
+  hi: { l: 'down', r: 'wave', eyes: 'dot', beak: 'open' },
   arrived: {
-    arms: 'raise',
+    l: 'down',
+    r: 'up',
     eyes: 'happy',
-    mouth: 'open',
+    beak: 'open',
     extra: (
       <g>
-        <path d="M30 14 c-8 0 -13 6 -13 13 c0 9 13 21 13 21 s13 -12 13 -21 c0 -7 -5 -13 -13 -13z" fill="#FF5C5C" />
-        <circle cx={30} cy={27} r={5} fill="white" />
+        <path d="M30 18 c-9 0 -14 7 -14 14 c0 10 14 22 14 22 s14 -12 14 -22 c0 -7 -5 -14 -14 -14z" fill="#FF5C5C" {...line} strokeWidth={3} />
+        <circle cx={30} cy={32} r={5} fill="white" {...line} strokeWidth={2.4} />
       </g>
     ),
   },
   late: {
-    arms: 'down',
+    l: 'down',
+    r: 'down',
     eyes: 'worried',
-    mouth: 'wobbly',
+    beak: 'small',
+    tilt: 8,
     extra: (
       <g>
-        <circle cx={132} cy={32} r={14} fill="white" stroke={DEEP} strokeWidth={3} />
-        <path d="M132 24 v8 l6 4" stroke={DEEP} strokeWidth={3} strokeLinecap="round" fill="none" />
-        <path d="M113 52 q6 8 0 12 q-6 -4 0 -12z" fill="#7CC7FF" />
-        <g stroke="#B8C6E6" strokeWidth={3} strokeLinecap="round"><path d="M16 80 h16" /><path d="M12 92 h18" /><path d="M18 104 h12" /></g>
+        <circle cx={134} cy={30} r={15} fill="white" {...line} strokeWidth={3} />
+        <path d="M134 21 v9 l7 5" fill="none" {...line} strokeWidth={3} />
+        <path d="M114 56 q7 9 0 14 q-7 -5 0 -14z" fill="#7CC7FF" {...line} strokeWidth={2.4} />
+        <path d="M8 96 h18 M4 110 h20 M10 124 h14" stroke="#B9C3D6" strokeWidth={4} strokeLinecap="round" />
       </g>
     ),
   },
-  ok: { arms: 'thumb', eyes: 'wink', mouth: 'smile', extra: <path d={sparkle(146, 52, 7)} fill={YEL} /> },
-  fighting: {
-    arms: 'fist',
-    eyes: 'brave',
-    mouth: 'open',
+  ok: {
+    l: 'down',
+    r: 'front',
+    eyes: 'wink',
+    beak: 'closed',
     extra: (
-      <g stroke={YEL2} strokeWidth={3.2} strokeLinecap="round">
-        <path d="M137 44 l7 -6" />
-        <path d="M140 58 l9 0" />
-        <path d="M112 43 l-4 -8" />
+      <g>
+        <circle cx={136} cy={40} r={16} fill="#22C55E" {...line} strokeWidth={3} />
+        <path d="M128 40 l6 6 l11 -12" fill="none" stroke="white" strokeWidth={4.5} strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    ),
+  },
+  fighting: {
+    l: 'down',
+    r: 'fist',
+    eyes: 'brave',
+    beak: 'open',
+    extra: (
+      <g>
+        <path d="M38 64 Q80 50 122 64" fill="none" stroke="#FF5C5C" strokeWidth={8} strokeLinecap="round" />
+        <path d="M38 64 Q80 50 122 64" fill="none" {...line} strokeWidth={2} />
+        <path d="M144 40 l9 -9 M148 58 l12 0 M128 32 l-2 -12" stroke="#F2B705" strokeWidth={4.5} strokeLinecap="round" />
       </g>
     ),
   },
   thanks: {
-    arms: 'hold',
+    l: 'hold',
+    r: 'hold',
     eyes: 'happy',
-    mouth: 'smile',
+    beak: 'closed',
+    tilt: -8,
     extra: (
-      <g fill={PINK}>
-        <path d={heart(132, 34, 8)} />
-        <path d={heart(146, 58, 5)} opacity={0.8} />
-        <path d={heart(24, 52, 5)} opacity={0.7} />
+      <g>
+        <path d={heart(136, 32, 9)} fill={PINK} {...line} strokeWidth={2.6} />
+        <path d={heart(148, 62, 5.5)} fill={PINK} {...line} strokeWidth={2.2} />
+        <path d={heart(22, 52, 6)} fill={PINK} {...line} strokeWidth={2.2} />
       </g>
     ),
   },
   goodjob: {
-    arms: 'wave',
+    l: 'up',
+    r: 'up',
     eyes: 'happy',
-    mouth: 'open',
+    beak: 'open',
     extra: (
-      <g fill={YEL}>
-        <path d={sparkle(26, 40, 9)} />
-        <path d={sparkle(145, 28, 7)} />
-        <path d={sparkle(20, 92, 5)} />
+      <g fill="#FFC21A" {...line} strokeWidth={2.4}>
+        <path d={sparkle(22, 30, 11)} />
+        <path d={sparkle(142, 24, 9)} />
+        <path d={sparkle(148, 92, 6)} />
+        <path d={sparkle(14, 92, 6)} />
       </g>
     ),
   },
   break: {
-    arms: 'hold',
-    eyes: 'happy',
-    mouth: 'smile',
+    l: 'hold',
+    r: 'hold',
+    eyes: 'relax',
+    beak: 'closed',
     extra: (
       <g>
-        <g stroke="#B8C6E6" strokeWidth={2.4} strokeLinecap="round" fill="none">
-          <path d="M100 94 q-3 -5 0 -10 q3 -5 0 -10" />
-          <path d="M108 96 q-3 -5 0 -10" />
-        </g>
-        <path d="M89 102 h4 a5 5 0 0 1 0 10 h-4" stroke={DEEP} strokeWidth={2.6} fill="none" />
-        <rect x={69} y={98} width={21} height={18} rx={4} fill="white" stroke={DEEP} strokeWidth={2.6} />
-        <path d="M73 104 h13" stroke="#C08A5B" strokeWidth={3} strokeLinecap="round" />
+        <path d="M96 110 h5 a6 6 0 0 1 0 12 h-5" fill="none" {...line} strokeWidth={3} />
+        <rect x={66} y={106} width={30} height={24} rx={6} fill="white" {...line} strokeWidth={3} />
+        <path d="M71 113 h20" stroke="#B5763C" strokeWidth={4} strokeLinecap="round" />
+        <path d="M120 44 q-4 -7 0 -14 q4 -7 0 -14 M132 48 q-4 -6 0 -12" fill="none" stroke="#B9C3D6" strokeWidth={3.2} strokeLinecap="round" />
+        <text x={132} y={80} fontSize={18} fontWeight={900} fill={OL} textAnchor="middle">
+          z
+        </text>
       </g>
     ),
   },
   done: {
-    arms: 'wave',
+    l: 'down',
+    r: 'wave',
     eyes: 'happy',
-    mouth: 'open',
+    beak: 'open',
     extra: (
       <g>
-        <path d="M24 98 v-4 a6 6 0 0 1 12 0 v4" stroke="#334155" strokeWidth={3} fill="none" />
-        <rect x={16} y={98} width={28} height={20} rx={5} fill="#334155" />
-        <text x={146} y={40} fontSize={22} fontWeight={800} fill={DEEP} textAnchor="middle">
+        <path d="M18 104 v-6 a8 8 0 0 1 16 0 v6" fill="none" {...line} strokeWidth={3} />
+        <rect x={10} y={102} width={32} height={26} rx={6} fill="#8B5CF6" {...line} strokeWidth={3} />
+        <text x={146} y={34} fontSize={26} fontWeight={900} fill={BLUE} textAnchor="middle">
           ♪
         </text>
       </g>
     ),
   },
   sorry: {
-    arms: 'down',
+    l: 'down',
+    r: 'down',
     eyes: 'shut',
-    mouth: 'small',
-    tilt: -14,
-    extra: <path d="M118 46 q6 8 0 12 q-6 -4 0 -12z" fill="#7CC7FF" />,
+    beak: 'small',
+    tilt: -20,
+    extra: <path d="M126 46 q7 9 0 14 q-7 -5 0 -14z" fill="#7CC7FF" {...line} strokeWidth={2.4} />,
   },
   question: {
-    arms: 'raise',
+    l: 'down',
+    r: 'up',
     eyes: 'dot',
-    mouth: 'small',
+    beak: 'small',
+    tilt: -6,
     extra: (
-      <text x={140} y={46} fontSize={34} fontWeight={900} fill="#FF8A00" textAnchor="middle">
+      <text x={140} y={46} fontSize={40} fontWeight={900} fill="#FF8A00" stroke={OL} strokeWidth={3} paintOrder="stroke" textAnchor="middle">
         ?
       </text>
     ),
   },
   love: {
-    arms: 'both',
+    l: 'up',
+    r: 'up',
     eyes: 'heart',
-    mouth: 'open',
+    beak: 'open',
     extra: (
-      <g fill={PINK}>
-        <path d={heart(80, 12, 6)} />
-        <path d={heart(146, 88, 5)} opacity={0.8} />
-        <path d={heart(14, 88, 5)} opacity={0.8} />
+      <g>
+        <path d={heart(80, 22, 8)} fill={PINK} {...line} strokeWidth={2.6} />
+        <path d={heart(146, 98, 6)} fill={PINK} {...line} strokeWidth={2.2} />
+        <path d={heart(14, 98, 6)} fill={PINK} {...line} strokeWidth={2.2} />
       </g>
     ),
   },
 }
 
-/** 이모티콘 한 개 (대화·고르기 화면) */
+/** 이모티콘 한 개 (대화·고르기 화면). caption=false면 그림만 (작은 아이콘) */
 export default function Sticker({ id, size = 120, caption = true }: { id: StickerId; size?: number; caption?: boolean }) {
   const info = STICKERS.find((s) => s.id === id)
   const pose = POSE[id]
   if (!info || !pose) return null
+  const h = caption ? 186 : 160
   return (
-    <svg viewBox={`0 0 160 ${caption ? 166 : 130}`} width={size} height={(size * (caption ? 166 : 130)) / 160} role="img" aria-label={`이모티콘: ${info.label}`} className="select-none">
-      <g transform={pose.tilt ? `rotate(${pose.tilt} 80 124)` : undefined}>
-        <ArmsPart arms={pose.arms} />
+    <svg viewBox={`0 0 160 ${h}`} width={size} height={(size * h) / 160} role="img" aria-label={`이모티콘: ${info.label}`} className="select-none">
+      <defs>
+        <clipPath id="happy-chick-body">
+          <ellipse cx={80} cy={102} rx={46} ry={50} />
+        </clipPath>
+      </defs>
+      <g transform={pose.tilt ? `rotate(${pose.tilt} 80 150)` : undefined}>
         {/* 발 */}
-        <rect x={58} y={116} width={16} height={10} rx={5} fill={DEEP} />
-        <rect x={86} y={116} width={16} height={10} rx={5} fill={DEEP} />
+        <ellipse cx={66} cy={153} rx={11} ry={5.5} fill={BEAK} {...line} strokeWidth={3} />
+        <ellipse cx={94} cy={153} rx={11} ry={5.5} fill={BEAK} {...line} strokeWidth={3} />
+        {/* 뒤쪽 날개 (위로 든 것) */}
+        {['wave', 'up', 'fist'].includes(pose.l) && <WingPart side={-1} pose={pose.l} />}
+        {['wave', 'up', 'fist'].includes(pose.r) && <WingPart side={1} pose={pose.r} />}
         {/* 몸 */}
-        <rect x={42} y={42} width={76} height={80} rx={32} fill={BLUE} />
-        <ellipse cx={64} cy={58} rx={13} ry={7} fill="white" opacity={0.18} />
-        {/* 볼 */}
-        <circle cx={58} cy={88} r={4.6} fill={CHEEK} opacity={0.75} />
-        <circle cx={102} cy={88} r={4.6} fill={CHEEK} opacity={0.75} />
-        <EyesPart eyes={pose.eyes} />
-        <MouthPart mouth={pose.mouth} />
-        {/* 목걸이 이름표 */}
-        <path d="M64 98 L75 109 M96 98 L85 109" stroke={YEL} strokeWidth={3} strokeLinecap="round" />
-        <rect x={68} y={106} width={24} height={13} rx={3} fill="white" />
-        <text x={80} y={115.4} fontSize={6.6} fontWeight={800} fill={DEEP} textAnchor="middle" letterSpacing={0.3}>
+        <ellipse cx={80} cy={102} rx={46} ry={50} fill={YEL} />
+        {/* STAFF 조끼 (몸 아래쪽) */}
+        <g clipPath="url(#happy-chick-body)">
+          <path d="M20 118 Q80 108 140 118 V160 H20Z" fill={BLUE} />
+          <path d="M20 118 Q80 108 140 118" fill="none" {...line} strokeWidth={3} />
+        </g>
+        <ellipse cx={80} cy={102} rx={46} ry={50} fill="none" {...line} />
+        <rect x={64} y={124} width={32} height={13} rx={3.5} fill="white" {...line} strokeWidth={2.2} />
+        <text x={80} y={134} fontSize={8.6} fontWeight={900} fill={BLUE} textAnchor="middle" fontFamily="Arial, sans-serif">
           STAFF
         </text>
-        {/* 스태프 모자 */}
-        <path d="M43 54 C43 30 60 21 80 21 C100 21 117 30 117 54 Z" fill={YEL} />
-        <rect x={43} y={48} width={74} height={7} rx={3.5} fill={YEL2} />
-        <path d="M80 52 C96 49 113 51 126 58 C113 64 94 63 80 58 Z" fill={YEL2} />
-        <path d={sparkle(80, 35, 6)} fill="white" />
+        {/* 머리 깃털 */}
+        <path d="M76 54 q-3 -17 9 -19 q-7 10 3 17" fill={YEL} {...line} strokeWidth={3.2} />
+        {/* 볼 */}
+        <ellipse cx={54} cy={102} rx={7.5} ry={4.5} fill="#FF9DB0" opacity={0.8} />
+        <ellipse cx={106} cy={102} rx={7.5} ry={4.5} fill="#FF9DB0" opacity={0.8} />
+        <EyesPart eyes={pose.eyes} />
+        <BeakPart beak={pose.beak} />
+        {/* 앞쪽 날개 */}
+        {!['wave', 'up', 'fist'].includes(pose.l) && <WingPart side={-1} pose={pose.l} />}
+        {!['wave', 'up', 'fist'].includes(pose.r) && <WingPart side={1} pose={pose.r} />}
       </g>
       {pose.extra}
       {caption && (
-        <g>
-          <rect x={8} y={132} width={144} height={30} rx={15} fill="white" stroke="#DCE3F2" strokeWidth={2} />
-          <text x={80} y={152.5} fontSize={16} fontWeight={800} fill="#1F2A44" textAnchor="middle">
-            {info.label}
-          </text>
-        </g>
+        <text x={80} y={180} fontSize={18} fontWeight={900} fill="white" stroke={OL} strokeWidth={5.5} paintOrder="stroke" strokeLinejoin="round" textAnchor="middle">
+          {info.label}
+        </text>
       )}
     </svg>
   )
