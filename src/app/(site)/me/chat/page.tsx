@@ -89,7 +89,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         {rooms.length > 0 && (
           <section className="mt-3" aria-label="단체방">
             <p className="mb-1.5 text-xs font-semibold text-mute">👥 같은 근무 단체방</p>
-            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
               {rooms.map((r) => (
                 <Link key={r.id} href={`/me/chat/room/${r.id}`} className="chip max-w-[15rem] shrink-0">
                   <span className="truncate">{r.title}</span>
