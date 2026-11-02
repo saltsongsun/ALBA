@@ -10,6 +10,7 @@ import { getUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { isPro } from '@/lib/members'
 import { kstDate } from '@/lib/time'
+import { isUuid } from '@/lib/validate'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
@@ -17,14 +18,15 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 전문가·외주 업체는 전문가 화면으로 (아르바이트 공고와 섞이지 않게)
   const me = await getUser()
   if (me && me.role !== 'admin' && isPro(me.memberType)) redirect('/pro')
+  // 회사가 단톡방에 올린 '우리 회사 공고 모음' 링크(/?co=회사id)면 그 회사 공고만
+  const coId = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
+  const company = coId
+    ? ((await db().from('companies').select('id, company_name').eq('id', coId).eq('active', true).maybeSingle()).data as { id: string; company_name: string } | null)
+    : null
+  const jobsQuery = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', 'worker').in('status', ['open', 'closed']).gte('end_date', today)
   const [user, jobs, myApps] = await Promise.all([
     getUser(),
-    db()
-      .from('jobs')
-      .select(JOB_WITH_APP_STATUS)
-      .eq('audience', 'worker')
-      .in('status', ['open', 'closed'])
-      .gte('end_date', today)
+    (company ? jobsQuery.eq('company_id', company.id) : jobsQuery)
       .order('start_date')
       .limit(50)
       .then((r) => must(r) as JobWithAppStatus[]),
@@ -60,6 +62,7 @@ export default async function HomePage(props: PageProps<'/'>) {
   })
   const filterHref = (w: string | null, a: boolean) => {
     const q = new URLSearchParams()
+    if (company) q.set('co', company.id)
     if (w) q.set('when', w)
     if (a) q.set('avail', '1')
     const s = q.toString()
@@ -93,7 +96,37 @@ export default async function HomePage(props: PageProps<'/'>) {
           <span className="shrink-0 text-sm font-bold text-emerald-700">출퇴근 →</span>
         </Link>
       )}
-      {user ? (
+      {company ? (
+        // 회사 공고 모음: 어느 회사 공고인지 + 가입·로그인 뒤 이 화면으로 돌아오게
+        <section className="card mb-5 space-y-3 p-4">
+          <div className="flex items-center gap-3">
+            <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
+              🏢
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-bold">{company.company_name}</span>
+              <span className="block truncate text-sm text-sub">이 회사의 모집 공고예요</span>
+            </span>
+            <Link href="/#jobs" className="shrink-0 text-sm font-semibold text-brand-600">
+              전체 공고
+            </Link>
+          </div>
+          {user ? (
+            <Link href="/me" className="btn-gray btn-sm w-full">
+              {user.name}님 내 근무 보기 →
+            </Link>
+          ) : (
+            <div className="flex gap-2">
+              <Link href={`/signup?type=worker&next=${encodeURIComponent(`/?co=${company.id}`)}`} className="btn-primary btn-sm flex-1">
+                간편 가입
+              </Link>
+              <Link href={`/login?next=${encodeURIComponent(`/?co=${company.id}`)}`} className="btn-gray btn-sm flex-1">
+                로그인
+              </Link>
+            </div>
+          )}
+        </section>
+      ) : user ? (
         <Link href="/me" className="card-link mb-5 flex items-center gap-3 px-4 py-3.5">
           <span className="min-w-0 flex-1">
             <span className="block truncate font-bold">{user.name}님, 안녕하세요</span>
@@ -179,11 +212,17 @@ export default async function HomePage(props: PageProps<'/'>) {
       )}
       {jobs.length === 0 ? (
         <Empty icon="🔍" title="지금은 모집 중인 공고가 없어요">
-          새 공고가 올라오면 단톡방으로 알려 드릴게요.
+          {company ? (
+            <Link href="/#jobs" className="font-semibold text-brand-600">
+              다른 회사 공고 보기 →
+            </Link>
+          ) : (
+            '새 공고가 올라오면 단톡방으로 알려 드릴게요.'
+          )}
         </Empty>
       ) : listed.length === 0 ? (
         <Empty icon="🗓️" title="조건에 맞는 공고가 없어요">
-          <Link href="/#jobs" className="font-semibold text-brand-600">
+          <Link href={company ? `/?co=${company.id}#jobs` : '/#jobs'} className="font-semibold text-brand-600">
             전체 공고 보기 →
           </Link>
         </Empty>

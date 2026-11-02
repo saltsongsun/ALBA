@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Flash from '@/components/Flash'
+import { ShareButton } from '@/components/ui'
 import { countApps, JOB_WITH_APP_STATUS, unpaidByJob, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -49,6 +50,21 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           + 새 공고 등록
         </Link>
       </div>
+      {/* 우리 회사 공고만 모은 링크: 근무자 단톡방에 한 번 올려 두면 새 공고도 그 링크에서 봄 */}
+      {tab === 'active' && (
+        <div className="card flex items-center gap-3 p-4">
+          <span aria-hidden className="text-2xl">
+            📣
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-bold">우리 회사 공고 모음 링크</span>
+            <span className="block truncate text-sm text-sub">단톡방에 올려 두세요</span>
+          </span>
+          <span className="shrink-0">
+            <ShareButton title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} />
+          </span>
+        </div>
+      )}
       <div className="flex gap-1 text-sm font-semibold">
         {(
           [
