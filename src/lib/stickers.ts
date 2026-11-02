@@ -1,37 +1,50 @@
 /**
- * 해피워크 이모티콘: 노란 스태프 모자를 쓴 파란 캐릭터 '해피'.
+ * 해피워크 이모티콘: 파란 모자·앞치마를 한 노란 병아리 (그림: public/stickers/아이디.webp, 320px).
  * 대화에는 '::s:아이디::' 한 줄로 저장하고, 화면에서 그림으로 바꿔 보여 줌 (알림·내려받기에서는 [이모티콘] 글자로)
  */
 export const STICKERS = [
   { id: 'hi', label: '안녕하세요' },
-  { id: 'arrived', label: '도착했어요' },
-  { id: 'late', label: '조금 늦어요' },
   { id: 'ok', label: '확인했어요' },
-  { id: 'fighting', label: '화이팅!' },
   { id: 'thanks', label: '감사합니다' },
-  { id: 'goodjob', label: '수고하셨어요' },
-  { id: 'break', label: '쉬는 중' },
-  { id: 'done', label: '퇴근!' },
+  { id: 'wait', label: '잠시만요' },
   { id: 'sorry', label: '죄송해요' },
-  { id: 'question', label: '질문 있어요' },
-  { id: 'love', label: '최고예요' },
 ] as const
 
+/** 예전 이모티콘 (이미 보낸 대화에 남아 있음): 그림 없이 글자로 보여 줌. 새로 보낼 수는 없음 */
+const OLD: Record<string, string> = {
+  arrived: '도착했어요',
+  late: '조금 늦어요',
+  fighting: '화이팅!',
+  goodjob: '수고하셨어요',
+  break: '쉬는 중',
+  done: '퇴근!',
+  question: '질문 있어요',
+  love: '최고예요',
+}
+
 export type StickerId = (typeof STICKERS)[number]['id']
-export type StickerInfo = (typeof STICKERS)[number]
+/** img: 그림이 있는 이모티콘인지 (예전 것은 false) */
+export type StickerInfo = { id: string; label: string; img: boolean }
 
 const TOKEN = /^::s:([a-z]+)::$/
 
 export const stickerToken = (id: StickerId) => `::s:${id}::`
 
+/** 아이디로 이모티콘 찾기 (예전 것 포함) */
+export function stickerById(id: string): StickerInfo | null {
+  const s = STICKERS.find((x) => x.id === id)
+  if (s) return { ...s, img: true }
+  return Object.hasOwn(OLD, id) ? { id, label: OLD[id], img: false } : null
+}
+
 /** 이 메시지가 이모티콘이면 그 이모티콘 */
 export function stickerOf(body: string): StickerInfo | null {
   const m = TOKEN.exec(body.trim())
-  return (m && STICKERS.find((s) => s.id === m[1])) || null
+  return m ? stickerById(m[1]) : null
 }
 
-/** 이모티콘 모양으로 시작하는데 목록에 없는 것 (서버에서 거절) */
-export const badSticker = (body: string) => body.trim().startsWith('::s:') && !stickerOf(body)
+/** 이모티콘 모양으로 시작하는데 지금 보낼 수 있는 목록에 없는 것 (서버에서 거절) */
+export const badSticker = (body: string) => body.trim().startsWith('::s:') && !stickerOf(body)?.img
 
 /** 알림·목록 미리보기·내려받기용 글자 */
 export function plainBody(body: string): string {

@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import type { FormState } from '@/app/actions/auth'
 import { STICKERS, stickerToken, type StickerId } from '@/lib/stickers'
-import Sticker from './Sticker'
+import Sticker, { StickerIcon } from './Sticker'
 import { FormMessage, haptic, keepInputs } from './ui'
 
 function SendButton() {
@@ -100,7 +100,7 @@ export default function ChatComposer({
       {state?.error && <FormMessage state={state} />}
       {picker && (
         <div role="dialog" aria-label="이모티콘" className="animate-pop rounded-3xl bg-white p-2 shadow-[0_4px_20px_rgba(0,0,0,0.1)] ring-1 ring-line">
-          <div className="grid max-h-64 grid-cols-4 gap-1 overflow-y-auto">
+          <div className="grid max-h-72 grid-cols-4 gap-1 overflow-y-auto">
             {STICKERS.map((st) => (
               <button
                 key={st.id}
@@ -123,7 +123,7 @@ export default function ChatComposer({
           onClick={() => setPicker((v) => !v)}
           className={`grid size-11 shrink-0 place-items-center rounded-full transition active:scale-90 ${picker ? 'bg-brand-50' : ''}`}
         >
-          <Sticker id="hi" size={34} caption={false} />
+          <StickerIcon size={34} />
         </button>
         <textarea
           ref={textRef}
