@@ -220,6 +220,7 @@ const PERSON_REQUIRED: [string, string][] = [
   ['phone', '휴대폰'],
   ['pin2', '비밀번호'],
   ['agree_privacy', '개인정보 동의'],
+  ['agree_third', '제3자 제공 동의'],
   ['agree_rrn', '주민번호 동의'],
 ]
 const VENDOR_REQUIRED: [string, string][] = [
@@ -229,6 +230,7 @@ const VENDOR_REQUIRED: [string, string][] = [
   ['phone', '휴대폰'],
   ['pin2', '비밀번호'],
   ['agree_privacy', '개인정보 동의'],
+  ['agree_third', '제3자 제공 동의'],
 ]
 
 /** 비밀번호·확인 칸 (모든 유형 공통) */
@@ -270,6 +272,43 @@ function PinFields() {
  * · 전문가: 아르바이트와 같은 본인 정보 + 전문 분야·소개·포트폴리오 (사업소득 3.3% 신고에 주민번호 필요)
  * · 외주 업체: 상호·사업자등록번호·담당자 (주민번호·얼굴 사진 없음)
  */
+/**
+ * 필수 동의 한 번에: 누르면 이 칸 아래의 동의(agree_…)를 모두 체크/해제하고, 하나씩 바꿔도 맞춰 움직임.
+ * 각 동의는 그대로 따로 보이고 따로 고칠 수 있음 (내용 보기도 그대로)
+ */
+function AgreeAll() {
+  const ref = useRef<HTMLInputElement>(null)
+  const boxes = () => [...(ref.current?.closest('section')?.querySelectorAll<HTMLInputElement>('input[type=checkbox][name^="agree_"]') ?? [])]
+  useEffect(() => {
+    const section = ref.current?.closest('section')
+    if (!section) return
+    const sync = () => {
+      if (ref.current) ref.current.checked = boxes().every((b) => b.checked)
+    }
+    section.addEventListener('change', sync)
+    return () => section.removeEventListener('change', sync)
+  }, [])
+  return (
+    <label className="flex items-center gap-2.5 rounded-xl bg-brand-50 px-3.5 py-3 font-bold text-brand-800" data-agree-all>
+      <input
+        ref={ref}
+        type="checkbox"
+        className="size-5 shrink-0 accent-brand-600"
+        onChange={(e) => {
+          const on = e.currentTarget.checked
+          for (const b of boxes()) {
+            if (b.checked === on) continue
+            b.checked = on
+            // 위의 진행 막대(필수 n/7)도 바로 맞게
+            b.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        }}
+      />
+      필수 동의 모두 체크
+    </label>
+  )
+}
+
 /** 동의 내용 펼쳐 보기 */
 function ConsentDetails({ items }: { items: readonly (readonly [string, string])[] }) {
   return (
@@ -411,8 +450,9 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
           <h2 className="font-bold">동의</h2>
           <p className="text-xs text-mute">해피워크 · 운영 주식회사 소켓씨앤씨</p>
         </div>
+        <AgreeAll />
         <label className="flex items-start gap-2.5">
-          <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 accent-brand-600" required />
+          <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
           <span>
             <b>[필수]</b> 개인정보 수집·이용 동의
           </span>
@@ -420,7 +460,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
         <ConsentDetails items={PRIVACY_ITEMS} />
         {/* 지원·근무하는 회사(외주 업체는 거래 회사)에 제공: 수집·이용과 따로 동의 */}
         <label className="flex items-start gap-2.5">
-          <input type="checkbox" name="agree_third" className="mt-0.5 size-5 accent-brand-600" required />
+          <input type="checkbox" name="agree_third" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
           <span>
             <b>[필수]</b> 개인정보 제3자 제공 동의
             <span className="block text-[13px] text-mute">{vendor ? '견적을 요청하는 회사에 제공' : '지원·근무하는 구인 회사에 제공'}</span>
@@ -429,7 +469,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
         <ConsentDetails items={vendor ? THIRD_PARTY_ITEMS_VENDOR : THIRD_PARTY_ITEMS} />
         {!vendor && (
           <label className="flex items-start gap-2.5">
-            <input type="checkbox" name="agree_rrn" className="mt-0.5 size-5 accent-brand-600" required />
+            <input type="checkbox" name="agree_rrn" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
             <span>
               <b>[필수]</b> 고유식별정보(주민등록번호) 처리 안내를 확인했습니다.
               <span className="mt-1 block text-[13px] text-mute">{RRN_NOTICE}</span>
@@ -516,7 +556,7 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
           <section className="card space-y-3 text-sm">
             <h2 className="font-bold">동의</h2>
             <label className="flex items-start gap-2.5">
-              <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 accent-brand-600" required />
+              <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
               <span>
                 <b>[필수]</b> 담당자 개인정보 수집·이용에 동의합니다.
               </span>
@@ -613,7 +653,7 @@ export function JoinCompanyForm({ signedIn, name, code, worker }: { signedIn: bo
           <section className="card space-y-3 text-sm">
             <h2 className="font-bold">동의</h2>
             <label className="flex items-start gap-2.5">
-              <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 accent-brand-600" required />
+              <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
               <span>
                 <b>[필수]</b> 개인정보 수집·이용 동의
               </span>

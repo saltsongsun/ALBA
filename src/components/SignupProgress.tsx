@@ -9,6 +9,7 @@ const REQUIRED: [name: string, label: string][] = [
   ['phone', '휴대폰'],
   ['pin2', '비밀번호'],
   ['agree_privacy', '개인정보 동의'],
+  ['agree_third', '제3자 제공 동의'],
   ['agree_rrn', '주민번호 동의'],
 ]
 
