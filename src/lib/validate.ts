@@ -101,3 +101,13 @@ export function weakPin(pin: string, ctx: { birthDate?: string | null; phone?: s
   if (ctx.phone && ctx.phone.replace(/\D/g, '').slice(3).includes(pin)) return '휴대폰 번호가 들어간 비밀번호는 쓸 수 없어요.'
   return null
 }
+
+/** 사업자등록번호: 숫자 10자리 + 끝자리 검증 숫자 (국세청 계산법). 잘못 친 번호·지어낸 번호를 거름 */
+export function isBizNo(v: string): boolean {
+  const d = v.replace(/\D/g, '')
+  if (!/^\d{10}$/.test(d)) return false
+  const n = d.split('').map(Number)
+  const w = [1, 3, 7, 1, 3, 7, 1, 3, 5]
+  const sum = w.reduce((s, x, i) => s + x * n[i], 0) + Math.floor((n[8] * 5) / 10)
+  return (10 - (sum % 10)) % 10 === n[9]
+}

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { removeCompanyAdmin, setCompanyActive, switchCompany } from '@/app/actions/company'
+import { removeCompanyAdmin, setCompanyActive, setCompanyVerified, switchCompany } from '@/app/actions/company'
 import { AddAdminForm, CreateCompanyForm } from '@/components/company'
 import { phoneFmt } from '@/lib/format'
 import Flash from '@/components/Flash'
@@ -17,9 +17,22 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
   const [companies, memberRows, platformId] = await Promise.all([
     db()
       .from('companies')
-      .select('id, company_name, ceo_name, business_no, active, created_at')
+      .select('id, company_name, ceo_name, business_no, contact_name, contact_phone, active, verified, created_at')
       .order('created_at')
-      .then((r) => must(r) as { id: string; company_name: string; ceo_name: string | null; business_no: string | null; active: boolean; created_at: string }[]),
+      .then(
+        (r) =>
+          must(r) as {
+            id: string
+            company_name: string
+            ceo_name: string | null
+            business_no: string | null
+            contact_name: string | null
+            contact_phone: string | null
+            active: boolean
+            verified?: boolean | null
+            created_at: string
+          }[],
+      ),
     db()
       .from('company_members')
       .select('company_id, user_id, role')
@@ -34,6 +47,8 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
   )
   const members = memberRows.map((m) => ({ ...m, user: people.get(m.user_id) ?? null }))
   companies.sort((a, b) => a.created_at.localeCompare(b.created_at))
+  // 직접 가입해 확인을 기다리는 회사 (확인 전에는 해피워크 전체 회원 명단을 못 봄)
+  const waiting = companies.filter((c) => c.active && c.verified === false)
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <Flash m={sp.m} />
@@ -44,6 +59,11 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
         </p>
       </div>
 
+      {waiting.length > 0 && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          🏢 직접 가입해 <b>확인을 기다리는 회사 {waiting.length}곳</b>이 있어요. 담당자에게 연락해 실제 회사인지 확인한 뒤 &lsquo;확인 완료&rsquo;를 눌러 주세요. 확인 전에도 공고·지원자 관리는 쓸 수 있고, 전체 회원 명단만 확인 뒤에 열려요.
+        </p>
+      )}
       <div className="space-y-3">
         {companies.map((c) => {
           const list = members.filter((m) => m.company_id === c.id)
@@ -55,14 +75,27 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
                     {c.company_name}
                     {c.id === platformId && <span className="badge ml-1.5 bg-brand-50 align-middle text-brand-700">기본 회사</span>}
                     {!c.active && <span className="badge ml-1.5 bg-gray-100 align-middle text-mute">사용 중지</span>}
+                    {c.verified === false && <span className="badge ml-1.5 bg-amber-50 align-middle text-amber-700">확인 전</span>}
                   </h2>
                   <p className="text-sm text-sub">{[c.ceo_name && `대표 ${c.ceo_name}`, c.business_no].filter(Boolean).join(' · ') || '회사 정보는 회사 설정에서'}</p>
+                  {c.verified === false && (c.contact_name || c.contact_phone) && (
+                    <p className="text-sm text-sub">
+                      담당 {c.contact_name ?? ''} {c.contact_phone ? phoneFmt(c.contact_phone) : ''} · 가입 {c.created_at.slice(0, 10)}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   {c.active && (
                     <form action={switchCompany}>
                       <input type="hidden" name="company" value={c.id} />
                       <button className={c.id === admin.companyId ? 'chip-primary' : 'chip'}>{c.id === admin.companyId ? '보는 중' : '이 회사로'}</button>
+                    </form>
+                  )}
+                  {c.verified === false && c.active && (
+                    <form action={setCompanyVerified.bind(null, c.id, true)}>
+                      <ConfirmSubmit className="chip-primary" confirmText="확인할까요? 전체 회원 명단이 열려요">
+                        확인 완료
+                      </ConfirmSubmit>
                     </form>
                   )}
                   {c.id !== platformId && (

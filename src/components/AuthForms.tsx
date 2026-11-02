@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
+import { signupCompany } from '@/app/actions/company'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
@@ -171,6 +172,10 @@ export function SignupTypePicker({ next }: { next: string }) {
           </Link>
         )
       })}
+      {/* 사람을 뽑는 회사는 회사로 가입 */}
+      <Link href="/start" className="block pt-2 text-center text-sm font-semibold text-sub">
+        🏢 사람을 뽑는 회사인가요? <span className="text-brand-600">회사로 시작하기 →</span>
+      </Link>
     </div>
   )
 }
@@ -425,6 +430,89 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
           로그인
         </Link>
       </p>
+    </form>
+  )
+}
+
+/**
+ * 회사로 시작하기: 회사 정보 + 담당자(관리자) 계정 → 바로 관리자 화면.
+ * signedIn: 이미 로그인한 관리자면 회사 정보만 (한 관리자가 여러 회사 운영)
+ */
+export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
+  const [state, action] = useActionState(signupCompany, null)
+  return (
+    <form action={action} onReset={keepInputs} className="space-y-5">
+      <Honeypot />
+      <section className="card space-y-4">
+        <h2 className="font-bold">
+          회사 정보 <span className="text-sm font-medium text-rose-500">필수</span>
+        </h2>
+        <div>
+          <label className="label" htmlFor="company_name">
+            회사 이름 (상호)
+          </label>
+          <input id="company_name" name="company_name" className="input" autoComplete="organization" placeholder="예) 주식회사 해피이벤트" required />
+        </div>
+        <div>
+          <label className="label" htmlFor="business_no">
+            사업자등록번호
+          </label>
+          <input id="business_no" name="business_no" className="input" inputMode="numeric" maxLength={12} placeholder="숫자 10자리" onInput={digitsOnly} required />
+          <p className="hint">사업자등록증의 번호예요. 계약서·명세서에 들어가요.</p>
+        </div>
+        <div>
+          <label className="label" htmlFor="ceo_name">
+            대표자 이름
+          </label>
+          <input id="ceo_name" name="ceo_name" className="input" placeholder="홍길동" required />
+        </div>
+      </section>
+
+      {!signedIn && (
+        <>
+          <section className="card space-y-4">
+            <h2 className="font-bold">
+              담당자 (관리자 계정) <span className="text-sm font-medium text-rose-500">필수</span>
+            </h2>
+            <div>
+              <label className="label" htmlFor="name">
+                담당자 이름
+              </label>
+              <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
+            </div>
+            <div>
+              <label className="label" htmlFor="phone">
+                휴대폰 번호 (로그인할 때 써요)
+              </label>
+              <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+            </div>
+            <PinFields />
+          </section>
+          <section className="card space-y-3 text-sm">
+            <h2 className="font-bold">동의</h2>
+            <label className="flex items-start gap-2.5">
+              <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 accent-brand-600" required />
+              <span>
+                <b>[필수]</b> 담당자 개인정보 수집·이용에 동의합니다.
+              </span>
+            </label>
+          </section>
+        </>
+      )}
+
+      <FormMessage state={state} />
+      {state?.code === 'dup_phone' && <LoginWithPhone next="/start" />}
+      <SubmitButton className={`${state?.code ? 'btn-gray' : 'btn-primary'} w-full py-3.5 text-base`} pendingText="회사 만드는 중…">
+        회사로 시작하기
+      </SubmitButton>
+      {!signedIn && (
+        <p className="text-center text-sm text-mute">
+          이미 관리자 계정이 있나요?{' '}
+          <Link href="/login?next=/start" className="font-semibold text-brand-600">
+            로그인
+          </Link>
+        </p>
+      )}
     </form>
   )
 }

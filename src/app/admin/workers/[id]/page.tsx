@@ -96,7 +96,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   ])
   const found = data as UserRow | null
   // 다른 회사 관리자·외주 업체 계정은 근무자 화면으로 열지 않음
-  if (!found || (!related && (found.role === 'admin' || found.member_type === 'vendor'))) notFound()
+  // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 볼 수 있음
+  if (!found || (!related && (found.role === 'admin' || found.member_type === 'vendor' || !admin.companyVerified))) notFound()
   // 메모·관리자 표시는 이 회사 기준 (다른 회사 메모·소속은 보이지 않게)
   const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]

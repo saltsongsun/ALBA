@@ -348,6 +348,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
+      {/* 직접 가입해 확인 전인 회사: 무엇이 되고 무엇이 확인 뒤에 열리는지 */}
+      {!admin.companyVerified && (
+        <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-bold">🔒 회사 확인 중이에요</p>
+          <p className="mt-1">
+            공고 올리기·지원자 확정·서류·출퇴근·정산은 지금 바로 쓸 수 있어요. 다른 회사에 지원한 사람까지 보이는 <b>해피워크 전체 회원 명단</b>과 번호로 직접 추가는 확인을 마친 뒤에 열려요.
+          </p>
+        </div>
+      )}
       <div className="card p-4">
         <PushToggle publicKey={pushPublicKey()} admin />
       </div>

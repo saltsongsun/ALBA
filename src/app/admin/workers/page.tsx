@@ -63,6 +63,8 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const users = (must(await query) as Row[])
     // 다른 회사 관리자·외주 업체 계정은 근무자 목록에서 뺌
     .filter((u) => (u.role === 'admin' ? memberIds.has(u.id) : u.member_type !== 'vendor'))
+    // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 (전체 회원 명단은 확인 뒤)
+    .filter((u) => admin.companyVerified || applied.has(u.id) || memberIds.has(u.id))
     .filter((u) =>
       f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) || memberIds.has(u.id) : f === 'new' ? isNew(u) : true,
     )
@@ -118,6 +120,11 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         </div>
       </div>
 
+      {!admin.companyVerified && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          🔒 지금은 <b>우리 회사에 지원한 회원</b>만 보여요. 해피워크 전체 회원 명단은 회사 확인을 마친 뒤에 열려요. 그동안은 공고 링크를 보내 지원을 받아 주세요.
+        </p>
+      )}
       <div className="flex gap-1.5 overflow-x-auto pb-1">
         {(
           [

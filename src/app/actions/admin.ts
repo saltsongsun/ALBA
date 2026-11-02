@@ -523,6 +523,8 @@ export async function assignWorkerToJob(userId: string, form: FormData) {
   const admin = await requireAdmin()
   if (!isUuid(userId)) return
   const path = `/admin/workers/${userId}`
+  // 확인 전 회사는 우리 회사에 지원한 적 없는 회원을 바로 확정할 수 없음
+  if (!admin.companyVerified && !(await workerInCompany(admin.companyId, userId))) back(path, '회사 확인을 마치면 바로 확정할 수 있어요.')
   const jobId = str(form, 'job_id', 40)
   const job = await companyJob(admin, jobId)
   if (!job || !['open', 'closed'].includes(job.status) || job.end_date < kstDate()) back(path, '확정할 공고를 골라 주세요.')
@@ -550,6 +552,8 @@ export async function addWorkerToJob(jobId: string, form: FormData) {
   const job = await companyJob(admin, jobId)
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=apps`
+  // 확인 전 회사는 번호만으로 남의 회원을 데려올 수 없음 (공고 링크로 본인이 지원하게)
+  if (!admin.companyVerified) back(path, '회사 확인을 마치면 번호로 직접 추가할 수 있어요. 지금은 공고 링크를 보내 지원을 받아 주세요.')
   const phone = normalizePhone(str(form, 'phone'))
   if (!phone) back(path, '휴대폰 번호를 확인해 주세요.')
   const { data: u } = await db().from('users').select('id, name, active').eq('phone', phone).maybeSingle()

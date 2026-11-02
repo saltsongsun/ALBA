@@ -133,6 +133,11 @@ export default async function HomePage(props: PageProps<'/'>) {
                 🎛️ 음향·조명·영상 전문가나 외주 업체이신가요? →
               </Link>
             )}
+            {!user && (
+              <Link href="/start" className="mt-1.5 flex items-center gap-1 text-sm font-semibold text-white/90 underline-offset-2 hover:underline">
+                🏢 사람을 뽑는 회사인가요? 회사로 시작하기 →
+              </Link>
+            )}
           </div>
         </section>
       )}

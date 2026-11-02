@@ -2,6 +2,7 @@
 
 import { randomInt } from 'node:crypto'
 import { cookies } from 'next/headers'
+import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import { hashPin } from '@/lib/crypto'
@@ -9,8 +10,11 @@ import { audit, platformCompanyId } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { MIN_WAGE_2026 } from '@/lib/pay'
-import { adminCompanies, COMPANY_COOKIE, getUser, requireSuper } from '@/lib/session'
-import { isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
+import { adminCompanies, COMPANY_COOKIE, createSession, getUser, requireSuper } from '@/lib/session'
+import { isBizNo, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
+import { bizNoFmt } from '@/lib/members'
+import { sendPush, superAdminIds } from '@/lib/push'
+import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -32,6 +36,99 @@ export async function switchCompany(form: FormData) {
     maxAge: 60 * 60 * 24 * 365,
   })
   redirect('/admin')
+}
+
+/**
+ * 회사 직접 가입: 회사 정보 + 담당자(관리자) 계정을 만들고 바로 관리자 화면으로.
+ * 공고·지원·출퇴근·서류·정산은 바로 쓰고, 해피워크 전체 회원 명단은 최고 관리자가 '확인'한 뒤에 열림 (verified=false로 시작).
+ * 이미 로그인한 관리자는 회사만 더 만듦 (한 관리자가 여러 회사 운영)
+ */
+export async function signupCompany(_: FormState, form: FormData): Promise<FormState> {
+  if (caughtByHoneypot(form)) return { error: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
+  // 한 곳에서 회사를 대량으로 만들지 못하게
+  if (await overLimit(await ipKey('company-signup'), 5, 3600)) return { error: '가입 시도가 너무 많아요. 한 시간 뒤에 다시 시도해 주세요.' }
+  const user = await getUser()
+  if (user && user.role !== 'admin') {
+    return { error: '근무자 계정으로는 회사를 만들 수 없어요. 로그아웃한 뒤 회사 담당자 번호로 가입해 주세요.' }
+  }
+  const company_name = str(form, 'company_name', 100)
+  const bizNo = str(form, 'business_no', 20).replace(/\D/g, '')
+  const ceo_name = str(form, 'ceo_name', 30)
+  if (company_name.length < 2) return { error: '회사 이름(상호)을 입력해 주세요.' }
+  if (!isBizNo(bizNo)) return { error: '사업자등록번호 10자리를 정확히 입력해 주세요. (사업자등록증에 적힌 번호)' }
+  if (ceo_name.length < 2) return { error: '대표자 이름을 입력해 주세요.' }
+  // 같은 사업자등록번호의 회사가 이미 있으면 막음 (다른 사람이 그 회사인 척 가입하지 못하게)
+  const { data: others } = await db().from('companies').select('business_no')
+  if (((others ?? []) as { business_no: string | null }[]).some((c) => (c.business_no ?? '').replace(/\D/g, '') === bizNo)) {
+    return { error: '이미 해피워크를 쓰는 사업자등록번호예요. 그 회사 관리자에게 관리자 초대를 요청해 주세요.' }
+  }
+
+  let userId: string
+  let version: number | null = null
+  let contactName: string
+  let contactPhone: string
+  if (user) {
+    userId = user.id
+    contactName = user.name
+    contactPhone = user.phone
+  } else {
+    const name = str(form, 'name', 30)
+    const phone = normalizePhone(str(form, 'phone'))
+    const pin = str(form, 'pin')
+    if (name.length < 2) return { error: '담당자 이름을 입력해 주세요.' }
+    if (!phone) return { error: '휴대폰 번호를 정확히 입력해 주세요. (예: 010-1234-5678)' }
+    if (!isPin(pin)) return { error: '비밀번호는 숫자 6자리로 정해 주세요.' }
+    if (pin !== str(form, 'pin2')) return { error: '비밀번호 확인이 일치하지 않습니다.' }
+    const weak = weakPin(pin, { phone })
+    if (weak) return { error: weak }
+    if (form.get('agree_privacy') !== 'on') return { error: '필수 동의 항목에 체크해 주세요.' }
+    const { data: byPhone } = await db().from('users').select('id').eq('phone', phone).maybeSingle()
+    if (byPhone) return { error: '이미 가입된 휴대폰 번호예요. 로그인한 뒤 다시 \'회사로 시작하기\'를 눌러 주세요.', code: 'dup_phone' }
+    const created = must(
+      await db()
+        .from('users')
+        .insert({ role: 'admin', name, phone, pin_hash: await hashPin(pin), privacy_agreed_at: new Date().toISOString() })
+        .select('id, session_version')
+        .single(),
+    ) as { id: string; session_version: number }
+    userId = created.id
+    version = created.session_version
+    contactName = name
+    contactPhone = phone
+  }
+
+  const created = must(
+    await db()
+      .from('companies')
+      .insert({
+        company_name,
+        ceo_name,
+        business_no: bizNoFmt(bizNo),
+        contact_name: contactName,
+        contact_phone: contactPhone,
+        default_hourly_wage: MIN_WAGE_2026,
+        workplace_5plus: true,
+        active: true,
+        // 최고 관리자가 만든 회사는 바로 확인된 회사
+        verified: !!user?.isSuper,
+      })
+      .select('id')
+      .single(),
+  ) as { id: string }
+  const id = created.id
+  must(await db().from('doc_templates').insert(DEFAULT_TEMPLATES.map((t) => ({ ...t, company_id: id }))))
+  must(await db().from('company_members').insert({ company_id: id, user_id: userId, role: 'owner' }))
+  await audit(userId, 'company.signup', null, `${company_name} ${bizNoFmt(bizNo)}`, id)
+  after(async () =>
+    sendPush(await superAdminIds(), {
+      title: '🏢 새 회사가 가입했어요',
+      body: `${company_name} · 대표 ${ceo_name} · 담당 ${contactName}`,
+      url: '/admin/companies',
+    }),
+  )
+  ;(await cookies()).set(COMPANY_COOKIE, id, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 24 * 365 })
+  if (version !== null) await createSession(userId, version, 'admin')
+  redirect(`/admin?m=${encodeURIComponent(`${company_name}로 시작했어요! 회사 설정에서 주소·직인을 채우고 첫 공고를 올려 보세요.`)}`)
 }
 
 /** 회사 만들기 (최고 관리자만): 기본 서류 서식을 함께 넣고, 만든 사람을 대표 관리자로 */
@@ -130,4 +227,14 @@ export async function setCompanyActive(companyId: string, active: boolean) {
   await audit(admin.id, active ? 'company.activate' : 'company.deactivate', null, null, companyId)
   revalidatePath('/admin/companies')
   revalidatePath('/')
+}
+
+/** 직접 가입한 회사 확인 (최고 관리자만): 확인하면 해피워크 전체 회원 명단·번호로 직접 추가가 열림 */
+export async function setCompanyVerified(companyId: string, verified: boolean) {
+  const admin = await requireSuper()
+  if (!isUuid(companyId)) return
+  must(await db().from('companies').update({ verified }).eq('id', companyId))
+  await audit(admin.id, verified ? 'company.verify' : 'company.unverify', null, null, companyId)
+  revalidatePath('/admin/companies')
+  back('/admin/companies', verified ? '회사를 확인했어요. 이제 전체 회원 명단이 열려요.' : '확인을 취소했어요. 다시 우리 회사 지원자만 보여요.')
 }

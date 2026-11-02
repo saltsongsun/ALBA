@@ -23,10 +23,11 @@ export type SessionUser = {
 }
 
 /** 관리자가 들어갈 수 있는 회사 (role: 회사 관리자 구분, 최고 관리자는 소속이 아니어도 'super') */
-export type AdminCompany = { id: string; name: string; role: 'owner' | 'admin' | 'super' }
+/** verified: 최고 관리자가 확인한 회사 (직접 가입한 회사는 확인 전까지 해피워크 전체 회원 명단을 못 봄) */
+export type AdminCompany = { id: string; name: string; role: 'owner' | 'admin' | 'super'; verified: boolean }
 
 /** 관리자 + 지금 보고 있는 회사 */
-export type AdminUser = SessionUser & { companyId: string; companyName: string; companies: AdminCompany[] }
+export type AdminUser = SessionUser & { companyId: string; companyName: string; companyVerified: boolean; companies: AdminCompany[] }
 
 /** 관리자가 지금 보고 있는 회사 (회사 id만 담음, 매 요청마다 소속을 다시 확인) */
 export const COMPANY_COOKIE = 'hw_company'
@@ -105,20 +106,20 @@ export const adminCompanies = cache(async (userId: string, isSuper: boolean): Pr
   const [{ data: members, error }, { data: all }] = await Promise.all([
     db().from('company_members').select('company_id, role').eq('user_id', userId),
     isSuper
-      ? db().from('companies').select('id, company_name, created_at').eq('active', true).order('created_at')
+      ? db().from('companies').select('id, company_name, created_at, verified').eq('active', true).order('created_at')
       : { data: null },
   ])
   if (error) throw new Error(`회사 확인 실패: ${error.message}`)
   const mine = new Map(((members ?? []) as { company_id: string; role: 'owner' | 'admin' }[]).map((m) => [m.company_id, m.role]))
-  let rows = (all ?? []) as { id: string; company_name: string; created_at: string }[]
+  let rows = (all ?? []) as { id: string; company_name: string; created_at: string; verified?: boolean | null }[]
   if (!isSuper) {
     if (!mine.size) return []
-    const { data } = await db().from('companies').select('id, company_name, created_at').in('id', [...mine.keys()]).eq('active', true)
+    const { data } = await db().from('companies').select('id, company_name, created_at, verified').in('id', [...mine.keys()]).eq('active', true)
     rows = (data ?? []) as typeof rows
   }
   return rows
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
-    .map((c) => ({ id: c.id, name: c.company_name, role: mine.get(c.id) ?? 'super' }))
+    .map((c) => ({ id: c.id, name: c.company_name, role: mine.get(c.id) ?? 'super', verified: c.verified !== false }))
 })
 
 /** 관리자(최고 관리자 포함)가 이 회사의 자료를 볼 수 있는지 */
@@ -145,7 +146,8 @@ export async function requireAdmin(): Promise<AdminUser> {
   if (!companies.length) redirect(`/?m=${encodeURIComponent('소속된 회사가 없어요. 최고 관리자에게 회사 초대를 요청해 주세요.')}`)
   const want = (await cookies()).get(COMPANY_COOKIE)?.value
   const cur = companies.find((c) => c.id === want) ?? companies[0]
-  return { ...user, companyId: cur.id, companyName: cur.name, companies }
+  // 최고 관리자는 어느 회사를 보든 확인된 것으로
+  return { ...user, companyId: cur.id, companyName: cur.name, companyVerified: user.isSuper || cur.verified, companies }
 }
 
 /** 최고 관리자만 (회사 만들기·관리자 초대) */

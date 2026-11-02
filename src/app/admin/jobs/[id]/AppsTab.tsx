@@ -103,10 +103,13 @@ export default async function AppsTab({
   origin,
   sort = 'time',
   day = null,
+  canAddDirect = true,
 }: {
   job: Job
   apps: AppRow[]
   origin: string
+  /** 번호로 직접 추가 (직접 가입해 확인 전인 회사는 못 함) */
+  canAddDirect?: boolean
   sort?: string
   /** 여러 날 행사: 이날 근무 가능한 사람만 보기 */
   day?: string | null
@@ -327,10 +330,12 @@ export default async function AppsTab({
               </ConfirmSubmit>
             </form>
           )}
-          <form action={addWorkerToJob.bind(null, job.id)} className="flex gap-1">
-            <input name="phone" className="input w-40 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" inputMode="tel" />
-            <SubmitButton className="btn-gray btn-sm">직접 추가</SubmitButton>
-          </form>
+          {canAddDirect && (
+            <form action={addWorkerToJob.bind(null, job.id)} className="flex gap-1">
+              <input name="phone" className="input w-40 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" inputMode="tel" />
+              <SubmitButton className="btn-gray btn-sm">직접 추가</SubmitButton>
+            </form>
+          )}
         </div>
       </div>
       {/* 여러 날 행사: 날짜별 확정 인원 (모자란 날은 빨갛게) · 누르면 그날 가능한 사람만 */}
