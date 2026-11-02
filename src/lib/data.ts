@@ -61,8 +61,9 @@ export async function getJob(id: string): Promise<Job | null> {
 }
 
 /** 공고 목록과 지원 상태를 한 번에 읽을 때의 select (공고별 인원은 countApps로 셉니다) */
-export const JOB_WITH_APP_STATUS = '*, applications(status), company:companies(company_name)'
-export type JobWithAppStatus = Job & { applications: { status: string }[] | null; company?: { company_name: string } | null }
+export const JOB_WITH_APP_STATUS = '*, applications(status), company:companies(company_name, verified)'
+/** company.verified: 해피워크가 확인한 회사 (근무자에게 '✓ 확인된 회사'로 보임) */
+export type JobWithAppStatus = Job & { applications: { status: string }[] | null; company?: { company_name: string; verified?: boolean | null } | null }
 
 /** select(JOB_WITH_APP_STATUS) 결과에서 공고별로 해당 상태의 지원 수를 셉니다. */
 export function countApps(jobs: JobWithAppStatus[], status: Application['status']): Record<string, number> {

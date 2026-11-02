@@ -65,7 +65,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const [counts, app, docs, mine, myPending, company, photoAt] = await Promise.all([
+  const [counts, app, docs, mine, myPending, company, photoAt, coInfo] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -115,6 +115,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .maybeSingle()
           .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null)
       : null,
+    // 회사: 해피워크가 확인한 회사인지 + 지금 모집 중인 공고 수 (그 회사 공고 모음으로)
+    Promise.all([
+      db().from('companies').select('verified').eq('id', job.company_id).maybeSingle(),
+      db()
+        .from('jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', job.company_id)
+        .eq('audience', 'worker')
+        .eq('status', 'open')
+        .gte('end_date', kstDate()),
+    ]).then(([c, n]) => ({ verified: (c.data as { verified?: boolean | null } | null)?.verified === true, open: n.count ?? 0 })),
   ])
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
@@ -183,7 +194,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
         </div>
         <h1 className="text-[22px] leading-snug font-extrabold">{job.title}</h1>
-        <p className="mt-1 text-sm font-semibold text-sub">🏢 {company.company_name}</p>
+        {expert ? (
+          <p className="mt-1 text-sm font-semibold text-sub">🏢 {company.company_name}</p>
+        ) : (
+          // 회사 이름을 누르면 그 회사 공고만 모아 보기
+          <Link href={`/?co=${job.company_id}`} className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-sub" data-company-line>
+            <span className="min-w-0 truncate">🏢 {company.company_name}</span>
+            {coInfo.verified && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ 확인된 회사</span>}
+            {coInfo.open > 0 && <span className="ml-auto shrink-0 text-xs text-brand-600">공고 {coInfo.open}개 →</span>}
+          </Link>
+        )}
         <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">
           {shows(job, 'estimate') ? (
             <>

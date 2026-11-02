@@ -31,7 +31,7 @@ export default function JobCard({
   myStatus,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
-  job: Job & { company?: { company_name: string } | null }
+  job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
   approved: number
   myStatus?: string
 }) {
@@ -59,7 +59,13 @@ export default function JobCard({
         {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
       </div>
       <h3 className="text-[17px] leading-snug font-bold">{job.title}</h3>
-      {job.company?.company_name && <p className="mt-0.5 truncate text-xs font-semibold text-mute">🏢 {job.company.company_name}</p>}
+      {job.company?.company_name && (
+        <p className="mt-0.5 truncate text-xs font-semibold text-mute">
+          🏢 {job.company.company_name}
+          {/* 해피워크가 확인한 회사 (사업자 확인) */}
+          {job.company.verified === true && <span className="ml-1 text-emerald-600">✓ 확인된 회사</span>}
+        </p>
+      )}
       <p className="mt-1 text-sm text-sub">
         {fmtDateRange(job.start_date, job.end_date)} {scheduleText(job)}
         {job.location_name && <span className="text-mute"> · {job.location_name}</span>}
