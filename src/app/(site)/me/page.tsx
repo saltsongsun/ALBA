@@ -182,6 +182,11 @@ export default async function MePage(props: PageProps<'/me'>) {
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
   const pendingDocs = docs.filter((d) => d.status === 'pending' && docOpen(d.job_id))
   const jobsById = new Map(apps.map((a) => [a.job_id, a.job]))
+  // 서류 목록 아랫줄: 어느 회사 · 어느 공고 서류인지 (여러 회사 근로계약서가 같은 이름이어도 구분되게)
+  const docJobLine = (jobId: string) => {
+    const j = jobsById.get(jobId)
+    return [j?.company?.company_name, j?.title].filter(Boolean).join(' · ')
+  }
   const weekAgo = kstDate(new Date(Date.now() - 7 * 86_400_000).toISOString())
   const otItems = atts
     .filter((a) => a.clock_out && !a.paid)
@@ -370,7 +375,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 font-semibold transition active:scale-[0.98]">
                 <span className="min-w-0">
                   <span className="block">{d.title}</span>
-                  <span className="block truncate text-xs font-medium text-mute">{jobsById.get(d.job_id)?.title}</span>
+                  <span className="block truncate text-xs font-medium text-mute">{docJobLine(d.job_id)}</span>
                 </span>
                 <span className="shrink-0 whitespace-nowrap text-brand-600">서명 →</span>
               </Link>
@@ -713,7 +718,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                 <Link key={d.id} href={docOpen(d.job_id) ? `/docs/${d.id}` : docInquiryHref(d.job_id)} className="flex items-center justify-between gap-3 py-3 text-sm">
                   <span className="min-w-0">
                     <b className={`block ${docOpen(d.job_id) ? '' : 'text-mute'}`}>{d.title}</b>
-                    <span className="block truncate text-xs text-mute">{jobsById.get(d.job_id)?.title}</span>
+                    <span className="block truncate text-xs text-mute">{docJobLine(d.job_id)}</span>
                   </span>
                   {docOpen(d.job_id) ? (
                     <span className="shrink-0 whitespace-nowrap text-mute">보기 →</span>

@@ -1,5 +1,5 @@
 // 근무자 '내 근무'·'지난 근무'에 어느 회사 근무인지 (🏢 회사 이름) — 여러 회사 일을 하는 근무자가 헷갈리지 않게
-// · 오늘의 근무 · 예정된 근무 · 확정 대기 · 근무 내역 · 지난 근무 전체 · 360px 한 줄
+// · 오늘의 근무 · 예정된 근무 · 확정 대기 · 근무 내역 · 서명할·서명한 서류 · 지난 근무 전체 · 360px 한 줄
 // node scripts/qa/me-company.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -30,6 +30,9 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   const [a1] = await rest(`applications?job_id=eq.${J}&user_id=eq.${W}`)
   await rest('applications', 'POST', { ...a1, id: '11111111-0000-4000-8000-0000000000d2', job_id: J2, company_id: C2, status: 'approved', position: null, job: j2 })
   await rest('applications', 'POST', { ...a1, id: '11111111-0000-4000-8000-0000000000d3', job_id: J3, company_id: C2, status: 'applied', position: null, job: j3 })
+  // 두 회사의 같은 이름 서류: 회사 · 공고로 구분
+  const [d1] = (await rest(`signed_docs?job_id=eq.${J}&user_id=eq.${W}`)).filter((d) => d.status === 'pending')
+  await rest('signed_docs', 'POST', { ...d1, id: 'ffffffff-0000-4000-8000-0000000000d2', job_id: J2, company_id: C2 })
   const [t1] = await rest(`attendance?job_id=eq.${J}&user_id=eq.${W}`)
   const past = kst(-7)
   await rest('attendance', 'POST', { ...t1, id: 'eeeeeeee-0000-4000-8000-0000000000d2', job_id: J2, company_id: C2, work_date: past, clock_in: `${past}T00:00:00Z`, clock_out: `${past}T09:00:00Z`, job: { ...j2, start_date: past, end_date: past } })
@@ -51,6 +54,9 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   ok('예정된 근무: 다른 회사 이름', (await text(sec('예정된 근무'))).includes('🏢 새내기행사'))
   ok('확정 대기: 회사 이름', (await text(sec('확정 대기'))).includes('가을 축제 매표소') && (await text(sec('확정 대기'))).includes('🏢 새내기행사'))
   ok('근무 내역: 회사 이름', /🏢 (주식회사 테스트|새내기행사)/.test(await text(sec('근무 내역'))))
+  const docsTxt = await text(sec('서명할 서류'))
+  ok('서명할 서류: 회사 · 공고로 구분', docsTxt.includes('새내기행사 · 가을 축제 주차 안내') && docsTxt.includes('주식회사 테스트 · 경상남도'), docsTxt.replace(/\n/g, ' | '))
+  ok('서명한 서류: 회사 · 공고', (await text(sec('서명한 서류'))).includes('주식회사 테스트 · '))
   const lines = p.locator('main p', { hasText: /^🏢 / })
   const hs = await lines.evaluateAll((l) => l.map((e) => e.getBoundingClientRect().height))
   ok('360px: 회사 이름 줄은 모두 한 줄', hs.length >= 3 && hs.every((h) => h < 22), JSON.stringify(hs))
