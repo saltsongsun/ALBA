@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { logout } from '@/app/actions/auth'
+import LogoutButton from '@/components/LogoutButton'
 import { unreadForAdmins } from '@/lib/data'
 import { requireAdmin } from '@/lib/session'
 import AdminNav from './AdminNav'
@@ -27,9 +27,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <Link href="/" className="rounded-lg px-2 py-1.5 font-semibold hover:bg-bg">
               근무자 화면
             </Link>
-            <form action={logout}>
-              <button className="rounded-lg px-2 py-1.5 text-mute hover:bg-bg">로그아웃</button>
-            </form>
+            <LogoutButton className="rounded-lg px-2 py-1.5 text-mute hover:bg-bg" />
           </div>
         </div>
         {/* 여러 회사를 운영하면 회사 고르기, 하나면 회사 이름만 */}

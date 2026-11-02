@@ -42,6 +42,7 @@ export function WorkerEditForm({
   initial,
   canSuspend = false,
   canGrant = false,
+  canEditIdentity = false,
 }: {
   userId: string
   initial: { name: string; phone: string; role: string; active: boolean; admin_memo: string }
@@ -49,6 +50,8 @@ export function WorkerEditForm({
   canSuspend?: boolean
   /** 이 회사 관리자 추가·해제 → 최고 관리자·대표 관리자만 */
   canGrant?: boolean
+  /** 휴대폰 번호(로그인 번호)는 모든 회사 공용 계정의 열쇠 → 최고 관리자만 */
+  canEditIdentity?: boolean
 }) {
   const [state, action] = useActionState(updateWorker.bind(null, userId), null)
   return (
@@ -59,8 +62,8 @@ export function WorkerEditForm({
           <input name="name" className="input" defaultValue={initial.name} />
         </label>
         <label>
-          <span className="label">휴대폰 번호</span>
-          <input name="phone" className="input" defaultValue={initial.phone} />
+          <span className="label">휴대폰 번호{!canEditIdentity && ' (본인만 바꿀 수 있어요)'}</span>
+          <input name="phone" className="input read-only:bg-bg read-only:text-sub" defaultValue={initial.phone} readOnly={!canEditIdentity} />
         </label>
       </div>
       <label className="block">

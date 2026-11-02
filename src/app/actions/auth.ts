@@ -12,7 +12,7 @@ import { sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, note, overLimit, recent } from '@/lib/ratelimit'
 import { createSession, destroySession } from '@/lib/session'
 import { ageOn, minutesText } from '@/lib/time'
-import { isPin, normalizePhone, optStr, parseRrn, safePath, str, weakPin } from '@/lib/validate'
+import { isBizNo, isPin, line, normalizePhone, optLine, optStr, parseRrn, safePath, str, weakPin } from '@/lib/validate'
 import { parseCareers } from '@/lib/careers'
 import { isMemberType, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
@@ -26,6 +26,9 @@ const LOCK_MINUTES = 10
 const MAX_LOCK_MINUTES = 24 * 60
 // 한 IP에서 여러 계정을 돌아가며 맞혀 보는 공격 막기
 const IP_FAIL_15M = 20
+// 동시에 몰아서 보내는 시도까지 세는 상한 (실패든 성공이든 시도 자체)
+const LOGIN_TRIES_15M = 10
+const IP_TRIES_15M = 200 // 행사장 와이파이·통신사 공용 IP로 많은 근무자가 한꺼번에 로그인해도 막히지 않을 만큼
 const IP_FAIL_DAY = 100
 // 없는 번호로 로그인해도 걸리는 시간을 같게 (번호가 가입돼 있는지 알아내지 못하게)
 const DUMMY_HASH = `s1:${'A'.repeat(22)}==:${'A'.repeat(43)}=`
@@ -64,7 +67,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   if (await overLimit(await ipKey('signup-try'), 20, 3600)) return { error: '가입 시도가 너무 많아요. 한 시간 뒤에 다시 시도해 주세요.' }
   const memberType = isMemberType(str(form, 'member_type')) ? (str(form, 'member_type') as MemberType) : 'worker'
   if (memberType === 'vendor') return signupVendor(form)
-  const name = str(form, 'name', 30)
+  const name = line(form, 'name', 30)
   const phone = normalizePhone(str(form, 'phone'))
   const rrn = parseRrn(str(form, 'rrn1') + str(form, 'rrn2'))
   const pin = str(form, 'pin')
@@ -98,7 +101,8 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   if (byPhone || byRrn) await note(dupKey)
   if (byPhone) return { error: '이미 가입된 휴대폰 번호예요.', code: 'dup_phone' }
   if (byRrn) {
-    return { error: '이미 가입된 주민등록번호입니다. 예전에 쓰던 번호로 로그인하거나 담당자에게 문의해 주세요.', code: 'dup_rrn' }
+    // 어떤 주민번호가 가입돼 있는지 알려 주지 않도록 두루뭉술하게
+    return { error: '이 정보로는 새로 가입할 수 없어요. 예전에 가입했다면 그 번호로 로그인하거나 담당자에게 문의해 주세요.', code: 'dup_rrn' }
   }
 
   const careers = parseCareers(str(form, 'careers', 8000)) ?? []
@@ -115,10 +119,10 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
       birth_date: rrn.birthDate,
       gender: rrn.gender,
       is_foreigner: rrn.isForeigner,
-      address: optStr(form, 'address', 200),
-      bank_name: account ? optStr(form, 'bank_name', 30) : null,
+      address: optLine(form, 'address', 200),
+      bank_name: account ? optLine(form, 'bank_name', 30) : null,
       bank_account_enc: account ? encrypt(account) : null,
-      account_holder: account ? optStr(form, 'account_holder', 30) || name : null,
+      account_holder: account ? optLine(form, 'account_holder', 30) || name : null,
       privacy_agreed_at: new Date().toISOString(),
       photo_at: new Date().toISOString(),
       careers,
@@ -150,13 +154,13 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
  * 견적 요청·대금 현황을 앱에서 보고, 업체 사업자번호로 회사 외주사 목록과 이어짐
  */
 async function signupVendor(form: FormData): Promise<FormState> {
-  const bizName = str(form, 'biz_name', 60)
+  const bizName = line(form, 'biz_name', 60)
   const bizNo = str(form, 'biz_no', 20).replace(/\D/g, '')
-  const name = str(form, 'name', 30)
+  const name = line(form, 'name', 30)
   const phone = normalizePhone(str(form, 'phone'))
   const pin = str(form, 'pin')
   if (bizName.length < 2) return { error: '상호를 입력해 주세요.' }
-  if (bizNo.length !== 10) return { error: '사업자등록번호 10자리를 입력해 주세요.' }
+  if (!isBizNo(bizNo)) return { error: '사업자등록번호 10자리를 정확히 입력해 주세요. (사업자등록증에 적힌 번호)' }
   if (name.length < 2) return { error: '담당자 이름을 입력해 주세요.' }
   if (!phone) return { error: '휴대폰 번호를 정확히 입력해 주세요. (예: 010-1234-5678)' }
   if (!isPin(pin)) return { error: '비밀번호는 숫자 6자리로 정해 주세요.' }
@@ -164,8 +168,14 @@ async function signupVendor(form: FormData): Promise<FormState> {
   const weak = weakPin(pin, { phone })
   if (weak) return { error: weak }
   if (form.get('agree_privacy') !== 'on') return { error: '필수 동의 항목에 체크해 주세요.' }
+  // 가입된 번호인지 대량으로 알아보지 못하게 (아르바이트 가입과 같은 제한)
+  const dupKey = await ipKey('signup-dup')
+  if ((await recent(dupKey, 3600)) >= 5) return { error: '가입 시도가 너무 많아요. 한 시간 뒤에 다시 시도하거나 담당자에게 문의해 주세요.' }
   const { data: byPhone } = await db().from('users').select('id').eq('phone', phone).maybeSingle()
-  if (byPhone) return { error: '이미 가입된 휴대폰 번호예요.', code: 'dup_phone' }
+  if (byPhone) {
+    await note(dupKey)
+    return { error: '이미 가입된 휴대폰 번호예요.', code: 'dup_phone' }
+  }
   const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
   const { data, error } = await db()
     .from('users')
@@ -179,9 +189,9 @@ async function signupVendor(form: FormData): Promise<FormState> {
       specialty: parseSpecialty(str(form, 'specialty', 300)),
       intro: optStr(form, 'intro', 100),
       portfolio_url: portfolioUrl(form),
-      bank_name: account ? optStr(form, 'bank_name', 30) : null,
+      bank_name: account ? optLine(form, 'bank_name', 30) : null,
       bank_account_enc: account ? encrypt(account) : null,
-      account_holder: account ? optStr(form, 'account_holder', 40) || bizName : null,
+      account_holder: account ? optLine(form, 'account_holder', 40) || bizName : null,
       privacy_agreed_at: new Date().toISOString(),
     })
     .select('id, session_version')
@@ -205,6 +215,14 @@ export async function login(_: FormState, form: FormData): Promise<FormState> {
   const [fail15, failDay] = await Promise.all([recent(ipFail, 15 * 60), recent(ipFail, 86_400)])
   if (fail15 >= IP_FAIL_15M || failDay >= IP_FAIL_DAY) {
     return { error: '로그인 시도가 너무 많아요. 잠시 뒤에 다시 시도하거나 담당자에게 비밀번호 초기화를 요청해 주세요.' }
+  }
+  // 같은 번호로 동시에 여러 번 보내 잠금을 건너뛰지 못하게: 먼저 시도를 기록한 뒤 세어 봄 (번호마다 15분에 10번, IP마다 15분에 200번)
+  const tryPhone = `login-try:${phone}`
+  const tryIp = await ipKey('login-try')
+  await note(tryPhone, tryIp)
+  const [phoneTries, ipTries] = await Promise.all([recent(tryPhone, 15 * 60), recent(tryIp, 15 * 60)])
+  if (phoneTries > LOGIN_TRIES_15M || ipTries > IP_TRIES_15M) {
+    return { error: '로그인 시도가 너무 많아요. 15분 뒤에 다시 시도하거나 담당자에게 비밀번호 초기화를 요청해 주세요.' }
   }
 
   const { data: u } = await db()
@@ -273,12 +291,13 @@ function sameCode(a: string, b: string): boolean {
 export async function setupAdmin(_: FormState, form: FormData): Promise<FormState> {
   const code = process.env.ADMIN_SETUP_CODE
   if (!code) return { error: 'ADMIN_SETUP_CODE 환경변수가 설정되지 않았습니다.' }
-  const { count } = await db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'admin')
-  if ((count ?? 0) > 0) return { error: '이미 관리자 계정이 있습니다. 기존 관리자에게 권한을 요청해 주세요.' }
+  const { count, error: countError } = await db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'admin')
+  // 확인이 안 되면 막음 (오류일 때 첫 관리자 등록이 열리지 않게)
+  if (countError || (count ?? 0) > 0) return { error: '이미 관리자 계정이 있습니다. 기존 관리자에게 권한을 요청해 주세요.' }
   if (await overLimit(await ipKey('setup-try'), 10, 3600)) return { error: '시도가 너무 많아요. 한 시간 뒤에 다시 시도해 주세요.' }
   if (!sameCode(str(form, 'code'), code)) return { error: '설치 코드가 맞지 않습니다.' }
 
-  const name = str(form, 'name', 30)
+  const name = line(form, 'name', 30)
   const phone = normalizePhone(str(form, 'phone'))
   const pin = str(form, 'pin')
   if (name.length < 2) return { error: '이름을 입력해 주세요.' }

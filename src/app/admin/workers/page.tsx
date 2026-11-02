@@ -65,6 +65,8 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     .filter((u) => (u.role === 'admin' ? memberIds.has(u.id) : u.member_type !== 'vendor'))
     // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 (전체 회원 명단은 확인 뒤)
     .filter((u) => admin.companyVerified || applied.has(u.id) || memberIds.has(u.id))
+    // 탈퇴·정지한 회원은 우리 회사와 관계있을 때만 (기록 보관 의무는 함께 일한 회사에만)
+    .filter((u) => u.active || applied.has(u.id) || memberIds.has(u.id))
     .filter((u) =>
       f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) || memberIds.has(u.id) : f === 'new' ? isNew(u) : true,
     )

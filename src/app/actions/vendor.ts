@@ -16,7 +16,7 @@ import { findPartnerAccount, tellPartner } from '@/lib/partners'
 import { siteOrigin } from '@/lib/session'
 import { kstDate } from '@/lib/time'
 import type { Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types'
-import { isDate, isUuid, optStr, str } from '@/lib/validate'
+import { isDate, isUuid, line, optLine, optStr, str } from '@/lib/validate'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -71,28 +71,28 @@ function refresh(...paths: string[]) {
 export async function saveVendor(id: string | null, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
   if (id && !isUuid(id)) return { error: '잘못된 요청입니다.' }
-  const name = str(form, 'name', 60)
+  const name = line(form, 'name', 60)
   if (name.length < 2) return { error: '상호를 입력해 주세요.' }
   const email = optStr(form, 'email', 100)
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: '이메일 주소를 확인해 주세요.' }
   const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
   if (account) {
     const digits = account.replace(/\D/g, '').length
-    if (!optStr(form, 'bank_name', 30)) return { error: '계좌의 은행을 골라 주세요.' }
+    if (!optLine(form, 'bank_name', 30)) return { error: '계좌의 은행을 골라 주세요.' }
     if (digits < 10 || digits > 16) return { error: `계좌번호가 ${digits}자리예요. 숫자 10~16자리인지 확인해 주세요.` }
   }
   const row: Partial<Vendor> = {
     name,
     category: optStr(form, 'category', 30),
-    contact_name: optStr(form, 'contact_name', 30),
+    contact_name: optLine(form, 'contact_name', 30),
     phone: optStr(form, 'phone', 20),
     email,
     business_no: optStr(form, 'business_no', 20),
-    account_holder: optStr(form, 'account_holder', 40),
+    account_holder: optLine(form, 'account_holder', 40),
     memo: optStr(form, 'memo', 500),
   }
   if (account) {
-    row.bank_name = optStr(form, 'bank_name', 30)
+    row.bank_name = optLine(form, 'bank_name', 30)
     row.bank_account_enc = encrypt(account)
   } else if (!id || form.get('clear_account') === 'on') {
     row.bank_name = null

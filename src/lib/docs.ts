@@ -63,7 +63,8 @@ export function buildDocVars(
 }
 
 export function renderTemplate(body: string, vars: Record<string, string>): string {
-  return body.replace(/\{\{\s*([^}\s]+)\s*\}\}/g, (m, key: string) => (key in vars ? vars[key] : m))
+  // 채워 넣는 값(이름·주소 등)에 줄바꿈이 섞여 계약서에 조항이 끼어들지 않게 한 줄로
+  return body.replace(/\{\{\s*([^}\s]+)\s*\}\}/g, (m, key: string) => (key in vars ? String(vars[key]).replace(/[\r\n\t]+/g, ' ') : m))
 }
 
 export function scheduleSummary(job: Job): string {

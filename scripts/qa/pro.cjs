@@ -99,7 +99,7 @@ const errs = []
   const vd = await pg(null)
   await vd.goto(`${D}/signup?type=vendor`)
   await vd.locator('input[name=biz_name]').fill('빛나는조명')
-  await vd.locator('input[name=biz_no]').fill('1234567890')
+  await vd.locator('input[name=biz_no]').fill('2208162517')
   await vd.locator('input[name=name]').fill('박조명')
   await vd.locator('input[name=phone]').fill('01060607070')
   await vd.locator('input[name=pin]').fill('482913')
@@ -109,7 +109,7 @@ const errs = []
   await vd.waitForURL(/\/pro/, { timeout: 15000 }).catch(() => {})
   ok('업체 가입 → 전문가·업체 화면', vd.url().includes('/pro'), vd.url())
   const vUser = (await rest('users?phone=eq.01060607070'))[0]
-  ok('업체 회원: 사업자번호·유형 저장 (주민번호 없음)', vUser?.member_type === 'vendor' && vUser?.biz_no === '1234567890' && !vUser?.rrn_enc)
+  ok('업체 회원: 사업자번호·유형 저장 (주민번호 없음)', vUser?.member_type === 'vendor' && vUser?.biz_no === '2208162517' && !vUser?.rrn_enc)
   const linked = (await rest('vendors')).find((v) => v.name === '빛나는조명')
   ok('같은 번호의 외주사와 앱 연결', linked?.user_id === vUser?.id)
   ok('업체 아래 탭 4개 (근무 탭 없음)', (await vd.locator('nav[data-bottom-nav] a').count()) === 4 && (await vd.locator('nav[data-bottom-nav] a[href="/me"]').count()) === 0)

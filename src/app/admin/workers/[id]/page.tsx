@@ -97,7 +97,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const found = data as UserRow | null
   // 다른 회사 관리자·외주 업체 계정은 근무자 화면으로 열지 않음
   // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 볼 수 있음
-  if (!found || (!related && (found.role === 'admin' || found.member_type === 'vendor' || !admin.companyVerified))) notFound()
+  // 우리 회사와 관계없는 회원: 탈퇴·정지 계정, 관리자·외주 업체 계정, 확인 전 회사는 못 봄
+  if (!found || (!related && (found.role === 'admin' || found.member_type === 'vendor' || !admin.companyVerified || !found.active))) notFound()
   // 메모·관리자 표시는 이 회사 기준 (다른 회사 메모·소속은 보이지 않게)
   const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]
@@ -220,9 +221,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             </form>
           )}
           {related ? (
-            <div className="border-t border-line pt-3">
-              <ResetPin userId={u.id} />
-            </div>
+            // 비밀번호 초기화: 근무자 계정만 (관리자 계정은 최고 관리자만)
+            (u.role === 'worker' || admin.isSuper) && u.id !== admin.id && (
+              <div className="border-t border-line pt-3">
+                <ResetPin userId={u.id} />
+              </div>
+            )
           ) : (
             <p className="rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub">
               아직 우리 회사에 지원한 적 없는 회원이에요. 공고에 확정하거나 이 사람이 지원하면 주민번호·계좌·주소를 볼 수 있어요.
@@ -239,7 +243,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               userId={u.id}
               initial={{ name: u.name, phone: u.phone, role: u.role, active: u.active, admin_memo: u.admin_memo ?? '' }}
               canSuspend={admin.isSuper}
-              canGrant={admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'}
+              canEditIdentity={admin.isSuper}
+              canGrant={admin.isSuper || (admin.companyVerified && admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner')}
             />
           </Fold>
         </div>

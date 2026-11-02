@@ -11,7 +11,7 @@ import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { MIN_WAGE_2026 } from '@/lib/pay'
 import { adminCompanies, COMPANY_COOKIE, createSession, getUser, requireSuper } from '@/lib/session'
-import { isBizNo, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
+import { isBizNo, isPin, isUuid, line, normalizePhone, optLine, optStr, str, weakPin } from '@/lib/validate'
 import { bizNoFmt } from '@/lib/members'
 import { sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
@@ -51,9 +51,9 @@ export async function signupCompany(_: FormState, form: FormData): Promise<FormS
   if (user && user.role !== 'admin') {
     return { error: '근무자 계정으로는 회사를 만들 수 없어요. 로그아웃한 뒤 회사 담당자 번호로 가입해 주세요.' }
   }
-  const company_name = str(form, 'company_name', 100)
+  const company_name = line(form, 'company_name', 100)
   const bizNo = str(form, 'business_no', 20).replace(/\D/g, '')
-  const ceo_name = str(form, 'ceo_name', 30)
+  const ceo_name = line(form, 'ceo_name', 30)
   if (company_name.length < 2) return { error: '회사 이름(상호)을 입력해 주세요.' }
   if (!isBizNo(bizNo)) return { error: '사업자등록번호 10자리를 정확히 입력해 주세요. (사업자등록증에 적힌 번호)' }
   if (ceo_name.length < 2) return { error: '대표자 이름을 입력해 주세요.' }
@@ -72,7 +72,7 @@ export async function signupCompany(_: FormState, form: FormData): Promise<FormS
     contactName = user.name
     contactPhone = user.phone
   } else {
-    const name = str(form, 'name', 30)
+    const name = line(form, 'name', 30)
     const phone = normalizePhone(str(form, 'phone'))
     const pin = str(form, 'pin')
     if (name.length < 2) return { error: '담당자 이름을 입력해 주세요.' }
@@ -134,13 +134,13 @@ export async function signupCompany(_: FormState, form: FormData): Promise<FormS
 /** 회사 만들기 (최고 관리자만): 기본 서류 서식을 함께 넣고, 만든 사람을 대표 관리자로 */
 export async function createCompany(_: FormState, form: FormData): Promise<FormState> {
   const admin = await requireSuper()
-  const company_name = str(form, 'company_name', 100)
+  const company_name = line(form, 'company_name', 100)
   if (company_name.length < 2) return { error: '회사 이름(상호)을 입력해 주세요.' }
   const { data, error } = await db()
     .from('companies')
     .insert({
       company_name,
-      ceo_name: optStr(form, 'ceo_name', 30),
+      ceo_name: optLine(form, 'ceo_name', 30),
       business_no: optStr(form, 'business_no', 20),
       contact_phone: normalizePhone(str(form, 'contact_phone')) ?? optStr(form, 'contact_phone', 20),
       default_hourly_wage: MIN_WAGE_2026,
@@ -170,7 +170,7 @@ export async function addCompanyAdmin(companyId: string, _: FormState, form: For
   const phone = normalizePhone(str(form, 'phone'))
   if (!phone) return { error: '휴대폰 번호를 정확히 입력해 주세요.' }
   const role = str(form, 'role') === 'owner' ? 'owner' : 'admin'
-  const { data: existing } = await db().from('users').select('id, name, role, active').eq('phone', phone).maybeSingle()
+  const { data: existing } = await db().from('users').select('id, name, role, active, session_version').eq('phone', phone).maybeSingle()
   let userId: string
   let temp: string | null = null
   let name: string
@@ -178,9 +178,10 @@ export async function addCompanyAdmin(companyId: string, _: FormState, form: For
     if (!existing.active) return { error: '로그인이 정지된 계정이에요. 먼저 정지를 풀어 주세요.' }
     userId = existing.id
     name = existing.name
-    if (existing.role !== 'admin') must(await db().from('users').update({ role: 'admin' }).eq('id', userId))
+    // 권한이 바뀌면 다시 로그인하게 (근무자 로그인이 관리자 권한으로 이어지지 않게)
+    if (existing.role !== 'admin') must(await db().from('users').update({ role: 'admin', session_version: existing.session_version + 1 }).eq('id', userId))
   } else {
-    name = str(form, 'name', 30)
+    name = line(form, 'name', 30)
     if (name.length < 2) return { error: '처음 쓰는 번호예요. 관리자 이름도 입력해 주세요.' }
     temp = String(randomInt(0, 1_000_000)).padStart(6, '0')
     while (weakPin(temp, { phone })) temp = String(randomInt(0, 1_000_000)).padStart(6, '0')
@@ -210,9 +211,9 @@ export async function removeCompanyAdmin(companyId: string, userId: string) {
   must(await db().from('company_members').delete().eq('company_id', companyId).eq('user_id', userId))
   const [{ count: left }, { data: u }] = await Promise.all([
     db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('user_id', userId),
-    db().from('users').select('is_super').eq('id', userId).maybeSingle(),
+    db().from('users').select('is_super, session_version').eq('id', userId).maybeSingle(),
   ])
-  if (!left && !u?.is_super) must(await db().from('users').update({ role: 'worker' }).eq('id', userId))
+  if (!left && !u?.is_super) must(await db().from('users').update({ role: 'worker', session_version: (u?.session_version ?? 0) + 1 }).eq('id', userId))
   await audit(admin.id, 'company.admin_remove', userId, null, companyId)
   revalidatePath('/admin/companies')
 }

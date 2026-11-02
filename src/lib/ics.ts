@@ -13,7 +13,8 @@ export type IcsEvent = {
 }
 
 const utc = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '')
-const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+// 달력 파일 글자 이스케이프 (줄바꿈은 CR·LF·CRLF 모두 \n 으로 바꿔 새 항목을 끼워 넣지 못하게)
+const esc = (s: string) => s.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r\n|\r|\n/g, '\\n')
 
 /** 한 줄이 75바이트를 넘으면 접기 (한글이 잘리지 않게 글자 단위로) */
 function fold(line: string): string {

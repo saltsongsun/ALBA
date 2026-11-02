@@ -2,35 +2,32 @@ import 'server-only'
 import { db } from './db'
 import { tellWorkers } from './notify'
 import { phoneFmt } from './format'
-import { bizNoFmt } from './members'
 
 /**
  * 가입한 전문가·외주 업체 계정을 회사들이 등록해 둔 외주사와 잇기 (아직 계정이 안 이어진 것만).
- * 같은 사업자등록번호이거나 같은 휴대폰 번호면 같은 업체로 봄 → 견적 요청·대금을 앱에서 봄
+ * 회사가 적어 둔 담당자 휴대폰 번호(로그인 번호)가 같을 때만 같은 업체로 봄 → 견적 요청·대금을 앱에서 봄.
+ * 사업자등록번호는 누구나 알 수 있는 정보라 잇는 기준으로 쓰지 않음 (남의 사업자번호로 가입해 견적·대금을 가로채지 못하게)
  */
-export async function linkVendorAccount(userId: string, bizNo: string | null, phone: string): Promise<number> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function linkVendorAccount(userId: string, _bizNo: string | null, phone: string): Promise<number> {
   const phones = [phone, phoneFmt(phone)]
-  const [{ data: byPhone }, { data: byBiz }] = await Promise.all([
-    db().from('vendors').select('id, user_id').in('phone', phones).is('user_id', null),
-    bizNo ? db().from('vendors').select('id, user_id').in('business_no', [bizNo, bizNoFmt(bizNo)]).is('user_id', null) : { data: [] },
-  ])
-  const ids = [...new Set([...((byPhone ?? []) as { id: string; user_id: string | null }[]), ...((byBiz ?? []) as { id: string; user_id: string | null }[])].filter((v) => !v.user_id).map((v) => v.id))]
+  const { data: byPhone } = await db().from('vendors').select('id, user_id').in('phone', phones).is('user_id', null)
+  const ids = [...new Set(((byPhone ?? []) as { id: string; user_id: string | null }[]).filter((v) => !v.user_id).map((v) => v.id))]
   if (ids.length) await db().from('vendors').update({ user_id: userId }).in('id', ids).is('user_id', null)
   return ids.length
 }
 
-/** 외주사 정보(휴대폰·사업자번호)로 가입한 전문가·외주 업체 계정 찾기 (관리자가 외주사를 등록·수정할 때) */
-export async function findPartnerAccount(phone: string | null, bizNo: string | null): Promise<string | null> {
-  const digits = (bizNo ?? '').replace(/\D/g, '')
+/**
+ * 외주사 담당자 휴대폰 번호(로그인 번호)로 가입한 전문가·외주 업체 계정 찾기 (관리자가 외주사를 등록·수정할 때).
+ * 사업자등록번호로는 찾지 않음 (가입자가 아무 번호나 적을 수 있어서)
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function findPartnerAccount(phone: string | null, _bizNo: string | null): Promise<string | null> {
   const tel = (phone ?? '').replace(/\D/g, '')
-  const [{ data: byBiz }, { data: byPhone }] = await Promise.all([
-    digits.length === 10 ? db().from('users').select('id, member_type').eq('biz_no', digits).maybeSingle() : { data: null },
-    tel.length >= 10 ? db().from('users').select('id, member_type').eq('phone', tel).maybeSingle() : { data: null },
-  ])
-  for (const u of [byBiz, byPhone] as ({ id: string; member_type: string } | null)[]) {
-    if (u && (u.member_type === 'vendor' || u.member_type === 'expert')) return u.id
-  }
-  return null
+  if (tel.length < 10) return null
+  const { data: u } = await db().from('users').select('id, member_type').eq('phone', tel).maybeSingle()
+  const acct = u as { id: string; member_type: string } | null
+  return acct && (acct.member_type === 'vendor' || acct.member_type === 'expert') ? acct.id : null
 }
 
 /** 외주사와 이어진 계정이 있으면 그 사람 문의함 + 휴대폰 알림으로 (견적 요청·선정·지급) */

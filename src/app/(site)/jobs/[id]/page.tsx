@@ -232,7 +232,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {job.manager_name && (
             <Row k="담당자">
               {job.manager_name}
-              {job.manager_phone && (
+              {/* 담당자 휴대폰은 로그인한 회원에게만 (검색에 노출되거나 누구나 모아 가지 못하게) */}
+              {job.manager_phone && user && (
                 <div className="mt-1">
                   <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} />
                 </div>
@@ -414,6 +415,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   가입 유형 바꾸기
                 </Link>
               )}
+            </div>
+          )
+        ) : user?.role === 'admin' ? (
+          // 관리자 계정은 지원하지 않음 (지원·확정은 근무자 계정으로)
+          canApply && (
+            <div className="card space-y-2 text-center">
+              <p className="font-semibold">관리자 계정으로는 지원할 수 없어요</p>
+              <p className="text-sm text-sub">근무자 계정으로 로그인해 주세요</p>
+              <Link href="/admin" className="btn-soft btn-sm">
+                관리자 화면으로
+              </Link>
             </div>
           )
         ) : (

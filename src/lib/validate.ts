@@ -52,6 +52,19 @@ export function optStr(form: FormData, key: string, max = 500): string | null {
   return str(form, key, max) || null
 }
 
+/** 한 줄 값: 줄바꿈·탭·제어 문자를 띄어쓰기로 (이름·주소·예금주 등이 계약서·이체 목록·엑셀에서 줄을 만들지 못하게) */
+export function oneLine(v: string): string {
+  return v.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/ {2,}/g, ' ').trim()
+}
+
+export function line(form: FormData, key: string, max = 200): string {
+  return oneLine(str(form, key, max))
+}
+
+export function optLine(form: FormData, key: string, max = 200): string | null {
+  return line(form, key, max) || null
+}
+
 export function int(form: FormData, key: string, fallback = 0): number {
   const raw = str(form, key).replace(/,/g, '')
   const n = Number(raw)
@@ -75,9 +88,12 @@ export function isTime(v: string): boolean {
   return /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/.test(v)
 }
 
-/** 외부 주소로 튀지 않는 내부 경로만 허용 */
+/**
+ * 외부 주소로 튀지 않는 내부 경로만 허용.
+ * 공백·탭·줄바꿈·역슬래시가 섞이면 브라우저가 지워서 //다른사이트 로 바뀔 수 있으므로 거부
+ */
 export function safePath(p: unknown, fallback: string): string {
-  return typeof p === 'string' && /^\/(?![/\\])/.test(p) ? p : fallback
+  return typeof p === 'string' && /^\/(?![/\\])/.test(p) && !/[\u0000-\u0020\u007f\\]/.test(p) ? p : fallback
 }
 
 /**

@@ -85,7 +85,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   ])
   if (!job) notFound()
   // 조회 현황 (관리자만): 확인한 인원·지금 보는 인원·본 가입자
-  const [vstats, mviewers] = await Promise.all([viewStats([id]), memberViewers(id)])
+  // 확인 전 회사에는 '본 가입자' 이름을 보여 주지 않음 (공고를 미끼로 회원 이름을 모으지 못하게)
+  const [vstats, mviewers] = await Promise.all([viewStats([id]), admin.companyVerified ? memberViewers(id) : Promise.resolve([] as Awaited<ReturnType<typeof memberViewers>>)])
   const viewerNames = mviewers.length
     ? new Map(
         (must(await db().from('users').select('id, name').in('id', mviewers.map((v) => v.user_id))) as { id: string; name: string }[]).map((u) => [u.id, u.name]),

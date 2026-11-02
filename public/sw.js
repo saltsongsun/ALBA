@@ -53,7 +53,10 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const url = new URL((event.notification.data && event.notification.data.url) || '/me', self.location.origin).href
+  // 알림을 누르면 이 앱 안의 화면만 열기 (다른 사이트 주소는 무시)
+  let url = new URL((event.notification.data && event.notification.data.url) || '/me', self.location.origin)
+  if (url.origin !== self.location.origin) url = new URL('/me', self.location.origin)
+  url = url.href
   event.waitUntil(
     (async () => {
       const wins = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })

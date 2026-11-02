@@ -17,7 +17,7 @@ import { fixTime, SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
-import { isDate, isPin, isUuid, normalizePhone, optStr, str, weakPin } from '@/lib/validate'
+import { isDate, isPin, isUuid, line, normalizePhone, optLine, optStr, str, weakPin } from '@/lib/validate'
 import { canOpenJobDocs } from '@/lib/doc-access'
 import { canApplyTo, myWorkTab, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
@@ -36,8 +36,10 @@ export async function applyJob(jobId: string, form: FormData) {
   const path = `/jobs/${jobId}`
   if (job.status !== 'open') back(path, '모집이 마감된 공고입니다.')
   if (job.end_date < kstDate()) back(path, '이미 끝난 행사입니다.')
+  // 관리자 계정은 지원 못 함 (근무자 계정으로)
+  if (user.role === 'admin') back(path, '관리자 계정으로는 지원할 수 없어요. 근무자 계정으로 로그인해 주세요.')
   // 알바 공고는 아르바이트 회원, 전문가 의뢰는 전문가 회원만 (외주 업체는 견적 요청으로)
-  if (user.role !== 'admin' && !canApplyTo(user.memberType, job.audience)) {
+  if (!canApplyTo(user.memberType, job.audience)) {
     back(path, job.audience === 'expert' ? '전문가 회원만 지원할 수 있는 의뢰예요.' : '아르바이트 회원만 지원할 수 있는 공고예요.')
   }
 
@@ -734,8 +736,8 @@ export async function updateProfile(_: FormState, form: FormData): Promise<FormS
   const user = await requireUser()
   const { data: cur } = await db().from('users').select('bank_name, bank_account_enc, account_holder').eq('id', user.id).single()
   const account = str(form, 'bank_account', 40).replace(/[^\d-]/g, '')
-  const bankName = account ? optStr(form, 'bank_name', 30) : null
-  const holder = account ? optStr(form, 'account_holder', 30) || user.name : null
+  const bankName = account ? optLine(form, 'bank_name', 30) : null
+  const holder = account ? optLine(form, 'account_holder', 30) || user.name : null
   // 급여가 엉뚱한 곳으로 가거나 이체가 실패하지 않게: 은행·자리수 확인
   if (account) {
     const digits = account.replace(/\D/g, '').length
@@ -749,7 +751,7 @@ export async function updateProfile(_: FormState, form: FormData): Promise<FormS
     await db()
       .from('users')
       .update({
-        address: optStr(form, 'address', 200),
+        address: optLine(form, 'address', 200),
         emergency_phone: emergency ? normalizePhone(emergency) ?? emergency.slice(0, 20) : null,
         bank_name: bankName,
         bank_account_enc: account ? encrypt(account) : null,
@@ -884,7 +886,7 @@ export async function saveProInfo(_: FormState, form: FormData): Promise<FormSta
     portfolio_url: url,
   }
   if (user.memberType === 'vendor') {
-    const bizName = str(form, 'biz_name', 60)
+    const bizName = line(form, 'biz_name', 60)
     const bizNo = str(form, 'biz_no', 20).replace(/\D/g, '')
     if (bizName.length < 2) return { error: '상호를 입력해 주세요.' }
     if (bizNo.length !== 10) return { error: '사업자등록번호 10자리를 입력해 주세요.' }

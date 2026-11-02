@@ -21,18 +21,7 @@ import { requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 import type { Attendance, Job, JobCondition, ShiftChange, SignedDoc } from '@/lib/types'
-import {
-  bool,
-  formatRrn,
-  int,
-  isDate,
-  isTime,
-  isUuid,
-  normalizePhone,
-  optStr,
-  str,
-  weakPin,
-} from '@/lib/validate'
+import { bool, formatRrn, int, isDate, isTime, isUuid, line, normalizePhone, oneLine, optLine, optStr, str, weakPin } from '@/lib/validate'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -109,7 +98,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
     description: optStr(form, 'description', 3000),
     task: optStr(form, 'task', 300),
     location_name: optStr(form, 'location_name', 100),
-    address: optStr(form, 'address', 200),
+    address: optLine(form, 'address', 200),
     lat,
     lng,
     gps_required,
@@ -528,8 +517,9 @@ export async function assignWorkerToJob(userId: string, form: FormData) {
   const jobId = str(form, 'job_id', 40)
   const job = await companyJob(admin, jobId)
   if (!job || !['open', 'closed'].includes(job.status) || job.end_date < kstDate()) back(path, '확정할 공고를 골라 주세요.')
-  const { data: u } = await db().from('users').select('id, name, active').eq('id', userId).maybeSingle()
-  if (!u || !u.active) back(path, '사용할 수 없는 계정이에요.')
+  const { data: u } = await db().from('users').select('id, name, active, role, member_type').eq('id', userId).maybeSingle()
+  // 관리자·외주 업체 계정은 근무로 확정할 수 없음
+  if (!u || !u.active || u.role !== 'worker' || u.member_type === 'vendor') back(path, '사용할 수 없는 계정이에요.')
   const { data: cur } = await db().from('applications').select('status').eq('job_id', job.id).eq('user_id', userId).maybeSingle()
   if ((cur as { status: string } | null)?.status === 'approved') back(path, `이미 「${job.title}」에 확정된 근무자예요.`)
   must(
@@ -556,8 +546,9 @@ export async function addWorkerToJob(jobId: string, form: FormData) {
   if (!admin.companyVerified) back(path, '회사 확인을 마치면 번호로 직접 추가할 수 있어요. 지금은 공고 링크를 보내 지원을 받아 주세요.')
   const phone = normalizePhone(str(form, 'phone'))
   if (!phone) back(path, '휴대폰 번호를 확인해 주세요.')
-  const { data: u } = await db().from('users').select('id, name, active').eq('phone', phone).maybeSingle()
-  if (!u || !u.active) back(path, '가입된 근무자가 아닙니다. 먼저 앱에서 가입하도록 안내해 주세요.')
+  const { data: u } = await db().from('users').select('id, name, active, role, member_type').eq('phone', phone).maybeSingle()
+  // 근무자(알바·전문가) 계정만 (관리자·외주 업체 계정을 끌어오지 못하게)
+  if (!u || !u.active || u.role !== 'worker' || u.member_type === 'vendor') back(path, '가입된 근무자가 아닙니다. 먼저 앱에서 가입하도록 안내해 주세요.')
   must(
     await db()
       .from('applications')
@@ -626,6 +617,9 @@ export async function addAttendance(jobId: string, form: FormData) {
   const date = str(form, 'work_date')
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!isUuid(userId) || !isDate(date)) back(path, '근무자와 날짜를 확인해 주세요.')
+  // 이 공고에 확정된 사람만 (아무 회원 id로 기록을 만들어 신고자료로 주민번호·계좌를 빼 가지 못하게)
+  const { count: approvedApp } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId).eq('status', 'approved')
+  if (!approvedApp) back(path, '이 공고에 확정된 근무자만 기록을 추가할 수 있어요.')
   const inT = str(form, 'in') || job.start_time.slice(0, 5)
   const outT = str(form, 'out')
   if (!isTime(inT) || (outT && !isTime(outT))) back(path, '시각을 확인해 주세요.')
@@ -670,6 +664,8 @@ export async function approveArrival(jobId: string, userId: string, date: string
   ) as { body: string; created_at: string }[]
   const req = rows.find((m) => kstDate(m.created_at) === date && signalOf(m.body) === 'arrive')
   if (!req) back(path, '출근 확인 요청을 찾을 수 없어요.')
+  const { count: approvedApp } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId).eq('status', 'approved')
+  if (!approvedApp) back(path, '이 공고에 확정된 근무자가 아니에요.')
   const { error } = await db().from('attendance').insert({
     job_id: jobId,
     user_id: userId,
@@ -709,12 +705,13 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
       .order('created_at', { ascending: false })
       .limit(100)
       .then((r) => must(r) as { body: string; created_at: string; from_admin: boolean }[]),
-    db().from('attendance').select('id, clock_in, clock_out, adj_in, adj_out, note').eq('job_id', jobId).eq('user_id', userId).eq('work_date', date).maybeSingle(),
+    db().from('attendance').select('id, clock_in, clock_out, adj_in, adj_out, note, paid').eq('job_id', jobId).eq('user_id', userId).eq('work_date', date).maybeSingle(),
   ])
-  const att = data as Pick<Attendance, 'id' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'note'> | null
+  const att = data as Pick<Attendance, 'id' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'note' | 'paid'> | null
   const req = pendingFix(msgs, date)
   const fix = req && parseFix(req.body)
   if (!fix || !att?.clock_out) back(path, '답할 정정 요청이 없어요.')
+  if (accept && att.paid) back(path, '이미 지급 완료한 기록은 고칠 수 없어요.')
   const word = fix.field === 'in' ? '출근' : '종료'
   const day = fmtDate(date)
   if (!accept) {
@@ -1138,7 +1135,9 @@ export async function transferList(jobId: string): Promise<{ ok?: string; error?
     .map((u) => {
       const net = settle(job, rows.filter((r) => r.user_id === u.id).map((r) => calcDay(job, r))).net
       const acc = decrypt(u.bank_account_enc)
-      return { u, net, line: [u.bank_name ?? '은행 미등록', acc ?? '계좌 미등록', u.account_holder || u.name, String(net)].join('\t') }
+      // 칸(탭)·줄을 바꾸는 글자나 엑셀 수식으로 이체 목록을 조작하지 못하게 한 줄 글자로
+      const cell = (v: string) => oneLine(v).replace(/^[=+\-@]/, "'$&")
+      return { u, net, line: [cell(u.bank_name ?? '은행 미등록'), cell(acc ?? '계좌 미등록'), cell(u.account_holder || u.name), String(net)].join('\t') }
     })
     .filter((x) => x.net > 0)
     .sort((a, b) => a.u.name.localeCompare(b.u.name, 'ko'))
@@ -1236,9 +1235,27 @@ export async function restoreDefaultTemplates() {
 
 // ───────────── 근무자 ─────────────
 
+/**
+ * 이 회사와 실제로 일하는(확정됐거나 출퇴근 기록이 있는) 근무자 계정인지.
+ * 주민번호 보기·비밀번호 초기화처럼 민감한 일은 '지원만 한' 사람이나 관리자·최고 관리자 계정에는 못 하게
+ */
+async function workingWorker(companyId: string, userId: string): Promise<{ role: string; is_super: boolean; member_type: string | null } | null> {
+  if (!isUuid(userId)) return null
+  const [{ data: u }, { count: apps }, { count: atts }] = await Promise.all([
+    db().from('users').select('role, is_super, member_type').eq('id', userId).maybeSingle(),
+    db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('user_id', userId).eq('status', 'approved'),
+    db().from('attendance').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('user_id', userId),
+  ])
+  const user = u as { role: string; is_super: boolean; member_type: string | null } | null
+  if (!user || user.role !== 'worker' || user.is_super || ((apps ?? 0) === 0 && (atts ?? 0) === 0)) return null
+  return user
+}
+
 export async function revealRrn(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
-  if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
+  // 주민번호는 신고용: 이 회사에서 출퇴근 기록이 있는 근무자만 (지원만 했거나 관리자 계정이면 안 됨)
+  const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('user_id', userId)
+  if (!(await workingWorker(admin.companyId, userId)) || !worked) return { error: '이 회사에서 근무한 기록이 있는 근무자만 볼 수 있어요.' }
   // 관리자 계정이 털려도 주민번호를 한꺼번에 빼 가지 못하게 열람 횟수 제한
   if (await overLimit(`rrn-view:${admin.id}`, 30, 3600)) return { error: '주민등록번호 열람이 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
   const { data } = await db().from('users').select('rrn_enc').eq('id', userId).maybeSingle()
@@ -1250,7 +1267,13 @@ export async function revealRrn(userId: string, _: FormState): Promise<FormState
 
 export async function resetPin(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
-  if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
+  // 계정 가로채기 막기: 확인된 회사만, 이 회사에 확정됐거나 일한 '근무자' 계정만 (관리자·최고 관리자 계정은 최고 관리자만)
+  if (!admin.isSuper) {
+    if (!admin.companyVerified) return { error: '회사 확인을 마치면 비밀번호를 초기화할 수 있어요.' }
+    if (!(await workingWorker(admin.companyId, userId))) return { error: '이 회사에 확정됐거나 근무한 근무자만 초기화할 수 있어요.' }
+  } else if (userId === admin.id) {
+    return { error: '내 비밀번호는 내 정보에서 바꿔 주세요.' }
+  }
   const { data } = await db().from('users').select('session_version').eq('id', userId).maybeSingle()
   if (!data) return { error: '근무자를 찾을 수 없습니다.' }
   // 임시 비밀번호도 추측하기 쉬운 번호는 피함
@@ -1275,18 +1298,27 @@ export async function resetPin(userId: string, _: FormState): Promise<FormState>
 export async function updateWorker(userId: string, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
   if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
-  const name = str(form, 'name', 30)
+  const name = line(form, 'name', 30)
   const phone = normalizePhone(str(form, 'phone'))
   if (name.length < 2 || !phone) return { error: '이름과 휴대폰 번호를 확인해 주세요.' }
   const { data: dup } = await db().from('users').select('id').eq('phone', phone).neq('id', userId).maybeSingle()
   if (dup) return { error: '다른 계정이 쓰는 휴대폰 번호입니다.' }
   const makeAdmin = str(form, 'role') === 'admin'
   if (userId === admin.id && !makeAdmin) return { error: '자기 자신의 관리자 권한은 해제할 수 없습니다.' }
-  const { data: cur } = await db().from('users').select('role, active, is_super').eq('id', userId).maybeSingle()
+  const { data: cur } = await db().from('users').select('role, active, is_super, name, phone, session_version').eq('id', userId).maybeSingle()
   if (!cur) return { error: '근무자를 찾을 수 없습니다.' }
   if (cur.is_super && !makeAdmin) return { error: '최고 관리자의 관리자 권한은 해제할 수 없습니다.' }
-  // 이 회사 관리자 추가·해제: 최고 관리자나 이 회사 대표 관리자만 (일반 관리자는 그대로 둠)
-  const canGrant = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  // 계정은 모든 회사 공용: 최고 관리자가 아니면 관리자·최고 관리자 계정은 못 고치고, 로그인 번호(휴대폰)는 바꿀 수 없음
+  if (!admin.isSuper) {
+    const nameChanged = name !== oneLine(cur.name ?? '')
+    if ((cur.is_super || cur.role === 'admin') && userId !== admin.id) {
+      if (nameChanged || phone !== cur.phone) return { error: '관리자 계정의 이름·번호는 최고 관리자만 바꿀 수 있어요.' }
+    }
+    if (phone !== cur.phone) return { error: '휴대폰 번호(로그인 번호)는 본인이 내 정보에서 바꾸거나 최고 관리자에게 요청해 주세요.' }
+    if (nameChanged && !admin.companyVerified) return { error: '회사 확인을 마치면 이름을 고칠 수 있어요.' }
+  }
+  // 이 회사 관리자 추가·해제: 최고 관리자나 확인된 회사의 대표 관리자만 (일반 관리자는 그대로 둠)
+  const canGrant = admin.isSuper || (admin.companyVerified && admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner')
   const { data: curMember } = await db().from('company_members').select('role').eq('company_id', admin.companyId).eq('user_id', userId).maybeSingle()
   if (!canGrant && makeAdmin !== !!curMember) return { error: '관리자 추가·해제는 대표 관리자만 할 수 있어요.' }
   if (!canGrant) {
@@ -1301,7 +1333,8 @@ export async function updateWorker(userId: string, _: FormState, form: FormData)
   must(
     await db()
       .from('users')
-      .update({ name, phone, role, ...(admin.isSuper ? { active: !bool(form, 'inactive') } : {}) })
+      // 권한이 바뀌면 다시 로그인하게 (근무자 로그인 30일이 관리자 권한으로 이어지지 않게)
+      .update({ name, phone, role, ...(role !== cur.role ? { session_version: cur.session_version + 1 } : {}), ...(admin.isSuper ? { active: !bool(form, 'inactive') } : {}) })
       .eq('id', userId),
   )
   // 이 회사에만 보이는 메모
@@ -1321,15 +1354,15 @@ const SEAL_TYPES = ['image/png', 'image/jpeg', 'image/webp']
 
 export async function saveSettings(_: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
-  const company_name = str(form, 'company_name', 100)
+  const company_name = line(form, 'company_name', 100)
   if (!company_name) return { error: '상호를 입력해 주세요.' }
   const update: Record<string, unknown> = {
     company_name,
-    ceo_name: optStr(form, 'ceo_name', 30),
+    ceo_name: optLine(form, 'ceo_name', 30),
     business_no: optStr(form, 'business_no', 20),
     company_address: optStr(form, 'company_address', 200),
     company_phone: optStr(form, 'company_phone', 30),
-    contact_name: optStr(form, 'contact_name', 30),
+    contact_name: optLine(form, 'contact_name', 30),
     contact_phone: normalizePhone(str(form, 'contact_phone')) ?? optStr(form, 'contact_phone', 20),
     default_hourly_wage: Math.max(MIN_WAGE_2026, int(form, 'default_hourly_wage', MIN_WAGE_2026)),
     workplace_5plus: bool(form, 'workplace_5plus'),
@@ -1363,6 +1396,12 @@ export async function rateQuick(userId: string, jobId: string, form: FormData) {
   const admin = await requireAdmin()
   const score = int(form, 'score', 0)
   if (!isUuid(userId) || !SCORE_RANGE(score) || !(await companyJob(admin, jobId))) return
+  // 이 공고에 지원했거나 일한 사람만 평가
+  const [{ count: a1 }, { count: a2 }] = await Promise.all([
+    db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId),
+    db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId),
+  ])
+  if (!a1 && !a2) return
   must(
     await db()
       .from('worker_ratings')

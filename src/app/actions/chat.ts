@@ -9,6 +9,7 @@ import { won } from '@/lib/format'
 import { adminIds, sendPush } from '@/lib/push'
 import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
+import { signalOf } from '@/lib/signals'
 import { companyJob, companyWorkerIds, workerInCompany } from '@/lib/company'
 import type { FormState } from './auth'
 
@@ -23,6 +24,8 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   const user = await requireUser('/me/chat')
   const body = str(form, 'body', MAX_BODY)
   if (!body) return { error: '내용을 입력해 주세요.' }
+  // 앱이 보내는 알림 문구(출근 확인 요청·기록 정정 요청 등)인 척하는 메시지는 막음 (담당자 화면이 진짜 요청으로 처리하지 않게)
+  if (signalOf(body)) return { error: '이 문구로 시작하는 메시지는 보낼 수 없어요. 앱의 버튼(늦어요·출근 확인 요청·기록 정정)을 써 주세요.' }
   const since = new Date(Date.now() - 10 * 60_000).toISOString()
   const [{ count }, job, { data: company }] = await Promise.all([
     db()

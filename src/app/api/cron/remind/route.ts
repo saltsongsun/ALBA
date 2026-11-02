@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto'
 import { cleanupRateEvents } from '@/lib/ratelimit'
 import { sendDayBeforeReminders, sendForgotClockOutReminders } from '@/lib/remind'
 import { kstTime } from '@/lib/time'
@@ -9,7 +10,10 @@ import { kstTime } from '@/lib/time'
 export async function GET(req: Request) {
   const secret = process.env.CRON_SECRET
   if (secret) {
-    if (req.headers.get('authorization') !== `Bearer ${secret}`) return new Response('unauthorized', { status: 401 })
+    // 비밀값 비교는 걸리는 시간으로 알아내지 못하게
+    const got = Buffer.from(req.headers.get('authorization') ?? '')
+    const want = Buffer.from(`Bearer ${secret}`)
+    if (got.length !== want.length || !timingSafeEqual(got, want)) return new Response('unauthorized', { status: 401 })
   } else {
     // 비밀값을 정하지 않았으면: Vercel Cron 요청처럼 보이고 저녁(17시 이후)일 때만
     if (!(req.headers.get('user-agent') ?? '').startsWith('vercel-cron/')) return new Response('forbidden', { status: 403 })

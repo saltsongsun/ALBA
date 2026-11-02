@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { unreadForWorker } from '@/lib/data'
 import { getUser } from '@/lib/session'
-import { logout } from '@/app/actions/auth'
+import LogoutButton from './LogoutButton'
 import Logo from './Logo'
 import { APP_NAME } from '@/lib/brand'
 
@@ -31,9 +31,7 @@ export default async function SiteHeader() {
                 문의
                 {unread > 0 && <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white">{unread}</span>}
               </Link>
-              <form action={logout}>
-                <button className="rounded-lg px-2.5 py-1.5 text-mute hover:bg-bg">로그아웃</button>
-              </form>
+              <LogoutButton className="rounded-lg px-2.5 py-1.5 text-mute hover:bg-bg" />
             </>
           ) : (
             <>

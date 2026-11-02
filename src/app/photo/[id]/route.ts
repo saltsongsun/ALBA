@@ -14,7 +14,8 @@ export async function GET(_: Request, ctx: RouteContext<'/photo/[id]'>) {
   return new Response(new Uint8Array(Buffer.from((data as { data: string }).data, 'base64')), {
     headers: {
       'Content-Type': 'image/jpeg',
-      'Cache-Control': 'private, max-age=31536000, immutable',
+      // 같이 쓰는 기기에 오래 남지 않게 (로그아웃·권한이 없어진 뒤에도 남지 않도록 짧게)
+      'Cache-Control': 'private, max-age=3600',
     },
   })
 }

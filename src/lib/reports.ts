@@ -91,7 +91,9 @@ export async function monthlyRows(ym: string, companyId: string): Promise<MonthR
 
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
   const esc = (v: string | number | null | undefined) => {
-    const s = v == null ? '' : String(v)
+    let s = v == null ? '' : String(v)
+    // 엑셀 수식 주입 막기: =, +, -, @ 등으로 시작하는 글자(이름·주소 등)는 앞에 ' 를 붙여 글자로 (숫자는 그대로)
+    if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s)) s = `'${s}`
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
   // 엑셀에서 한글이 깨지지 않도록 BOM
