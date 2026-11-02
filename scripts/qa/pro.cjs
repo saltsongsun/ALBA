@@ -105,6 +105,7 @@ const errs = []
   await vd.locator('input[name=pin]').fill('482913')
   await vd.locator('input[name=pin2]').fill('482913')
   await vd.locator('input[name=agree_privacy]').check()
+  await vd.locator('input[name=agree_third]').check()
   await vd.getByRole('button', { name: /외주 업체로 가입하기/ }).click()
   await vd.waitForURL(/\/pro/, { timeout: 15000 }).catch(() => {})
   ok('업체 가입 → 전문가·업체 화면', vd.url().includes('/pro'), vd.url())

@@ -6,7 +6,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { signupCompany } from '@/app/actions/company'
 import { requestJoin } from '@/app/actions/team'
-import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
+import { BANKS, PRIVACY_ITEMS, RRN_NOTICE, THIRD_PARTY_ITEMS, THIRD_PARTY_ITEMS_VENDOR } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 import CareerEditor from './CareerEditor'
@@ -270,6 +270,23 @@ function PinFields() {
  * · 전문가: 아르바이트와 같은 본인 정보 + 전문 분야·소개·포트폴리오 (사업소득 3.3% 신고에 주민번호 필요)
  * · 외주 업체: 상호·사업자등록번호·담당자 (주민번호·얼굴 사진 없음)
  */
+/** 동의 내용 펼쳐 보기 */
+function ConsentDetails({ items }: { items: readonly (readonly [string, string])[] }) {
+  return (
+    <details className="rounded-xl bg-bg px-3.5 py-2.5 text-[13px] text-sub">
+      <summary className="cursor-pointer font-semibold">내용 보기</summary>
+      <dl className="mt-2 space-y-1.5">
+        {items.map(([k, v]) => (
+          <div key={k}>
+            <dt className="font-semibold text-ink">{k}</dt>
+            <dd>{v}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  )
+}
+
 export function SignupForm({ next, type }: { next: string; type: MemberType }) {
   const [state, action] = useActionState(signup, null)
   const vendor = type === 'vendor'
@@ -390,24 +407,26 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
       )}
 
       <section className="card space-y-3 text-sm">
-        <h2 className="font-bold">동의</h2>
+        <div>
+          <h2 className="font-bold">동의</h2>
+          <p className="text-xs text-mute">해피워크 · 운영 주식회사 소켓씨앤씨</p>
+        </div>
         <label className="flex items-start gap-2.5">
           <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 accent-brand-600" required />
           <span>
-            <b>[필수]</b> 개인정보 수집·이용에 동의합니다.
+            <b>[필수]</b> 개인정보 수집·이용 동의
           </span>
         </label>
-        <details className="rounded-xl bg-bg px-3.5 py-2.5 text-[13px] text-sub">
-          <summary className="cursor-pointer font-semibold">내용 보기</summary>
-          <dl className="mt-2 space-y-1.5">
-            {PRIVACY_ITEMS.map(([k, v]) => (
-              <div key={k}>
-                <dt className="font-semibold text-ink">{k}</dt>
-                <dd>{v}</dd>
-              </div>
-            ))}
-          </dl>
-        </details>
+        <ConsentDetails items={PRIVACY_ITEMS} />
+        {/* 지원·근무하는 회사(외주 업체는 거래 회사)에 제공: 수집·이용과 따로 동의 */}
+        <label className="flex items-start gap-2.5">
+          <input type="checkbox" name="agree_third" className="mt-0.5 size-5 accent-brand-600" required />
+          <span>
+            <b>[필수]</b> 개인정보 제3자 제공 동의
+            <span className="block text-[13px] text-mute">{vendor ? '견적을 요청하는 회사에 제공' : '지원·근무하는 구인 회사에 제공'}</span>
+          </span>
+        </label>
+        <ConsentDetails items={vendor ? THIRD_PARTY_ITEMS_VENDOR : THIRD_PARTY_ITEMS} />
         {!vendor && (
           <label className="flex items-start gap-2.5">
             <input type="checkbox" name="agree_rrn" className="mt-0.5 size-5 accent-brand-600" required />

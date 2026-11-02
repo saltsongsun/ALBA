@@ -84,7 +84,7 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   if (pin !== str(form, 'pin2')) return { error: '비밀번호 확인이 일치하지 않습니다.' }
   const weak = weakPin(pin, { birthDate: rrn.birthDate, phone })
   if (weak) return { error: weak }
-  if (form.get('agree_privacy') !== 'on' || form.get('agree_rrn') !== 'on') {
+  if (form.get('agree_privacy') !== 'on' || form.get('agree_third') !== 'on' || form.get('agree_rrn') !== 'on') {
     return { error: '필수 동의 항목에 모두 체크해 주세요.' }
   }
   if (ageOn(rrn.birthDate) < 15) {
@@ -167,7 +167,7 @@ async function signupVendor(form: FormData): Promise<FormState> {
   if (pin !== str(form, 'pin2')) return { error: '비밀번호 확인이 일치하지 않습니다.' }
   const weak = weakPin(pin, { phone })
   if (weak) return { error: weak }
-  if (form.get('agree_privacy') !== 'on') return { error: '필수 동의 항목에 체크해 주세요.' }
+  if (form.get('agree_privacy') !== 'on' || form.get('agree_third') !== 'on') return { error: '필수 동의 항목에 모두 체크해 주세요.' }
   // 가입된 번호인지 대량으로 알아보지 못하게 (아르바이트 가입과 같은 제한)
   const dupKey = await ipKey('signup-dup')
   if ((await recent(dupKey, 3600)) >= 5) return { error: '가입 시도가 너무 많아요. 한 시간 뒤에 다시 시도하거나 담당자에게 문의해 주세요.' }
