@@ -6,6 +6,9 @@ import Empty from '@/components/Empty'
 import { db, must } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
+import { plainBody } from '@/lib/stickers'
+import { adminRooms } from '@/lib/room'
+import { fmtDateRange } from '@/lib/time'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 
 export const metadata: Metadata = { title: '문의' }
@@ -24,6 +27,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
   const onlyUnread = sp.unread === '1'
+  const rooms = await adminRooms(admin.companyId, admin.id)
   // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
   const rows = must(
     await db()
@@ -44,10 +48,35 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <div>
-        <h1 className="text-2xl font-extrabold">문의</h1>
-        <AutoRefresh seconds={15} />
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <h1 className="text-2xl font-extrabold">문의</h1>
+          <AutoRefresh seconds={15} />
+        </div>
+        <a href="/admin/chat/export" download className="chip h-8 shrink-0 px-3 text-xs">
+          ⬇️ 모든 대화 저장
+        </a>
       </div>
+      {/* 같은 근무 단체방: 공고마다 확정자 + 담당자 */}
+      {rooms.length > 0 && (
+        <section className="space-y-2" aria-label="단체방">
+          <h2 className="text-sm font-bold text-sub">👥 단체방</h2>
+          {rooms.map((r) => (
+            <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5">
+              <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
+                👥
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold">{r.title}</span>
+                <span className="block truncate text-xs text-sub">
+                  {fmtDateRange(r.start_date, r.end_date)} · 확정 {r.members}명
+                </span>
+              </span>
+              {r.unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{r.unread}</span>}
+            </Link>
+          ))}
+        </section>
+      )}
       <div className="flex gap-1.5">
         <Link href="/admin/chat" className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
           전체 {all.length}
@@ -73,7 +102,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                 <div className="flex items-center justify-between gap-2">
                   <p className={`truncate text-sm ${unread ? 'font-semibold text-ink' : 'text-sub'}`}>
                     {last.from_admin && <span className="text-mute">답장: </span>}
-                    {last.body}
+                    {plainBody(last.body)}
                   </p>
                   {unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{unread}</span>}
                 </div>

@@ -1,6 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { db, must } from './db'
+import { workerRoomUnreadTotal } from './room'
 import { clientInfo } from './session'
 import type { Application, CompanySettings, Job, Settings } from './types'
 
@@ -144,13 +145,12 @@ export const todoForWorker = cache(async (userId: string): Promise<number> => {
 
 /** 근무자가 아직 안 읽은 담당자 답장 수 (머리글·아래 탭이 같은 요청에서 한 번만 읽도록) */
 export const unreadForWorker = cache(async (userId: string): Promise<number> => {
-  const { count } = await db()
-    .from('messages')
-    .select('id', { count: 'exact', head: true })
-    .eq('thread_user_id', userId)
-    .eq('from_admin', true)
-    .is('read_at', null)
-  return count ?? 0
+  const [{ count }, rooms] = await Promise.all([
+    db().from('messages').select('id', { count: 'exact', head: true }).eq('thread_user_id', userId).eq('from_admin', true).is('read_at', null),
+    // 같은 근무 단체방의 안 읽은 메시지도
+    workerRoomUnreadTotal(userId).catch(() => 0),
+  ])
+  return (count ?? 0) + rooms
 })
 
 /** 관리자가 아직 안 읽은 근무자 문의 수 (이 회사로 온 문의만) */

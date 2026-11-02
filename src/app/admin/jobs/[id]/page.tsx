@@ -194,6 +194,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm">
               수정
             </Link>
+            {/* 확정자 + 담당자 단체방 */}
+            {job.status !== 'draft' && (
+              <Link href={`/admin/chat/room/${job.id}`} className="btn-soft btn-sm">
+                👥 단체방
+              </Link>
+            )}
             {!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && (
               <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}&shift=1#shift`} className="btn-soft btn-sm">
                 🕒 근무시간 변경

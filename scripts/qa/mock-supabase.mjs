@@ -110,10 +110,10 @@ const tables = {
 }
 
 // 회사별 표의 시드 행은 모두 기본 회사 (실제 DB 이전 작업과 같게)
-const COMPANY_TABLES = ['jobs', 'applications', 'attendance', 'signed_docs', 'shift_changes', 'messages', 'worker_ratings', 'doc_templates', 'vendors', 'quote_requests', 'vendor_payments', 'audit_logs']
+const COMPANY_TABLES = ['jobs', 'applications', 'attendance', 'signed_docs', 'shift_changes', 'job_chat', 'messages', 'worker_ratings', 'doc_templates', 'vendors', 'quote_requests', 'vendor_payments', 'audit_logs']
 for (const t of COMPANY_TABLES) for (const r of tables[t] ?? []) r.company_id ??= COMPANY
 // 실제 DB 트리거처럼: 공고에 딸린 행은 공고의 회사, 그 밖에 비어 있으면 기본 회사
-const FROM_JOB = ['applications', 'attendance', 'signed_docs', 'shift_changes']
+const FROM_JOB = ['applications', 'attendance', 'signed_docs', 'shift_changes', 'job_chat']
 const FROM_JOB_OR_GIVEN = ['messages', 'worker_ratings', 'quote_requests', 'vendor_payments']
 function fillCompany(table, row) {
   if (!COMPANY_TABLES.includes(table) || table === 'audit_logs') return row
@@ -214,8 +214,10 @@ const server = http.createServer(async (req, res) => {
       if (table === 'users') row = { role: 'worker', member_type: 'worker', is_super: false, active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
       // 회사 소속·회사별 메모는 (회사, 사람)이 열쇠
       const pair = table === 'company_members' || table === 'company_worker_notes' || table === 'company_join_requests'
+      // 단체방 읽음 표시는 (공고, 사람)이 열쇠
+      const jobPair = table === 'job_chat_reads'
       const key = table === 'user_photos' ? 'user_id' : 'id'
-      if (key === 'id' && !pair) row.id ??= crypto.randomUUID()
+      if (key === 'id' && !pair && !jobPair) row.id ??= crypto.randomUUID()
       fillCompany(table, row)
       if (table === 'companies') row.active ??= true
       if (table === 'jobs') row.audience ??= 'worker'
@@ -223,7 +225,9 @@ const server = http.createServer(async (req, res) => {
       row.created_at ??= new Date().toISOString() // 실제 DB 기본값처럼
       const found = pair
         ? list.find((r) => r.company_id === row.company_id && r.user_id === row.user_id)
-        : row[key] != null && list.find((r) => r[key] === row[key])
+        : jobPair
+          ? list.find((r) => r.job_id === row.job_id && r.user_id === row.user_id)
+          : row[key] != null && list.find((r) => r[key] === row[key])
       if (found) Object.assign(found, row)
       else list.push(row)
       out.push(found || row)

@@ -10,6 +10,7 @@ import { adminIds, sendPush } from '@/lib/push'
 import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
 import { signalOf } from '@/lib/signals'
+import { badSticker, plainBody } from '@/lib/stickers'
 import { companyJob, companyWorkerIds, workerInCompany } from '@/lib/company'
 import type { FormState } from './auth'
 
@@ -26,6 +27,7 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   if (!body) return { error: '내용을 입력해 주세요.' }
   // 앱이 보내는 알림 문구(출근 확인 요청·기록 정정 요청 등)인 척하는 메시지는 막음 (담당자 화면이 진짜 요청으로 처리하지 않게)
   if (signalOf(body)) return { error: '이 문구로 시작하는 메시지는 보낼 수 없어요. 앱의 버튼(늦어요·출근 확인 요청·기록 정정)을 써 주세요.' }
+  if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
   const since = new Date(Date.now() - 10 * 60_000).toISOString()
   const [{ count }, job, { data: company }] = await Promise.all([
     db()
@@ -42,7 +44,7 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   const cid = job?.company_id ?? (company as { id: string } | null)?.id
   if (!cid) return { error: '문의할 회사를 골라 주세요.' }
   must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: cid, job_id: job?.id ?? null, body }))
-  after(async () => sendPush(await adminIds(cid), { title: `💬 ${user.name} 문의`, body, url: `/admin/chat/${user.id}`, tag: `chat-${user.id}` }))
+  after(async () => sendPush(await adminIds(cid), { title: `💬 ${user.name} 문의`, body: plainBody(body), url: `/admin/chat/${user.id}`, tag: `chat-${user.id}` }))
   revalidatePath('/me/chat')
   return { ok: '보냈어요' }
 }
@@ -55,8 +57,9 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   if (!body) return { error: '내용을 입력해 주세요.' }
   const { count: asked } = await db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('thread_user_id', userId)
   if (!asked && !(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 문의하거나 지원한 근무자가 아닙니다.' }
+  if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
   must(await db().from('messages').insert({ thread_user_id: userId, sender_id: admin.id, from_admin: true, company_id: admin.companyId, body }))
-  after(() => sendPush([userId], { title: `💬 ${admin.companyName} 답장`, body, url: `/me/chat?co=${admin.companyId}`, tag: `chat-${admin.companyId}` }))
+  after(() => sendPush([userId], { title: `💬 ${admin.companyName} 답장`, body: plainBody(body), url: `/me/chat?co=${admin.companyId}`, tag: `chat-${admin.companyId}` }))
   revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/admin/chat')
   return { ok: '보냈어요' }

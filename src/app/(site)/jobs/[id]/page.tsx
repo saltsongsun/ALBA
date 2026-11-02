@@ -364,6 +364,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
                 </Link>
               )}
+              {/* 확정되면 같은 근무 단체방 */}
+              {app.status === 'approved' && (
+                <Link href={`/me/chat/room/${job.id}`} className="btn-gray shrink-0">
+                  👥 단체방
+                </Link>
+              )}
               {app.status === 'applied' && !ended && (
                 <form action={cancelApplication.bind(null, app.id)}>
                   <ConfirmSubmit className="btn-gray" confirmText="정말 취소할까요?">

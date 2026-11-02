@@ -1,5 +1,7 @@
 import Link from 'next/link'
 import { SIGNAL } from '@/lib/signals'
+import { stickerOf } from '@/lib/stickers'
+import Sticker from './Sticker'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 
 /** 대화 화면에서 메시지를 읽을 때의 select (공고 제목·보낸 사람 이름 포함) */
@@ -75,13 +77,18 @@ export function ChatMessages({ messages, viewer }: { messages: ChatMessage[]; vi
                 </Link>
               )}
               <div className={`flex items-end gap-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
-                <p
-                  className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
-                    mine ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                  }`}
-                >
-                  {m.body}
-                </p>
+                {stickerOf(m.body) ? (
+                  // 이모티콘은 말풍선 없이 그림으로
+                  <Sticker id={stickerOf(m.body)!.id} size={120} />
+                ) : (
+                  <p
+                    className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
+                      mine ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
+                    }`}
+                  >
+                    {m.body}
+                  </p>
+                )}
                 <span className="mb-0.5 shrink-0 text-[11px] text-mute tabular-nums">
                   {mine && !m.read_at && <b className="mr-1 text-brand-600">1</b>}
                   {kstTime(m.created_at)}

@@ -53,9 +53,16 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     <div className="mx-auto max-w-2xl space-y-4">
       <AutoRefresh seconds={5} quiet />
       <ScrollToEnd count={messages.length} />
-      <Link href="/admin/chat" className="text-sm font-semibold text-sub">
-        ← 문의 목록
-      </Link>
+      <div className="flex items-center justify-between gap-2">
+        <Link href="/admin/chat" className="text-sm font-semibold text-sub">
+          ← 문의 목록
+        </Link>
+        {messages.length > 0 && (
+          <a href={`/admin/chat/${worker.id}/export`} download className="chip h-8 px-3 text-xs">
+            ⬇️ 대화 저장
+          </a>
+        )}
+      </div>
       <div className="card flex flex-wrap items-center justify-between gap-2 p-4">
         <div className="flex items-center gap-3">
           <Avatar id={worker.id} name={worker.name} photoAt={worker.photo_at} />

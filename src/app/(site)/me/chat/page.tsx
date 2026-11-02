@@ -9,6 +9,7 @@ import Empty from '@/components/Empty'
 import { getJob, getSettings, platformCompanyId } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { requireUser } from '@/lib/session'
+import { workerRooms } from '@/lib/room'
 import { isUuid } from '@/lib/validate'
 
 export const metadata: Metadata = { title: '문의' }
@@ -23,7 +24,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const jobId = typeof sp.job === 'string' && isUuid(sp.job) ? sp.job : null
   const wantCo = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
   // 문의함은 회사마다 따로: 지원했거나 문의를 주고받은 회사들 (처음이면 기본 회사)
-  const [job, apps, threads, platformId] = await Promise.all([
+  const [job, apps, threads, platformId, rooms] = await Promise.all([
     jobId ? getJob(jobId) : null,
     db().from('applications').select('company_id').eq('user_id', user.id).then((r) => must(r) as { company_id: string }[]),
     db()
@@ -34,6 +35,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       .limit(500)
       .then((r) => must(r) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string }[]),
     platformCompanyId(),
+    // 같은 근무 단체방 (확정된 공고)
+    workerRooms(user.id),
   ])
   const related = [...new Set([...threads.map((t) => t.company_id), ...apps.map((a) => a.company_id)])]
   const companyId = job?.company_id ?? (wantCo && related.includes(wantCo) ? wantCo : null) ?? threads[0]?.company_id ?? related[0] ?? platformId
@@ -74,7 +77,28 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       <AutoRefresh seconds={5} quiet />
       <ScrollToEnd count={messages.length} />
       <div>
-        <h1 className="text-2xl font-extrabold">문의</h1>
+        <div className="flex items-center justify-between gap-2">
+          <h1 className="text-2xl font-extrabold">문의</h1>
+          {companyId && messages.length > 0 && (
+            <a href={`/me/chat/export?co=${companyId}`} download className="chip h-8 px-3 text-xs">
+              ⬇️ 대화 저장
+            </a>
+          )}
+        </div>
+        {/* 같은 근무 단체방 */}
+        {rooms.length > 0 && (
+          <section className="mt-3" aria-label="단체방">
+            <p className="mb-1.5 text-xs font-semibold text-mute">👥 같은 근무 단체방</p>
+            <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+              {rooms.map((r) => (
+                <Link key={r.id} href={`/me/chat/room/${r.id}`} className="chip max-w-[15rem] shrink-0">
+                  <span className="truncate">{r.title}</span>
+                  {r.unread > 0 && <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{r.unread}</span>}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
         <p className="mt-1 text-sm text-sub">궁금한 점을 남기면 {settings?.company_name ?? '담당자'}에서 확인하고 답장해 드려요.</p>
         {/* 여러 회사와 일하면 회사별 문의함 */}
         {companies.length > 1 && (
