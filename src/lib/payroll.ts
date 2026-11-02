@@ -46,6 +46,11 @@ export async function loadWorkerPay(viewer: SessionUser, jobId: string, userId: 
       .then((r) => must(r) as Attendance[]),
   ])
   if (!worker) return null
+  // 관리자가 볼 때는 이 공고에 지원했거나 일한 사람만 (다른 회원의 주소·계좌가 이 회사 명세서로 새지 않게)
+  if (viewer.id !== userId && !rows.length) {
+    const { count } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId)
+    if (!count) return null
+  }
   const withPay = rows.map((r) => ({ ...r, pay: calcDay(job, r) }))
   return {
     job,
