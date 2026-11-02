@@ -213,7 +213,7 @@ const server = http.createServer(async (req, res) => {
       // 실제 DB의 기본값 (가입 후 바로 로그인되게)
       if (table === 'users') row = { role: 'worker', member_type: 'worker', is_super: false, active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
       // 회사 소속·회사별 메모는 (회사, 사람)이 열쇠
-      const pair = table === 'company_members' || table === 'company_worker_notes'
+      const pair = table === 'company_members' || table === 'company_worker_notes' || table === 'company_join_requests'
       const key = table === 'user_photos' ? 'user_id' : 'id'
       if (key === 'id' && !pair) row.id ??= crypto.randomUUID()
       fillCompany(table, row)

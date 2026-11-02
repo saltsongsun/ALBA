@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { signupCompany } from '@/app/actions/company'
+import { requestJoin } from '@/app/actions/team'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
@@ -172,10 +173,15 @@ export function SignupTypePicker({ next }: { next: string }) {
           </Link>
         )
       })}
-      {/* 사람을 뽑는 회사는 회사로 가입 */}
-      <Link href="/start" className="block pt-2 text-center text-sm font-semibold text-sub">
-        🏢 사람을 뽑는 회사인가요? <span className="text-brand-600">회사로 시작하기 →</span>
-      </Link>
+      {/* 사람을 뽑는 회사는 회사로 가입, 회사 직원은 회사 코드로 관리자 가입 */}
+      <div className="space-y-1.5 pt-2 text-center text-sm font-semibold text-sub">
+        <Link href="/start" className="block">
+          🏢 사람을 뽑는 회사인가요? <span className="text-brand-600">회사로 시작하기 →</span>
+        </Link>
+        <Link href="/start?tab=join" className="block">
+          🧑‍💼 회사 코드가 있나요? <span className="text-brand-600">관리자로 가입 →</span>
+        </Link>
+      </div>
     </div>
   )
 }
@@ -509,6 +515,103 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
         <p className="text-center text-sm text-mute">
           이미 관리자 계정이 있나요?{' '}
           <Link href="/login?next=/start" className="font-semibold text-brand-600">
+            로그인
+          </Link>
+        </p>
+      )}
+    </form>
+  )
+}
+
+/** 회사 코드 입력: 대문자로, 4자리마다 줄표 (ABCD-EFGH) */
+function joinCodeInput(e: React.FormEvent<HTMLInputElement>) {
+  const el = e.currentTarget
+  const v = el.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8)
+  el.value = v.length > 4 ? `${v.slice(0, 4)}-${v.slice(4)}` : v
+}
+
+/**
+ * 기존 회사에 관리자로 가입 신청: 대표 관리자에게 받은 회사 코드 + (처음이면) 관리자 계정.
+ * 대표 관리자가 승인하면 관리자 화면이 열림
+ */
+export function JoinCompanyForm({ signedIn, name, code, worker }: { signedIn: boolean; name?: string; code: string; worker: boolean }) {
+  const [state, action] = useActionState(requestJoin, null)
+  return (
+    <form action={action} onReset={keepInputs} className="space-y-5">
+      <Honeypot />
+      <section className="card space-y-4">
+        <h2 className="font-bold">
+          회사 코드 <span className="text-sm font-medium text-rose-500">필수</span>
+        </h2>
+        <div>
+          <label className="label" htmlFor="code">
+            대표 관리자에게 받은 코드
+          </label>
+          <input
+            id="code"
+            name="code"
+            defaultValue={code}
+            className="input font-mono text-lg tracking-[0.2em] uppercase"
+            placeholder="ABCD-EFGH"
+            maxLength={9}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            onInput={joinCodeInput}
+            required
+          />
+          <p className="hint">대표 관리자의 회사 설정 화면에 있어요.</p>
+        </div>
+      </section>
+
+      {signedIn ? (
+        <div className="card space-y-1 text-sm">
+          <p>
+            <b>{name}</b>님 계정으로 신청해요.
+          </p>
+          {worker && <p className="font-semibold text-amber-700">관리자가 되면 이 번호로는 알바 지원을 할 수 없어요.</p>}
+        </div>
+      ) : (
+        <>
+          <section className="card space-y-4">
+            <h2 className="font-bold">
+              내 정보 (관리자 계정) <span className="text-sm font-medium text-rose-500">필수</span>
+            </h2>
+            <div>
+              <label className="label" htmlFor="name">
+                이름
+              </label>
+              <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
+            </div>
+            <div>
+              <label className="label" htmlFor="phone">
+                휴대폰 번호 (로그인할 때 써요)
+              </label>
+              <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+            </div>
+            <PinFields />
+          </section>
+          <section className="card space-y-3 text-sm">
+            <h2 className="font-bold">동의</h2>
+            <label className="flex items-start gap-2.5">
+              <input type="checkbox" name="agree_privacy" className="mt-0.5 size-5 accent-brand-600" required />
+              <span>
+                <b>[필수]</b> 개인정보 수집·이용 동의
+              </span>
+            </label>
+          </section>
+        </>
+      )}
+
+      <FormMessage state={state} />
+      {state?.code === 'dup_phone' && <LoginWithPhone next="/start?tab=join" />}
+      <SubmitButton className={`${state?.code ? 'btn-gray' : 'btn-primary'} w-full py-3.5 text-base`} pendingText="신청하는 중…">
+        관리자 가입 신청
+      </SubmitButton>
+      {!signedIn && (
+        <p className="text-center text-sm text-mute">
+          이미 가입했나요?{' '}
+          <Link href={`/login?next=${encodeURIComponent('/start?tab=join')}`} className="font-semibold text-brand-600">
             로그인
           </Link>
         </p>

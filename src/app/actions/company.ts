@@ -60,7 +60,7 @@ export async function signupCompany(_: FormState, form: FormData): Promise<FormS
   // 같은 사업자등록번호의 회사가 이미 있으면 막음 (다른 사람이 그 회사인 척 가입하지 못하게)
   const { data: others } = await db().from('companies').select('business_no')
   if (((others ?? []) as { business_no: string | null }[]).some((c) => (c.business_no ?? '').replace(/\D/g, '') === bizNo)) {
-    return { error: '이미 해피워크를 쓰는 사업자등록번호예요. 그 회사 관리자에게 관리자 초대를 요청해 주세요.' }
+    return { error: '이미 해피워크를 쓰는 사업자등록번호예요. 그 회사 대표 관리자에게 회사 코드를 받아 \'기존 회사에 합류\'로 가입해 주세요.' }
   }
 
   let userId: string

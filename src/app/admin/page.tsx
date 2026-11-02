@@ -229,7 +229,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     .filter((m) => m !== null)
   type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string; unit?: string }
   // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
-  const [vpays, vreqs, vquotes] = await Promise.all([
+  // 대표 관리자: 승인을 기다리는 관리자 가입 신청
+  const isOwner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  const [vpays, vreqs, vquotes, joinWait] = await Promise.all([
     db()
       .from('vendor_payments')
       .select('id, due_date, paid_at, invoice_at').eq('company_id', admin.companyId)
@@ -243,6 +245,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .from('quotes')
       .select('request_id, amount')
       .then((r) => (r.error ? [] : (r.data as { request_id: string; amount: number | null }[]))),
+    isOwner
+      ? db()
+          .from('company_join_requests')
+          .select('user_id', { count: 'exact', head: true })
+          .eq('company_id', admin.companyId)
+          .then((r) => (r.error ? 0 : (r.count ?? 0)))
+      : 0,
   ])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
@@ -250,6 +259,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const paidNoInvoice = vpays.filter((p) => p.paid_at && !p.invoice_at)
   const quoteDue = vreqs.filter((r) => r.due_date && r.due_date <= today && vquotes.some((q) => q.request_id === r.id && q.amount != null))
   const vendorTodos: Todo[] = ([
+    joinWait > 0 && { key: 'join', icon: '🧑‍💼', text: '관리자 가입 신청 · 승인해 주세요', n: joinWait, href: '/admin/settings#admins', tone: 'text-amber-700' },
     payOverdue.length > 0 && { key: 'vpay-overdue', icon: '💸', text: '외주 대금 지급일 지남', n: payOverdue.length, href: '/admin/vendors?tab=pay', tone: 'text-rose-600', unit: '건' },
     paySoon.length > 0 && { key: 'vpay-soon', icon: '💸', text: '외주 대금 3일 안 지급', n: paySoon.length, href: '/admin/vendors?tab=pay', tone: 'text-amber-700', unit: '건' },
     paidNoInvoice.length > 0 && { key: 'vpay-invoice', icon: '🧾', text: '지급했는데 세금계산서 안 받음', n: paidNoInvoice.length, href: '/admin/vendors?tab=pay&show=paid', tone: 'text-amber-700', unit: '건' },

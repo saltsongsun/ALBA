@@ -14,7 +14,7 @@ const ITEMS = [
   { href: '/admin/settings', label: '회사 설정' },
 ]
 
-export default function AdminNav({ unread = 0, isSuper = false }: { unread?: number; isSuper?: boolean }) {
+export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false }: { unread?: number; joinWait?: number; isSuper?: boolean }) {
   const path = usePathname()
   // 회사 관리는 최고 관리자만
   const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }] : ITEMS
@@ -33,6 +33,12 @@ export default function AdminNav({ unread = 0, isSuper = false }: { unread?: num
             {it.href === '/admin/chat' && unread > 0 && (
               <span className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
                 {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+            {/* 관리자 가입 신청 (대표 관리자) */}
+            {it.href === '/admin/settings' && joinWait > 0 && (
+              <span aria-label={`관리자 가입 신청 ${joinWait}명`} className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
+                {joinWait}
               </span>
             )}
           </Link>

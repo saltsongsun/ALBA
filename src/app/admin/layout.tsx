@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
 import { unreadForAdmins } from '@/lib/data'
+import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import AdminNav from './AdminNav'
 import { CompanySwitcher } from '@/components/company'
@@ -13,7 +14,18 @@ export const metadata: Metadata = { title: { default: '관리자', template: `%s
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const admin = await requireAdmin()
-  const unread = await unreadForAdmins(admin.companyId)
+  // 대표 관리자에게는 승인을 기다리는 관리자 가입 신청 수도 (회사 설정 옆에 표시)
+  const owner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  const [unread, joinWait] = await Promise.all([
+    unreadForAdmins(admin.companyId),
+    owner
+      ? db()
+          .from('company_join_requests')
+          .select('user_id', { count: 'exact', head: true })
+          .eq('company_id', admin.companyId)
+          .then((r) => (r.error ? 0 : (r.count ?? 0)))
+      : 0,
+  ])
   return (
     <>
       <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-line bg-white/95 backdrop-blur">
@@ -38,7 +50,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <p className="truncate text-sm font-semibold text-sub">🏢 {admin.companyName}</p>
           )}
         </div>
-        <AdminNav unread={unread} isSuper={admin.isSuper} />
+        <AdminNav unread={unread} joinWait={joinWait} isSuper={admin.isSuper} />
         <AppBadge count={unread} />
       </header>
       <main className="mx-auto max-w-6xl px-4 pt-5 pb-20">{children}</main>

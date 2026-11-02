@@ -125,12 +125,12 @@ export function CopyButton({
 }
 
 /** 휴대폰에서는 공유 시트(카카오톡 등)를 열고, PC에서는 링크를 복사 */
-export function ShareButton({ title, text, path }: { title: string; text?: string; path: string }) {
+export function ShareButton({ title, text, path, className = 'btn-soft' }: { title: string; text?: string; path: string; className?: string }) {
   const [msg, setMsg] = useState('')
   return (
     <button
       type="button"
-      className="btn-soft"
+      className={className}
       onClick={async () => {
         const url = new URL(path, window.location.origin).toString()
         if (navigator.share) {

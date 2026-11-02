@@ -143,7 +143,8 @@ export async function requireAdmin(): Promise<AdminUser> {
   if (!user) redirect('/login?next=/admin')
   if (user.role !== 'admin') redirect('/')
   const companies = await adminCompanies(user.id, user.isSuper)
-  if (!companies.length) redirect(`/?m=${encodeURIComponent('소속된 회사가 없어요. 최고 관리자에게 회사 초대를 요청해 주세요.')}`)
+  // 소속 회사가 없으면 (관리자 가입 신청 후 승인 대기 등) 기다리는 화면으로
+  if (!companies.length) redirect('/start/wait')
   const want = (await cookies()).get(COMPANY_COOKIE)?.value
   const cur = companies.find((c) => c.id === want) ?? companies[0]
   // 최고 관리자는 어느 회사를 보든 확인된 것으로
