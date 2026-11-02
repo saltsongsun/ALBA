@@ -8,6 +8,7 @@ import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
+import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
@@ -53,6 +54,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     <div className="mx-auto max-w-2xl space-y-4">
       <AutoRefresh seconds={5} quiet />
       <ScrollToEnd count={messages.length} />
+      <ReadSync tag={`chat-${worker.id}`} />
       <div className="flex items-center justify-between gap-2">
         <Link href="/admin/chat" className="text-sm font-semibold text-sub">
           ← 문의 목록

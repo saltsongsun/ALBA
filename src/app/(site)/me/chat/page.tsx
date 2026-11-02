@@ -6,7 +6,8 @@ import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
-import { getJob, getSettings, platformCompanyId } from '@/lib/data'
+import { getJob, getSettings, platformCompanyId, SUPPORT_NAME } from '@/lib/data'
+import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireUser } from '@/lib/session'
 import { workerRooms } from '@/lib/room'
@@ -47,6 +48,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const companies = ((companyRows ?? []) as { id: string; company_name: string }[]).sort(
     (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
   )
+  // 운영 회사(해피워크)에 그 회사 공고로 지원한 적이 없으면 '해피워크 고객센터'로 보여 줌
+  const support = (id: string | null) => !!id && id === platformId && !apps.some((a) => a.company_id === id)
+  const nameOf = (c: { id: string; company_name: string }) => (support(c.id) ? SUPPORT_NAME : c.company_name)
   const unreadBy = new Map<string, number>()
   for (const t of threads) if (t.from_admin && !t.read_at) unreadBy.set(t.company_id, (unreadBy.get(t.company_id) ?? 0) + 1)
   const [messages, settings] = companyId
@@ -76,6 +80,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
     <div className="space-y-4">
       <AutoRefresh seconds={5} quiet />
       <ScrollToEnd count={messages.length} />
+      {/* 열자마자 위·아래 문의 숫자를 맞추고 이 대화의 알림도 지움 */}
+      {companyId && <ReadSync tag={`chat-${companyId}`} />}
       <div>
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-extrabold">문의</h1>
@@ -99,7 +105,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
             </div>
           </section>
         )}
-        <p className="mt-1 text-sm text-sub">궁금한 점을 남기면 {settings?.company_name ?? '담당자'}에서 확인하고 답장해 드려요.</p>
+        <p className="mt-1 text-sm text-sub">
+          궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.
+        </p>
         {/* 여러 회사와 일하면 회사별 문의함 */}
         {companies.length > 1 && (
           <nav aria-label="회사" className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1">
@@ -110,7 +118,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
                 aria-current={c.id === companyId ? 'page' : undefined}
                 className={c.id === companyId ? 'chip-primary' : 'chip'}
               >
-                {c.company_name}
+                {nameOf(c)}
                 {c.id !== companyId && (unreadBy.get(c.id) ?? 0) > 0 && (
                   <span className="grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{unreadBy.get(c.id)}</span>
                 )}
@@ -121,7 +129,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         {settings?.contact_phone && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-mute">급한 일은</span>
-            <ContactButtons phone={settings.contact_phone} name={settings.contact_name ?? '담당자'} />
+            <ContactButtons phone={settings.contact_phone} name={support(companyId) ? SUPPORT_NAME : (settings.contact_name ?? '담당자')} />
           </div>
         )}
       </div>
@@ -138,7 +146,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       <div className="sticky bottom-[calc(69px+env(safe-area-inset-bottom))] z-10 pt-2 sm:bottom-4">
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
-          placeholder="담당자에게 보낼 내용"
+          placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
           quickReplies={job ? QUICK_JOB : QUICK_DAY}
           context={
             job && (

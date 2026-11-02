@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
-import { audit, getJob } from '@/lib/data'
+import { audit, getJob, isSupportThread, SUPPORT_NAME } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary } from '@/lib/docs'
 import { won } from '@/lib/format'
@@ -59,7 +59,8 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   if (!asked && !(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 문의하거나 지원한 근무자가 아닙니다.' }
   if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
   must(await db().from('messages').insert({ thread_user_id: userId, sender_id: admin.id, from_admin: true, company_id: admin.companyId, body }))
-  after(() => sendPush([userId], { title: `💬 ${admin.companyName} 답장`, body: plainBody(body), url: `/me/chat?co=${admin.companyId}`, tag: `chat-${admin.companyId}` }))
+  const from = (await isSupportThread(admin.companyId, userId)) ? SUPPORT_NAME : admin.companyName
+  after(() => sendPush([userId], { title: `💬 ${from} 답장`, body: plainBody(body), url: `/me/chat?co=${admin.companyId}`, tag: `chat-${admin.companyId}` }))
   revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/admin/chat')
   return { ok: '보냈어요' }

@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { db, must } from './db'
 import { workerRoomUnreadTotal } from './room'
+import { APP_NAME } from './brand'
 import { clientInfo } from './session'
 import type { Application, CompanySettings, Job, Settings } from './types'
 
@@ -39,6 +40,14 @@ export const platformCompanyId = cache(async (): Promise<string | null> => {
   const { data } = await db().from('companies').select('id, created_at').eq('active', true).order('created_at').limit(1)
   return ((data ?? []) as { id: string }[])[0]?.id ?? null
 })
+
+/** 해피워크 고객센터: 운영 회사의 문의함 중 그 회사 공고에 지원한 적 없는 회원의 문의 */
+export const SUPPORT_NAME = `${APP_NAME} 고객센터`
+export async function isSupportThread(companyId: string, userId: string): Promise<boolean> {
+  if (companyId !== (await platformCompanyId())) return false
+  const { count } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('user_id', userId)
+  return !count
+}
 
 export async function getPlatformSettings(): Promise<CompanySettings> {
   const id = await platformCompanyId()

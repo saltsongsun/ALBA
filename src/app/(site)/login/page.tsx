@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { LoginForm } from '@/components/AuthForms'
-import { getPlatformSettings } from '@/lib/data'
+import { getPlatformSettings, SUPPORT_NAME } from '@/lib/data'
 import { phoneFmt } from '@/lib/format'
 import { getUser } from '@/lib/session'
 import { safePath } from '@/lib/validate'
@@ -25,7 +25,7 @@ export default async function LoginPage(props: PageProps<'/login'>) {
         {settings.contact_phone && (
           <>
             <br />
-            {settings.contact_name ?? '담당자'}{' '}
+            {SUPPORT_NAME}{' '}
             <a href={`tel:${settings.contact_phone}`} className="font-semibold text-sub underline">
               {phoneFmt(settings.contact_phone)}
             </a>

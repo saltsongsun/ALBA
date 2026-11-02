@@ -5,6 +5,7 @@ import { sendRoom } from '@/app/actions/room'
 import AutoRefresh from '@/components/AutoRefresh'
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import Empty from '@/components/Empty'
+import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
 import { markRoomRead, roomMembers, roomMessages, roomOpen, roomPinned, workerRoom } from '@/lib/room'
 import { requireUser } from '@/lib/session'
@@ -26,6 +27,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
     <div className="space-y-4">
       <AutoRefresh seconds={5} quiet />
       <ScrollToEnd count={messages.length} />
+      <ReadSync tag={`room-${job.id}`} />
       <div className="flex items-center justify-between gap-2">
         <Link href="/me/chat" className="text-sm font-semibold text-sub">
           ← 문의
