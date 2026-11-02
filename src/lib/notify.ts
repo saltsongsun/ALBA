@@ -39,8 +39,12 @@ export async function tellWorkers(
   )
   const url = o.url ?? '/me'
   after(async () => {
-    if (typeof o.text === 'string') await sendPush(ids, { title: o.title, body: o.text, url, tag: o.tag })
-    else for (const uid of ids) await sendPush([uid], { title: o.title, body: textOf(uid), url, tag: o.tag })
+    // 휴대폰 알림 제목에 회사 이름: 여러 회사 일을 하는 근무자가 잠금 화면에서도 어느 회사 알림인지 알게 (문의함은 이미 회사별)
+    const { data: co } = await db().from('companies').select('company_name').eq('id', o.companyId).maybeSingle()
+    const name = (co as { company_name: string } | null)?.company_name?.trim()
+    const title = name ? `${o.title} · ${name}` : o.title
+    if (typeof o.text === 'string') await sendPush(ids, { title, body: o.text, url, tag: o.tag })
+    else for (const uid of ids) await sendPush([uid], { title, body: textOf(uid), url, tag: o.tag })
   })
   return ids.length
 }
