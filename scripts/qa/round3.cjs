@@ -101,9 +101,9 @@ const errs = []
   // ── 가입 진행률 ──
   const signup = await pg(D)
   await signup.goto(`${D}/signup?type=worker`)
-  ok('가입 진행률 표시', await see(signup, /필수 0\/7/))
+  ok('가입 진행률 표시 (제3자 제공 동의 포함 8개)', await see(signup, /필수 0\/8/))
   await signup.locator('#name').fill('홍길동')
-  ok('입력하면 진행률 올라감', await see(signup, /필수 1\/7/))
+  ok('입력하면 진행률 올라감', await see(signup, /필수 1\/8/))
 
   // ── 긴급 투입 QR (fresh: 행사 당일) ──
   const af = await pg(F, A)
