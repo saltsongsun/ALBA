@@ -16,8 +16,8 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   // 전문가 회원 · 전문가 의뢰 (가짜 DB에 직접)
   const [w] = await rest(`users?id=eq.${W}`)
   // 아직 아무 공고에도 지원하지 않은 아르바이트 회원
-  await rest('users', 'POST', { ...w, id: NW, name: '새알바', phone: '01077776666', member_type: 'worker', attendance: [], ratings: [] })
-  await rest('users', 'POST', { ...w, id: EX, name: '김음향', phone: '01088887777', member_type: 'expert', specialty: '음향,조명', intro: '공연 음향 7년', attendance: [], ratings: [] })
+  await rest('users', 'POST', { ...w, id: NW, name: '새알바', phone: '01077776666', member_type: 'worker', photo_at: '2026-10-29T00:00:00Z', attendance: [], ratings: [] })
+  await rest('users', 'POST', { ...w, id: EX, name: '김음향', phone: '01088887777', member_type: 'expert', specialty: '음향,조명', intro: '공연 음향 7년', photo_at: '2026-10-29T00:00:00Z', attendance: [], ratings: [] })
   const [j] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j, id: JX, title: '개막식 음향 감독', audience: 'expert', tax_type: 'business', employment_insurance: false, applications: [], required_docs: [], start_date: day(2), end_date: day(2), company: { company_name: '주식회사 테스트' } })
 

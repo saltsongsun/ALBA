@@ -25,6 +25,11 @@ import ApplySteps from '@/components/ApplySteps'
 import ApplyDays from '@/components/ApplyDays'
 import { canApplyTo, contractNameOf } from '@/lib/members'
 import ProMode from '@/components/ProMode'
+import PhotoPrompt from '@/components/PhotoPrompt'
+import PhotoUpload from '@/components/PhotoUpload'
+import PushNudge from '@/components/PushNudge'
+import PushToggle from '@/components/PushToggle'
+import { pushPublicKey } from '@/lib/push'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -60,7 +65,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const [counts, app, docs, mine, myPending, company] = await Promise.all([
+  const [counts, app, docs, mine, myPending, company, photoAt] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -101,6 +106,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       : 0,
     // 공고를 낸 회사 (여러 회사가 함께 씀)
     getSettings(job.company_id),
+    // 얼굴 사진 (없으면 지원 전에 올리게)
+    user
+      ? db()
+          .from('users')
+          .select('photo_at')
+          .eq('id', user.id)
+          .maybeSingle()
+          .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null)
+      : null,
   ])
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
@@ -119,6 +133,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   // 전문가 의뢰는 전문가 화면(보라)·말투로, 지원도 가입 유형이 맞아야 (알바 공고는 알바, 전문가 의뢰는 전문가)
   const expert = job.audience === 'expert'
   const wrongType = !!user && user.role !== 'admin' && !canApplyTo(user.memberType, job.audience)
+  // 얼굴 사진이 없는 근무자·전문가 (현장 담당자가 알아볼 수 있게 지원 전에 등록)
+  const needPhoto = !!user && user.role === 'worker' && user.memberType !== 'vendor' && !photoAt
+  const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
     canApply && (!app || app.status === 'cancelled')
@@ -328,6 +345,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             {app.status === 'applied' && job.status === 'closed' && !ended && (
               <p className="text-sm font-semibold text-amber-700">모집 마감 · 결과는 알림으로 알려 드려요</p>
             )}
+            {/* 알림을 안 켰으면 바로 여기서 켜게 (확정·전날 안내를 놓치지 않게) */}
+            {activeApp && (
+              <PushToggle
+                publicKey={pushPublicKey()}
+                variant="card"
+                reason={app.status === 'approved' ? '전날 안내·시간 변경을 바로 알려 드려요' : '확정되면 바로 알려 드려요'}
+              />
+            )}
             <div className="flex gap-2">
               {app.status === 'rejected' ? (
                 // 미선발: 다음으로 할 일은 다른 공고 찾기
@@ -428,6 +453,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               </Link>
             </div>
           )
+        ) : needPhoto ? (
+          // 얼굴 사진이 없으면 지원 칸 대신 사진 올리기 (올리면 바로 지원 칸이 나옴)
+          canApply && (
+            <div className="card space-y-3">
+              <div>
+                <p className="font-bold">📷 얼굴 사진을 먼저 올려 주세요</p>
+                <p className="text-sm text-sub">올리면 바로 지원할 수 있어요</p>
+              </div>
+              <PhotoUpload userId={user.id} name={user.name} photoAt={null} />
+            </div>
+          )
         ) : (
           canApply && (
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
@@ -468,6 +504,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>
       </div>
+      {/* 지원·확정한 공고: 사진이 없으면 등록 창, 알림을 안 켰으면 켜기 권유 (공고마다 한 번) */}
+      {activeApp && needPhoto && user && <PhotoPrompt userId={user.id} name={user.name} />}
+      {activeApp && app && user && user.role !== 'admin' && (
+        <PushNudge
+          publicKey={pushPublicKey()}
+          pro={expert}
+          once={`job-${job.id}`}
+          reason={app.status === 'approved' ? '근무 전날 안내와 시간 변경을 바로 알려 드려요' : '확정되면 바로 알려 드릴게요'}
+        />
+      )}
       {/* 다른 모집 중인 공고 (이 공고가 맞지 않을 때 바로 둘러보게) */}
       {others.length > 0 && (
         <section className="mt-8">

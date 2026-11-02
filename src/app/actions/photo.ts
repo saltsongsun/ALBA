@@ -38,6 +38,11 @@ export async function savePhoto(target: string | null, _: FormState, form: FormD
     if (target) await audit(byId, 'photo.update', userId)
   }
   revalidatePath(target ? `/admin/workers/${userId}` : '/me/profile')
-  if (!target) revalidatePath('/me')
+  if (!target) {
+    revalidatePath('/me')
+    // 공고 화면에서 올렸으면 바로 지원 칸이 나오게
+    revalidatePath('/jobs/[id]', 'page')
+    revalidatePath('/pro')
+  }
   return { ok: form.get('remove') === '1' ? '사진을 지웠어요' : '사진을 올렸어요' }
 }

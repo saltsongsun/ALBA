@@ -14,7 +14,7 @@ const rest = (path, method = 'GET', body) => fetch(`${MD}/rest/v1/${path}`, { me
 const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms }).then(() => true, () => false)
 ;(async () => {
   const [w] = await rest(`users?id=eq.${W}`)
-  await rest('users', 'POST', { ...w, id: EX, name: '김음향', phone: '01088885555', member_type: 'expert', attendance: [], ratings: [] })
+  await rest('users', 'POST', { ...w, id: EX, name: '김음향', phone: '01088885555', member_type: 'expert', photo_at: '2026-10-29T00:00:00Z', attendance: [], ratings: [] })
   await rest('doc_templates', 'POST', { id: SVC, kind: 'service', title: '용역계약서', body: '# 용역계약서\n\n{{근로자명}}', is_default: false, active: true, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-01T00:00:00Z' })
   const [j] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j, id: JX, title: '개막식 음향 감독', audience: 'expert', tax_type: 'business', employment_insurance: false, applications: [], required_docs: [SVC], contract_method: 'app', start_date: day(2), end_date: day(2), company: { company_name: '주식회사 테스트' } })

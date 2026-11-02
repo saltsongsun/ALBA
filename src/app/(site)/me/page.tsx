@@ -7,6 +7,7 @@ import Flash from '@/components/Flash'
 import { ShowMore } from '@/components/Fold'
 import { InstallBanner } from '@/components/InstallGuide'
 import PhotoPrompt from '@/components/PhotoPrompt'
+import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
@@ -374,6 +375,8 @@ export default async function MePage(props: PageProps<'/me'>) {
 
       {/* 사진이 없으면 (사진 필수 전에 가입한 사람 포함) 열 때 등록 창을 띄우고, 카드로도 계속 안내 */}
       {!photoAt && user.role === 'worker' && <PhotoPrompt userId={user.id} name={user.name} />}
+      {/* 알림을 안 켰으면 켜기 권유 (사진 등록 창이 떠 있으면 그 뒤에, '나중에'면 하루 쉼) */}
+      <PushNudge publicKey={pushPublicKey()} reason="알림을 켜야 확정 소식을 놓치지 않아요" />
       {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
       {todayApps.length === 0 && profileNags}
 

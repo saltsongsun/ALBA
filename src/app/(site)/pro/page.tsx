@@ -10,6 +10,9 @@ import { won } from '@/lib/format'
 import { MEMBER_TYPES } from '@/lib/members'
 import { partnerPayments, partnerQuotes } from '@/lib/partners'
 import { getUser } from '@/lib/session'
+import PhotoPrompt from '@/components/PhotoPrompt'
+import PushNudge from '@/components/PushNudge'
+import { pushPublicKey } from '@/lib/push'
 import { fmtDate, kstDate } from '@/lib/time'
 
 export const metadata: Metadata = { title: '전문가·외주 파트너' }
@@ -25,7 +28,7 @@ export default async function ProHome(props: PageProps<'/pro'>) {
   const today = kstDate()
   const type = user && user.role !== 'admin' ? user.memberType : null
   const vendor = type === 'vendor'
-  const [jobs, myApps, quotes, pays] = await Promise.all([
+  const [jobs, myApps, quotes, pays, photoAt] = await Promise.all([
     vendor
       ? []
       : db()
@@ -46,6 +49,15 @@ export default async function ProHome(props: PageProps<'/pro'>) {
       : [],
     user ? partnerQuotes(user.id) : [],
     user ? partnerPayments(user.id) : [],
+    // 전문가는 현장에서 알아볼 얼굴 사진이 필요 (외주 업체는 회사라 없음)
+    type === 'expert' && user
+      ? db()
+          .from('users')
+          .select('photo_at')
+          .eq('id', user.id)
+          .maybeSingle()
+          .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null)
+      : 'n/a',
   ])
   const counts = countApps(jobs, 'approved')
   const mine = new Map(myApps.map((a) => [a.job_id, a.status]))
@@ -183,6 +195,11 @@ export default async function ProHome(props: PageProps<'/pro'>) {
             대금 전체 보기 →
           </Link>
         </section>
+      )}
+      {/* 얼굴 사진이 없는 전문가는 등록 창, 그다음 알림 켜기 권유 */}
+      {user && type === 'expert' && !photoAt && <PhotoPrompt userId={user.id} name={user.name} />}
+      {user && (type === 'expert' || vendor) && (
+        <PushNudge publicKey={pushPublicKey()} pro reason={vendor ? '견적 요청과 대금 지급을 바로 알려 드려요' : '새 의뢰와 확정 소식을 바로 알려 드려요'} />
       )}
     </div>
   )

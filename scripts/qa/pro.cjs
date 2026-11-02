@@ -23,7 +23,7 @@ const errs = []
 ;(async () => {
   // 전문가 회원 · 전문가 의뢰 (가짜 DB에 직접)
   const [w] = await rest(`users?id=eq.${W}`)
-  await rest('users', 'POST', { ...w, id: EX, name: '김음향', phone: '01088887777', member_type: 'expert', specialty: '음향,조명', intro: '공연 음향 7년', attendance: [], ratings: [] })
+  await rest('users', 'POST', { ...w, id: EX, name: '김음향', phone: '01088887777', member_type: 'expert', specialty: '음향,조명', intro: '공연 음향 7년', photo_at: '2026-10-29T00:00:00Z', attendance: [], ratings: [] })
   const [j] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j, id: JX, title: JX_TITLE, audience: 'expert', tax_type: 'business', employment_insurance: false, applications: [], required_docs: [], start_date: day(2), end_date: day(2), company: { company_name: '주식회사 테스트' } })
 

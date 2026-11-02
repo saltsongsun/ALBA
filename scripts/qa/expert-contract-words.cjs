@@ -15,7 +15,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
 ;(async () => {
   // 전문가 회원 · 종이 계약 전문가 의뢰(모레) · 확정 (계약서 아직 안 받음)
   const [w] = await rest(`users?id=eq.${W}`)
-  const ex = { ...w, id: EX, name: '김음향', phone: '01088886666', member_type: 'expert', attendance: [], ratings: [] }
+  const ex = { ...w, id: EX, name: '김음향', phone: '01088886666', member_type: 'expert', photo_at: '2026-10-29T00:00:00Z', attendance: [], ratings: [] }
   await rest('users', 'POST', ex)
   const [j] = await rest(`jobs?id=eq.${J}`)
   const jx = { ...j, id: JX, title: '개막식 음향 감독', audience: 'expert', tax_type: 'business', employment_insurance: false, applications: [{ status: 'approved' }], required_docs: [], contract_method: 'paper', start_date: day(1), end_date: day(1), company: { company_name: '주식회사 테스트' } }

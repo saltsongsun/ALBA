@@ -59,9 +59,12 @@ const errs = []
 
   // ── 개선 6: 지원 한마디 칩 ──
   await rest(MD, 'jobs', 'POST', { ...(await rest(MD, `jobs?id=eq.${J}`))[0], id: J2, title: '새 행사 스태프', start_date: tomorrow, end_date: tomorrow, status: 'open', applications: [] })
+  // (지원 칸은 얼굴 사진이 있어야 나옴)
+  await rest(MD, `users?id=eq.${WK}`, 'PATCH', { photo_at: '2026-10-29T00:00:00Z' })
   await wd.goto(`${D}/jobs/${J2}`)
   await wd.getByRole('button', { name: '+ 차량 있어요' }).click()
   ok('한마디 칩: 누르면 칸에 들어감', (await wd.locator('#message').inputValue()) === '차량 있어요')
+  await rest(MD, `users?id=eq.${WK}`, 'PATCH', { photo_at: null })
 
   // ── 개선 7: 글자 크게 보기 ──
   await wd.goto(`${D}/me/profile`)
