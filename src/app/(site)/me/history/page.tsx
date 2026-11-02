@@ -11,15 +11,18 @@ import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 
 export const metadata: Metadata = { title: '지난 근무' }
 
+/** 공고 + 낸 회사 이름 (여러 회사 일을 하면 어느 회사 급여인지 보이게) */
+type JobCo = Job & { company?: { company_name: string } | null }
+
 export default async function HistoryPage() {
   const user = await requireUser('/me/history')
   const [atts, docs, apps] = await Promise.all([
     db()
       .from('attendance')
-      .select('*, job:jobs(*)')
+      .select('*, job:jobs(*, company:companies(company_name))')
       .eq('user_id', user.id)
       .order('work_date', { ascending: false })
-      .then((r) => must(r) as (Attendance & { job: Job | null })[]),
+      .then((r) => must(r) as (Attendance & { job: JobCo | null })[]),
     db()
       .from('signed_docs')
       .select('id, job_id, title')
@@ -37,7 +40,7 @@ export default async function HistoryPage() {
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
 
   // 공고별로 묶어 정산 (가장 최근에 일한 공고부터)
-  const byJob = new Map<string, { job: Job; rows: Attendance[] }>()
+  const byJob = new Map<string, { job: JobCo; rows: Attendance[] }>()
   for (const a of atts) {
     if (!a.job) continue
     const g = byJob.get(a.job_id) ?? { job: a.job, rows: [] }
@@ -121,6 +124,7 @@ export default async function HistoryPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-bold">{job.title}</p>
+                        {job.company?.company_name && <p className="truncate text-xs font-semibold text-sub">🏢 {job.company.company_name}</p>}
                         <p className="text-sm text-sub">
                           {fmtDateRange(first, last)} · {s.days}일 · {minutesText(s.paidMin)}
                         </p>

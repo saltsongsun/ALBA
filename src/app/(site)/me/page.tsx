@@ -60,7 +60,13 @@ function ContractNote({ job, received, compact = false }: { job: Job; received: 
   )
 }
 
-type AppWithJob = Application & { job: Job }
+type AppWithJob = Application & { job: Job & { company?: { company_name: string } | null } }
+
+/** 어느 회사 근무인지 (해피워크는 여러 회사가 공고를 올리므로, 여러 회사 일을 하는 근무자가 헷갈리지 않게) */
+function CompanyName({ job, className = '' }: { job: { company?: { company_name: string } | null }; className?: string }) {
+  const name = job.company?.company_name
+  return name ? <p className={`truncate text-xs font-semibold text-sub ${className}`}>🏢 {name}</p> : null
+}
 
 export default async function MePage(props: PageProps<'/me'>) {
   const sp = await props.searchParams
@@ -74,7 +80,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
     db()
       .from('applications')
-      .select('*, job:jobs(*)')
+      .select('*, job:jobs(*, company:companies(company_name))')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .then((r) => (must(r) as AppWithJob[]).filter((a) => a.job)),
@@ -391,6 +397,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                 다음 근무
               </p>
               <p className="text-lg font-bold">{nextApp.job.title}</p>
+              <CompanyName job={nextApp.job} />
               <p className="text-sm text-sub">
                 {fmtDateRange(nextApp.job.start_date, nextApp.job.end_date)} {scheduleText(nextApp.job)}
                 {nextApp.job.location_name && ` · ${nextApp.job.location_name}`}
@@ -421,7 +428,9 @@ export default async function MePage(props: PageProps<'/me'>) {
               return (
                 <div key={a.id} className="card space-y-4">
                   <div>
-                    <p className="text-xs font-semibold text-mute">{job.event_name}</p>
+                    <p className="truncate text-xs font-semibold text-mute">
+                      {[job.company?.company_name && `🏢 ${job.company.company_name}`, job.event_name].filter(Boolean).join(' · ')}
+                    </p>
                     <h3 className="text-lg font-bold">{job.title}</h3>
                     <p className="text-sm text-sub">
                       {(() => {
@@ -587,6 +596,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               <div key={a.id} className="card flex items-center gap-3 py-4">
                 <Link href={`/jobs/${a.job_id}`} className="min-w-0 flex-1">
                   <p className="font-bold">{a.job.title}</p>
+                  <CompanyName job={a.job} />
                   <p className="text-sm text-sub">
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
@@ -625,6 +635,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               <Link key={a.id} href={`/jobs/${a.job_id}`} className="card-link flex items-center justify-between py-4">
                 <div className="min-w-0">
                   <p className="font-bold">{a.job.title}</p>
+                  <CompanyName job={a.job} />
                   <p className="text-sm text-sub">{fmtDateRange(a.job.start_date, a.job.end_date)}</p>
                   {/* 모집이 마감됐으면 결과를 기다리는 중이라고 (계속 지원 중인 줄 알지 않게) */}
                   {a.job.status === 'closed' && <p className="text-xs font-semibold text-amber-700">모집 마감 · 결과를 곧 알려 드려요</p>}
@@ -650,6 +661,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold">{job.title}</p>
+                    <CompanyName job={job} />
                     <p className="text-sm text-sub">
                       {s.days}일 · {minutesText(s.paidMin)}
                       {s.incomplete > 0 && <span className="text-amber-600"> · 종료 기록 없음 {s.incomplete}일</span>}
