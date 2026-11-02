@@ -19,8 +19,10 @@ const cards = (p, t) => p.locator('#jobs ~ .stagger a.card-link', { hasText: t }
 const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= window.innerWidth + 1)
 
 ;(async () => {
+  // 회사1 = 해피워크가 확인한 회사, 회사2 = 확인 전
+  await rest(`companies?id=eq.${C1}`, 'PATCH', { verified: true })
   const [c1] = await rest(`companies?id=eq.${C1}`)
-  await rest('companies', 'POST', { ...c1, id: C2, company_name: '두번째컴퍼니', seal_image: null, created_at: '2026-10-15T00:00:00Z' })
+  await rest('companies', 'POST', { ...c1, id: C2, company_name: '두번째컴퍼니', seal_image: null, verified: false, created_at: '2026-10-15T00:00:00Z' })
   await rest('companies', 'POST', { ...c1, id: C3, company_name: '쉬는회사', seal_image: null, active: false, created_at: '2026-10-16T00:00:00Z' })
   const [j1] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j1, id: J2, company_id: C2, company: { company_name: '두번째컴퍼니' }, title: T2, applications: [], required_docs: [] })
@@ -39,7 +41,11 @@ const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWid
   // ── 1. 처음 온 사람: 회사1 링크 → 회사1 공고만 ──
   const anon = await pg(null)
   await anon.goto(`${D}/?co=${C1}`)
-  ok('회사 이름과 안내', (await see(anon, '이 회사의 모집 공고예요')) && (await see(anon, '주식회사 테스트')))
+  const sub = (p) => p.locator('[data-company-sub]').innerText().catch(() => '')
+  ok('회사 이름과 안내', (await see(anon, '주식회사 테스트')) && (await anon.locator('[data-company-sub]').count()) === 1)
+  ok('확인된 회사 표시 + 모집 중 공고 수', (await sub(anon)) === '✓ 확인된 회사 · 모집 중 1개', await sub(anon))
+  const subBox = await anon.locator('[data-company-sub]').boundingBox()
+  ok('360px: 안내 한 줄', !!subBox && subBox.height < 24, JSON.stringify(subBox))
   ok('회사1 공고 보임', (await cards(anon, T1)) === 1)
   ok('다른 회사 공고 안 보임', (await cards(anon, T2)) === 0)
   const signupHref = await anon.getByRole('link', { name: '간편 가입' }).getAttribute('href')
@@ -56,11 +62,16 @@ const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWid
   // ── 2. 회사2 링크 ──
   await anon.goto(`${D}/?co=${C2}`)
   ok('회사2 링크: 회사2 공고만', (await see(anon, '두번째컴퍼니')) && (await cards(anon, T2)) === 1 && (await cards(anon, T1)) === 0)
+  ok('확인 전 회사: 확인 표시 없이 공고 수만', (await sub(anon)) === '모집 중 1개', await sub(anon))
+  await rest(`jobs?id=eq.${J2}`, 'PATCH', { status: 'closed' })
+  await anon.goto(`${D}/?co=${C2}`)
+  ok('모집 마감만 남으면: 지금은 모집 중인 공고가 없어요', (await sub(anon)) === '지금은 모집 중인 공고가 없어요', await sub(anon))
+  await rest(`jobs?id=eq.${J2}`, 'PATCH', { status: 'open' })
 
   // ── 3. 잘못된 주소·쉬는 회사는 그냥 전체 공고 ──
   for (const co of ['abc', C3, '99999999-0000-4000-8000-000000000001']) {
     await anon.goto(`${D}/?co=${encodeURIComponent(co)}`)
-    ok(`잘못된·쉬는 회사(${co.slice(-4)}): 전체 공고, 회사 안내 없음`, (await cards(anon, T1)) === 1 && (await cards(anon, T2)) === 1 && !(await see(anon, '이 회사의 모집 공고예요', 500)))
+    ok(`잘못된·쉬는 회사(${co.slice(-4)}): 전체 공고, 회사 안내 없음`, (await cards(anon, T1)) === 1 && (await cards(anon, T2)) === 1 && (await anon.locator('[data-company-sub]').count()) === 0)
   }
 
   // ── 4. 가입 화면으로 가면 다음 주소가 실림 → 가입 후 이 회사 공고 ──
@@ -70,7 +81,7 @@ const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWid
   // ── 5. 로그인한 근무자 ──
   const wk = await pg(W)
   await wk.goto(`${D}/?co=${C1}`)
-  ok('근무자: 회사 안내 + 내 근무 버튼', (await see(wk, '이 회사의 모집 공고예요')) && (await see(wk, '근무자님 내 근무 보기 →')))
+  ok('근무자: 회사 안내 + 내 근무 버튼', (await sub(wk)).includes('모집 중') && (await see(wk, '근무자님 내 근무 보기 →')))
   ok('근무자: 가입·로그인 버튼 없음', (await wk.getByRole('link', { name: '간편 가입' }).count()) === 0)
   ok('근무자: 회사1 공고만', (await cards(wk, T1)) === 1 && (await cards(wk, T2)) === 0)
 

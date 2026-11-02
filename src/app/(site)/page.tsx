@@ -21,7 +21,11 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 회사가 단톡방에 올린 '우리 회사 공고 모음' 링크(/?co=회사id)면 그 회사 공고만
   const coId = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
   const company = coId
-    ? ((await db().from('companies').select('id, company_name').eq('id', coId).eq('active', true).maybeSingle()).data as { id: string; company_name: string } | null)
+    ? ((await db().from('companies').select('id, company_name, verified').eq('id', coId).eq('active', true).maybeSingle()).data as {
+        id: string
+        company_name: string
+        verified: boolean | null
+      } | null)
     : null
   const jobsQuery = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', 'worker').in('status', ['open', 'closed']).gte('end_date', today)
   const [user, jobs, myApps] = await Promise.all([
@@ -42,6 +46,8 @@ export default async function HomePage(props: PageProps<'/'>) {
     ),
   ])
   const counts = countApps(jobs, 'approved')
+  // 회사 공고 모음: 지금 지원받는 공고 수 (모집 마감은 빼고)
+  const openCount = jobs.filter((j) => j.status === 'open').length
   const mine: Record<string, string> = {}
   for (const r of myApps) mine[r.job_id] = r.status
 
@@ -105,7 +111,11 @@ export default async function HomePage(props: PageProps<'/'>) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-bold">{company.company_name}</span>
-              <span className="block truncate text-sm text-sub">이 회사의 모집 공고예요</span>
+              {/* 링크로 처음 온 근무자가 믿을 만한 회사인지 · 지금 지원할 수 있는 공고가 몇 개인지 */}
+              <span className="block truncate text-sm text-sub" data-company-sub>
+                {company.verified === true && <b className="font-semibold text-emerald-600">✓ 확인된 회사 · </b>}
+                {openCount > 0 ? `모집 중 ${openCount}개` : '지금은 모집 중인 공고가 없어요'}
+              </span>
             </span>
             <Link href="/#jobs" className="shrink-0 text-sm font-semibold text-brand-600">
               전체 공고

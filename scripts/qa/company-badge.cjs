@@ -48,7 +48,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('360px: 회사 줄 한 줄', !!box && box.height < 30, JSON.stringify(box))
   await line.click()
   await p.waitForURL(/co=/, { timeout: 8000 }).catch(() => {})
-  ok('누르면 그 회사 공고만', (await p.getByText('이 회사의 모집 공고예요').first().isVisible().catch(() => false)) && (await p.locator('#jobs ~ .stagger a.card-link', { hasText: T2 }).count()) === 0)
+  ok('누르면 그 회사 공고만', (await p.locator('[data-company-sub]').innerText().catch(() => '')).startsWith('✓ 확인된 회사') && (await p.locator('#jobs ~ .stagger a.card-link', { hasText: T2 }).count()) === 0)
   await p.goto(`${D}/jobs/${J2}`)
   ok('확인 전 회사 공고 화면: 표시 없음', !(await p.locator('[data-company-line]').innerText()).includes('확인된 회사'))
 
