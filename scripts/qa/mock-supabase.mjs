@@ -163,9 +163,16 @@ function filter(rows, params) {
 }
 
 let reqs = 0
+let lat = LAT
 let bytes = 0
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
+  // 테스트에서 느린 서버 흉내 (불러오는 중 화면 확인용): /__latency?ms=800
+  if (url.pathname === '/__latency') {
+    lat = Math.max(0, Number(url.searchParams.get('ms')) || 0)
+    res.end(JSON.stringify({ lat }))
+    return
+  }
   if (url.pathname === '/__stats') {
     res.end(JSON.stringify({ reqs, bytes }))
     reqs = 0
@@ -173,7 +180,7 @@ const server = http.createServer(async (req, res) => {
     return
   }
   reqs++
-  await new Promise((r) => setTimeout(r, LAT))
+  await new Promise((r) => setTimeout(r, lat))
   const table = url.pathname.replace('/rest/v1/', '')
   const rows = filter(tables[table] ?? [], url.searchParams)
   const send = (status, body, headers = {}) => {

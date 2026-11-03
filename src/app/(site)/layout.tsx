@@ -4,6 +4,7 @@ import { todoForWorker, unreadForWorker } from '@/lib/data'
 import { getUser } from '@/lib/session'
 import AppBadge from '@/components/AppBadge'
 import { isPro } from '@/lib/members'
+import PullToRefresh from '@/components/PullToRefresh'
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const user = await getUser()
@@ -16,6 +17,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <main className={`mx-auto max-w-xl px-4 pt-5 ${user ? 'pb-28 sm:pb-16' : 'pb-16'}`}>{children}</main>
       {user && <BottomNav unread={unread} todo={todo} mode={user.role === 'admin' ? 'worker' : user.memberType} />}
       {user && <AppBadge count={unread + todo} />}
+      {/* 설치한 앱에서 맨 위에서 당기면 새로 고침 */}
+      {user && <PullToRefresh />}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { mapLinks, type Place } from '@/lib/map'
+import { CopyButton } from './ui'
 
 /** 행사장 지도 + 카카오맵·길찾기·네이버 지도 버튼 (장소 이름·주소·좌표가 모두 없으면 그리지 않음) */
 export default function VenueMap(place: Place) {
@@ -25,6 +26,8 @@ export default function VenueMap(place: Place) {
         <a href={links.naver} target="_blank" rel="noreferrer" className="btn-gray btn-sm">
           네이버 지도
         </a>
+        {/* 택시·내비 앱에 붙여 넣기 좋게 주소만 (주소가 없으면 장소 이름) */}
+        {(place.address || place.name) && <CopyButton text={(place.address || place.name)!} label={place.address ? '주소 복사' : '장소 복사'} className="btn-gray btn-sm" />}
       </div>
     </div>
   )
