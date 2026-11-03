@@ -178,6 +178,8 @@ export function NicknameForm({ current }: { current: string }) {
   )
 }
 
+const RATING_WORDS: Record<number, string> = { 1: '😞 별로였어요', 2: '😕 아쉬웠어요', 3: '🙂 보통이었어요', 4: '😊 좋았어요', 5: '🤩 최고였어요!' }
+
 /** 후기: 별 다섯 개를 눌러 고르고 한 줄 이상 */
 export function ReviewForm({ jobId, rating: r0, body: b0 }: { jobId: string; rating?: number; body?: string }) {
   const [state, action] = useActionState(saveReview.bind(null, jobId), null)
@@ -205,6 +207,10 @@ export function ReviewForm({ jobId, rating: r0, body: b0 }: { jobId: string; rat
           ))}
         </div>
         <input type="hidden" name="rating" value={rating || ''} />
+        {/* 별을 누를 때마다 한마디가 바뀜 */}
+        <p key={rating} className={`mt-1 text-sm font-semibold ${rating ? 'animate-pop text-amber-600' : 'text-mute'}`} aria-live="polite" data-rating-label>
+          {RATING_WORDS[rating] ?? '별을 눌러 골라 주세요'}
+        </p>
       </div>
       <div>
         <label className="label" htmlFor="review-body">

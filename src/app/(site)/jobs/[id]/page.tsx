@@ -30,7 +30,7 @@ import PhotoUpload from '@/components/PhotoUpload'
 import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
-import { companyRating } from '@/lib/community'
+import { ago, companyReviews } from '@/lib/community'
 import { coworkersOnJob } from '@/lib/coworkers'
 
 async function load(id: string) {
@@ -128,10 +128,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         .eq('status', 'open')
         .gte('end_date', kstDate()),
       // 근무자 후기 평균 별점 (가입한 회원에게만)
-      user ? companyRating(job.company_id).catch(() => null) : null,
+      user ? companyReviews(job.company_id, 1).catch(() => null) : null,
       // 이 공고에 지원·확정된 내 동료 (서로 동료 맺은 사람만, 별명)
       user ? coworkersOnJob(user.id, job.id) : [],
-    ]).then(([c, n, rating, pals]) => ({ verified: (c.data as { verified?: boolean | null } | null)?.verified === true, open: n.count ?? 0, rating, pals })),
+    ]).then(([c, n, rv, pals]) => ({
+      verified: (c.data as { verified?: boolean | null } | null)?.verified === true,
+      open: n.count ?? 0,
+      rating: rv && rv.count > 0 ? { avg: rv.avg, count: rv.count } : null,
+      latest: rv?.recent[0] ?? null,
+      pals,
+    })),
   ])
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
@@ -216,6 +222,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <span aria-hidden>★</span>
             <span className="tabular-nums">{coInfo.rating.avg.toFixed(1)}</span>
             <span className="font-normal text-mute">· 근무자 후기 {coInfo.rating.count}개 →</span>
+          </Link>
+        )}
+        {/* 가장 최근 후기 한 줄 미리보기 (일한 근무자가 별명으로 남긴 것) */}
+        {!expert && coInfo.latest && (
+          <Link href={`/community/company/${job.company_id}`} className="mt-1.5 block rounded-xl bg-amber-50/70 px-3 py-2 text-sm transition active:scale-[0.99]" data-review-preview>
+            <span className="line-clamp-2 text-ink">
+              <b className="text-amber-500">{'★'.repeat(coInfo.latest.rating)}</b> &ldquo;{coInfo.latest.body}&rdquo;
+            </span>
+            <span className="block text-xs text-mute">
+              {coInfo.latest.nick} · {ago(coInfo.latest.created_at)}
+            </span>
           </Link>
         )}
         {/* 함께 일했던 동료도 지원했으면 (서로 동료 맺은 사람만) */}
