@@ -23,11 +23,67 @@ const CATS = [
 ]
 
 /** 글쓰기 */
+const DRAFT_KEY = 'community-draft'
+
 export function PostForm({ defaultCategory, post }: { defaultCategory: string; post?: { id: string; title: string; body: string } }) {
   const [state, action] = useActionState(post ? updatePost.bind(null, post.id) : createPost, null)
   const [body, setBody] = useState(post?.body ?? '')
+  const [restored, setRestored] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  // 새 글: 쓰던 글을 이 휴대폰에 잠시 저장 (앱이 꺼지거나 화면을 나가도 다시 불러옴)
+  useEffect(() => {
+    if (post) return
+    try {
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { title?: string; body?: string; category?: string } | null
+      const f = formRef.current
+      if (!d || !f || (!d.title && !d.body)) return
+      ;(f.elements.namedItem('title') as HTMLInputElement).value = d.title ?? ''
+      setBody(d.body ?? '')
+      const cat = f.querySelector<HTMLInputElement>(`input[name=category][value="${d.category}"]`)
+      if (cat) cat.checked = true
+      setRestored(true)
+    } catch {}
+  }, [post])
+  const save = () => {
+    if (post) return
+    const f = formRef.current
+    if (!f) return
+    const fd = new FormData(f)
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: fd.get('title'), body: fd.get('body'), category: fd.get('category') }))
+    } catch {}
+  }
   return (
-    <form action={action} onReset={keepInputs} className="space-y-4" data-post-form>
+    <form
+      ref={formRef}
+      action={action}
+      onReset={keepInputs}
+      onInput={save}
+      onChange={save}
+      // 올리면 임시 저장은 지움 (실패하면 화면에 그대로 남아 있음)
+      onSubmit={() => {
+        if (!post) setTimeout(() => { try { localStorage.removeItem(DRAFT_KEY) } catch {} }, 0)
+      }}
+      className="space-y-4"
+      data-post-form
+    >
+      {restored && (
+        <p className="flex animate-slide-down items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900" data-draft-restored>
+          <span>✍️ 쓰던 글을 불러왔어요</span>
+          <button
+            type="button"
+            className="shrink-0 font-semibold text-amber-700 underline-offset-2 hover:underline"
+            onClick={() => {
+              try { localStorage.removeItem(DRAFT_KEY) } catch {}
+              ;(formRef.current?.elements.namedItem('title') as HTMLInputElement).value = ''
+              setBody('')
+              setRestored(false)
+            }}
+          >
+            지우고 새로 쓰기
+          </button>
+        </p>
+      )}
       <Honeypot />
       <fieldset>
         <legend className="label">말머리</legend>
@@ -180,16 +236,33 @@ export function ReportButton({ target, id, label = '신고' }: { target: 'post' 
 }
 
 /** 별명 바꾸기 */
+/** 별명 규칙 (서버와 같음): 바로바로 알려 줌 */
+function nickHint(v: string): { ok: boolean; text: string } | null {
+  if (!v) return null
+  if (!/^[가-힣a-zA-Z0-9]*$/.test(v)) return { ok: false, text: '한글·영문·숫자만 쓸 수 있어요 (띄어쓰기·기호 안 됨)' }
+  if (v.length < 2) return { ok: false, text: '2자 이상 써 주세요' }
+  if (/운영|관리자|해피워크|어드민|admin|staff|공식/i.test(v)) return { ok: false, text: '운영자로 오해할 수 있는 별명은 안 돼요' }
+  return { ok: true, text: '쓸 수 있는 모양이에요' }
+}
+
 export function NicknameForm({ current }: { current: string }) {
   const [state, action] = useActionState(setNickname, null)
+  const [val, setVal] = useState(current)
+  const hint = val !== current ? nickHint(val) : null
   return (
     <form action={action} className="space-y-2" data-nickname-form>
       <div className="flex gap-2">
-        <input name="nickname" defaultValue={current} maxLength={12} required className="input min-w-0 flex-1" aria-label="별명" />
+        <input name="nickname" value={val} onChange={(e) => setVal(e.target.value.trim())} maxLength={12} required className="input min-w-0 flex-1" aria-label="별명" />
         <SubmitButton className="btn-primary btn-sm shrink-0" pendingText="바꾸는 중…">
           바꾸기
         </SubmitButton>
       </div>
+      {hint && (
+        <p className={`text-xs font-semibold ${hint.ok ? 'text-emerald-600' : 'text-rose-600'}`} aria-live="polite" data-nick-hint>
+          {hint.ok ? '✓ ' : '✕ '}
+          {hint.text}
+        </p>
+      )}
       <FormMessage state={state} />
     </form>
   )
