@@ -123,7 +123,7 @@ const noScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <
   const item = ad.locator('[data-mod-item=post]').first()
   ok('관리 화면: 가려짐 · 신고 3', (await item.innerText()).includes('가려짐') && (await item.innerText()).includes('신고 3'))
   // 두 번 눌러 확인하는 버튼 (첫 누름에 글자가 바뀌므로 자리로 찾음)
-  ok('관리 화면: 다시 보이기 버튼', (await item.getByRole('button', { name: '다시 보이기' }).count()) === 1)
+  ok('관리 화면: 다시 보이기 버튼', await item.getByRole('button', { name: '다시 보이기' }).waitFor({ timeout: 6000 }).then(() => true, () => false))
   const show = item.locator('form button[type=submit]').first()
   await show.click()
   await show.click()

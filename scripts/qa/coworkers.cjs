@@ -44,6 +44,8 @@ const links = () => rest('coworker_links').then((r) => (Array.isArray(r) ? r : [
   await w.goto(`${D}/community`)
   await w.locator('[data-coworkers-link]').click()
   await w.waitForURL(/\/community\/coworkers/, { timeout: 8000 }).catch(() => {})
+  // 불러오는 중 화면이 지나갈 때까지
+  await w.locator('[data-coworker-list]').waitFor({ timeout: 10000 }).catch(() => {})
   const row = w.locator('[data-coworker]').first()
   ok('함께 출근한 사람: 별명 + 함께 1번', (await w.locator('[data-coworker]').count()) === 1 && (await row.innerText()).includes('새벽스태프') && (await row.innerText()).includes('함께 1번'))
   ok('실명(김지원)·모르는 사람 안 보임', !(await w.locator('body').innerText()).includes('김지원') && !(await w.locator('body').innerText()).includes('모르는사람'))
