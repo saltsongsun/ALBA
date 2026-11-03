@@ -22,7 +22,7 @@ import { calcDay, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
-import { fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { contractNameOf } from '@/lib/members'
@@ -177,6 +177,11 @@ export default async function MePage(props: PageProps<'/me'>) {
     return n === 1 ? '내일' : `D-${n}`
   }
   const waiting = apps.filter((a) => a.status === 'applied' && a.job.end_date >= today)
+  // 이번 주 내 근무 한눈에: 오늘부터 7일, 근무가 있는 날은 파랗게 (누르면 그 근무 카드로)
+  const week = Array.from({ length: 7 }, (_, i) => kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + i * 86_400_000)))
+  const workDays = (a: AppWithJob) => a.available_dates ?? dateList(a.job.start_date, a.job.end_date)
+  const weekWork = week.map((d) => approved.filter((a) => a.job.status !== 'cancelled' && workDays(a).includes(d)))
+  const weekCount = weekWork.filter((w) => w.length > 0).length
   // 서류는 근무가 확정된 동안만 열 수 있음 (지원 취소·확정 되돌림이면 관리자 문의)
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
@@ -391,7 +396,49 @@ export default async function MePage(props: PageProps<'/me'>) {
       {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
       {todayApps.length === 0 && profileNags}
 
-      <section>
+      {weekCount > 0 && (
+        <section aria-label="이번 주 내 근무" data-week>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-[15px] font-bold">이번 주 내 {pro ? '일' : '근무'}</h2>
+            <span className="text-sm font-semibold text-brand-700">{weekCount}일</span>
+          </div>
+          <ol className="grid grid-cols-7 gap-1">
+            {week.map((d, i) => {
+              const w = weekWork[i]
+              const dow = new Date(`${d}T00:00:00Z`).getUTCDay()
+              const label = ['일', '월', '화', '수', '목', '금', '토'][dow]
+              const cls = w.length
+                ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 active:scale-95'
+                : `bg-white ring-1 ring-line ${i === 0 ? 'ring-2 ring-brand-300' : ''} ${dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-brand-500' : 'text-sub'}`
+              const inner = (
+                <>
+                  <span className="text-[11px] leading-none font-semibold opacity-80">{i === 0 ? '오늘' : label}</span>
+                  <span className="text-base leading-tight font-extrabold tabular-nums">{Number(d.slice(8))}</span>
+                  <span aria-hidden className={`size-1.5 rounded-full ${w.length ? 'bg-white' : 'bg-transparent'}`} />
+                </>
+              )
+              return (
+                <li key={d}>
+                  {w.length ? (
+                    <a
+                      href={i === 0 || todayApps.some((t) => t.id === w[0].id) ? '#today-work' : `#work-${w[0].id}`}
+                      aria-label={`${fmtDate(d)} ${w.map((x) => x.job.title).join(', ')}`}
+                      className={`flex animate-pop flex-col items-center gap-1 rounded-xl py-2 transition ${cls}`}
+                      style={{ animationDelay: `${i * 30}ms` }}
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <span className={`flex flex-col items-center gap-1 rounded-xl py-2 ${cls}`}>{inner}</span>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      )}
+
+      <section id="today-work" className="scroll-mt-20">
         <h2 className="section-title">오늘의 {pro ? '일' : '근무'}</h2>
         {todayApps.length === 0 ? (
           nextApp ? (
@@ -412,7 +459,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
             </Link>
           ) : (
-            <Empty icon="🌤️" title={pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}>
+            <Empty icon="🌤️" sticker="schedule" title={pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}>
               {/* 전문가는 알바 공고가 아닌 전문가 의뢰 목록으로 */}
               <Link href={pro ? '/pro' : '/'} className="font-semibold text-brand-600">
                 {pro ? '모집 중인 의뢰 보기 →' : '모집 중인 알바 보기 →'}
@@ -598,7 +645,7 @@ export default async function MePage(props: PageProps<'/me'>) {
           <h2 className="section-title">예정된 근무</h2>
           <div className="stagger space-y-2">
             {upcoming.map((a) => (
-              <div key={a.id} className="card flex items-center gap-3 py-4">
+              <div key={a.id} id={`work-${a.id}`} className="card flex scroll-mt-20 items-center gap-3 py-4 target:ring-2 target:ring-brand-300">
                 <Link href={`/jobs/${a.job_id}`} className="min-w-0 flex-1">
                   <p className="font-bold">{a.job.title}</p>
                   <CompanyName job={a.job} />

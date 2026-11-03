@@ -43,7 +43,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
       <RoomMembersInfo workers={members.workers} admins={members.admins} worker />
       {pinned && <RoomPinned msg={pinned} jobId={job.id} canUnpin={false} />}
       {messages.length === 0 ? (
-        <Empty icon="👋" title="아직 대화가 없어요">
+        <Empty icon="👋" sticker="hi" title="아직 대화가 없어요">
           같이 일할 분들께 먼저 인사해 보세요
         </Empty>
       ) : (

@@ -135,7 +135,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       </div>
 
       {messages.length === 0 ? (
-        <Empty icon="💬" title="아직 주고받은 메시지가 없어요">
+        <Empty icon="💬" sticker="hi" title="아직 주고받은 메시지가 없어요">
           아래 칸에 궁금한 점을 적어 보내 주세요.
         </Empty>
       ) : (

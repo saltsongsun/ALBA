@@ -235,7 +235,7 @@ export default async function HomePage(props: PageProps<'/'>) {
         </div>
       )}
       {jobs.length === 0 ? (
-        <Empty icon="🔍" title="지금은 모집 중인 공고가 없어요">
+        <Empty icon="🔍" sticker="wait" title="지금은 모집 중인 공고가 없어요">
           {company ? (
             <Link href="/#jobs" className="font-semibold text-brand-600">
               다른 회사 공고 보기 →

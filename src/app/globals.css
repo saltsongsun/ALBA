@@ -94,6 +94,8 @@
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* '이번 주 내 근무'처럼 같은 화면 안으로 이동할 때 부드럽게 (움직임 줄이기 설정이면 아래에서 끔) */
+    scroll-behavior: smooth;
   }
   body {
     @apply bg-bg text-ink antialiased;
