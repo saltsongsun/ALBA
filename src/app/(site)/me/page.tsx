@@ -18,6 +18,7 @@ import AutoRefresh from '@/components/AutoRefresh'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
+import PrepChecklist from '@/components/PrepChecklist'
 import { won } from '@/lib/format'
 import { answerOvertime, answerShift } from '@/app/actions/worker'
 import { calcDay, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
@@ -557,6 +558,11 @@ export default async function MePage(props: PageProps<'/me'>) {
                         )}
                       </ul>
                     )}
+                    {/* 준비물·복장 하나씩 체크 (2개 이상일 때) */}
+                    {(() => {
+                      const items = [...new Set(`${job.dress_code ?? ''},${job.supplies ?? ''}`.split(/[,·、/\n]+/).map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 20))].slice(0, 8)
+                      return items.length >= 2 ? <PrepChecklist storageKey={`prep-${job.id}-${today}`} items={items} /> : null
+                    })()}
                     {a.position && (
                       <p className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-sm font-bold text-brand-700">
                         📍 내 배치 · {a.position}
