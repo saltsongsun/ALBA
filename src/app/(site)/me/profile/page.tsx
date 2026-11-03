@@ -16,6 +16,8 @@ import { changeMemberType } from '@/app/actions/worker'
 import { ProInfoForm } from '@/components/pro'
 import { ConfirmSubmit } from '@/components/ui'
 import { NicknameForm } from '@/components/community'
+import LiveNumber from '@/components/LiveNumber'
+import { myActivity } from '@/lib/community'
 import { bizNoFmt, MEMBER_TYPES } from '@/lib/members'
 import type { MemberType } from '@/lib/types'
 
@@ -30,7 +32,15 @@ export default async function ProfilePage() {
     .single()
   if (!me) return null
   // 커뮤니티 별명 (따로 읽음: 못 읽어도 내 정보 화면은 그대로)
-  const nickname = ((await db().from('users').select('nickname').eq('id', user.id).maybeSingle()).data as { nickname: string | null } | null)?.nickname ?? ''
+  const [nickname, activity] = await Promise.all([
+    db()
+      .from('users')
+      .select('nickname')
+      .eq('id', user.id)
+      .maybeSingle()
+      .then((r) => (r.data as { nickname: string | null } | null)?.nickname ?? ''),
+    me.member_type === 'vendor' ? { posts: 0, comments: 0, likes: 0 } : myActivity(user.id),
+  ])
   const type: MemberType = me.member_type === 'expert' || me.member_type === 'vendor' ? me.member_type : 'worker'
   const vendor = type === 'vendor'
   // 정보 채우기: 비어 있는 항목을 눌러 바로 그 칸으로 (급여·현장 연락이 빨라지게). 유형마다 다름
@@ -135,6 +145,25 @@ export default async function ProfilePage() {
           </div>
           <p className="text-sm text-sub">게시판 글·댓글과 회사 후기에 이름 대신 이 별명이 보여요.{!nickname && ' 아직 없으면 처음 글을 쓸 때 자동으로 정해져요.'}</p>
           <NicknameForm current={nickname} />
+          {/* 내 커뮤니티 활동 (숫자가 0부터 올라감) */}
+          {activity.posts + activity.comments > 0 && (
+            <dl className="grid grid-cols-3 gap-2 text-center" data-my-activity>
+              {(
+                [
+                  ['쓴 글', activity.posts],
+                  ['단 댓글', activity.comments],
+                  ['받은 ❤️', activity.likes],
+                ] as const
+              ).map(([k, v]) => (
+                <div key={k} className="rounded-xl bg-bg py-2.5">
+                  <dd className="text-lg font-extrabold tabular-nums">
+                    <LiveNumber value={v} countUp />
+                  </dd>
+                  <dt className="text-xs text-sub">{k}</dt>
+                </div>
+              ))}
+            </dl>
+          )}
         </section>
       )}
       {type !== 'worker' && (

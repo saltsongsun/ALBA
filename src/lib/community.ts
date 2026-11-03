@@ -296,3 +296,18 @@ export async function newCommentsOnMine(userId: string, since: string | null): P
     return null
   }
 }
+
+/** 내 커뮤니티 활동: 쓴 글 · 단 댓글 · 받은 좋아요 (내 정보 별명 칸). 못 읽으면 0 */
+export async function myActivity(userId: string): Promise<{ posts: number; comments: number; likes: number }> {
+  try {
+    const [{ data: posts }, { count: comments }] = await Promise.all([
+      db().from('community_posts').select('id, author_id').eq('author_id', userId).limit(500),
+      db().from('community_comments').select('id', { count: 'exact', head: true }).eq('author_id', userId),
+    ])
+    const ids = ((posts ?? []) as { id: string; author_id: string }[]).filter((p) => p.author_id === userId).map((p) => p.id)
+    const { count: likes } = ids.length ? await db().from('community_likes').select('post_id', { count: 'exact', head: true }).in('post_id', ids) : { count: 0 }
+    return { posts: ids.length, comments: comments ?? 0, likes: likes ?? 0 }
+  } catch {
+    return { posts: 0, comments: 0, likes: 0 }
+  }
+}

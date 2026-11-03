@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { deleteComment, deletePost } from '@/app/actions/community'
 import { CommentForm, DoubleTapLike, LikeButton, ReplyButton, ReportButton } from '@/components/community'
-import { ConfirmSubmit } from '@/components/ui'
+import { ConfirmSubmit, ShareButton } from '@/components/ui'
 import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
@@ -63,6 +63,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
           <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!writer} />
           <div className="flex items-center gap-3">
+            {!post.hidden_at && <ShareButton title={post.title} text={`해피워크 커뮤니티: ${post.title}`} path={`/community/${post.id}`} className="text-xs font-semibold text-mute hover:text-brand-600" />}
             {mine && writer && !post.hidden_at && (
               <Link href={`/community/${post.id}/edit`} className="text-xs font-semibold text-mute hover:text-brand-600" data-edit-link>
                 ✏️ 고치기
