@@ -54,6 +54,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await w.waitForFunction(() => document.querySelector('[data-like]')?.getAttribute('aria-pressed') === 'true', null, { timeout: 5000 }).catch(() => {})
   await w.waitForTimeout(800)
   ok('좋아요 눌림 (1)', (await w.locator('[data-like]').getAttribute('aria-pressed')) === 'true' && /좋아요\s*1/.test(await w.locator('[data-like]').innerText()))
+  await w.locator('[data-heart]').first().waitFor({ state: 'detached', timeout: 3000 }).catch(() => {})
   ok('하트는 잠깐 뒤 사라짐', (await w.locator('[data-heart]').count()) === 0)
   await body.dblclick()
   await w.waitForTimeout(1200)
