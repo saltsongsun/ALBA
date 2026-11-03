@@ -31,6 +31,7 @@ import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
 import { companyRating } from '@/lib/community'
+import { coworkersOnJob } from '@/lib/coworkers'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -128,7 +129,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         .gte('end_date', kstDate()),
       // 근무자 후기 평균 별점 (가입한 회원에게만)
       user ? companyRating(job.company_id).catch(() => null) : null,
-    ]).then(([c, n, rating]) => ({ verified: (c.data as { verified?: boolean | null } | null)?.verified === true, open: n.count ?? 0, rating })),
+      // 이 공고에 지원·확정된 내 동료 (서로 동료 맺은 사람만, 별명)
+      user ? coworkersOnJob(user.id, job.id) : [],
+    ]).then(([c, n, rating, pals]) => ({ verified: (c.data as { verified?: boolean | null } | null)?.verified === true, open: n.count ?? 0, rating, pals })),
   ])
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
@@ -214,6 +217,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <span className="tabular-nums">{coInfo.rating.avg.toFixed(1)}</span>
             <span className="font-normal text-mute">· 근무자 후기 {coInfo.rating.count}개 →</span>
           </Link>
+        )}
+        {/* 함께 일했던 동료도 지원했으면 (서로 동료 맺은 사람만) */}
+        {coInfo.pals.length > 0 && (
+          <p className="mt-2 flex animate-pop items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700" data-coworkers-on-job>
+            <span aria-hidden>🤝</span>
+            <span className="min-w-0 truncate">
+              동료 {coInfo.pals.length}명도 지원했어요 · {coInfo.pals.slice(0, 3).join(', ')}
+              {coInfo.pals.length > 3 && ` 외 ${coInfo.pals.length - 3}명`}
+            </span>
+          </p>
         )}
         <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">
           {shows(job, 'estimate') ? (

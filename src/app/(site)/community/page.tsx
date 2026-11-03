@@ -51,6 +51,19 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         })}
       </nav>
 
+      {writer && !reviewTab && (
+        <Link href="/community/coworkers" className="card-link flex items-center gap-3 p-3.5" data-coworkers-link>
+          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
+            🤝
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">함께 일한 사람</b>
+            <span className="block truncate text-xs text-sub">동료를 맺으면 같은 공고에 지원했을 때 알 수 있어요</span>
+          </span>
+          <span className="shrink-0 text-sm font-semibold text-brand-600">보기 →</span>
+        </Link>
+      )}
+
       {!writer && (
         <p className="rounded-2xl bg-bg px-4 py-3 text-sm text-sub" data-readonly>
           👀 회사 관리자·외주 업체 계정은 읽기만 할 수 있어요. 근무자 목소리를 들어 보세요.
