@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { haptic } from './ui'
 
 const SHOW_MS = 6000
@@ -49,8 +50,10 @@ export default function Flash({ m }: { m: string | string[] | undefined }) {
   if (!shown) return null
   return (
     <>
-    {party && (
-      <div aria-hidden data-celebrate className="burst pointer-events-none fixed inset-0 z-50">
+    {/* 화면 전환 애니메이션(transform) 안에서는 fixed가 화면 기준이 아니게 되므로 body에 바로 붙임 */}
+    {party &&
+      createPortal(
+        <div aria-hidden data-celebrate className="burst pointer-events-none z-50" style={{ position: 'fixed', inset: 0 }}>
         {DOTS.map((d, i) => (
           <i key={i} style={{ '--x': `${d.x}px`, '--y': `${d.y}px`, background: d.c } as React.CSSProperties} />
         ))}
@@ -59,8 +62,9 @@ export default function Flash({ m }: { m: string | string[] | undefined }) {
             <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
           </svg>
         </span>
-      </div>
-    )}
+        </div>,
+        document.body,
+      )}
     <div className={`no-print grid transition-all duration-300 ${closing ? 'mb-0 grid-rows-[0fr] opacity-0' : 'mb-4 grid-rows-[1fr]'}`}>
       <div className="overflow-hidden">
         <div role="status" className="relative flex animate-slide-down items-start gap-2 overflow-hidden rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
