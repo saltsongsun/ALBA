@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 
 type Tab = { href: string; label: string; on: (path: string) => boolean; icon: React.ReactNode }
 
@@ -80,8 +81,13 @@ const VENDOR_TABS: Tab[] = [
 ]
 
 /** 휴대폰 아래쪽 탭 (로그인한 회원). 아르바이트·전문가·외주 업체마다 탭이 다름 (아르바이트: 알바 찾기·내 근무·커뮤니티·문의·내 정보) */
-export default function BottomNav({ unread = 0, todo = 0, mode = 'worker' }: { unread?: number; todo?: number; mode?: 'worker' | 'expert' | 'vendor' }) {
+export default function BottomNav({ unread = 0, todo = 0, communityNew = false, mode = 'worker' }: { unread?: number; todo?: number; communityNew?: boolean; mode?: 'worker' | 'expert' | 'vendor' }) {
   const path = usePathname()
+  // 이번에 커뮤니티를 한 번 열었으면 새 글 점을 끔 (화면을 옮겨도 아래 탭은 다시 그려지지 않으므로)
+  const [cmSeen, setCmSeen] = useState(false)
+  useEffect(() => {
+    if (path.startsWith('/community')) setCmSeen(true)
+  }, [path])
   const tabs = mode === 'expert' ? EXPERT_TABS : mode === 'vendor' ? VENDOR_TABS : TABS
   return (
     <nav aria-label="주요 메뉴" data-bottom-nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
@@ -107,6 +113,10 @@ export default function BottomNav({ unread = 0, todo = 0, mode = 'worker' }: { u
                   <span className="absolute -top-1 right-1 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 px-1 text-[10px] leading-none font-bold text-white">
                     {todo > 9 ? '9+' : todo}
                   </span>
+                )}
+                {/* 커뮤니티 새 글 (지금 커뮤니티를 보고 있으면 숨김) */}
+                {t.href === '/community' && communityNew && !cmSeen && !active && (
+                  <span aria-label="새 글" data-community-dot className="absolute top-0 right-2.5 size-2.5 animate-pop rounded-full bg-rose-500 ring-2 ring-white" />
                 )}
                 {/* 활성 탭이 바뀌면 아이콘이 톡 튀어나옴 */}
                 <svg

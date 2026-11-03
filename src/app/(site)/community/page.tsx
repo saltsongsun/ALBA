@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
+import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 
@@ -26,6 +27,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
 
   return (
     <div className="space-y-4">
+      <CommunitySeen />
       <Flash m={sp.m} />
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">

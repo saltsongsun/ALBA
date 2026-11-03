@@ -17,7 +17,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const admin = await requireAdmin()
   // 대표 관리자에게는 승인을 기다리는 관리자 가입 신청 수도 (회사 설정 옆에 표시)
   const owner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
-  const [unread, joinWait, roomUnread] = await Promise.all([
+  const [unread, joinWait, roomUnread, reports] = await Promise.all([
     unreadForAdmins(admin.companyId),
     owner
       ? db()
@@ -28,6 +28,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       : 0,
     // 단체방 안 읽은 메시지 (이 관리자 기준)
     adminRoomUnreadTotal(admin.companyId, admin.id).catch(() => 0),
+    // 최고 관리자: 아직 처리 안 한 커뮤니티 신고 수 (커뮤니티 관리 옆에 표시)
+    admin.isSuper
+      ? db()
+          .from('community_reports')
+          .select('id', { count: 'exact', head: true })
+          .is('resolved_at', null)
+          .then((r) => (r.error ? 0 : (r.count ?? 0)))
+      : 0,
   ])
   return (
     <>
@@ -53,7 +61,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <p className="truncate text-sm font-semibold text-sub">🏢 {admin.companyName}</p>
           )}
         </div>
-        <AdminNav unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} />
+        <AdminNav unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
         <AppBadge count={unread + roomUnread} />
       </header>
       <main className="mx-auto max-w-6xl px-4 pt-5 pb-20">{children}</main>

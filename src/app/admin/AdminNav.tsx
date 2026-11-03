@@ -14,7 +14,7 @@ const ITEMS = [
   { href: '/admin/settings', label: '회사 설정' },
 ]
 
-export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false }: { unread?: number; joinWait?: number; isSuper?: boolean }) {
+export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false, reports = 0 }: { unread?: number; joinWait?: number; isSuper?: boolean; reports?: number }) {
   const path = usePathname()
   // 회사 관리는 최고 관리자만
   const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }, { href: '/admin/community', label: '커뮤니티 관리' }] : ITEMS
@@ -33,6 +33,12 @@ export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false }: 
             {it.href === '/admin/chat' && unread > 0 && (
               <span className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
                 {unread > 99 ? '99+' : unread}
+              </span>
+            )}
+            {/* 처리 안 한 커뮤니티 신고 (최고 관리자) */}
+            {it.href === '/admin/community' && reports > 0 && (
+              <span aria-label={`처리할 신고 ${reports}건`} data-report-badge className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
+                {reports > 99 ? '99+' : reports}
               </span>
             )}
             {/* 관리자 가입 신청 (대표 관리자) */}
