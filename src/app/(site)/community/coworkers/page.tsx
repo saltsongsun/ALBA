@@ -87,7 +87,7 @@ export default async function CoworkersPage() {
           ))}
         </ul>
       )}
-      <p className="text-center text-xs text-mute">실명·연락처는 서로 보이지 않아요. 동료를 끊어도 상대에게 알리지 않아요.</p>
+      <p className="text-center text-xs text-balance text-mute">실명·연락처는 서로 보이지 않아요. 동료를 끊어도 상대에게 알리지 않아요.</p>
     </div>
   )
 }
