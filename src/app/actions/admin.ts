@@ -1,6 +1,7 @@
 'use server'
 
 import { randomInt } from 'node:crypto'
+import { rosterUnlockedFor } from '@/lib/rosterLock'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
@@ -1253,6 +1254,8 @@ async function workingWorker(companyId: string, userId: string): Promise<{ role:
 
 export async function revealRrn(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
+  // 근무자 명단 잠금을 푼 관리자만 (명단 화면을 거치지 않은 요청도 막음)
+  if (!(await rosterUnlockedFor(admin.id))) return { error: '근무자 명단 잠금이 풀려 있지 않아요. 근무자 화면에서 비밀번호를 넣어 주세요.' }
   // 주민번호는 신고용: 이 회사에서 출퇴근 기록이 있는 근무자만 (지원만 했거나 관리자 계정이면 안 됨)
   const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('user_id', userId)
   if (!(await workingWorker(admin.companyId, userId)) || !worked) return { error: '이 회사에서 근무한 기록이 있는 근무자만 볼 수 있어요.' }

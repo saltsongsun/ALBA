@@ -5,6 +5,7 @@ import { calcDay, settle } from '@/lib/pay'
 import { monthlyRows, toCsv } from '@/lib/reports'
 import { overLimit } from '@/lib/ratelimit'
 import { getUser, requireAdmin } from '@/lib/session'
+import { rosterUnlockedFor } from '@/lib/rosterLock'
 import { companyJob, companyWorkerIds } from '@/lib/company'
 import type { Attendance, UserRow } from '@/lib/types'
 import { formatRrn, isUuid } from '@/lib/validate'
@@ -84,6 +85,8 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
   }
 
   if (kind === 'workers') {
+    // 보안: 명단 잠금을 풀지 않았으면 잠금 화면으로 (풀면 바로 내려받기)
+    if (!(await rosterUnlockedFor(admin.id))) return Response.redirect(new URL('/admin/workers?unlock=csv', req.url), 303)
     // 이 회사에 지원한 근무자만
     const ids = await companyWorkerIds(admin.companyId)
     const users = ids.length

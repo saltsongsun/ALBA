@@ -4,6 +4,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [D, MD, W_, MW, F, MF, BIG] = process.argv.slice(2)
 const A = 'aaaaaaaa-0000-4000-8000-000000000001', WK = 'bbbbbbbb-0000-4000-8000-000000000002', J = 'cccccccc-0000-4000-8000-000000000003'
 const J2 = 'cccccccc-0000-4000-8000-0000000000b2', APP_W = '11111111-0000-4000-8000-000000000008'
@@ -18,7 +19,7 @@ const errs = []
   const pg = async (base, uid) => {
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR' })
     await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
-    if (uid) await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: base }])
+    if (uid) await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: base }, { name: 'alba_roster', value: roster(uid), url: base }])
     const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(`${base} ${e.message.slice(0, 120)}`)); return p
   }
 

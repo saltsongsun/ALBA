@@ -4,6 +4,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [D, MD] = process.argv.slice(2)
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', NW = '44444444-0000-4000-8000-0000000000b1'
 let fails = 0
@@ -20,7 +21,7 @@ const rest = (path, method = 'GET', body) => fetch(`${MD}/rest/v1/${path}`, { me
   const open = async (uid) => {
     const ctx = await b.newContext({ viewport: { width: 360, height: 740 }, isMobile: true, hasTouch: true, locale: 'ko-KR', userAgent: devices['Galaxy S9+'].userAgent })
     await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1'); localStorage.setItem('alba_install_hide_until', String(Date.now() + 86400000)) } catch {} })
-    await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: D }])
+    await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: D }, { name: 'alba_roster', value: roster(uid), url: D }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(e.message))
     await p.goto(`${D}/me`)

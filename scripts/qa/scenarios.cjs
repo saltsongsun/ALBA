@@ -3,6 +3,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [D, MD, W_, MW, F, MF] = process.argv.slice(2) // default app/mock, working app/mock, fresh app/mock
 const ADMIN = 'aaaaaaaa-0000-4000-8000-000000000001', WK = 'bbbbbbbb-0000-4000-8000-000000000002', J = 'cccccccc-0000-4000-8000-000000000003'
 const J2 = 'cccccccc-0000-4000-8000-0000000000a2', J4 = 'cccccccc-0000-4000-8000-0000000000a4'
@@ -23,7 +24,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR', ...extra })
     // 얼굴 사진 등록 창은 따로 확인하므로 점검 중에는 띄우지 않음
     await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
-    await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: base }])
+    await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: base }, { name: 'alba_roster', value: roster(uid), url: base }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(`${base} ${e.message.slice(0, 150)}`))
     return p

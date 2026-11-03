@@ -4,6 +4,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [D, MD] = process.argv.slice(2)
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', J = 'cccccccc-0000-4000-8000-000000000003'
 let fails = 0
@@ -24,7 +25,7 @@ const latency = (ms) => fetch(`${MD}/__latency?ms=${ms}`).then((r) => r.json())
         window.matchMedia = (q) => (q.includes('display-mode: standalone') ? { matches: true, media: q, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {} } : mm(q))
       }
     }, standalone)
-    await ctx.addCookies([{ name: 'alba_session', value: cookie(W), url: D }])
+    await ctx.addCookies([{ name: 'alba_session', value: cookie(W), url: D }, { name: 'alba_roster', value: roster(W), url: D }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
     return { ctx, p }

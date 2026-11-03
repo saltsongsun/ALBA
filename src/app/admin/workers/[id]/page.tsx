@@ -1,3 +1,5 @@
+import RosterLock, { RosterOpenBar } from '@/components/RosterLock'
+import { ROSTER_MINUTES, rosterUnlockedFor } from '@/lib/rosterLock'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -46,6 +48,9 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const admin = await requireAdmin()
   const { id } = await props.params
   if (!isUuid(id)) notFound()
+  // 보안: 명단은 관리자 본인 비밀번호를 한 번 더 넣어야 열림 (10분)
+  const rosterLeft = await rosterUnlockedFor(admin.id)
+  if (!rosterLeft) return <RosterLock next={`/admin/workers/${id}`} minutes={ROSTER_MINUTES} />
   // 가입 회원은 모든 회사 공용이라 누구나 볼 수 있지만, 주민번호·계좌·주소·비상연락처·수정은 이 회사에 지원한 사람만
   const related = await workerInCompany(admin.companyId, id)
   const sp = await props.searchParams
@@ -120,6 +125,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
+      <RosterOpenBar seconds={rosterLeft} />
       <Link href="/admin/workers" className="text-sm font-semibold text-sub">
         ← 근무자 목록
       </Link>

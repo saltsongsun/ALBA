@@ -4,6 +4,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [D, MD, W_, MW] = process.argv.slice(2)
 const A = 'aaaaaaaa-0000-4000-8000-000000000001', J = 'cccccccc-0000-4000-8000-000000000003', AP = '11111111-0000-4000-8000-000000000012'
 let fails = 0
@@ -14,7 +15,7 @@ const errs = []
   const b = await chromium.launch()
   const pg = async (base) => {
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR' })
-    await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: base }])
+    await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: base }, { name: 'alba_roster', value: roster(A), url: base }])
     const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message.slice(0, 120))); return p
   }
   // 모집 1명인데 이미 1명 확정 → 대기자 확정은 한 번 더 물어봄

@@ -4,6 +4,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [D, MD] = process.argv.slice(2)
 const WK = 'bbbbbbbb-0000-4000-8000-000000000002'
 const DOC = 'dddddddd-0000-4000-8000-000000000004', DOC2 = 'dddddddd-0000-4000-8000-000000000005'
@@ -20,7 +21,7 @@ const REUSE = '앞 서류와 같은 서명 쓰기'
   const b = await chromium.launch()
   const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR' })
   await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
-  await ctx.addCookies([{ name: 'alba_session', value: cookie(WK), url: D }])
+  await ctx.addCookies([{ name: 'alba_session', value: cookie(WK), url: D }, { name: 'alba_roster', value: roster(WK), url: D }])
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))

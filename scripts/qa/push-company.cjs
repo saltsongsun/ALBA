@@ -11,6 +11,7 @@ const https = require('node:https')
 const ece = require('http_ece')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const [MD, DIR] = process.argv.slice(2)
 const A = 'aaaaaaaa-0000-4000-8000-000000000001', AP = '33333333-0000-4000-8000-000000000011'
 const APP_ID = '11111111-0000-4000-8000-000000000012' // 김지원의 '지원' (확정 전)
@@ -59,7 +60,7 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
     // 3. 관리자가 김지원을 확정
     const b = await chromium.launch()
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
-    await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }])
+    await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }, { name: 'alba_roster', value: roster(A), url: D }])
     const p = await ctx.newPage()
     await p.goto(`${D}/admin`)
     await p.evaluate(

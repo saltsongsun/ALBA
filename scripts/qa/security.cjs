@@ -3,6 +3,7 @@ const { chromium, devices } = require('playwright')
 const { createHmac, scryptSync, randomBytes } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const hash = (pin) => { const salt = randomBytes(16); return `s1:${salt.toString('base64')}:${scryptSync(pin, salt, 32).toString('base64')}` }
 const [B, M] = process.argv.slice(2)
 const WK = 'bbbbbbbb-0000-4000-8000-000000000002', AP = '33333333-0000-4000-8000-000000000011'
@@ -16,7 +17,7 @@ const errs = []
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR', extraHTTPHeaders: { 'x-forwarded-for': ip } })
     // 얼굴 사진 등록 창은 따로 확인하므로 점검 중에는 띄우지 않음
     await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
-    if (uid) await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: B }])
+    if (uid) await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: B }, { name: 'alba_roster', value: roster(uid), url: B }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(e.message.slice(0, 150)))
     return p

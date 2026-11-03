@@ -1,3 +1,5 @@
+import RosterLock, { RosterOpenBar } from '@/components/RosterLock'
+import { ROSTER_MINUTES, rosterUnlockedFor } from '@/lib/rosterLock'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Avatar from '@/components/Avatar'
@@ -30,6 +32,12 @@ type Row = {
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
+  // 보안: 명단은 관리자 본인 비밀번호를 한 번 더 넣어야 열림 (10분)
+  const rosterLeft = await rosterUnlockedFor(admin.id)
+  if (!rosterLeft) {
+    const qs = new URLSearchParams(Object.entries(sp).flatMap(([k, v]) => (typeof v === 'string' && k !== 'unlock' ? [[k, v]] : []))).toString()
+    return <RosterLock next={`/admin/workers${qs ? `?${qs}` : ''}`} minutes={ROSTER_MINUTES} />
+  }
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
   // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
   // 근무일수·평가는 이 회사 기록만, 주민번호·계좌 같은 민감 정보는 이 회사에 지원한 사람만 (근무자 화면에서)
@@ -109,6 +117,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
 
   return (
     <div className="space-y-4">
+      <RosterOpenBar seconds={rosterLeft} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold">근무자 {users.length}명</h1>
         <div className="flex w-full gap-2 sm:w-auto">

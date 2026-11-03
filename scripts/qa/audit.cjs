@@ -8,6 +8,7 @@ const [base = 'http://127.0.0.1:3002', out = 'shots'] = process.argv.slice(2)
 fs.mkdirSync(out, { recursive: true })
 const SECRET = process.env.SESSION_SECRET
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 근무자 명단 잠금을 푼 상태로 (관리자 화면 테스트용)
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', A = 'aaaaaaaa-0000-4000-8000-000000000001', J = 'cccccccc-0000-4000-8000-000000000003'
 const pages = [
   ['anon', 'home-anon', '/'], ['anon', 'login', '/login'], ['anon', 'signup', '/signup'], ['anon', 'signup-worker', '/signup?type=worker'], ['anon', 'signup-expert', '/signup?type=expert'], ['anon', 'signup-vendor', '/signup?type=vendor'], ['anon', 'start', '/start'], ['anon', 'setup', '/setup'],
@@ -33,7 +34,7 @@ const pages = [
       const ctx = await browser.newContext({ ...vp })
       // 얼굴 사진 등록 창은 따로 확인하므로 점검 중에는 띄우지 않음
       await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1') } catch {} })
-      if (who !== 'anon') await ctx.addCookies([{ name: 'alba_session', value: cookie(who === 'admin' ? A : W), url: base }])
+      if (who !== 'anon') await ctx.addCookies([{ name: 'alba_session', value: cookie(who === 'admin' ? A : W), url: base }, { name: 'alba_roster', value: roster(who === 'admin' ? A : W), url: base }])
       const page = await ctx.newPage()
       const errs = []
       page.on('pageerror', (e) => errs.push(e.message))
