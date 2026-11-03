@@ -222,3 +222,20 @@ export async function moderationQueue(): Promise<ModItem[]> {
   ]
   return items.sort((a, b) => b.reports - a.reports || b.created_at.localeCompare(a.created_at))
 }
+
+/** 최근 7일 안에 출근한 공고 중 아직 후기를 안 쓴 것 하나 (내 근무 화면의 '후기 남기기' 안내). 못 읽으면 null */
+export async function reviewNudge(userId: string): Promise<{ jobId: string; title: string; workDate: string } | null> {
+  try {
+    const since = new Date(Date.now() - 7 * 86_400_000 + 9 * 3600_000).toISOString().slice(0, 10)
+    const { data } = await db().from('attendance').select('job_id, user_id, work_date, clock_in, clock_out, job:jobs(title, end_date)').eq('user_id', userId).not('clock_in', 'is', null).gte('work_date', since).limit(50)
+    const rows = ((data ?? []) as unknown as { job_id: string; user_id: string; work_date: string; clock_in: string | null; clock_out: string | null; job: { title: string; end_date: string } | null }[])
+      .filter((r) => r.user_id === userId && r.clock_in && r.clock_out && r.work_date >= since && r.job)
+      .sort((a, b) => b.work_date.localeCompare(a.work_date))
+    if (!rows.length) return null
+    const done = await myReviewedJobs(userId)
+    const r = rows.find((x) => !done.has(x.job_id))
+    return r ? { jobId: r.job_id, title: r.job!.title, workDate: r.work_date } : null
+  } catch {
+    return null
+  }
+}

@@ -24,6 +24,7 @@
   --animate-float: float 3.2s ease-in-out infinite;
   --animate-bump: bump 0.7s var(--ease-spring);
   --animate-grow: grow 0.7s var(--ease-spring) 0.15s both;
+  --animate-heart: heart 0.8s var(--ease-spring) both;
 }
 
 /* 전문가·외주 업체 화면: 강조색을 보라로 바꿔 아르바이트 화면과 한눈에 구분 */
@@ -40,6 +41,24 @@
   from {
     opacity: 0;
     transform: translateY(8px);
+  }
+}
+/* 두 번 톡 눌러 좋아요: 하트가 커졌다가 위로 떠오르며 사라짐 */
+@keyframes heart {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.3);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+  40% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -140%) scale(0.9);
   }
 }
 @keyframes pop {

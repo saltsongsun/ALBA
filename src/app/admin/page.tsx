@@ -15,6 +15,7 @@ import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin } from '@/lib/session'
+import { ago, companyReviews } from '@/lib/community'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
@@ -257,6 +258,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
     db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
   ])
+  // 우리 회사 근무자 후기 (별명, 커뮤니티에 모두 공개된 것과 같음). 못 읽어도 대시보드는 그대로
+  const reviews = await companyReviews(admin.companyId, 2).catch(() => null)
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
   const paySoon = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date >= today && p.due_date <= in3)
@@ -415,6 +418,35 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             ))}
           </ul>
         </section>
+      )}
+      {/* 근무자 후기: 평균 별점 + 최근 2개 (실제로 일한 근무자가 별명으로 남긴 것) */}
+      {reviews && reviews.count > 0 && (
+        <Link href={`/community/company/${admin.companyId}`} className="card-link block space-y-2.5 p-4" data-admin-reviews>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold">⭐ 근무자 후기</h2>
+            <span className="text-sm font-semibold text-brand-600">모두 보기 →</span>
+          </div>
+          <p className="flex items-baseline gap-2">
+            <b className="text-2xl font-extrabold tabular-nums">{reviews.avg.toFixed(1)}</b>
+            <span className="text-amber-500" aria-hidden>
+              {'★'.repeat(Math.round(reviews.avg))}
+              <span className="text-line">{'★'.repeat(5 - Math.round(reviews.avg))}</span>
+            </span>
+            <span className="text-sm text-mute">후기 {reviews.count}개</span>
+          </p>
+          <ul className="space-y-1.5">
+            {reviews.recent.map((r) => (
+              <li key={r.id} className="rounded-xl bg-bg px-3 py-2 text-sm">
+                <p className="line-clamp-2">
+                  <b className="text-amber-500">{'★'.repeat(r.rating)}</b> {r.body}
+                </p>
+                <p className="truncate text-xs text-mute">
+                  {r.jobTitle} · {ago(r.created_at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Link>
       )}
       {short.length > 0 && (
         <section className="card animate-pop space-y-3 border-2 border-rose-200 bg-rose-50/40">

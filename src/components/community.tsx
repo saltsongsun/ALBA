@@ -201,3 +201,38 @@ export function ReviewForm({ jobId, rating: r0, body: b0 }: { jobId: string; rat
     </form>
   )
 }
+
+/** 글 내용을 두 번 톡 누르면 좋아요 (이미 눌렀으면 하트만), 누른 자리에서 하트가 떠오름 */
+export function DoubleTapLike({ children, enabled }: { children: React.ReactNode; enabled: boolean }) {
+  const [hearts, setHearts] = useState<{ id: number; x: number; y: number }[]>([])
+  const last = useRef(0)
+  return (
+    <div
+      className="relative touch-manipulation"
+      data-double-tap
+      onPointerUp={(e) => {
+        if (!enabled || e.pointerType === 'mouse' && e.button !== 0) return
+        const now = Date.now()
+        if (now - last.current > 320) {
+          last.current = now
+          return
+        }
+        last.current = 0
+        const r = e.currentTarget.getBoundingClientRect()
+        const like = document.querySelector<HTMLButtonElement>('[data-like]')
+        if (like && !like.disabled && like.getAttribute('aria-pressed') !== 'true') like.click()
+        else haptic(10)
+        const id = now
+        setHearts((h) => [...h, { id, x: e.clientX - r.left, y: e.clientY - r.top }])
+        setTimeout(() => setHearts((h) => h.filter((v) => v.id !== id)), 850)
+      }}
+    >
+      {children}
+      {hearts.map((h) => (
+        <span key={h.id} aria-hidden data-heart className="pointer-events-none absolute animate-heart text-5xl drop-shadow" style={{ left: h.x, top: h.y }}>
+          ❤️
+        </span>
+      ))}
+    </div>
+  )
+}

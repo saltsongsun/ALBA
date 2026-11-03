@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { deleteComment, deletePost } from '@/app/actions/community'
-import { CommentForm, LikeButton, ReportButton } from '@/components/community'
+import { CommentForm, DoubleTapLike, LikeButton, ReportButton } from '@/components/community'
 import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
 import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
@@ -43,7 +43,10 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         <p className="text-sm text-mute">
           <b className="font-semibold text-sub">{post.nick}</b> · {ago(post.created_at)}
         </p>
-        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{post.body}</p>
+        {/* 내용을 두 번 톡 누르면 좋아요 */}
+        <DoubleTapLike enabled={writer}>
+          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{post.body}</p>
+        </DoubleTapLike>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
           <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!writer} />
           <div className="flex items-center gap-3">

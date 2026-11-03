@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { canWrite, reviewNudge } from '@/lib/community'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ContactButtons } from '@/components/Contact'
@@ -77,6 +78,8 @@ export default async function MePage(props: PageProps<'/me'>) {
   const pro = user.memberType === 'expert' && user.role !== 'admin'
   const today = kstDate()
 
+  // 최근에 일한 공고 후기 안내 (다른 것과 함께 읽음)
+  const nudgeP = canWrite(user) && !pro ? reviewNudge(user.id) : Promise.resolve(null)
   const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
     db()
       .from('applications')
@@ -247,6 +250,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     </>
   )
 
+  const nudge = await nudgeP
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
@@ -436,6 +440,20 @@ export default async function MePage(props: PageProps<'/me'>) {
             })}
           </ol>
         </section>
+      )}
+
+      {/* 최근에 일한 공고 후기: 다음 근무자에게 도움 (일한 사람만, 별명) */}
+      {nudge && (
+        <Link href={`/me/review/${nudge.jobId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-review-nudge>
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-50 text-xl">
+            ⭐
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">{fmtDate(nudge.workDate)} 일, 어땠나요?</b>
+            <span className="block truncate text-sm text-sub">{nudge.title}</span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-amber-600">후기 쓰기</span>
+        </Link>
       )}
 
       <section id="today-work" className="scroll-mt-20">
