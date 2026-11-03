@@ -24,6 +24,17 @@ const TABS: Tab[] = [
     ),
   },
   {
+    href: '/community',
+    label: '커뮤니티',
+    on: (p) => p.startsWith('/community'),
+    icon: (
+      <>
+        <circle cx="9" cy="8" r="3.2" />
+        <path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17.5 13.6a6 6 0 0 1 3.5 5.9" />
+      </>
+    ),
+  },
+  {
     href: '/me/chat',
     label: '문의',
     on: (p) => p.startsWith('/me/chat'),
@@ -57,18 +68,18 @@ const EXPERT_TABS: Tab[] = [
   { href: '/pro', label: '의뢰 찾기', on: (p) => p === '/pro' || p.startsWith('/jobs'), icon: SEARCH },
   { ...TABS[1], label: '내 일' },
   { href: '/pro/money', label: '견적·대금', on: (p) => p.startsWith('/pro/money') || p.startsWith('/quote'), icon: MONEY },
-  TABS[2],
   TABS[3],
+  TABS[4],
 ]
 /** 외주 업체: 홈 · 견적·대금 · 문의 · 내 정보 */
 const VENDOR_TABS: Tab[] = [
   { href: '/pro', label: '홈', on: (p) => p === '/pro', icon: HOME },
   { href: '/pro/money', label: '견적·대금', on: (p) => p.startsWith('/pro/money') || p.startsWith('/quote'), icon: MONEY },
-  TABS[2],
   TABS[3],
+  TABS[4],
 ]
 
-/** 휴대폰 아래쪽 탭 (로그인한 회원). 아르바이트·전문가·외주 업체마다 탭이 다름 */
+/** 휴대폰 아래쪽 탭 (로그인한 회원). 아르바이트·전문가·외주 업체마다 탭이 다름 (아르바이트: 알바 찾기·내 근무·커뮤니티·문의·내 정보) */
 export default function BottomNav({ unread = 0, todo = 0, mode = 'worker' }: { unread?: number; todo?: number; mode?: 'worker' | 'expert' | 'vendor' }) {
   const path = usePathname()
   const tabs = mode === 'expert' ? EXPERT_TABS : mode === 'vendor' ? VENDOR_TABS : TABS

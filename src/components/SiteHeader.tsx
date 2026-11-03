@@ -27,6 +27,9 @@ export default async function SiteHeader() {
               <Link href="/me" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">
                 내 근무
               </Link>
+              <Link href="/community" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">
+                커뮤니티
+              </Link>
               <Link href="/me/chat" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">
                 문의
                 {unread > 0 && <span className="ml-1 rounded-full bg-rose-500 px-1.5 py-0.5 text-[11px] font-bold text-white">{unread}</span>}

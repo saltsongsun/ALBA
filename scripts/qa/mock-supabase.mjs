@@ -29,7 +29,7 @@ const user = (id, role, name, phone) => ({
   id, role, name, phone, pin_hash: 's1:x:y', rrn_enc: null, rrn_hash: null, rrn_masked: '900101-1******',
   birth_date: '1990-01-01', gender: 'M', is_foreigner: false, address: '서울', bank_name: '국민',
   bank_account_enc: null, account_holder: name, bank_changed_at: null, emergency_phone: null, admin_memo: null,
-  active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1, is_super: role === 'admin', member_type: 'worker', biz_name: null, biz_no: null, specialty: null, intro: null, portfolio_url: null,
+  active: true, privacy_agreed_at: '2026-10-01T00:00:00Z', failed_logins: 0, locked_until: null, session_version: 1, is_super: role === 'admin', member_type: 'worker', biz_name: null, biz_no: null, specialty: null, intro: null, portfolio_url: null, nickname: null,
   photo_at: id === APPLICANT ? FACE_AT : null, careers: id === APPLICANT ? [{ event: '부산국제영화제', period: '2025.10', role: '안내' }] : [], created_at: '2026-10-01T00:00:00Z', attendance: [{ work_date: today }], ratings: [{ score: 4 }],
 })
 const users = [user(ADMIN, 'admin', '관리자', '01011112222'), user(WORKER, 'worker', '근무자', '01033334444'), user(APPLICANT, 'worker', '김지원', '01077778888')]
@@ -148,6 +148,12 @@ function filter(rows, params) {
   return rows.filter((r) => {
     for (const [k, v] of params) {
       if (['select', 'order', 'limit', 'offset', 'or', 'columns'].includes(k) || k.includes('.')) continue
+      // ilike: 대소문자 구분 없이 (%·*는 아무 글자). 값이 없으면 안 맞음 (별명 중복 확인)
+      if (v.startsWith('ilike.')) {
+        const re = new RegExp('^' + v.slice(6).replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/[%*]/g, '.*') + '$', 'i')
+        if (!re.test(String(r[k] ?? ''))) return false
+        continue
+      }
       if (!(k in r)) continue
       if (v.startsWith('eq.') && String(r[k]) !== v.slice(3)) return false
       if (v === 'is.null' && r[k] != null) return false
@@ -218,7 +224,7 @@ const server = http.createServer(async (req, res) => {
     const out = []
     for (let row of Array.isArray(parsed) ? parsed : [parsed]) {
       // 실제 DB의 기본값 (가입 후 바로 로그인되게)
-      if (table === 'users') row = { role: 'worker', member_type: 'worker', is_super: false, active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
+      if (table === 'users') row = { role: 'worker', member_type: 'worker', is_super: false, nickname: null, active: true, session_version: 1, failed_logins: 0, locked_until: null, created_at: new Date().toISOString(), ...row }
       // 회사 소속·회사별 메모는 (회사, 사람)이 열쇠
       const pair = table === 'company_members' || table === 'company_worker_notes' || table === 'company_join_requests'
       // 단체방 읽음 표시는 (공고, 사람)이 열쇠
@@ -230,6 +236,11 @@ const server = http.createServer(async (req, res) => {
       if (table === 'jobs') row.audience ??= 'worker'
       if (table === 'vendors') row.user_id ??= null
       row.created_at ??= new Date().toISOString() // 실제 DB 기본값처럼
+      // 커뮤니티·후기: 가려짐 없음으로 시작
+      if (table.startsWith('community_') || table === 'company_reviews') {
+        if (table !== 'community_likes' && table !== 'community_reports') row.hidden_at ??= null
+        row.updated_at ??= row.created_at
+      }
       const found = pair
         ? list.find((r) => r.company_id === row.company_id && r.user_id === row.user_id)
         : jobPair

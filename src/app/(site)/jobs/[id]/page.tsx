@@ -30,6 +30,7 @@ import PhotoUpload from '@/components/PhotoUpload'
 import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
+import { companyRating } from '@/lib/community'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -125,7 +126,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         .eq('audience', 'worker')
         .eq('status', 'open')
         .gte('end_date', kstDate()),
-    ]).then(([c, n]) => ({ verified: (c.data as { verified?: boolean | null } | null)?.verified === true, open: n.count ?? 0 })),
+      // 근무자 후기 평균 별점 (가입한 회원에게만)
+      user ? companyRating(job.company_id).catch(() => null) : null,
+    ]).then(([c, n, rating]) => ({ verified: (c.data as { verified?: boolean | null } | null)?.verified === true, open: n.count ?? 0, rating })),
   ])
   // 날짜가 가까운 다른 모집 공고 3개
   const others = (
@@ -202,6 +205,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <span className="min-w-0 truncate">🏢 {company.company_name}</span>
             {coInfo.verified && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ 확인된 회사</span>}
             {coInfo.open > 0 && <span className="ml-auto shrink-0 text-xs text-brand-600">공고 {coInfo.open}개 →</span>}
+          </Link>
+        )}
+        {/* 근무자 후기 별점: 누르면 그 회사 후기 모두 */}
+        {!expert && coInfo.rating && (
+          <Link href={`/community/company/${job.company_id}`} className="mt-1 inline-flex items-center gap-1 text-sm font-semibold text-amber-600" data-company-rating-badge>
+            <span aria-hidden>★</span>
+            <span className="tabular-nums">{coInfo.rating.avg.toFixed(1)}</span>
+            <span className="font-normal text-mute">· 근무자 후기 {coInfo.rating.count}개 →</span>
           </Link>
         )}
         <div className="mt-4 animate-pop rounded-2xl bg-bg p-4 [animation-delay:120ms]">

@@ -13,6 +13,7 @@ import { kstDate } from '@/lib/time'
 import { isUuid } from '@/lib/validate'
 import { overlapDay } from '@/lib/overlap'
 import { NewJobsChip } from '@/components/NewJobs'
+import { companyRating } from '@/lib/community'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
@@ -29,6 +30,8 @@ export default async function HomePage(props: PageProps<'/'>) {
         verified: boolean | null
       } | null)
     : null
+  // 회사 공고 모음: 근무자 후기 평균 별점 (가입한 회원에게만)
+  const rating = company && me ? await companyRating(company.id).catch(() => null) : null
   const jobsQuery = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', 'worker').in('status', ['open', 'closed']).gte('end_date', today)
   const [user, jobs, myApps] = await Promise.all([
     getUser(),
@@ -130,6 +133,11 @@ export default async function HomePage(props: PageProps<'/'>) {
                 {company.verified === true && <b className="font-semibold text-emerald-600">✓ 확인된 회사 · </b>}
                 {openCount > 0 ? `모집 중 ${openCount}개` : '지금은 모집 중인 공고가 없어요'}
               </span>
+              {rating && (
+                <Link href={`/community/company/${company.id}`} className="block truncate text-sm font-semibold text-amber-600" data-company-rating-badge>
+                  ★ <span className="tabular-nums">{rating.avg.toFixed(1)}</span> <span className="font-normal text-mute">· 근무자 후기 {rating.count}개 →</span>
+                </Link>
+              )}
             </span>
             <Link href="/#jobs" className="shrink-0 text-sm font-semibold text-brand-600">
               전체 공고

@@ -17,7 +17,7 @@ const ITEMS = [
 export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false }: { unread?: number; joinWait?: number; isSuper?: boolean }) {
   const path = usePathname()
   // 회사 관리는 최고 관리자만
-  const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }] : ITEMS
+  const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }, { href: '/admin/community', label: '커뮤니티 관리' }] : ITEMS
   return (
     <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-2 text-sm font-semibold">
       {items.map((it) => {

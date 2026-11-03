@@ -8,6 +8,7 @@ import { requireUser } from '@/lib/session'
 import { fmtDateRange, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
+import { canWrite, myReviewedJobs } from '@/lib/community'
 
 export const metadata: Metadata = { title: '지난 근무' }
 
@@ -16,7 +17,7 @@ type JobCo = Job & { company?: { company_name: string } | null }
 
 export default async function HistoryPage() {
   const user = await requireUser('/me/history')
-  const [atts, docs, apps] = await Promise.all([
+  const [atts, docs, apps, reviewed] = await Promise.all([
     db()
       .from('attendance')
       .select('*, job:jobs(*, company:companies(company_name))')
@@ -34,7 +35,10 @@ export default async function HistoryPage() {
       .select('job_id, status')
       .eq('user_id', user.id)
       .then((r) => must(r) as { job_id: string; status: string }[]),
+    // 후기를 이미 쓴 공고 (못 읽어도 화면은 그대로)
+    myReviewedJobs(user.id).catch(() => new Set<string>()),
   ])
+  const reviewer = canWrite(user)
   // 서류는 근무가 확정된 동안만 열 수 있음 (지원 취소·확정 되돌림이면 관리자 문의)
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
@@ -52,6 +56,7 @@ export default async function HistoryPage() {
     rows,
     s: settle(job, rows.map((r) => calcDay(job, r))),
     paid: rows.every((r) => r.paid),
+    worked: rows.some((r) => !!r.clock_in),
     first: rows[rows.length - 1].work_date,
     last: rows[0].work_date,
   }))
@@ -119,7 +124,7 @@ export default async function HistoryPage() {
                 <span className="text-sm text-mute tabular-nums">{won(list.reduce((n, it) => n + it.s.net, 0))}</span>
               </div>
               <div className="stagger space-y-2">
-                {list.map(({ job, s, paid, first, last }) => (
+                {list.map(({ job, s, paid, worked, first, last }) => (
                   <div key={job.id} className="card space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -155,6 +160,12 @@ export default async function HistoryPage() {
                               🔒 서류는 관리자 문의
                             </Link>
                           )}
+                      {/* 회사·행사 후기: 실제로 일한 공고만, 별명으로 */}
+                      {reviewer && worked && (
+                        <Link href={`/me/review/${job.id}`} className={`btn-sm ${reviewed.has(job.id) ? 'btn-gray' : 'btn-soft'}`} data-review-link>
+                          {reviewed.has(job.id) ? '⭐ 내 후기' : '⭐ 후기 쓰기'}
+                        </Link>
+                      )}
                     </div>
                   </div>
                 ))}

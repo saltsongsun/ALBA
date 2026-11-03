@@ -15,6 +15,7 @@ import { requireUser } from '@/lib/session'
 import { changeMemberType } from '@/app/actions/worker'
 import { ProInfoForm } from '@/components/pro'
 import { ConfirmSubmit } from '@/components/ui'
+import { NicknameForm } from '@/components/community'
 import { bizNoFmt, MEMBER_TYPES } from '@/lib/members'
 import type { MemberType } from '@/lib/types'
 
@@ -28,6 +29,8 @@ export default async function ProfilePage() {
     .eq('id', user.id)
     .single()
   if (!me) return null
+  // 커뮤니티 별명 (따로 읽음: 못 읽어도 내 정보 화면은 그대로)
+  const nickname = ((await db().from('users').select('nickname').eq('id', user.id).maybeSingle()).data as { nickname: string | null } | null)?.nickname ?? ''
   const type: MemberType = me.member_type === 'expert' || me.member_type === 'vendor' ? me.member_type : 'worker'
   const vendor = type === 'vendor'
   // 정보 채우기: 비어 있는 항목을 눌러 바로 그 칸으로 (급여·현장 연락이 빨라지게). 유형마다 다름
@@ -121,6 +124,19 @@ export default async function ProfilePage() {
           </form>
         )}
       </section>
+      {/* 커뮤니티 별명: 게시판·후기에 실명 대신 보임 (외주 업체는 읽기만이라 없음) */}
+      {!vendor && (
+        <section id="nickname" className="card scroll-mt-20 space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold">커뮤니티 별명</h2>
+            <Link href="/community" className="text-sm font-semibold text-brand-600">
+              커뮤니티 →
+            </Link>
+          </div>
+          <p className="text-sm text-sub">게시판 글·댓글과 회사 후기에 이름 대신 이 별명이 보여요.{!nickname && ' 아직 없으면 처음 글을 쓸 때 자동으로 정해져요.'}</p>
+          <NicknameForm current={nickname} />
+        </section>
+      )}
       {type !== 'worker' && (
         <div id="pro" className="scroll-mt-20">
           <ProInfoForm
