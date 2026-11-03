@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { deleteComment, deletePost } from '@/app/actions/community'
-import { CommentForm, DoubleTapLike, LikeButton, ReportButton } from '@/components/community'
+import { CommentForm, DoubleTapLike, LikeButton, ReplyButton, ReportButton } from '@/components/community'
 import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
 import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
@@ -76,8 +76,21 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
                   <span>· {ago(c.created_at)}</span>
                   {c.hidden_at && <span className="font-semibold text-rose-600">· 가려짐</span>}
                 </p>
-                <p className="mt-1 text-[15px] whitespace-pre-wrap break-words">{c.body}</p>
+                <p className="mt-1 text-[15px] whitespace-pre-wrap break-words">
+                  {/* 답글이면 맨 앞 '@별명'을 강조 */}
+                  {(() => {
+                    const m = c.body.match(/^@(\S{2,12})\s/)
+                    return m ? (
+                      <>
+                        <b className="font-semibold text-brand-600">@{m[1]}</b> {c.body.slice(m[0].length)}
+                      </>
+                    ) : (
+                      c.body
+                    )
+                  })()}
+                </p>
                 <div className="mt-1.5 flex items-center justify-end gap-3">
+                  {writer && !post.hidden_at && !c.mine && <ReplyButton nick={c.nick} />}
                   {(c.mine || user.isSuper) && (
                     <form action={deleteComment.bind(null, c.id, post.id)}>
                       <ConfirmSubmit className="text-xs font-semibold text-mute hover:text-rose-600" confirmText="한 번 더 누르면 지워져요">

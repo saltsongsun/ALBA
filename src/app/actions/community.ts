@@ -97,6 +97,18 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
   if (p.author_id !== user.id && !(await overLimit(`community-notify:${postId}`, 1, 600))) {
     after(() => sendPush([p.author_id], { title: `💬 ${nick}님이 댓글을 달았어요`, body: `${p.title}: ${body.slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
   }
+  // 답글('@별명 ...')이면 그 댓글을 단 사람에게도 알림 (이 글에 댓글을 단 사람만, 10분에 한 번)
+  const tag = body.match(/^@(\S{2,12})\s/)?.[1]
+  if (tag && tag !== nick) {
+    const { data: who } = await db().from('users').select('id, nickname').ilike('nickname', tag).maybeSingle()
+    const target = who as { id: string; nickname: string } | null
+    if (target && target.id !== user.id && target.id !== p.author_id) {
+      const { count: commented } = await db().from('community_comments').select('id', { count: 'exact', head: true }).eq('post_id', postId).eq('author_id', target.id)
+      if (commented && !(await overLimit(`community-reply:${postId}:${target.id}`, 1, 600))) {
+        after(() => sendPush([target.id], { title: `↩ ${nick}님이 답글을 달았어요`, body: `${p.title}: ${body.slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
+      }
+    }
+  }
   revalidatePath(`/community/${postId}`)
   return { ok: '댓글을 달았어요.' }
 }

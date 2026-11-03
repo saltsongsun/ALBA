@@ -59,6 +59,25 @@ export async function nicknames(ids: string[]): Promise<Map<string, string>> {
 export type PostCard = PostRow & { nick: string; likes: number; comments: number; liked: boolean }
 
 /** 글 목록 (가려진 글 빼고 최근 순) */
+/** 인기 점수: 좋아요·댓글이 많을수록, 최근일수록 높음 (2주 지나면 빠짐) */
+function hotScore(p: PostCard, now = Date.now()) {
+  const hours = (now - Date.parse(p.created_at)) / 3_600_000
+  return (p.likes * 2 + p.comments * 3 + 1) / Math.pow(hours + 2, 0.8)
+}
+
+/** 🔥 인기 글: 최근 2주 글 중 좋아요·댓글이 있는 것, 점수 높은 순 */
+export async function hotPosts(viewerId: string, limit = 20): Promise<PostCard[]> {
+  const since = new Date(Date.now() - 14 * 86_400_000).toISOString()
+  const rows = (must(await db().from('community_posts').select('id, author_id, category, title, body, hidden_at, created_at, updated_at').is('hidden_at', null).gte('created_at', since).order('created_at', { ascending: false }).limit(200)) as PostRow[]).filter(
+    (p) => !p.hidden_at && p.created_at >= since,
+  )
+  const cards = await decorate(rows, viewerId)
+  return cards
+    .filter((p) => p.likes + p.comments > 0)
+    .sort((a, b) => hotScore(b) - hotScore(a))
+    .slice(0, limit)
+}
+
 export async function listPosts(opts: { category?: Category | null; viewerId: string; limit?: number; q?: string; mine?: boolean }): Promise<PostCard[]> {
   let q = db().from('community_posts').select('id, author_id, category, title, body, hidden_at, created_at, updated_at').is('hidden_at', null)
   if (opts.category) q = q.eq('category', opts.category)

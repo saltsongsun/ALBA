@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
-import { ago, canWrite, CATEGORIES, categoryOf, isCategory, listPosts, recentReviews } from '@/lib/community'
+import { ago, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 
 export const metadata: Metadata = { title: '커뮤니티' }
@@ -15,10 +15,14 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   const reviewTab = c === 'review'
   const category = isCategory(c) ? c : null
   const mine = c === 'mine'
+  const hot = c === 'hot'
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 40) : ''
-  const [posts, reviews] = await Promise.all([reviewTab ? [] : listPosts({ category, viewerId: user.id, q, mine }), reviewTab ? recentReviews(30) : []])
+  const [posts, reviews] = await Promise.all([
+    reviewTab ? [] : hot && !q ? hotPosts(user.id) : listPosts({ category, viewerId: user.id, q, mine }),
+    reviewTab ? recentReviews(30) : [],
+  ])
   const writer = canWrite(user)
-  const tabs = [{ id: '', label: '전체', icon: '' }, ...CATEGORIES, { id: 'review', label: '회사 후기', icon: '⭐' }, ...(writer ? [{ id: 'mine', label: '내 글', icon: '✍️' }] : [])]
+  const tabs = [{ id: '', label: '전체', icon: '' }, { id: 'hot', label: '인기', icon: '🔥' }, ...CATEGORIES, { id: 'review', label: '회사 후기', icon: '⭐' }, ...(writer ? [{ id: 'mine', label: '내 글', icon: '✍️' }] : [])]
 
   return (
     <div className="space-y-4">
@@ -49,7 +53,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
       {/* 말머리: 가로로 밀어서 고름 */}
       <nav aria-label="말머리" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-community-tabs>
         {tabs.map((t) => {
-          const on = t.id === c || (!t.id && !category && !reviewTab && !mine)
+          const on = t.id === c || (!t.id && !category && !reviewTab && !mine && !hot)
           return (
             <Link
               key={t.id || 'all'}
@@ -116,6 +120,10 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             검색 지우기
           </Link>
         </Empty>
+      ) : posts.length === 0 && hot ? (
+        <Empty icon="🔥" sticker="wait" title="아직 인기 글이 없어요">
+          좋아요·댓글이 달린 글이 여기에 모여요.
+        </Empty>
       ) : posts.length === 0 && mine ? (
         <Empty icon="✍️" sticker="hi" title="아직 쓴 글이 없어요">
           <Link href="/community/new" className="font-semibold text-brand-600">
@@ -140,7 +148,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
           </p>
         )}
         <ul className="stagger space-y-2" data-post-list>
-          {posts.map((p) => {
+          {posts.map((p, i) => {
             const cat = categoryOf(p.category)
             return (
               <li key={p.id}>
@@ -149,6 +157,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                     <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">
                       {cat.icon} {cat.label}
                     </span>
+                    {hot && i < 3 && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-600">🔥 {i + 1}위</span>}
                     {p.author_id === user.id && <span className="text-mute">내 글</span>}
                   </div>
                   <p className="line-clamp-1 font-bold">{p.title}</p>

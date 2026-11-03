@@ -106,6 +106,24 @@ export function CommentForm({ postId }: { postId: string }) {
   useEffect(() => {
     if (state?.ok && ref.current) ref.current.value = ''
   }, [state])
+  // 댓글의 '↩ 답글'을 누르면 '@별명 '을 넣고 댓글 칸으로
+  useEffect(() => {
+    const onReply = (e: Event) => {
+      const nick = (e as CustomEvent<string>).detail
+      const el = ref.current
+      if (!el || !nick) return
+      const tag = `@${nick} `
+      if (!el.value.startsWith(tag)) el.value = tag + el.value.replace(/^@\S+\s/, '')
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      el.focus()
+      el.setSelectionRange(el.value.length, el.value.length)
+      el.classList.remove('animate-pop')
+      void el.offsetWidth
+      el.classList.add('animate-pop')
+    }
+    window.addEventListener('community-reply', onReply)
+    return () => window.removeEventListener('community-reply', onReply)
+  }, [])
   return (
     <form action={action} onReset={keepInputs} className="space-y-2" data-comment-form>
       <Honeypot />
@@ -234,5 +252,22 @@ export function DoubleTapLike({ children, enabled }: { children: React.ReactNode
         </span>
       ))}
     </div>
+  )
+}
+
+/** 댓글에 답글: 아래 댓글 칸에 '@별명 '을 넣어 줌 */
+export function ReplyButton({ nick }: { nick: string }) {
+  return (
+    <button
+      type="button"
+      data-reply
+      onClick={() => {
+        haptic(8)
+        window.dispatchEvent(new CustomEvent('community-reply', { detail: nick }))
+      }}
+      className="text-xs font-semibold text-mute transition hover:text-brand-600 active:scale-95"
+    >
+      ↩ 답글
+    </button>
   )
 }
