@@ -29,11 +29,14 @@ export default function JobCard({
   job,
   approved,
   myStatus,
+  clash = false,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
   approved: number
   myStatus?: string
+  /** 확정·지원한 내 일정과 같은 날 같은 시간대 */
+  clash?: boolean
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -55,6 +58,11 @@ export default function JobCard({
           <span className="badge bg-gray-100 text-sub">정원 마감 · 대기 접수</span>
         ) : (
           <span className="badge bg-brand-50 text-brand-700">모집중</span>
+        )}
+        {clash && (
+          <span className="badge animate-pop bg-amber-50 text-amber-800 ring-1 ring-amber-200" data-clash>
+            ⚠️ 내 일정과 겹쳐요
+          </span>
         )}
         {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
       </div>

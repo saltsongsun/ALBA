@@ -11,6 +11,7 @@ import { redirect } from 'next/navigation'
 import { isPro } from '@/lib/members'
 import { kstDate } from '@/lib/time'
 import { isUuid } from '@/lib/validate'
+import { overlapDay } from '@/lib/overlap'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
@@ -39,9 +40,17 @@ export default async function HomePage(props: PageProps<'/'>) {
       u
         ? db()
             .from('applications')
-            .select('job_id, status')
+            .select('job_id, status, available_dates, job:jobs(start_date, end_date, start_time, end_time, status)')
             .eq('user_id', u.id)
-            .then((r) => must(r) as { job_id: string; status: string }[])
+            .then(
+              (r) =>
+                must(r) as unknown as {
+                  job_id: string
+                  status: string
+                  available_dates: string[] | null
+                  job: Pick<JobWithAppStatus, 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
+                }[],
+            )
         : [],
     ),
   ])
@@ -50,6 +59,10 @@ export default async function HomePage(props: PageProps<'/'>) {
   const openCount = jobs.filter((j) => j.status === 'open').length
   const mine: Record<string, string> = {}
   for (const r of myApps) mine[r.job_id] = r.status
+  // 확정·지원한 내 일정과 같은 날 같은 시간대인 공고 (지원 버튼을 누르기 전에 목록에서 미리 알게: 두 군데 겹치기 지원 실수 막기)
+  const myShifts = myApps.filter((r) => (r.status === 'approved' || r.status === 'applied') && r.job && r.job.status !== 'cancelled' && r.job.end_date >= today)
+  const clashes = (j: JobWithAppStatus) =>
+    (!mine[j.id] || mine[j.id] === 'cancelled') && j.status === 'open' && myShifts.some((r) => r.job_id !== j.id && overlapDay(j, { ...r.job!, dates: r.available_dates }))
 
   // 날짜로 거르기: 오늘·내일 / 이번 주말 / 7일 안 (그리고 지원 가능한 것만)
   const when = (['soon', 'weekend', 'week'] as const).find((w) => w === sp.when) ?? null
@@ -239,7 +252,7 @@ export default async function HomePage(props: PageProps<'/'>) {
       ) : (
         <div className="stagger space-y-3">
           {listed.map((j) => (
-            <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} />
+            <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} clash={clashes(j)} />
           ))}
         </div>
       )}
