@@ -82,8 +82,8 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
   ok('글이 안 올라감', (await rest('community_posts')).length === 0)
   await wk.evaluate(() => { document.querySelector('[data-post-form] input[name=website]').value = '' })
   await wk.getByRole('button', { name: '올리기' }).click()
-  await wk.waitForURL(/\/community\/[0-9a-f-]{36}$/, { timeout: 10000 }).catch(() => {})
-  const postUrl = wk.url()
+  await wk.waitForURL(/\/community\/[0-9a-f-]{36}(\?|$)/, { timeout: 10000 }).catch(() => {})
+  const postUrl = wk.url().split('?')[0]
   ok('사람은 그대로 올라감', /\/community\/[0-9a-f-]{36}$/.test(postUrl))
   await wk.goto(`${D}/community/new`)
   await wk.fill('#post-title', '주차 정보 나눠요!!')

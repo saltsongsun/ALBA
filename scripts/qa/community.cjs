@@ -32,6 +32,8 @@ const noScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <
   // ── 1. 가입 회원만 ──
   const guest = await pg(null)
   await guest.goto(`${D}/community`)
+  // 불러오는 중 화면이 먼저 보인 뒤 로그인 화면으로 넘어감
+  await guest.waitForURL((u) => new URL(u).pathname === '/login', { timeout: 8000 }).catch(() => {})
   ok('비회원: 로그인 화면으로', new URL(guest.url()).pathname === '/login')
 
   // ── 2. 근무자: 아래 탭 '커뮤니티' → 빈 화면 → 글쓰기 ──
@@ -51,8 +53,8 @@ const noScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <
   await w.fill('#post-title', '행사장 주차 꿀팁')
   await w.fill('#post-body', '광장 뒤편 공영주차장이 하루 5천원이에요.\n궁금하면 010-1234-5678로 연락 주세요')
   await w.getByRole('button', { name: '올리기' }).click()
-  await w.waitForURL(/\/community\/[0-9a-f-]{36}$/, { timeout: 10000 }).catch(() => {})
-  const postUrl = w.url()
+  await w.waitForURL(/\/community\/[0-9a-f-]{36}(\?|$)/, { timeout: 10000 }).catch(() => {})
+  const postUrl = w.url().split('?')[0]
   const postId = postUrl.split('/').pop()
   ok('올리면 글 화면으로', /^[0-9a-f-]{36}$/.test(postId), postUrl)
   ok('말머리 꿀팁', await see(w, '🍯 꿀팁'))

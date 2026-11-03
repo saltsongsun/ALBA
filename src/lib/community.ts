@@ -59,13 +59,27 @@ export async function nicknames(ids: string[]): Promise<Map<string, string>> {
 export type PostCard = PostRow & { nick: string; likes: number; comments: number; liked: boolean }
 
 /** 글 목록 (가려진 글 빼고 최근 순) */
-export async function listPosts(opts: { category?: Category | null; viewerId: string; limit?: number }): Promise<PostCard[]> {
+export async function listPosts(opts: { category?: Category | null; viewerId: string; limit?: number; q?: string; mine?: boolean }): Promise<PostCard[]> {
   let q = db().from('community_posts').select('id, author_id, category, title, body, hidden_at, created_at, updated_at').is('hidden_at', null)
   if (opts.category) q = q.eq('category', opts.category)
-  const posts = (must(await q.order('created_at', { ascending: false }).limit(opts.limit ?? 50)) as PostRow[])
-    .filter((p) => !p.hidden_at && (!opts.category || p.category === opts.category))
+  if (opts.mine) q = q.eq('author_id', opts.viewerId)
+  // 검색어가 있으면 최근 글을 더 많이 읽어 제목·내용에서 찾음 (띄어쓰기 무시)
+  const words = (opts.q ?? '').toLowerCase().split(/\s+/).filter(Boolean).slice(0, 5)
+  const posts = (must(await q.order('created_at', { ascending: false }).limit(words.length ? 300 : (opts.limit ?? 50))) as PostRow[])
+    .filter((p) => !p.hidden_at && (!opts.category || p.category === opts.category) && (!opts.mine || p.author_id === opts.viewerId))
+    .filter((p) => words.every((w) => `${p.title} ${p.body}`.toLowerCase().replace(/\s+/g, '').includes(w)))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, opts.limit ?? 50)
   return decorate(posts, opts.viewerId)
+}
+
+/** 같은 말머리의 다른 최근 글 (글 아래 '다른 글') */
+export async function relatedPosts(post: Pick<PostRow, 'id' | 'category'>, viewerId: string, limit = 3): Promise<PostCard[]> {
+  const rows = (must(await db().from('community_posts').select('id, author_id, category, title, body, hidden_at, created_at, updated_at').eq('category', post.category).is('hidden_at', null).order('created_at', { ascending: false }).limit(limit + 1)) as PostRow[])
+    .filter((p) => p.id !== post.id && !p.hidden_at && p.category === post.category)
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, limit)
+  return decorate(rows, viewerId)
 }
 
 async function decorate(posts: PostRow[], viewerId: string): Promise<PostCard[]> {

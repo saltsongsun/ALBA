@@ -138,3 +138,35 @@ export function HistorySkeleton() {
     </div>
   )
 }
+
+/** 커뮤니티 글 목록: 제목 · 검색 · 말머리 칩 · 글 카드 */
+export function CommunitySkeleton() {
+  return (
+    <div aria-busy="true" aria-label="커뮤니티 불러오는 중" className="animate-pulse space-y-4" data-skeleton="community">
+      <div className="flex items-end justify-between">
+        <div className="space-y-2">
+          <div className={`h-7 w-28 ${bar}`} />
+          <div className={`h-4 w-44 ${bar}`} />
+        </div>
+        <div className="h-9 w-20 rounded-xl bg-line/70" />
+      </div>
+      <div className="h-11 rounded-xl bg-line/60" />
+      <div className="flex gap-2 overflow-hidden">
+        {[14, 16, 16, 16, 22].map((w, i) => (
+          <div key={i} className="h-9 shrink-0 rounded-full bg-line/70" style={{ width: `${w * 4}px` }} />
+        ))}
+      </div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="card space-y-2.5 p-4">
+          <div className="h-5 w-14 rounded-full bg-line/70" />
+          <div className={`h-5 w-3/4 ${bar}`} />
+          <div className={`h-4 w-full ${bar}`} />
+          <div className="flex justify-between">
+            <div className={`h-3.5 w-24 ${bar}`} />
+            <div className={`h-3.5 w-14 ${bar}`} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}

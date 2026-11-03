@@ -14,9 +14,11 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   const c = typeof sp.c === 'string' ? sp.c : ''
   const reviewTab = c === 'review'
   const category = isCategory(c) ? c : null
-  const [posts, reviews] = await Promise.all([reviewTab ? [] : listPosts({ category, viewerId: user.id }), reviewTab ? recentReviews(30) : []])
+  const mine = c === 'mine'
+  const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 40) : ''
+  const [posts, reviews] = await Promise.all([reviewTab ? [] : listPosts({ category, viewerId: user.id, q, mine }), reviewTab ? recentReviews(30) : []])
   const writer = canWrite(user)
-  const tabs = [{ id: '', label: '전체', icon: '' }, ...CATEGORIES, { id: 'review', label: '회사 후기', icon: '⭐' }]
+  const tabs = [{ id: '', label: '전체', icon: '' }, ...CATEGORIES, { id: 'review', label: '회사 후기', icon: '⭐' }, ...(writer ? [{ id: 'mine', label: '내 글', icon: '✍️' }] : [])]
 
   return (
     <div className="space-y-4">
@@ -33,10 +35,21 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         )}
       </div>
 
+      {/* 검색: 제목·내용에서 (말머리는 그대로) */}
+      {!reviewTab && (
+        <form action="/community" role="search" className="relative" data-community-search>
+          {c && <input type="hidden" name="c" value={c} />}
+          <span aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mute">
+            🔍
+          </span>
+          <input name="q" type="search" defaultValue={q} maxLength={40} enterKeyHint="search" placeholder="주차, 복장, 식사처럼 찾고 싶은 말" aria-label="글 검색" className="input pl-10" />
+        </form>
+      )}
+
       {/* 말머리: 가로로 밀어서 고름 */}
       <nav aria-label="말머리" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-community-tabs>
         {tabs.map((t) => {
-          const on = t.id === c || (!t.id && !category && !reviewTab)
+          const on = t.id === c || (!t.id && !category && !reviewTab && !mine)
           return (
             <Link
               key={t.id || 'all'}
@@ -96,6 +109,19 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             ))}
           </ul>
         )
+      ) : posts.length === 0 && q ? (
+        <Empty icon="🔍" sticker="schedule" title={`'${q}' 글이 없어요`}>
+          다른 말로 찾아보거나{' '}
+          <Link href={c ? `/community?c=${c}` : '/community'} className="font-semibold text-brand-600">
+            검색 지우기
+          </Link>
+        </Empty>
+      ) : posts.length === 0 && mine ? (
+        <Empty icon="✍️" sticker="hi" title="아직 쓴 글이 없어요">
+          <Link href="/community/new" className="font-semibold text-brand-600">
+            ✏️ 첫 글 쓰기 →
+          </Link>
+        </Empty>
       ) : posts.length === 0 ? (
         <Empty icon="💬" sticker="hi" title={category ? `${categoryOf(category).label} 글이 아직 없어요` : '첫 글을 남겨 주세요'}>
           {writer ? (
@@ -107,6 +133,12 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
           )}
         </Empty>
       ) : (
+        <>
+        {q && (
+          <p className="text-sm text-sub" data-search-count>
+            &lsquo;<b className="text-ink">{q}</b>&rsquo; 글 <b className="text-brand-700 tabular-nums">{posts.length}</b>개
+          </p>
+        )}
         <ul className="stagger space-y-2" data-post-list>
           {posts.map((p) => {
             const cat = categoryOf(p.category)
@@ -135,6 +167,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             )
           })}
         </ul>
+        </>
       )}
     </div>
   )

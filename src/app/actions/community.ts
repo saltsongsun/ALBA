@@ -61,7 +61,7 @@ export async function createPost(_: State, form: FormData): Promise<State> {
     .select('id')
     .single()
   revalidatePath('/community')
-  redirect(`/community/${(data as { id: string }).id}`)
+  redirect(`/community/${(data as { id: string }).id}?m=${encodeURIComponent('글을 올렸어요! 🎉')}`)
 }
 
 /** 내 글 지우기 */

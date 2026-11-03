@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation'
 import { deleteComment, deletePost } from '@/app/actions/community'
 import { CommentForm, LikeButton, ReportButton } from '@/components/community'
 import { ConfirmSubmit } from '@/components/ui'
-import { ago, canWrite, categoryOf, getPost } from '@/lib/community'
+import Flash from '@/components/Flash'
+import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 
@@ -12,6 +13,7 @@ export const metadata: Metadata = { title: '커뮤니티 글' }
 
 export default async function PostPage(props: PageProps<'/community/[id]'>) {
   const { id } = await props.params
+  const sp = await props.searchParams
   const user = await requireUser(`/community/${id}`)
   if (!isUuid(id)) notFound()
   const got = await getPost(id, { id: user.id, isSuper: user.isSuper })
@@ -20,9 +22,11 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
   const cat = categoryOf(post.category)
   const mine = post.author_id === user.id
   const writer = canWrite(user)
+  const related = post.hidden_at ? [] : await relatedPosts(post, user.id)
 
   return (
     <div className="space-y-4">
+      <Flash m={sp.m} />
       <Link href={`/community?c=${post.category}`} className="text-sm font-semibold text-sub">
         ← {cat.label}
       </Link>
@@ -92,6 +96,32 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
           !writer && <p className="text-sm text-mute">읽기만 할 수 있는 계정이에요.</p>
         )}
       </section>
+
+      {/* 같은 말머리의 다른 글 (계속 둘러보게) */}
+      {related.length > 0 && (
+        <section className="space-y-2" data-related>
+          <h2 className="font-bold">
+            {cat.icon} 다른 {cat.label} 글
+          </h2>
+          <ul className="space-y-2">
+            {related.map((r) => (
+              <li key={r.id}>
+                <Link href={`/community/${r.id}`} className="card-link flex items-center gap-3 p-3.5">
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[15px]">{r.title}</b>
+                    <span className="block truncate text-xs text-mute">
+                      {r.nick} · {ago(r.created_at)}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-xs text-mute tabular-nums">
+                    ♥ {r.likes} · 💬 {r.comments}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   )
 }
