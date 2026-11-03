@@ -6,7 +6,7 @@ import { CommentForm, DoubleTapLike, LikeButton, ReplyButton, ReportButton } fro
 import { ConfirmSubmit, ShareButton } from '@/components/ui'
 import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
-import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
+import { ago, canWrite, categoryOf, getPost, readAllowed, relatedPosts } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 import { linkedAmong } from '@/lib/coworkers'
@@ -18,6 +18,23 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
   const sp = await props.searchParams
   const user = await requireUser(`/community/${id}`)
   if (!isUuid(id)) notFound()
+  // 한 시간에 너무 많은 글을 열면 잠시 막음 (자동 수집 방지, 최고 관리자는 제외)
+  if (!user.isSuper && !(await readAllowed(user.id))) {
+    return (
+      <div className="mx-auto max-w-sm pt-6" data-read-limit>
+        <div className="card space-y-2 text-center">
+          <span aria-hidden className="mx-auto grid size-14 place-items-center rounded-full bg-rose-50 text-2xl">
+            ✋
+          </span>
+          <h1 className="text-xl font-extrabold">잠시 쉬었다 봐 주세요</h1>
+          <p className="text-sm text-sub">한 시간 동안 글을 너무 많이 열었어요. 자동으로 글을 모아 가는 것을 막기 위해 잠시 멈췄어요.</p>
+          <Link href="/community" className="btn-gray btn-sm mt-2">
+            커뮤니티로
+          </Link>
+        </div>
+      </div>
+    )
+  }
   const got = await getPost(id, { id: user.id, isSuper: user.isSuper })
   if (!got) notFound()
   const { post, comments } = got

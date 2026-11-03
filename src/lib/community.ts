@@ -311,3 +311,9 @@ export async function myActivity(userId: string): Promise<{ posts: number; comme
     return { posts: 0, comments: 0, likes: 0 }
   }
 }
+
+/** 커뮤니티 대량 열람 막기 (로그인한 계정으로 글을 자동으로 긁어 가는 것 방지): 한 시간에 글 300개까지. 넘으면 false */
+export async function readAllowed(userId: string): Promise<boolean> {
+  const { overLimit } = await import('./ratelimit')
+  return !(await overLimit(`community-read:${userId}`, 300, 3600))
+}

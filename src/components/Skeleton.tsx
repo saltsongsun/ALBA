@@ -170,3 +170,33 @@ export function CommunitySkeleton() {
     </div>
   )
 }
+
+/** 커뮤니티 글 하나: 말머리 · 제목 · 내용 · 좋아요 줄 · 댓글 */
+export function PostSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="글 불러오는 중" className="animate-pulse space-y-4" data-skeleton="post">
+      <div className={`h-4 w-16 ${bar}`} />
+      <div className="card space-y-3">
+        <div className="h-5 w-14 rounded-full bg-line/70" />
+        <div className={`h-6 w-4/5 ${bar}`} />
+        <div className={`h-4 w-28 ${bar}`} />
+        <div className="space-y-2 pt-1">
+          <div className={`h-4 w-full ${bar}`} />
+          <div className={`h-4 w-11/12 ${bar}`} />
+          <div className={`h-4 w-2/3 ${bar}`} />
+        </div>
+        <div className="flex justify-between border-t border-line pt-3">
+          <div className="h-9 w-24 rounded-full bg-line/70" />
+          <div className={`h-4 w-16 ${bar}`} />
+        </div>
+      </div>
+      <div className={`h-5 w-16 ${bar}`} />
+      {[0, 1].map((i) => (
+        <div key={i} className="space-y-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-line">
+          <div className={`h-3.5 w-24 ${bar}`} />
+          <div className={`h-4 w-3/4 ${bar}`} />
+        </div>
+      ))}
+    </div>
+  )
+}
