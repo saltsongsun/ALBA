@@ -86,7 +86,8 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
 
   if (kind === 'workers') {
     // 보안: 명단 잠금을 풀지 않았으면 잠금 화면으로 (풀면 바로 내려받기)
-    if (!(await rosterUnlockedFor(admin.id))) return Response.redirect(new URL('/admin/workers?unlock=csv', req.url), 303)
+    // (상대 주소로: 프록시 뒤에서 req.url의 호스트가 실제 주소와 달라도 같은 사이트로)
+    if (!(await rosterUnlockedFor(admin.id))) return new Response(null, { status: 303, headers: { Location: '/admin/workers?unlock=csv' } })
     // 이 회사에 지원한 근무자만
     const ids = await companyWorkerIds(admin.companyId)
     const users = ids.length
