@@ -36,6 +36,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const box = ad.locator('[data-job-reviews]')
   ok('⭐ 근무자 후기 4.5 · 2개', (await box.count()) === 1 && /4\.5/.test(await box.locator('summary').innerText()) && /2개/.test(await box.locator('summary').innerText()))
   await box.locator('summary').click()
+  await box.locator('li').first().waitFor({ timeout: 5000 }).catch(() => {})
   const text = await box.innerText()
   ok('후기 내용, 가려진 후기·이름 없음', text.includes('정말 친절') && text.includes('휴게 시간') && !text.includes('가려진 후기') && !text.includes('김지원'))
   ok('360px: 옆으로 안 밀림', await ad.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
