@@ -65,6 +65,14 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('대표 관리자로 소속', (await rest('company_members')).some((m) => m.company_id === co?.id && m.user_id === me?.id && m.role === 'owner'))
   ok('기본 서류 서식 준비', (await rest('doc_templates')).filter((t) => t.company_id === co?.id).length > 0)
 
+  // 근무자 명단 잠금: 가입할 때 정한 내 비밀번호로 풀기 (10분)
+  await p.goto(`${D}/admin/workers`)
+  ok('근무자 명단: 처음엔 잠금', await p.locator('[data-roster-lock]').isVisible().catch(() => false))
+  await p.locator('#roster-pin').fill('482913')
+  await p.getByRole('button', { name: '명단 열기' }).click()
+  await p.locator('[data-roster-open]').waitFor({ timeout: 10000 }).catch(() => {})
+  ok('명단 잠금: 내 비밀번호로 열림', await p.locator('[data-roster-open]').isVisible().catch(() => false))
+
   // 확인 전: 전체 회원 명단·다른 회원 정보·사진 막힘, 다른 회사 공고 안 보임
   await p.goto(`${D}/admin/workers`)
   ok('근무자 명단: 우리 회사 지원자만 안내', await see(p, '우리 회사에 지원한 회원'))
