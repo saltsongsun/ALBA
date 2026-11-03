@@ -6,8 +6,9 @@ import { audit } from '@/lib/data'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { sendPush } from '@/lib/push'
-import { markRoomRead, roomMembers, roomOpen, workerRoom, type RoomJob } from '@/lib/room'
+import { markRoomRead, pinnedReads, roomMembers, roomOpen, roomPinned, workerRoom, type RoomJob } from '@/lib/room'
 import { requireAdmin, requireUser } from '@/lib/session'
+import { overLimit } from '@/lib/ratelimit'
 import { badSticker, plainBody } from '@/lib/stickers'
 import { isUuid, str } from '@/lib/validate'
 import type { FormState } from './auth'
@@ -72,4 +73,25 @@ export async function unpinRoom(jobId: string) {
   if (!job) return
   must(await db().from('job_chat').update({ pinned_at: null }).eq('job_id', jobId).not('pinned_at', 'is', null))
   roomPaths(jobId)
+}
+
+/** 고정 공지를 아직 안 본 근무자에게만 다시 알림 (관리자, 공고마다 10분에 한 번) */
+export async function nudgePinned(jobId: string, _: FormState, _form: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return { error: '공고를 찾을 수 없어요.' }
+  const pinned = await roomPinned(job.id)
+  if (!pinned?.pinned_at) return { error: '고정된 공지가 없어요.' }
+  const { workers } = await roomMembers(job)
+  const { unseen } = await pinnedReads(job.id, pinned.pinned_at, workers)
+  if (!unseen.length) return { ok: '모두 공지를 확인했어요.' }
+  if (await overLimit(`room-nudge:${job.id}`, 1, 600)) return { error: '방금 알림을 보냈어요. 10분 뒤에 다시 보낼 수 있어요.' }
+  after(() =>
+    sendPush(
+      unseen.map((w) => w.id),
+      { title: '📌 단체방 공지를 확인해 주세요', body: `${job.title}: ${plainBody(pinned.body).slice(0, 80)}`, url: `/me/chat/room/${job.id}`, tag: `room-pin-${job.id}` },
+    ),
+  )
+  await audit(admin.id, 'room.pin_nudge', null, `${job.title} · ${unseen.length}명`, job.company_id)
+  return { ok: `안 본 ${unseen.length}명에게 알림을 보냈어요.` }
 }

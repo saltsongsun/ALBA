@@ -7,7 +7,7 @@ import { AUTO_HIDE_REPORTS, canWrite, ensureNickname, isCategory, nicknameError,
 import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { sendPush, superAdminIds } from '@/lib/push'
-import { overLimit } from '@/lib/ratelimit'
+import { caughtByHoneypot, overLimit } from '@/lib/ratelimit'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 
@@ -19,15 +19,28 @@ const tooManyLinks = (s: string) => (s.match(/https?:\/\/|www\./gi)?.length ?? 0
 /** 개인정보 보호: 글에 쓴 휴대폰 번호는 가운데를 가림 (모두가 보는 게시판) */
 const maskPhones = (s: string) => s.replace(/(01[016789])[-.\s]?(\d{3,4})[-.\s]?(\d{4})/g, (_, a, _b, c) => `${a}-****-${c}`)
 
-async function writer(next: string) {
+/** 가입하고 이만큼(분) 지나야 글·댓글을 쓸 수 있음 (가입하자마자 도배하는 봇 막기) */
+const NEW_ACCOUNT_MIN = 10
+
+async function writer(next: string, form?: FormData) {
   const user = await requireUser(next)
   if (!canWrite(user)) return { user, error: '회사 관리자·외주 업체 계정은 커뮤니티를 읽기만 할 수 있어요.' }
+  // 사람에게는 안 보이는 칸을 채웠으면 자동 입력 봇
+  if (form && caughtByHoneypot(form)) return { user, error: '잠시 뒤에 다시 시도해 주세요.' }
+  const { data } = await db().from('users').select('created_at').eq('id', user.id).maybeSingle()
+  const joined = Date.parse((data as { created_at?: string } | null)?.created_at ?? '')
+  if (Number.isFinite(joined) && Date.now() - joined < NEW_ACCOUNT_MIN * 60_000) {
+    return { user, error: `가입하고 ${NEW_ACCOUNT_MIN}분 뒤부터 글을 쓸 수 있어요. 먼저 다른 글을 둘러봐 주세요.` }
+  }
   return { user, error: null }
 }
 
+/** 띄어쓰기·기호를 빼고 비교 (같은 글 복사·붙여넣기 도배 막기) */
+const squash = (s: string) => s.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '')
+
 /** 글쓰기 (한 시간에 5개까지) */
 export async function createPost(_: State, form: FormData): Promise<State> {
-  const { user, error } = await writer('/community/new')
+  const { user, error } = await writer('/community/new', form)
   if (error) return { error }
   const category = text(form, 'category')
   const title = text(form, 'title')
@@ -36,6 +49,10 @@ export async function createPost(_: State, form: FormData): Promise<State> {
   if (title.length < 2 || title.length > 60) return { error: '제목은 2~60자로 써 주세요.' }
   if (body.length < 2 || body.length > 3000) return { error: '내용은 2~3000자로 써 주세요.' }
   if (tooManyLinks(title + body)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
+  // 하루 안에 같은 제목이나 같은 내용으로 또 올리면 막음 (도배·광고 봇)
+  const { data: mine } = await db().from('community_posts').select('title, body, created_at, author_id').eq('author_id', user.id).gte('created_at', new Date(Date.now() - 86_400_000).toISOString()).limit(30)
+  const recentMine = ((mine ?? []) as { title: string; body: string; author_id: string }[]).filter((p) => p.author_id === user.id)
+  if (recentMine.some((p) => squash(p.title) === squash(title) || squash(p.body) === squash(body))) return { error: '같은 글을 이미 올렸어요. 내용을 바꿔서 올려 주세요.' }
   if (await overLimit(`community-post:${user.id}`, 5, 3600)) return { error: '글은 한 시간에 5개까지 쓸 수 있어요.' }
   await ensureNickname(user.id)
   const { data } = await db()
@@ -61,7 +78,7 @@ export async function deletePost(postId: string) {
 
 /** 댓글 (한 시간에 30개까지) */
 export async function addComment(postId: string, _: State, form: FormData): Promise<State> {
-  const { user, error } = await writer(`/community/${postId}`)
+  const { user, error } = await writer(`/community/${postId}`, form)
   if (error) return { error }
   if (!isUuid(postId)) return { error: '글을 찾을 수 없어요.' }
   const body = text(form, 'body')
@@ -71,6 +88,9 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
   const p = post as { id: string; author_id: string; title: string; hidden_at: string | null } | null
   if (!p || p.hidden_at) return { error: '가려진 글에는 댓글을 달 수 없어요.' }
   if (await overLimit(`community-comment:${user.id}`, 30, 3600)) return { error: '댓글을 너무 자주 달고 있어요. 잠시 뒤에 다시 써 주세요.' }
+  // 같은 글에 같은 댓글을 또 달면 막음
+  const { data: same } = await db().from('community_comments').select('body, author_id, post_id').eq('post_id', postId).eq('author_id', user.id).limit(50)
+  if (((same ?? []) as { body: string; author_id: string; post_id: string }[]).some((c) => c.author_id === user.id && c.post_id === postId && squash(c.body) === squash(body))) return { error: '같은 댓글을 이미 달았어요.' }
   const nick = await ensureNickname(user.id)
   must(await db().from('community_comments').insert({ post_id: postId, author_id: user.id, body: maskPhones(body) }))
   // 글쓴이에게 알림 (내 글에 내가 단 댓글은 빼고, 글마다 10분에 한 번)
@@ -139,7 +159,7 @@ export async function setNickname(_: State, form: FormData): Promise<State> {
 
 /** 회사·행사 후기 쓰기·고치기: 그 공고에서 실제로 일한 근무자만, 공고마다 하나 */
 export async function saveReview(jobId: string, _: State, form: FormData): Promise<State> {
-  const { user, error } = await writer('/me/history')
+  const { user, error } = await writer('/me/history', form)
   if (error) return { error }
   if (!isUuid(jobId) || !(await workedJob(user.id, jobId))) return { error: '이 공고에서 일한 근무자만 후기를 쓸 수 있어요.' }
   const rating = Number(form.get('rating'))

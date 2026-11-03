@@ -141,3 +141,12 @@ export async function adminRoomUnreadTotal(companyId: string, userId: string): P
   if (!ids.length) return 0
   return Object.values(await roomUnread(userId, ids)).reduce((n, x) => n + x, 0)
 }
+
+/** 고정 공지를 근무자 중 누가 봤는지: 공지가 고정된 뒤에 방을 연 사람 = 확인 */
+export async function pinnedReads(jobId: string, pinnedAt: string, workers: { id: string; name: string }[]): Promise<{ seen: { id: string; name: string }[]; unseen: { id: string; name: string }[] }> {
+  if (!workers.length) return { seen: [], unseen: [] }
+  const { data } = await db().from('job_chat_reads').select('user_id, read_at, job_id').eq('job_id', jobId).in('user_id', workers.map((w) => w.id))
+  const readAt = new Map(((data ?? []) as { user_id: string; read_at: string; job_id: string }[]).filter((r) => r.job_id === jobId).map((r) => [r.user_id, r.read_at]))
+  const seenIt = (id: string) => (readAt.get(id) ?? '') >= pinnedAt
+  return { seen: workers.filter((w) => seenIt(w.id)), unseen: workers.filter((w) => !seenIt(w.id)) }
+}

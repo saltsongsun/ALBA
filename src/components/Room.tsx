@@ -2,6 +2,7 @@ import { unpinRoom } from '@/app/actions/room'
 import type { RoomMessage } from '@/lib/room'
 import { stickerOf } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
+import PinnedNudge from './PinnedNudge'
 import Sticker from './Sticker'
 import { ConfirmSubmit } from './ui'
 
@@ -54,8 +55,11 @@ export function RoomMessages({ messages, viewerId }: { messages: Msg[]; viewerId
 }
 
 /** 방 맨 위에 고정된 공지 (관리자는 내리기) */
-export function RoomPinned({ msg, jobId, canUnpin }: { msg: Msg; jobId: string; canUnpin: boolean }) {
+type Reads = { seen: { id: string; name: string }[]; unseen: { id: string; name: string }[] }
+
+export function RoomPinned({ msg, jobId, canUnpin, reads }: { msg: Msg; jobId: string; canUnpin: boolean; reads?: Reads }) {
   const st = stickerOf(msg.body)
+  const total = reads ? reads.seen.length + reads.unseen.length : 0
   return (
     <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-[5] rounded-2xl bg-amber-50 p-3.5 text-sm shadow-sm ring-1 ring-amber-200" data-room-pinned>
       <div className="flex items-center justify-between gap-2">
@@ -65,6 +69,32 @@ export function RoomPinned({ msg, jobId, canUnpin }: { msg: Msg; jobId: string; 
         </span>
       </div>
       <p className="mt-1 line-clamp-4 whitespace-pre-wrap text-ink">{st ? `[이모티콘] ${st.label}` : msg.body}</p>
+      {/* 관리자: 근무자 중 몇 명이 공지를 봤는지 (고정된 뒤에 방을 연 사람) + 안 본 사람만 다시 알림 */}
+      {reads && total > 0 && (
+        <details className="mt-2.5 rounded-xl bg-white/70 p-2.5" data-pinned-reads>
+          <summary className="flex cursor-pointer items-center gap-2 font-semibold text-amber-900 before:hidden">
+            <span className="shrink-0">👀 확인</span>
+            <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-amber-100">
+              <span className="block h-full origin-left animate-grow rounded-full bg-amber-500" style={{ width: `${(reads.seen.length / total) * 100}%` }} />
+            </span>
+            <span className="shrink-0 tabular-nums" data-pinned-count>
+              {reads.seen.length}/{total}명
+            </span>
+          </summary>
+          <div className="mt-2 space-y-2 text-xs">
+            {reads.unseen.length > 0 ? (
+              <>
+                <p className="text-amber-900">
+                  아직 안 봄: <b>{reads.unseen.map((w) => w.name).join(', ')}</b>
+                </p>
+                <PinnedNudge jobId={jobId} count={reads.unseen.length} />
+              </>
+            ) : (
+              <p className="font-semibold text-emerald-700">✅ 모두 확인했어요</p>
+            )}
+          </div>
+        </details>
+      )}
       {canUnpin && (
         <form action={unpinRoom.bind(null, jobId)} className="mt-2 text-right">
           <ConfirmSubmit className="btn-gray btn-sm" confirmText="공지 내릴까요?">

@@ -8,7 +8,7 @@ import Empty from '@/components/Empty'
 import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
 import { companyJob } from '@/lib/company'
-import { markRoomRead, roomMembers, roomMessages, roomOpen, roomPinned } from '@/lib/room'
+import { markRoomRead, pinnedReads, roomMembers, roomMessages, roomOpen, roomPinned } from '@/lib/room'
 import { requireAdmin } from '@/lib/session'
 import { fmtDateRange } from '@/lib/time'
 
@@ -22,6 +22,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
   if (!job) notFound()
   const [messages, members, pinned] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), markRoomRead(job.id, admin.id)])
   const open = roomOpen(job)
+  const reads = pinned?.pinned_at ? await pinnedReads(job.id, pinned.pinned_at, members.workers) : undefined
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -46,7 +47,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
         </Link>
       </div>
       <RoomMembersInfo workers={members.workers} admins={members.admins} worker={false} />
-      {pinned && <RoomPinned msg={pinned} jobId={job.id} canUnpin />}
+      {pinned && <RoomPinned msg={pinned} jobId={job.id} canUnpin reads={reads} />}
       {messages.length === 0 ? (
         <Empty icon="📢" title="아직 대화가 없어요">
           집합 장소·복장 같은 안내를 올리고 &lsquo;공지로 고정&rsquo;해 보세요

@@ -4,6 +4,18 @@ import { useActionState, useEffect, useRef, useState, useTransition } from 'reac
 import { addComment, createPost, report, saveReview, setNickname, toggleLike } from '@/app/actions/community'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
+/** 봇 함정 칸: 사람에게는 안 보이고, 자동 입력 봇만 채움 */
+function Honeypot() {
+  return (
+    <div aria-hidden className="sr-only">
+      <label>
+        웹사이트
+        <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
+      </label>
+    </div>
+  )
+}
+
 const CATS = [
   { id: 'free', label: '💬 자유' },
   { id: 'tip', label: '🍯 꿀팁' },
@@ -16,6 +28,7 @@ export function PostForm({ defaultCategory }: { defaultCategory: string }) {
   const [body, setBody] = useState('')
   return (
     <form action={action} onReset={keepInputs} className="space-y-4" data-post-form>
+      <Honeypot />
       <fieldset>
         <legend className="label">말머리</legend>
         <div className="flex gap-2">
@@ -95,6 +108,7 @@ export function CommentForm({ postId }: { postId: string }) {
   }, [state])
   return (
     <form action={action} onReset={keepInputs} className="space-y-2" data-comment-form>
+      <Honeypot />
       <textarea ref={ref} name="body" rows={2} maxLength={500} required className="input" placeholder="따뜻한 댓글을 남겨 주세요" />
       {state?.error && <FormMessage state={state} />}
       <SubmitButton className="btn-primary btn-sm w-full" pendingText="다는 중…">
