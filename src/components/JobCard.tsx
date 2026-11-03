@@ -33,6 +33,7 @@ export default function JobCard({
   clash = false,
   showNew = false,
   rating,
+  pals = 0,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
@@ -44,6 +45,8 @@ export default function JobCard({
   showNew?: boolean
   /** 근무자 후기 평균 별점 (가입한 회원에게만) */
   rating?: { avg: number; count: number } | null
+  /** 이 공고에 지원·확정된 내 동료 수 */
+  pals?: number
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -75,6 +78,11 @@ export default function JobCard({
         {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
       </div>
       <h3 className="text-[17px] leading-snug font-bold">{job.title}</h3>
+      {pals > 0 && (
+        <p className="mt-1 inline-flex animate-pop items-center gap-1 rounded-full bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-700" data-card-pals>
+          🤝 동료 {pals}명 지원
+        </p>
+      )}
       {job.company?.company_name && (
         <p className="mt-0.5 truncate text-xs font-semibold text-mute">
           🏢 {job.company.company_name}

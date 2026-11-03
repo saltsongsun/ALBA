@@ -115,3 +115,59 @@ export async function pendingRequests(userId: string): Promise<number> {
     return 0
   }
 }
+
+/** 서로 동료 맺은 사람들 */
+export async function myLinkedIds(userId: string): Promise<string[]> {
+  try {
+    const [{ data: sent }, { data: got }] = await Promise.all([
+      db().from('coworker_links').select('from_id, to_id').eq('from_id', userId).limit(500),
+      db().from('coworker_links').select('from_id, to_id').eq('to_id', userId).limit(500),
+    ])
+    const s = new Set(((sent ?? []) as { from_id: string; to_id: string }[]).filter((r) => r.from_id === userId).map((r) => r.to_id))
+    return ((got ?? []) as { from_id: string; to_id: string }[]).filter((r) => r.to_id === userId && s.has(r.from_id)).map((r) => r.from_id)
+  } catch {
+    return []
+  }
+}
+
+/** 공고마다 지원·확정된 내 동료 수 (공고 목록 카드 '🤝 동료 N'). 못 읽으면 빈 목록 */
+export async function coworkerCounts(userId: string, jobIds: string[]): Promise<Record<string, number>> {
+  if (!jobIds.length) return {}
+  const pals = await myLinkedIds(userId)
+  if (!pals.length) return {}
+  try {
+    const { data } = await db().from('applications').select('job_id, user_id, status').in('job_id', jobIds).in('user_id', pals).in('status', ['applied', 'approved'])
+    const out: Record<string, number> = {}
+    for (const a of (data ?? []) as { job_id: string; user_id: string; status: string }[]) {
+      if (!pals.includes(a.user_id) || !jobIds.includes(a.job_id) || !['applied', 'approved'].includes(a.status)) continue
+      out[a.job_id] = (out[a.job_id] ?? 0) + 1
+    }
+    return out
+  } catch {
+    return {}
+  }
+}
+
+/** 동료가 지원·확정된, 아직 끝나지 않은 모집 공고 (함께 일한 사람 화면) */
+export async function jobsWithCoworkers(userId: string): Promise<{ id: string; title: string; start_date: string; end_date: string; nicks: string[] }[]> {
+  const pals = await myLinkedIds(userId)
+  if (!pals.length) return []
+  try {
+    const today = kstDate()
+    const { data } = await db().from('applications').select('job_id, user_id, status').in('user_id', pals).in('status', ['applied', 'approved']).limit(300)
+    const apps = ((data ?? []) as { job_id: string; user_id: string; status: string }[]).filter((a) => pals.includes(a.user_id))
+    const ids = [...new Set(apps.map((a) => a.job_id))]
+    if (!ids.length) return []
+    const [{ data: jobs }, nick] = await Promise.all([
+      db().from('jobs').select('id, title, start_date, end_date, status, audience').in('id', ids).gte('end_date', today),
+      nicknames(apps.map((a) => a.user_id)),
+    ])
+    return ((jobs ?? []) as { id: string; title: string; start_date: string; end_date: string; status: string; audience: string }[])
+      .filter((j) => j.status === 'open' && j.audience === 'worker' && j.end_date >= today)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date))
+      .slice(0, 10)
+      .map((j) => ({ id: j.id, title: j.title, start_date: j.start_date, end_date: j.end_date, nicks: [...new Set(apps.filter((a) => a.job_id === j.id).map((a) => nick.get(a.user_id) ?? '병아리'))] }))
+  } catch {
+    return []
+  }
+}

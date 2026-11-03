@@ -4,16 +4,16 @@ import { linkCoworker, unlinkCoworker } from '@/app/actions/coworkers'
 import Empty from '@/components/Empty'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { canWrite } from '@/lib/community'
-import { coworkers } from '@/lib/coworkers'
+import { coworkers, jobsWithCoworkers } from '@/lib/coworkers'
 import { requireUser } from '@/lib/session'
-import { fmtDate } from '@/lib/time'
+import { fmtDate, fmtDateRange } from '@/lib/time'
 
 export const metadata: Metadata = { title: '함께 일한 사람' }
 
 /** 함께 일한 사람: 같은 행사에서 함께 출근한 근무자(별명) + 동료 맺기 */
 export default async function CoworkersPage() {
   const user = await requireUser('/community/coworkers')
-  const list = canWrite(user) ? await coworkers(user.id) : []
+  const [list, palJobs] = canWrite(user) ? await Promise.all([coworkers(user.id), jobsWithCoworkers(user.id)]) : [[], []]
   const received = list.filter((c) => c.state === 'received')
   const linked = list.filter((c) => c.state === 'linked').length
 
@@ -40,6 +40,28 @@ export default async function CoworkersPage() {
             </span>
           )}
         </p>
+      )}
+      {/* 동료가 지원한 공고: 같이 일하러 가기 */}
+      {palJobs.length > 0 && (
+        <section className="space-y-2" data-pal-jobs>
+          <h2 className="font-bold">🤝 동료가 지원한 공고</h2>
+          <ul className="space-y-2">
+            {palJobs.map((j) => (
+              <li key={j.id}>
+                <Link href={`/jobs/${j.id}`} className="card-link flex items-center gap-3 p-3.5">
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-[15px]">{j.title}</b>
+                    <span className="block truncate text-xs text-sub">
+                      {fmtDateRange(j.start_date, j.end_date)} · {j.nicks.slice(0, 3).join(', ')}
+                      {j.nicks.length > 3 && ` 외 ${j.nicks.length - 3}명`}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-sm font-semibold text-brand-600">보기 →</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
       {!canWrite(user) ? (
         <p className="card text-sm text-sub">회사 관리자·외주 업체 계정은 쓸 수 없어요.</p>

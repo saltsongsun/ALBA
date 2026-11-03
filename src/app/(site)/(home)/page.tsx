@@ -14,6 +14,7 @@ import { isUuid } from '@/lib/validate'
 import { overlapDay } from '@/lib/overlap'
 import { NewJobsChip } from '@/components/NewJobs'
 import { companyRating, companyRatings } from '@/lib/community'
+import { coworkerCounts } from '@/lib/coworkers'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
@@ -60,7 +61,9 @@ export default async function HomePage(props: PageProps<'/'>) {
   ])
   const counts = countApps(jobs, 'approved')
   // 회사별 근무자 후기 별점 (가입한 회원에게만, 카드에 ★4.5)
-  const ratings = user ? await companyRatings(jobs.map((j) => j.company_id)) : {}
+  const [ratings, palCounts] = user
+    ? await Promise.all([companyRatings(jobs.map((j) => j.company_id)), coworkerCounts(user.id, jobs.map((j) => j.id))])
+    : [{} as Awaited<ReturnType<typeof companyRatings>>, {} as Record<string, number>]
   // 회사 공고 모음: 지금 지원받는 공고 수 (모집 마감은 빼고)
   const openCount = jobs.filter((j) => j.status === 'open').length
   const mine: Record<string, string> = {}
@@ -290,7 +293,7 @@ export default async function HomePage(props: PageProps<'/'>) {
           <NewJobsChip createdAts={jobs.filter((j) => j.status === 'open').map((j) => j.created_at)} />
           <div className="stagger space-y-3">
             {listed.map((j) => (
-              <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} clash={clashes(j)} showNew rating={ratings[j.company_id]} />
+              <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} clash={clashes(j)} showNew rating={ratings[j.company_id]} pals={palCounts[j.id] ?? 0} />
             ))}
           </div>
         </>
