@@ -45,6 +45,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('공고 화면: 회사 줄에 ✓ 확인된 회사', (await line.innerText()).includes('✓ 확인된 회사'))
   ok('공고 화면: 그 회사 모집 공고 수', /공고 \d+개 →/.test(await line.innerText()), await line.innerText())
   ok('회사 이름 → 그 회사 공고 모음 링크', (await line.getAttribute('href')) === `/?co=${C1}`)
+  await line.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
   const box = await line.boundingBox()
   ok('360px: 회사 줄 한 줄', !!box && box.height < 30, JSON.stringify(box))
   await line.click()
