@@ -73,6 +73,8 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 날짜로 거르기: 오늘·내일 / 이번 주말 / 7일 안 (그리고 지원 가능한 것만)
   const when = (['soon', 'weekend', 'week'] as const).find((w) => w === sp.when) ?? null
   const avail = sp.avail === '1'
+  // 근무자 후기 별점 4점 이상인 회사 공고만 (회원)
+  const good = sp.good === '1' && !!user
   const plus = (n: number) => kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + n * 86_400_000))
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay() // 0 일요일
   const sat = dow === 0 ? today : plus(6 - dow)
@@ -83,13 +85,15 @@ export default async function HomePage(props: PageProps<'/'>) {
     if (when === 'weekend' && !overlaps(j, dow === 0 ? today : sat, sun)) return false
     if (when === 'week' && !overlaps(j, today, plus(7))) return false
     if (avail && (j.status !== 'open' || (counts[j.id] ?? 0) >= j.headcount || (mine[j.id] && mine[j.id] !== 'cancelled'))) return false
+    if (good && !((ratings[j.company_id]?.avg ?? 0) >= 4)) return false
     return true
   })
-  const filterHref = (w: string | null, a: boolean) => {
+  const filterHref = (w: string | null, a: boolean, g: boolean = good) => {
     const q = new URLSearchParams()
     if (company) q.set('co', company.id)
     if (w) q.set('when', w)
     if (a) q.set('avail', '1')
+    if (g) q.set('good', '1')
     const s = q.toString()
     return s ? `/?${s}#jobs` : '/#jobs'
   }
@@ -242,7 +246,27 @@ export default async function HomePage(props: PageProps<'/'>) {
           >
             {avail ? '✓ ' : ''}지원 가능만
           </Link>
+          {/* 근무자 후기가 좋은 회사만 (후기 있는 회사가 있을 때) */}
+          {user && (good || Object.values(ratings).some((r) => r.avg >= 4)) && (
+            <Link
+              href={filterHref(when, avail, !good)}
+              scroll={false}
+              data-good-filter
+              aria-pressed={good}
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
+                good ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'
+              }`}
+            >
+              {good ? '✓ ' : '⭐ '}후기 좋은 곳
+            </Link>
+          )}
         </div>
+      )}
+      {/* 거르기를 켜면 몇 개가 남았는지 바로 */}
+      {jobs.length > 0 && (when || avail || good) && listed.length > 0 && (
+        <p key={`${when}-${avail}-${good}`} className="-mt-1 mb-2 animate-pop text-sm text-sub" data-filter-count>
+          조건에 맞는 공고 <b className="text-brand-700 tabular-nums">{listed.length}</b>개
+        </p>
       )}
       {jobs.length === 0 ? (
         <Empty icon="🔍" sticker="wait" title="지금은 모집 중인 공고가 없어요">
