@@ -5,6 +5,7 @@ import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
+import { linkedAmong, pendingRequests } from '@/lib/coworkers'
 
 export const metadata: Metadata = { title: '커뮤니티' }
 
@@ -23,6 +24,8 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
     reviewTab ? recentReviews(30) : [],
   ])
   const writer = canWrite(user)
+  // 서로 동료 맺은 사람이 쓴 글에는 '🤝 동료'
+  const [pals, requests] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), pendingRequests(user.id)]) : [new Set<string>(), 0]
   const tabs = [{ id: '', label: '전체', icon: '' }, { id: 'hot', label: '인기', icon: '🔥' }, ...CATEGORIES, { id: 'review', label: '회사 후기', icon: '⭐' }, ...(writer ? [{ id: 'mine', label: '내 글', icon: '✍️' }] : [])]
 
   return (
@@ -79,7 +82,13 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             <b className="block text-[15px]">함께 일한 사람</b>
             <span className="block truncate text-xs text-sub">동료를 맺으면 같은 공고에 지원했을 때 알 수 있어요</span>
           </span>
-          <span className="shrink-0 text-sm font-semibold text-brand-600">보기 →</span>
+          {requests > 0 ? (
+            <span className="shrink-0 animate-pop rounded-full bg-amber-500 px-2.5 py-1 text-xs font-bold text-white" data-request-badge>
+              👋 요청 {requests}
+            </span>
+          ) : (
+            <span className="shrink-0 text-sm font-semibold text-brand-600">보기 →</span>
+          )}
         </Link>
       )}
 
@@ -166,7 +175,13 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                   <p className="line-clamp-2 text-sm text-sub">{p.body}</p>
                   <p className="flex items-center gap-3 text-xs text-mute">
                     <span className="min-w-0 truncate">
-                      {p.nick} · {ago(p.created_at)}
+                      {p.nick}
+                      {pals.has(p.author_id) && (
+                        <span className="ml-1 font-semibold text-brand-600" data-pal-badge>
+                          🤝 동료
+                        </span>
+                      )}{' '}
+                      · {ago(p.created_at)}
                     </span>
                     <span className="ml-auto flex shrink-0 gap-2.5 tabular-nums">
                       <span className={p.liked ? 'text-rose-500' : ''}>♥ {p.likes}</span>

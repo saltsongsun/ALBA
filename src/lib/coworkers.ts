@@ -90,3 +90,28 @@ export async function coworkersOnJob(userId: string, jobId: string): Promise<str
     return []
   }
 }
+
+/** 이 사람들 중 서로 동료 맺은 사람 (커뮤니티 글·댓글에 '🤝 동료' 표시). 못 읽으면 빈 집합 */
+export async function linkedAmong(userId: string, ids: string[]): Promise<Set<string>> {
+  const others = [...new Set(ids.filter((id) => id && id !== userId))]
+  if (!others.length) return new Set()
+  try {
+    const states = await linkStates(userId, others)
+    return new Set(others.filter((id) => states.get(id) === 'linked'))
+  } catch {
+    return new Set()
+  }
+}
+
+/** 나에게 온 동료 맺기 요청 중 아직 수락 안 한 수 (커뮤니티 '함께 일한 사람' 배지). 못 읽으면 0 */
+export async function pendingRequests(userId: string): Promise<number> {
+  try {
+    const { data } = await db().from('coworker_links').select('from_id, to_id').eq('to_id', userId).limit(200)
+    const from = ((data ?? []) as { from_id: string; to_id: string }[]).filter((r) => r.to_id === userId).map((r) => r.from_id)
+    if (!from.length) return 0
+    const states = await linkStates(userId, from)
+    return from.filter((id) => states.get(id) === 'received').length
+  } catch {
+    return 0
+  }
+}

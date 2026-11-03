@@ -9,6 +9,7 @@ import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
+import { linkedAmong } from '@/lib/coworkers'
 
 export const metadata: Metadata = { title: '커뮤니티 글' }
 
@@ -23,7 +24,16 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
   const cat = categoryOf(post.category)
   const mine = post.author_id === user.id
   const writer = canWrite(user)
-  const related = post.hidden_at ? [] : await relatedPosts(post, user.id)
+  const [related, pals] = await Promise.all([
+    post.hidden_at ? [] : relatedPosts(post, user.id),
+    writer ? linkedAmong(user.id, [post.author_id, ...comments.map((c) => c.author_id)]) : new Set<string>(),
+  ])
+  const PalBadge = ({ id }: { id: string }) =>
+    pals.has(id) ? (
+      <span className="rounded-full bg-brand-50 px-1.5 text-[10px] font-bold text-brand-700" data-pal-badge>
+        🤝 동료
+      </span>
+    ) : null
 
   return (
     <div className="space-y-4">
@@ -43,7 +53,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         </span>
         <h1 className="text-xl leading-snug font-extrabold break-words">{post.title}</h1>
         <p className="text-sm text-mute">
-          <b className="font-semibold text-sub">{post.nick}</b> · {ago(post.created_at)}
+          <b className="font-semibold text-sub">{post.nick}</b> <PalBadge id={post.author_id} /> · {ago(post.created_at)}
           {Date.parse(post.updated_at) - Date.parse(post.created_at) > 60_000 && <span data-edited> · 수정됨</span>}
         </p>
         {/* 내용을 두 번 톡 누르면 좋아요 */}
@@ -80,6 +90,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
               <li key={c.id} className={`rounded-2xl px-4 py-3 ${c.mine ? 'bg-brand-50/60' : 'bg-white ring-1 ring-line'}`} data-comment data-mine={c.mine ? '' : undefined}>
                 <p className="flex items-center gap-1.5 text-xs text-mute">
                   <b className="font-semibold text-sub">{c.nick}</b>
+                  <PalBadge id={c.author_id} />
                   {c.author_id === post.author_id && <span className="rounded-full bg-brand-100 px-1.5 text-[10px] font-bold text-brand-700">글쓴이</span>}
                   <span>· {ago(c.created_at)}</span>
                   {c.hidden_at && <span className="font-semibold text-rose-600">· 가려짐</span>}

@@ -54,7 +54,7 @@ export default async function CoworkersPage() {
         <ul className="stagger space-y-2" data-coworker-list>
           {list.map((c) => (
             <li key={c.id} className={`card flex items-center gap-3 p-4 ${c.state === 'received' ? 'ring-2 ring-amber-200' : ''}`} data-coworker={c.state}>
-              <span aria-hidden className={`grid size-11 shrink-0 place-items-center rounded-full text-xl ${c.state === 'linked' ? 'bg-brand-600 text-white' : 'bg-brand-50'}`}>
+              <span aria-hidden className={`grid size-11 shrink-0 place-items-center rounded-full text-xl ${c.state === 'linked' ? 'animate-pop bg-brand-600 text-white' : 'bg-brand-50'}`}>
                 {c.state === 'linked' ? '🤝' : '🐥'}
               </span>
               <div className="min-w-0 flex-1">
