@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
-import { addComment, createPost, report, saveReview, setNickname, toggleLike } from '@/app/actions/community'
+import { addComment, createPost, report, saveReview, setNickname, toggleLike, updatePost } from '@/app/actions/community'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
 /** 봇 함정 칸: 사람에게는 안 보이고, 자동 입력 봇만 채움 */
@@ -23,9 +23,9 @@ const CATS = [
 ]
 
 /** 글쓰기 */
-export function PostForm({ defaultCategory }: { defaultCategory: string }) {
-  const [state, action] = useActionState(createPost, null)
-  const [body, setBody] = useState('')
+export function PostForm({ defaultCategory, post }: { defaultCategory: string; post?: { id: string; title: string; body: string } }) {
+  const [state, action] = useActionState(post ? updatePost.bind(null, post.id) : createPost, null)
+  const [body, setBody] = useState(post?.body ?? '')
   return (
     <form action={action} onReset={keepInputs} className="space-y-4" data-post-form>
       <Honeypot />
@@ -46,7 +46,7 @@ export function PostForm({ defaultCategory }: { defaultCategory: string }) {
         <label className="label" htmlFor="post-title">
           제목
         </label>
-        <input id="post-title" name="title" className="input" maxLength={60} required placeholder="예: 행사장 주차는 어디가 좋아요?" />
+        <input id="post-title" name="title" className="input" maxLength={60} required defaultValue={post?.title} placeholder="예: 행사장 주차는 어디가 좋아요?" />
       </div>
       <div>
         <label className="label" htmlFor="post-body">
@@ -56,8 +56,8 @@ export function PostForm({ defaultCategory }: { defaultCategory: string }) {
         <p className="mt-1 text-right text-xs text-mute tabular-nums">{body.length}/3000</p>
       </div>
       <FormMessage state={state} />
-      <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="올리는 중…">
-        올리기
+      <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText={post ? '고치는 중…' : '올리는 중…'}>
+        {post ? '고친 내용 저장' : '올리기'}
       </SubmitButton>
     </form>
   )
@@ -104,7 +104,10 @@ export function CommentForm({ postId }: { postId: string }) {
   const [state, action] = useActionState(addComment.bind(null, postId), null)
   const ref = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
-    if (state?.ok && ref.current) ref.current.value = ''
+    if (state?.ok && ref.current) {
+      ref.current.value = ''
+      ref.current.style.height = ''
+    }
   }, [state])
   // 댓글의 '↩ 답글'을 누르면 '@별명 '을 넣고 댓글 칸으로
   useEffect(() => {
@@ -127,7 +130,21 @@ export function CommentForm({ postId }: { postId: string }) {
   return (
     <form action={action} onReset={keepInputs} className="space-y-2" data-comment-form>
       <Honeypot />
-      <textarea ref={ref} name="body" rows={2} maxLength={500} required className="input" placeholder="따뜻한 댓글을 남겨 주세요" />
+      <textarea
+        ref={ref}
+        name="body"
+        rows={2}
+        maxLength={500}
+        required
+        className="input max-h-40 resize-none overflow-y-auto transition-[height] duration-150"
+        placeholder="따뜻한 댓글을 남겨 주세요"
+        // 쓰는 만큼 칸이 늘어남 (6줄 정도까지)
+        onInput={(e) => {
+          const el = e.currentTarget
+          el.style.height = 'auto'
+          el.style.height = `${Math.min(el.scrollHeight + 2, 160)}px`
+        }}
+      />
       {state?.error && <FormMessage state={state} />}
       <SubmitButton className="btn-primary btn-sm w-full" pendingText="다는 중…">
         댓글 달기

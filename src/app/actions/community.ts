@@ -64,6 +64,29 @@ export async function createPost(_: State, form: FormData): Promise<State> {
   redirect(`/community/${(data as { id: string }).id}?m=${encodeURIComponent('글을 올렸어요! 🎉')}`)
 }
 
+/** 내 글 고치기 (가려진 글은 안 됨, 한 시간에 20번까지) */
+export async function updatePost(postId: string, _: State, form: FormData): Promise<State> {
+  const { user, error } = await writer(`/community/${postId}/edit`, form)
+  if (error) return { error }
+  if (!isUuid(postId)) return { error: '글을 찾을 수 없어요.' }
+  const { data } = await db().from('community_posts').select('author_id, hidden_at').eq('id', postId).maybeSingle()
+  const p = data as { author_id: string; hidden_at: string | null } | null
+  if (!p || p.author_id !== user.id) return { error: '내가 쓴 글만 고칠 수 있어요.' }
+  if (p.hidden_at) return { error: '가려진 글은 고칠 수 없어요.' }
+  const category = text(form, 'category')
+  const title = text(form, 'title')
+  const body = text(form, 'body')
+  if (!isCategory(category)) return { error: '말머리를 골라 주세요.' }
+  if (title.length < 2 || title.length > 60) return { error: '제목은 2~60자로 써 주세요.' }
+  if (body.length < 2 || body.length > 3000) return { error: '내용은 2~3000자로 써 주세요.' }
+  if (tooManyLinks(title + body)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
+  if (await overLimit(`community-edit:${user.id}`, 20, 3600)) return { error: '잠시 뒤에 다시 고쳐 주세요.' }
+  must(await db().from('community_posts').update({ category, title: maskPhones(title), body: maskPhones(body), updated_at: new Date().toISOString() }).eq('id', postId).eq('author_id', user.id))
+  revalidatePath('/community')
+  revalidatePath(`/community/${postId}`)
+  redirect(`/community/${postId}?m=${encodeURIComponent('글을 고쳤어요.')}`)
+}
+
 /** 내 글 지우기 */
 export async function deletePost(postId: string) {
   const user = await requireUser('/community')

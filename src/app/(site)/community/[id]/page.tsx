@@ -42,6 +42,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         <h1 className="text-xl leading-snug font-extrabold break-words">{post.title}</h1>
         <p className="text-sm text-mute">
           <b className="font-semibold text-sub">{post.nick}</b> · {ago(post.created_at)}
+          {Date.parse(post.updated_at) - Date.parse(post.created_at) > 60_000 && <span data-edited> · 수정됨</span>}
         </p>
         {/* 내용을 두 번 톡 누르면 좋아요 */}
         <DoubleTapLike enabled={writer}>
@@ -50,6 +51,11 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
           <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!writer} />
           <div className="flex items-center gap-3">
+            {mine && writer && !post.hidden_at && (
+              <Link href={`/community/${post.id}/edit`} className="text-xs font-semibold text-mute hover:text-brand-600" data-edit-link>
+                ✏️ 고치기
+              </Link>
+            )}
             {(mine || user.isSuper) && (
               <form action={deletePost.bind(null, post.id)}>
                 <ConfirmSubmit className="text-xs font-semibold text-mute hover:text-rose-600" confirmText="한 번 더 누르면 지워져요">
