@@ -66,3 +66,18 @@ export function RosterOpenBar({ seconds }: { seconds: number }) {
     </form>
   )
 }
+
+/** 한 시간에 근무자 정보를 너무 많이 열었을 때 (명단 대량 수집 막기) */
+export function RosterTooMany() {
+  return (
+    <div className="mx-auto max-w-sm pt-6" data-roster-too-many>
+      <div className="card space-y-2 text-center">
+        <span aria-hidden className="mx-auto grid size-14 place-items-center rounded-full bg-rose-50 text-2xl">
+          ✋
+        </span>
+        <h1 className="text-xl font-extrabold">잠시 쉬었다 열어 주세요</h1>
+        <p className="text-sm text-sub">한 시간 동안 근무자 정보를 너무 많이 열었어요. 개인정보를 한꺼번에 가져가는 것을 막기 위해 잠시 막았어요. 한 시간 뒤에 다시 열 수 있어요.</p>
+      </div>
+    </div>
+  )
+}

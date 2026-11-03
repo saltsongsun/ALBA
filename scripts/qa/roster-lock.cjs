@@ -1,5 +1,5 @@
 // 보안: 근무자 명단(목록·상세·명부 CSV·주민번호 보기)은 관리자 본인 로그인 비밀번호를 한 번 더 넣어야 10분 동안 열림
-// · 틀리면 안 열림 · 8번 틀리면 잠시 막힘 · 다른 관리자 표로는 안 열림 · 지금 잠그기 · 360px
+// · 틀리면 안 열림 · 30분에 5번 틀리면 막힘(대표·최고 관리자 알림) · 다른 관리자 표로는 안 열림 · 지금 잠그기 · 360px
 // node scripts/qa/roster-lock.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac, randomBytes, scryptSync } = require('node:crypto')
@@ -89,7 +89,7 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
   }
   await p.locator('#roster-pin').fill(PIN)
   await p.getByRole('button', { name: '명단 열기' }).click()
-  ok('8번 틀린 뒤에는 맞아도 잠시 막힘', await p.getByText('너무 여러 번 틀렸어요').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
+  ok('5번 틀린 뒤에는 맞아도 30분 막힘', await p.getByText('너무 여러 번 틀렸어요').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
   ok('막힌 동안 계속 잠금', await locked())
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

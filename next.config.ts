@@ -18,8 +18,7 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
           // 항상 https로만 (중간에서 가로채기 방지)
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' },
-          // 다른 사이트에 끼워 넣기·폼 가로채기·플러그인 실행 막기
-          { key: 'Content-Security-Policy', value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" },
+          // 화면의 보안 규칙(CSP: 허락한 스크립트만·이 사이트로만 연결·끼워 넣기 금지)은 요청마다 새 값이 필요해 src/proxy.ts에서 붙임
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
         ],
       },

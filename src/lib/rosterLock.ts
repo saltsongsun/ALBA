@@ -44,3 +44,23 @@ export function rosterNext(next: unknown): string {
   const s = typeof next === 'string' ? next : ''
   return /^\/admin\/(workers(\/[0-9a-f-]{36})?(\?[\w%=&.-]*)?|export\/workers)$/.test(s) ? s : '/admin/workers'
 }
+
+/**
+ * 명단을 한꺼번에 긁어 가는 것 막기 (계정·비밀번호가 털려 AI 자동화로 한 명씩 열어 보는 경우):
+ * 한 시간에 상세 150번·목록 120번을 넘으면 막고, 최고 관리자에게 한 시간에 한 번 알림
+ */
+export async function rosterViewAllowed(admin: { id: string; name: string; companyName: string }, kind: 'list' | 'detail'): Promise<boolean> {
+  const { overLimit } = await import('./ratelimit')
+  if (!(await overLimit(`roster-${kind}:${admin.id}`, kind === 'detail' ? 150 : 120, 3600))) return true
+  if (!(await overLimit(`alert:roster-scrape:${admin.id}`, 1, 3600))) {
+    const { sendPush, superAdminIds } = await import('./push')
+    const { audit } = await import('./data')
+    await audit(admin.id, 'roster.too_many', null, kind)
+    await sendPush(await superAdminIds(), {
+      title: '🚨 근무자 명단을 너무 많이 열람',
+      body: `${admin.companyName} · ${admin.name} 계정이 한 시간에 근무자 정보를 너무 많이 열어 막았어요. 자동화된 수집일 수 있어요.`,
+      url: '/admin/companies',
+    })
+  }
+  return false
+}

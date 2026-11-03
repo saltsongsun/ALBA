@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next'
+import { headers } from 'next/headers'
 import { Suspense } from 'react'
 import { ErrorToast } from '@/components/ErrorCopy'
 import InstallGuide from '@/components/InstallGuide'
@@ -27,12 +28,14 @@ export const viewport: Viewport = {
   themeColor: BRAND_COLOR,
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // 보안 규칙(CSP): 이 화면에 허락된 스크립트만 실행되도록 요청마다 새로 만든 값 (src/proxy.ts)
+  const nonce = (await headers()).get('x-nonce') ?? undefined
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
         {/* 글자 크게 보기: 화면이 그려지기 전에 적용 (깜빡이지 않게) */}
-        <script dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('text-size')==='lg')document.documentElement.dataset.text='lg'}catch(e){}" }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: "try{if(localStorage.getItem('text-size')==='lg')document.documentElement.dataset.text='lg'}catch(e){}" }} />
       </head>
       <body className="min-h-dvh">
         <Suspense fallback={null}>
