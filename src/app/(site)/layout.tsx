@@ -5,6 +5,7 @@ import { getUser } from '@/lib/session'
 import AppBadge from '@/components/AppBadge'
 import { isPro } from '@/lib/members'
 import PullToRefresh from '@/components/PullToRefresh'
+import ScrollTop from '@/components/ScrollTop'
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 
@@ -35,6 +36,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       {user && <AppBadge count={unread + todo} />}
       {/* 설치한 앱에서 맨 위에서 당기면 새로 고침 */}
       {user && <PullToRefresh />}
+      <ScrollTop />
     </div>
   )
 }

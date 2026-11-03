@@ -130,6 +130,18 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     ['docs', `서류${pendingDocs ? ` (대기 ${pendingDocs})` : ''}`],
   ] as const
 
+  // 이 공고에서 일한 근무자 후기 (이 회사 것만, 가려진 것 빼고). 못 읽어도 화면은 그대로
+  const jobReviews = await db()
+    .from('company_reviews')
+    .select('id, rating, body, created_at, hidden_at, job_id, company_id')
+    .eq('job_id', id)
+    .eq('company_id', admin.companyId)
+    .is('hidden_at', null)
+    .then(
+      (r) => ((r.data ?? []) as { id: string; rating: number; body: string; created_at: string; hidden_at: string | null; job_id: string; company_id: string }[]).filter((x) => !x.hidden_at && x.job_id === id && x.company_id === admin.companyId),
+      () => [] as { id: string; rating: number; body: string; created_at: string; hidden_at: string | null; job_id: string; company_id: string }[],
+    )
+  const reviewAvg = jobReviews.length ? Math.round((jobReviews.reduce((n, r) => n + r.rating, 0) / jobReviews.length) * 10) / 10 : 0
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
@@ -287,6 +299,25 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           recipients={approved.map((a) => ({ phone: a.user.phone, dates: a.available_dates, position: a.position }))}
           dates={dates.map((d) => ({ value: d, label: fmtDate(d) }))}
         />
+      )}
+
+      {jobReviews.length > 0 && (
+        <details className="card p-4" data-job-reviews>
+          <summary className="flex cursor-pointer items-center gap-2 font-bold">
+            ⭐ 근무자 후기 <b className="text-amber-500 tabular-nums">{reviewAvg.toFixed(1)}</b>
+            <span className="font-normal text-mute">· {jobReviews.length}개</span>
+          </summary>
+          <ul className="mt-3 space-y-1.5">
+            {jobReviews
+              .sort((a, b) => b.created_at.localeCompare(a.created_at))
+              .map((r) => (
+                <li key={r.id} className="rounded-xl bg-bg px-3 py-2 text-sm">
+                  <b className="text-amber-500">{'★'.repeat(r.rating)}</b> {r.body}
+                </li>
+              ))}
+          </ul>
+          <p className="mt-2 text-xs text-mute">실제로 일한 근무자가 별명으로 남긴 후기예요. 누가 썼는지는 보이지 않아요.</p>
+        </details>
       )}
 
       <div className="flex gap-1 overflow-x-auto border-b border-line text-sm font-semibold">
