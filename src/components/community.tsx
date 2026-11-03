@@ -163,6 +163,17 @@ export function CommentForm({ postId }: { postId: string }) {
     if (state?.ok && ref.current) {
       ref.current.value = ''
       ref.current.style.height = ''
+      // 방금 단 댓글로 이동해 잠깐 반짝 (목록이 새로 그려진 뒤)
+      setTimeout(() => {
+        const mine = document.querySelectorAll<HTMLElement>('[data-comment][data-mine]')
+        const el = mine[mine.length - 1]
+        if (!el) return
+        const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+        el.dataset.justAdded = '1'
+        el.classList.add('ring-2', 'ring-brand-300', 'animate-pop')
+        setTimeout(() => el.classList.remove('ring-2', 'ring-brand-300'), 1600)
+      }, 350)
     }
   }, [state])
   // 댓글의 '↩ 답글'을 누르면 '@별명 '을 넣고 댓글 칸으로

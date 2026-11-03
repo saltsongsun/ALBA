@@ -278,3 +278,21 @@ export async function companyRatings(companyIds: string[]): Promise<Record<strin
     return {}
   }
 }
+
+/** 마지막으로 커뮤니티를 본 뒤 내 글에 남이 단 새 댓글 (내 근무 화면 안내). 못 읽으면 null */
+export async function newCommentsOnMine(userId: string, since: string | null): Promise<{ count: number; postId: string; title: string } | null> {
+  try {
+    const { data: posts } = await db().from('community_posts').select('id, title, author_id, hidden_at').eq('author_id', userId).is('hidden_at', null).limit(100)
+    const mine = ((posts ?? []) as { id: string; title: string; author_id: string; hidden_at: string | null }[]).filter((p) => p.author_id === userId && !p.hidden_at)
+    if (!mine.length) return null
+    const { data: cs } = await db().from('community_comments').select('post_id, author_id, created_at, hidden_at').in('post_id', mine.map((p) => p.id)).neq('author_id', userId).limit(500)
+    const fresh = ((cs ?? []) as { post_id: string; author_id: string; created_at: string; hidden_at: string | null }[])
+      .filter((c) => c.author_id !== userId && !c.hidden_at && (!since || c.created_at > since))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    if (!fresh.length) return null
+    const post = mine.find((p) => p.id === fresh[0].post_id)!
+    return { count: fresh.length, postId: post.id, title: post.title }
+  } catch {
+    return null
+  }
+}

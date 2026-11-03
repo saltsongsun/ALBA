@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
-import { canWrite, reviewNudge } from '@/lib/community'
+import { canWrite, newCommentsOnMine, reviewNudge } from '@/lib/community'
+import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ContactButtons } from '@/components/Contact'
@@ -80,6 +81,9 @@ export default async function MePage(props: PageProps<'/me'>) {
 
   // 최근에 일한 공고 후기 안내 (다른 것과 함께 읽음)
   const nudgeP = canWrite(user) && !pro ? reviewNudge(user.id) : Promise.resolve(null)
+  // 커뮤니티를 마지막으로 본 뒤 내 글에 달린 새 댓글
+  const seenRaw = (await cookies()).get('cm_seen')?.value
+  const newCommentsP = canWrite(user) ? newCommentsOnMine(user.id, seenRaw ? decodeURIComponent(seenRaw) : null) : Promise.resolve(null)
   const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
     db()
       .from('applications')
@@ -250,7 +254,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     </>
   )
 
-  const nudge = await nudgeP
+  const [nudge, newComments] = await Promise.all([nudgeP, newCommentsP])
   return (
     <div className="space-y-6">
       <Flash m={sp.m} />
@@ -440,6 +444,23 @@ export default async function MePage(props: PageProps<'/me'>) {
             })}
           </ol>
         </section>
+      )}
+
+      {/* 내 커뮤니티 글에 새 댓글 */}
+      {newComments && (
+        <Link href={`/community/${newComments.postId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-new-comments>
+          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
+            💬
+            <span className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white tabular-nums">
+              {newComments.count > 9 ? '9+' : newComments.count}
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">내 글에 새 댓글이 달렸어요</b>
+            <span className="block truncate text-sm text-sub">{newComments.title}</span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-600">보기</span>
+        </Link>
       )}
 
       {/* 최근에 일한 공고 후기: 다음 근무자에게 도움 (일한 사람만, 별명) */}

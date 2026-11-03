@@ -5,6 +5,7 @@ import { deleteComment, deletePost } from '@/app/actions/community'
 import { CommentForm, DoubleTapLike, LikeButton, ReplyButton, ReportButton } from '@/components/community'
 import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
+import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canWrite, categoryOf, getPost, relatedPosts } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
@@ -26,6 +27,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
 
   return (
     <div className="space-y-4">
+      <CommunitySeen />
       <Flash m={sp.m} />
       <Link href={`/community?c=${post.category}`} className="text-sm font-semibold text-sub">
         ← {cat.label}
@@ -75,7 +77,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         {comments.length > 0 && (
           <ul className="space-y-2">
             {comments.map((c) => (
-              <li key={c.id} className={`rounded-2xl px-4 py-3 ${c.mine ? 'bg-brand-50/60' : 'bg-white ring-1 ring-line'}`} data-comment>
+              <li key={c.id} className={`rounded-2xl px-4 py-3 ${c.mine ? 'bg-brand-50/60' : 'bg-white ring-1 ring-line'}`} data-comment data-mine={c.mine ? '' : undefined}>
                 <p className="flex items-center gap-1.5 text-xs text-mute">
                   <b className="font-semibold text-sub">{c.nick}</b>
                   {c.author_id === post.author_id && <span className="rounded-full bg-brand-100 px-1.5 text-[10px] font-bold text-brand-700">글쓴이</span>}
