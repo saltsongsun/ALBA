@@ -21,6 +21,37 @@ export async function recordView(jobId: string, viewer: string, userId: string |
 
 type Row = { job_id: string; viewer: string; user_id: string | null; first_seen: string; last_seen: string; visits: number }
 
+/**
+ * 같은 휴대폰(브라우저)에서 로그인 전에 본 기록(v:)을 그 사람 기록(u:)으로 합침.
+ * 카톡 링크로 로그인 없이 공고를 보고 → 가입·로그인 뒤 다시 보면 한 사람이 '확인'에 두 번 세지던 것을 막음
+ * (처음 본 시각은 더 이른 쪽, 마지막 본 시각은 더 늦은 쪽, 방문 수는 더함)
+ */
+export async function mergeGuestViews(vid: string, userId: string) {
+  const guest = `v:${vid}`
+  const me = `u:${userId}`
+  const rows = must(await db().from('job_views').select('job_id, first_seen, last_seen, visits').eq('viewer', guest)) as Pick<Row, 'job_id' | 'first_seen' | 'last_seen' | 'visits'>[]
+  if (!rows.length) return 0
+  const mine = must(
+    await db().from('job_views').select('job_id, first_seen, last_seen, visits').eq('viewer', me).in('job_id', rows.map((r) => r.job_id)),
+  ) as Pick<Row, 'job_id' | 'first_seen' | 'last_seen' | 'visits'>[]
+  for (const g of rows) {
+    const m = mine.find((x) => x.job_id === g.job_id)
+    if (m)
+      await db()
+        .from('job_views')
+        .update({
+          first_seen: g.first_seen < m.first_seen ? g.first_seen : m.first_seen,
+          last_seen: g.last_seen > m.last_seen ? g.last_seen : m.last_seen,
+          visits: (m.visits ?? 1) + (g.visits ?? 1),
+        })
+        .eq('job_id', g.job_id)
+        .eq('viewer', me)
+    else await db().from('job_views').insert({ job_id: g.job_id, viewer: me, user_id: userId, first_seen: g.first_seen, last_seen: g.last_seen, visits: g.visits ?? 1 })
+  }
+  await db().from('job_views').delete().eq('viewer', guest)
+  return rows.length
+}
+
 /** 공고별 확인한 인원·가입자·지금 보는 인원 */
 export async function viewStats(jobIds: string[]): Promise<Record<string, ViewStats>> {
   const out: Record<string, ViewStats> = {}

@@ -13,7 +13,8 @@ export default function ViewerInvite({ jobId, viewers, canInvite }: { jobId: str
   return (
     <details className="mt-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm">
       <summary className="cursor-pointer font-semibold text-sub">
-        본 가입자 {viewers.length}명 · 지원 안 함 {notApplied.length}명
+        {/* '지원 안 함'은 본 가입자 안의 사람 수 (따로 더하는 숫자가 아님) */}
+        본 가입자 {viewers.length}명 · 그중 지원 안 함 {notApplied.length}명
       </summary>
       <ul className="mt-2 divide-y divide-line">
         {viewers.map((v) => (

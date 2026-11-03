@@ -3,7 +3,7 @@ import { cookies } from 'next/headers'
 import { ipKey, overLimit } from '@/lib/ratelimit'
 import { getUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
-import { recordView } from '@/lib/views'
+import { mergeGuestViews, recordView } from '@/lib/views'
 
 const VID = 'hw_vid'
 const VID_RE = /^[A-Za-z0-9_-]{16,40}$/
@@ -19,8 +19,15 @@ export async function POST(_: Request, ctx: RouteContext<'/api/jobs/[id]/view'>)
   if (user?.role === 'admin') return new Response(null, { status: 204 })
   const jar = await cookies()
   let viewer: string
-  if (user) viewer = `u:${user.id}`
-  else {
+  if (user) {
+    viewer = `u:${user.id}`
+    // 로그인 전에 이 휴대폰으로 본 기록이 있으면 이 사람 기록으로 합치고, 표시 쿠키는 지움 (한 사람이 두 번 세지지 않게)
+    const vid = jar.get(VID)?.value
+    if (vid) {
+      if (VID_RE.test(vid)) await mergeGuestViews(vid, user.id).catch(() => 0)
+      jar.delete(VID)
+    }
+  } else {
     let vid = jar.get(VID)?.value
     if (!vid || !VID_RE.test(vid)) {
       if (await overLimit(await ipKey('view-new'), 60, 3600)) return new Response(null, { status: 204 })
