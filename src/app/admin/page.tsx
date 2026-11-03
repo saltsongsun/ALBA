@@ -31,7 +31,7 @@ function Stat({ label, value, href, icon, tone }: { label: string; value: number
       <p className="truncate text-sm font-semibold whitespace-nowrap text-mute">{label}</p>
       <div className="mt-1 flex items-center justify-between gap-2">
         <p className="text-3xl font-extrabold">
-          <LiveNumber value={value} />
+          <LiveNumber value={value} countUp />
         </p>
         <span className={`grid size-8 shrink-0 place-items-center rounded-full ${tone}`}>
           <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>

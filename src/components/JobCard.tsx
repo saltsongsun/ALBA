@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { NewBadge } from './NewJobs'
 import { scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
@@ -30,6 +31,7 @@ export default function JobCard({
   approved,
   myStatus,
   clash = false,
+  showNew = false,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
@@ -37,6 +39,8 @@ export default function JobCard({
   myStatus?: string
   /** 확정·지원한 내 일정과 같은 날 같은 시간대 */
   clash?: boolean
+  /** 지난번에 본 뒤로 새로 올라온 공고면 '🆕 새 공고' (홈 공고 목록) */
+  showNew?: boolean
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -59,6 +63,7 @@ export default function JobCard({
         ) : (
           <span className="badge bg-brand-50 text-brand-700">모집중</span>
         )}
+        {showNew && job.status === 'open' && <NewBadge createdAt={job.created_at} />}
         {clash && (
           <span className="badge animate-pop bg-amber-50 text-amber-800 ring-1 ring-amber-200" data-clash>
             ⚠️ 내 일정과 겹쳐요

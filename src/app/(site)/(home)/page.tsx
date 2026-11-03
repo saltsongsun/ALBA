@@ -12,6 +12,7 @@ import { isPro } from '@/lib/members'
 import { kstDate } from '@/lib/time'
 import { isUuid } from '@/lib/validate'
 import { overlapDay } from '@/lib/overlap'
+import { NewJobsChip } from '@/components/NewJobs'
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
@@ -250,11 +251,15 @@ export default async function HomePage(props: PageProps<'/'>) {
           </Link>
         </Empty>
       ) : (
-        <div className="stagger space-y-3">
-          {listed.map((j) => (
-            <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} clash={clashes(j)} />
-          ))}
-        </div>
+        <>
+          {/* 지난번에 본 뒤로 새로 올라온 모집 중 공고 (이 휴대폰 기준) */}
+          <NewJobsChip createdAts={jobs.filter((j) => j.status === 'open').map((j) => j.created_at)} />
+          <div className="stagger space-y-3">
+            {listed.map((j) => (
+              <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} clash={clashes(j)} showNew />
+            ))}
+          </div>
+        </>
       )}
     </>
   )
