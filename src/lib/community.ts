@@ -258,3 +258,23 @@ export async function reviewNudge(userId: string): Promise<{ jobId: string; titl
     return null
   }
 }
+
+/** 여러 회사의 평균 별점 (공고 목록 카드용). 후기가 없거나 못 읽으면 빈 목록 */
+export async function companyRatings(companyIds: string[]): Promise<Record<string, { avg: number; count: number }>> {
+  const ids = [...new Set(companyIds.filter(Boolean))]
+  if (!ids.length) return {}
+  try {
+    const { data, error } = await db().from('company_reviews').select('company_id, rating, hidden_at').in('company_id', ids).is('hidden_at', null).limit(2000)
+    if (error || !data) return {}
+    const sum: Record<string, { s: number; n: number }> = {}
+    for (const r of data as { company_id: string; rating: number; hidden_at: string | null }[]) {
+      if (r.hidden_at || !ids.includes(r.company_id)) continue
+      const g = (sum[r.company_id] ??= { s: 0, n: 0 })
+      g.s += r.rating
+      g.n += 1
+    }
+    return Object.fromEntries(Object.entries(sum).map(([id, g]) => [id, { avg: Math.round((g.s / g.n) * 10) / 10, count: g.n }]))
+  } catch {
+    return {}
+  }
+}

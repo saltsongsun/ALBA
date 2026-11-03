@@ -13,6 +13,8 @@ export const metadata: Metadata = { title: '회사 후기' }
 /** 한 회사의 후기: 평균 별점 + 별점 나눔 막대 + 최근 후기 (실제로 일한 근무자만 쓸 수 있음) */
 export default async function CompanyReviewsPage(props: PageProps<'/community/company/[id]'>) {
   const { id } = await props.params
+  const sp = await props.searchParams
+  const sort = sp.s === 'high' || sp.s === 'low' ? sp.s : 'new'
   const user = await requireUser(`/community/company/${id}`)
   if (!isUuid(id)) notFound()
   const { data: co } = await db().from('companies').select('id, company_name, verified').eq('id', id).maybeSingle()
@@ -20,6 +22,8 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
   if (!company) notFound()
   const { avg, count, recent } = await companyReviews(id, 50)
   const dist = [5, 4, 3, 2, 1].map((n) => ({ n, k: recent.filter((r) => r.rating === n).length }))
+  // 정렬: 최신 · 별점 높은 · 별점 낮은 (같으면 최신 먼저)
+  const shown = [...recent].sort((a, b) => (sort === 'high' ? b.rating - a.rating : sort === 'low' ? a.rating - b.rating : 0) || b.created_at.localeCompare(a.created_at))
 
   return (
     <div className="space-y-4">
@@ -71,8 +75,29 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
           이 회사에서 일했다면 <Link href="/me/history" className="font-semibold text-brand-600">지난 근무</Link>에서 첫 후기를 남겨 주세요.
         </Empty>
       ) : (
+        <>
+        {recent.length > 1 && (
+          <nav aria-label="정렬" className="flex gap-2" data-review-sort>
+            {(
+              [
+                ['new', '최신순'],
+                ['high', '별점 높은순'],
+                ['low', '별점 낮은순'],
+              ] as const
+            ).map(([k, label]) => (
+              <Link
+                key={k}
+                href={k === 'new' ? `/community/company/${company.id}` : `/community/company/${company.id}?s=${k}`}
+                aria-current={sort === k ? 'page' : undefined}
+                className={`rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition active:scale-95 ${sort === k ? 'bg-ink text-white ring-ink' : 'bg-white text-sub ring-line'}`}
+              >
+                {label}
+              </Link>
+            ))}
+          </nav>
+        )}
         <ul className="stagger space-y-2" data-review-list>
-          {recent.map((r) => (
+          {shown.map((r) => (
             <li key={r.id} className="card space-y-1.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-bold text-amber-500" aria-label={`별점 ${r.rating}점`}>
@@ -91,6 +116,7 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
             </li>
           ))}
         </ul>
+        </>
       )}
     </div>
   )

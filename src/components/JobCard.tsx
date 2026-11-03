@@ -32,6 +32,7 @@ export default function JobCard({
   myStatus,
   clash = false,
   showNew = false,
+  rating,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
@@ -41,6 +42,8 @@ export default function JobCard({
   clash?: boolean
   /** 지난번에 본 뒤로 새로 올라온 공고면 '🆕 새 공고' (홈 공고 목록) */
   showNew?: boolean
+  /** 근무자 후기 평균 별점 (가입한 회원에게만) */
+  rating?: { avg: number; count: number } | null
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -77,6 +80,12 @@ export default function JobCard({
           🏢 {job.company.company_name}
           {/* 해피워크가 확인한 회사 (사업자 확인) */}
           {job.company.verified === true && <span className="ml-1 text-emerald-600">✓ 확인된 회사</span>}
+          {rating && (
+            <span className="ml-1 text-amber-600" data-card-rating aria-label={`근무자 후기 별점 ${rating.avg}점, ${rating.count}개`}>
+              ★{rating.avg.toFixed(1)}
+              <span className="font-normal text-mute">({rating.count})</span>
+            </span>
+          )}
         </p>
       )}
       <p className="mt-1 text-sm text-sub">
