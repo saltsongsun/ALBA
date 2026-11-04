@@ -1,6 +1,7 @@
 // 묶음 41: 지원·확정한 공고 화면에서 받을 계좌가 없으면 '급여 계좌를 등록해 주세요' → 내 정보 계좌번호 칸으로 바로(커서)
 //          (확정: '없으면 지급이 늦어져요' / 지원: '확정되면 바로 필요해요' · 계좌가 있으면·지원 안 했으면 없음) · 내 근무의 계좌 안내도 그 칸으로
-//          불러오는 동안 회색 자리: 서류는 서류 모양(doc), 내 정보는 내 정보 모양(profile) · 360px
+//          불러오는 동안 회색 자리: 내 정보는 내 정보 모양(profile) · 360px
+//          (서류 화면은 회색 자리를 두지 않음 — 다른 회사·남의 서류 주소는 404로 막아야 해서(companies.cjs), 화면을 먼저 보내지 않음)
 // node scripts/qa/batch41.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -80,18 +81,6 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await w.locator('#account form').waitFor({ timeout: 20000 }).catch(() => {})
   const s1 = await w.evaluate(() => [...new Set(window.__skel)])
   ok("내 정보로 갈 때: 내 정보 모양 회색 자리 (profile)", s1.includes('profile'), JSON.stringify(s1))
-  await w.goto(`${D}/me`)
-  await w.waitForLoadState('networkidle').catch(() => {})
-  await watch(w)
-  // 내 근무의 서명할 서류 링크 (화면 안에서 이동)
-  const docLink = w.locator(`a[href="/docs/${DOC}"]`).first()
-  ok('내 근무에 서명할 서류 링크 있음 (준비)', (await docLink.count()) > 0)
-  await docLink.click()
-  await w.waitForURL(/\/docs\//, { timeout: 20000 }).catch(() => {})
-  await w.locator('#sign').first().waitFor({ timeout: 20000 }).catch(() => {})
-  await w.waitForLoadState('networkidle').catch(() => {})
-  const s2 = await w.evaluate(() => [...new Set(window.__skel ?? [])])
-  ok('서류로 갈 때: 서류 모양 회색 자리 (doc)', s2.includes('doc'), JSON.stringify(s2))
   await fetch(`${MD}/__latency?ms=5`)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
