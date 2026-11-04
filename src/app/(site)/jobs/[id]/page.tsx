@@ -79,7 +79,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, myPending, company, photoAt, coInfo, others] = await Promise.all([
+  const [counts, app, docs, mine, myPending, company, me, coInfo, others] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -120,14 +120,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       : 0,
     // 공고를 낸 회사 (여러 회사가 함께 씀)
     getSettings(job.company_id),
-    // 얼굴 사진 (없으면 지원 전에 올리게)
+    // 얼굴 사진 (없으면 지원 전에 올리게) · 급여 계좌가 있는지 (지원·확정 뒤 등록 안내)
     user
       ? db()
           .from('users')
-          .select('photo_at')
+          .select('photo_at, bank_account_enc')
           .eq('id', user.id)
           .maybeSingle()
-          .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null)
+          .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null } | null)
       : null,
     // 회사: 해피워크가 확인한 회사인지 + 지금 모집 중인 공고 수 (그 회사 공고 모음으로)
     Promise.all([
@@ -164,6 +164,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const expert = job.audience === 'expert'
   const wrongType = !!user && user.role !== 'admin' && !canApplyTo(user.memberType, job.audience)
   // 얼굴 사진이 없는 근무자·전문가 (현장 담당자가 알아볼 수 있게 지원 전에 등록)
+  const photoAt = me?.photo_at ?? null
   const needPhoto = !!user && user.role === 'worker' && user.memberType !== 'vendor' && !photoAt
   const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
@@ -409,6 +410,19 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   </a>
                 )}
               </div>
+            )}
+            {/* 지원·확정했는데 받을 계좌가 없으면: 계좌번호 칸으로 바로 (확정 뒤 급여가 늦어지지 않게) */}
+            {activeApp && user?.role === 'worker' && !me?.bank_account_enc && (
+              <Link href="/me/profile#bank_account" data-account-nudge className="card-link flex items-center gap-3 rounded-2xl p-3 ring-rose-200/70">
+                <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-lg text-rose-600">
+                  <Icon name="card" />
+                </span>
+                <span className="min-w-0 flex-1 text-sm">
+                  <span className="block font-bold">{expert ? '대금 계좌를 등록해 주세요' : '급여 계좌를 등록해 주세요'}</span>
+                  <span className="block text-sub">{app.status === 'approved' ? '없으면 지급이 늦어져요' : '확정되면 바로 필요해요'}</span>
+                </span>
+                <span className="shrink-0 font-semibold whitespace-nowrap text-brand-600">등록 →</span>
+              </Link>
             )}
             {app.status === 'applied' && job.status === 'closed' && !ended && (
               <p className="text-sm font-semibold text-amber-700">모집 마감 · 결과는 알림으로 알려 드려요</p>

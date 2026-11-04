@@ -236,3 +236,58 @@ export function PostSkeleton() {
     </div>
   )
 }
+
+/** 서류(근로계약서 등) 보기·서명: '← 내 근무' · 서류 제목 · 종이 모양 본문 줄 · 서명 칸 */
+export function DocSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="서류 불러오는 중" className="skeleton space-y-4" data-skeleton="doc">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className="card space-y-3 py-6">
+        <div className={`mx-auto h-7 w-40 ${bar}`} />
+        <div className={`mx-auto h-4 w-56 max-w-full ${bar}`} />
+        <div className="pt-2" />
+        {['w-full', 'w-11/12', 'w-full', 'w-3/4', 'w-full', 'w-5/6', 'w-2/3', 'w-full', 'w-11/12', 'w-1/2'].map((w, i) => (
+          <div key={i} className={`h-4 ${w} ${bar}`} />
+        ))}
+      </div>
+      <div className="card space-y-3">
+        <div className={`h-5 w-24 ${bar}`} />
+        <div className="h-40 rounded-2xl border-2 border-dashed border-line" />
+        <div className="h-12 rounded-2xl bg-line/60" />
+      </div>
+    </div>
+  )
+}
+
+/** 내 정보: '← 내 근무' · 정보 채우기 목록 · 사진·이름 카드 · 계좌·연락 정보 칸 */
+export function ProfileSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="내 정보 불러오는 중" className="skeleton space-y-4" data-skeleton="profile">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className="card space-y-3">
+        <div className={`h-5 w-28 ${bar}`} />
+        <div className="h-1.5 rounded-full bg-line/60" />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="h-12 rounded-xl bg-line/50" />
+        ))}
+      </div>
+      <div className="card flex items-center gap-4">
+        <div className="size-20 shrink-0 rounded-full bg-line/70" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className={`h-6 w-24 ${bar}`} />
+          <div className={`h-4 w-40 max-w-full ${bar}`} />
+          <div className="h-8 w-24 rounded-xl bg-line/60" />
+        </div>
+      </div>
+      <div className="card space-y-3">
+        <div className={`h-5 w-36 ${bar}`} />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="space-y-1.5">
+            <div className={`h-3.5 w-14 ${bar}`} />
+            <div className="h-11 rounded-[14px] bg-line/50" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

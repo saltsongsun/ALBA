@@ -231,7 +231,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     <>
       {/* 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음) */}
       {!hasAccount && (approved.length > 0 || atts.length > 0) && (
-        <Link href="/me/profile" className="card-link flex items-center gap-3 p-4 ring-rose-200/70">
+        <Link href="/me/profile#bank_account" className="card-link flex items-center gap-3 p-4 ring-rose-200/70">
           <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-2xl bg-rose-50 text-xl text-rose-600">
             <Icon name="card" />
           </span>
