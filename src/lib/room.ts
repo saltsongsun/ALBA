@@ -84,16 +84,40 @@ export async function roomUnread(userId: string, jobIds: string[]): Promise<Reco
   return out
 }
 
-/** 근무자의 단체방 목록: 확정된 공고 중 끝난 지 30일 안 된 것 */
-export async function workerRooms(userId: string): Promise<(RoomJob & { unread: number })[]> {
+/** 단체방 마지막 말 (대화 목록 미리보기) */
+export type RoomLast = { sender_id: string | null; from_admin: boolean; body: string; created_at: string }
+
+/** 안 읽은 수 + 마지막 말을 한 번에 (대화 목록에서 따로 다시 읽지 않게) */
+async function roomStats(userId: string, jobIds: string[]): Promise<{ unread: Record<string, number>; last: Record<string, RoomLast> }> {
+  if (!jobIds.length) return { unread: {}, last: {} }
+  const [{ data: reads }, { data: msgs }] = await Promise.all([
+    db().from('job_chat_reads').select('job_id, read_at').eq('user_id', userId).in('job_id', jobIds),
+    db().from('job_chat').select('job_id, sender_id, from_admin, body, created_at').in('job_id', jobIds).order('created_at', { ascending: false }).limit(3000),
+  ])
+  const readAt = new Map(((reads ?? []) as { job_id: string; read_at: string }[]).map((r) => [r.job_id, r.read_at]))
+  const unread: Record<string, number> = {}
+  const last: Record<string, RoomLast> = {}
+  for (const m of (msgs ?? []) as (RoomLast & { job_id: string })[]) {
+    if (!jobIds.includes(m.job_id)) continue
+    const prev = last[m.job_id]
+    if (!prev || m.created_at > prev.created_at) last[m.job_id] = { sender_id: m.sender_id, from_admin: m.from_admin, body: m.body, created_at: m.created_at }
+    if (m.sender_id === userId) continue
+    const at = readAt.get(m.job_id)
+    if (!at || m.created_at > at) unread[m.job_id] = (unread[m.job_id] ?? 0) + 1
+  }
+  return { unread, last }
+}
+
+/** 근무자의 단체방 목록: 확정된 공고 중 끝난 지 30일 안 된 것 (+ 안 읽은 수 · 마지막 말) */
+export async function workerRooms(userId: string): Promise<(RoomJob & { unread: number; last: RoomLast | null })[]> {
   const { data: apps } = await db().from('applications').select('job_id').eq('user_id', userId).eq('status', 'approved')
   const ids = [...new Set(((apps ?? []) as { job_id: string }[]).map((a) => a.job_id))]
   if (!ids.length) return []
   const since = kstDate(new Date(Date.now() - 30 * 86_400_000))
   const { data } = await db().from('jobs').select(JOB_COLS).in('id', ids).gte('end_date', since)
   const jobs = ((data ?? []) as RoomJob[]).filter((j) => j.status !== 'draft' && j.end_date >= since).sort((a, b) => a.start_date.localeCompare(b.start_date))
-  const unread = await roomUnread(userId, jobs.map((j) => j.id))
-  return jobs.map((j) => ({ ...j, unread: unread[j.id] ?? 0 }))
+  const { unread, last } = await roomStats(userId, jobs.map((j) => j.id))
+  return jobs.map((j) => ({ ...j, unread: unread[j.id] ?? 0, last: last[j.id] ?? null }))
 }
 
 /** 관리자의 단체방 목록: 이 회사 공고 중 확정자가 있고 끝난 지 30일 안 된 것 */

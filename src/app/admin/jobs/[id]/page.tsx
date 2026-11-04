@@ -226,33 +226,39 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                 🚨 긴급 투입 QR
               </Link>
             )}
-            <form action={duplicateJob.bind(null, job.id)}>
-              <SubmitButton className="btn-gray btn-sm">복사해서 새 공고</SubmitButton>
-            </form>
-            {job.status !== 'open' && job.status !== 'cancelled' && (
-              <form action={setJobStatus.bind(null, job.id, 'open')}>
-                <SubmitButton className="btn-gray btn-sm">모집 열기</SubmitButton>
-              </form>
-            )}
-            {job.status === 'open' && (
-              <form action={setJobStatus.bind(null, job.id, 'closed')}>
-                <SubmitButton className="btn-gray btn-sm">모집 마감</SubmitButton>
-              </form>
-            )}
-            {job.status !== 'done' && job.status !== 'cancelled' && (
-              <form action={setJobStatus.bind(null, job.id, 'done')}>
-                <SubmitButton className="btn-gray btn-sm">행사 종료</SubmitButton>
-              </form>
-            )}
-            <form action={deleteJob.bind(null, job.id)}>
-              <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 삭제?">
-                삭제
-              </ConfirmSubmit>
-            </form>
+            {/* 자주 안 쓰는 것은 접어 둠 (복사·모집 열기/마감·행사 종료·삭제) */}
+            <details className="open:basis-full" data-job-more>
+              <summary className="btn-gray btn-sm cursor-pointer">더보기</summary>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <form action={duplicateJob.bind(null, job.id)}>
+                  <SubmitButton className="btn-gray btn-sm">복사해서 새 공고</SubmitButton>
+                </form>
+                {job.status !== 'open' && job.status !== 'cancelled' && (
+                  <form action={setJobStatus.bind(null, job.id, 'open')}>
+                    <SubmitButton className="btn-gray btn-sm">모집 열기</SubmitButton>
+                  </form>
+                )}
+                {job.status === 'open' && (
+                  <form action={setJobStatus.bind(null, job.id, 'closed')}>
+                    <SubmitButton className="btn-gray btn-sm">모집 마감</SubmitButton>
+                  </form>
+                )}
+                {job.status !== 'done' && job.status !== 'cancelled' && (
+                  <form action={setJobStatus.bind(null, job.id, 'done')}>
+                    <SubmitButton className="btn-gray btn-sm">행사 종료</SubmitButton>
+                  </form>
+                )}
+                <form action={deleteJob.bind(null, job.id)}>
+                  <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 삭제?">
+                    삭제
+                  </ConfirmSubmit>
+                </form>
+              </div>
+            </details>
           </div>
           {job.status === 'cancelled' && (
             <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800">
-              취소한 행사예요. 지원·확정은 모두 취소됐고 근무자에게 알렸어요. 다시 모집하려면 ‘복사해서 새 공고’를 눌러 주세요.
+              취소한 행사예요. 지원·확정은 모두 취소됐고 근무자에게 알렸어요. 다시 모집하려면 ‘더보기 → 복사해서 새 공고’를 눌러 주세요.
             </p>
           )}
           {/* 비·주최측 사정 등으로 행사가 열리지 않을 때: 사유와 함께 확정·지원자 모두에게 알림 */}

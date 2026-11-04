@@ -42,12 +42,6 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
   // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
   // 근무일수·평가는 이 회사 기록만, 주민번호·계좌 같은 민감 정보는 이 회사에 지원한 사람만 (근무자 화면에서)
-  const [workerIds, { data: members }] = await Promise.all([
-    companyWorkerIds(admin.companyId),
-    db().from('company_members').select('user_id').eq('company_id', admin.companyId),
-  ])
-  const applied = new Set(workerIds)
-  const memberIds = new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id))
   const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'mine' || sp.f === 'new' ? sp.f : null
   // 최근 7일 안에 가입한 회원 (단체로 가입했을 때 사진·계좌 확인하고 공고에 확정하기 쉽게)
   const newSince = new Date(Date.now() - 7 * 86_400_000).toISOString()
@@ -69,7 +63,15 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   // 빠른 거르기: 사진 없음 · 계좌 없음
   if (f === 'nophoto') query = query.is('photo_at', null)
   if (f === 'noaccount') query = query.is('bank_account_enc', null)
-  const users = (must(await query) as Row[])
+  // 명단·우리 회사 지원자·관리자 목록을 한꺼번에 읽음 (차례로 기다리지 않게)
+  const [workerIds, { data: members }, rowsRes] = await Promise.all([
+    companyWorkerIds(admin.companyId),
+    db().from('company_members').select('user_id').eq('company_id', admin.companyId),
+    query,
+  ])
+  const applied = new Set(workerIds)
+  const memberIds = new Set(((members ?? []) as { user_id: string }[]).map((m) => m.user_id))
+  const users = (must(rowsRes) as Row[])
     // 다른 회사 관리자·외주 업체 계정은 근무자 목록에서 뺌
     .filter((u) => (u.role === 'admin' ? memberIds.has(u.id) : u.member_type !== 'vendor'))
     // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 (전체 회원 명단은 확인 뒤)

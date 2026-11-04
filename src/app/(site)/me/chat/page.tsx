@@ -10,7 +10,7 @@ import { getJob, getSettings, platformCompanyId, SUPPORT_NAME } from '@/lib/data
 import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireUser } from '@/lib/session'
-import { workerRooms } from '@/lib/room'
+import { workerRooms, type RoomLast } from '@/lib/room'
 import { isUuid } from '@/lib/validate'
 import { plainBody } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
@@ -27,7 +27,10 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const jobId = typeof sp.job === 'string' && isUuid(sp.job) ? sp.job : null
   const wantCo = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
   // 문의함은 회사마다 따로: 지원했거나 문의를 주고받은 회사들 (처음이면 기본 회사)
-  const [job, apps, threads, platformId, rooms] = await Promise.all([
+  // 단체방 목록(여러 번 읽음)은 먼저 출발시키고, 회사 이름 읽기와 함께 기다림
+  const roomsP = workerRooms(user.id)
+  roomsP.catch(() => {})
+  const [job, apps, threads, platformId] = await Promise.all([
     jobId ? getJob(jobId) : null,
     db().from('applications').select('company_id').eq('user_id', user.id).then((r) => must(r) as { company_id: string }[]),
     db()
@@ -38,15 +41,15 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       .limit(500)
       .then((r) => must(r) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }[]),
     platformCompanyId(),
-    // 같은 근무 단체방 (확정된 공고)
-    workerRooms(user.id),
   ])
   const related = [...new Set([...threads.map((t) => t.company_id), ...apps.map((a) => a.company_id)])]
   const companyId = job?.company_id ?? (wantCo && related.includes(wantCo) ? wantCo : null) ?? threads[0]?.company_id ?? related[0] ?? platformId
   const ids = [...new Set([...related, ...(companyId ? [companyId] : [])])]
-  const { data: companyRows } = ids.length
-    ? await db().from('companies').select('id, company_name').in('id', ids)
-    : { data: [] }
+  const [{ data: companyRows }, rooms] = await Promise.all([
+    ids.length ? db().from('companies').select('id, company_name').in('id', ids) : Promise.resolve({ data: [] }),
+    // 같은 근무 단체방 (확정된 공고)
+    roomsP,
+  ])
   const companies = ((companyRows ?? []) as { id: string; company_name: string }[]).sort(
     (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
   )
@@ -144,7 +147,6 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
 }
 
 type Thread = { company_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }
-type RoomRow = { job_id: string; sender_id: string | null; from_admin: boolean; body: string; created_at: string }
 
 /** 대화 목록 (카톡처럼): 회사 1:1 문의 + 같은 근무 단체방, 최근 대화 순 · 마지막 말 미리보기 · 안 읽은 수 */
 async function ChatList({
@@ -158,18 +160,10 @@ async function ChatList({
   companies: { id: string; name: string; support: boolean }[]
   threads: Thread[]
   unreadBy: Map<string, number>
-  rooms: { id: string; title: string; start_date: string; end_date: string; unread: number }[]
+  rooms: { id: string; title: string; start_date: string; end_date: string; unread: number; last: RoomLast | null }[]
 }) {
-  const roomIds = rooms.map((r) => r.id)
-  const { data: rc } = roomIds.length
-    ? await db().from('job_chat').select('job_id, sender_id, from_admin, body, created_at').in('job_id', roomIds).order('created_at', { ascending: false }).limit(400)
-    : { data: [] }
-  const lastRoom = new Map<string, RoomRow>()
-  for (const m of (rc ?? []) as RoomRow[]) {
-    if (!roomIds.includes(m.job_id)) continue
-    const prev = lastRoom.get(m.job_id)
-    if (!prev || m.created_at > prev.created_at) lastRoom.set(m.job_id, m)
-  }
+  // 단체방 마지막 말은 안 읽은 수를 셀 때 함께 읽어 옴 (workerRooms)
+  const lastRoom = new Map<string, RoomLast>(rooms.filter((r) => r.last).map((r) => [r.id, r.last!]))
   // 단체방 마지막 말을 쓴 다른 근무자 이름 (단체방 안에서도 이름으로 보임)
   const others = [...new Set([...lastRoom.values()].filter((m) => !m.from_admin && m.sender_id && m.sender_id !== userId).map((m) => m.sender_id!))]
   const names = new Map(

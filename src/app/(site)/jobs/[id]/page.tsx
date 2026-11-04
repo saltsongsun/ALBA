@@ -67,7 +67,18 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const [job, user] = await Promise.all([load(id), getUser()])
   if (!job || job.status === 'draft') notFound()
 
-  const [counts, app, docs, mine, myPending, company, photoAt, coInfo] = await Promise.all([
+  // 날짜가 가까운 다른 모집 공고 3개 (공고 종류만 알면 되니 아래와 함께 읽음)
+  const othersP = db()
+    .from('jobs')
+    .select(JOB_WITH_APP_STATUS)
+    .eq('audience', job.audience)
+    .eq('status', 'open')
+    .gte('end_date', kstDate())
+    .neq('id', job.id)
+    .order('start_date')
+    .limit(3)
+    .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
+  const [counts, app, docs, mine, myPending, company, photoAt, coInfo, others] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -138,13 +149,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       latest: rv?.recent[0] ?? null,
       pals,
     })),
+    othersP,
   ])
-  // 날짜가 가까운 다른 모집 공고 3개
-  const others = (
-    must(
-      await db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', job.audience).eq('status', 'open').gte('end_date', kstDate()).neq('id', job.id).order('start_date').limit(3),
-    ) as JobWithAppStatus[]
-  ).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate())
   const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
   const unsignedHere = myPending > 0
