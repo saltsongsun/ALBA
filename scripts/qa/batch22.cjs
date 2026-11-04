@@ -57,6 +57,10 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   ok('360px: 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   const pastBar = w.locator(`[data-month-bar="${past.slice(0, 7)}"]`)
   ok('지난 달 막대도 금액', /\d/.test(await pastBar.innerText()), await pastBar.innerText().catch(() => ''))
+  const bg = await pastBar.locator('span').nth(1).evaluate((el) => [getComputedStyle(el).backgroundColor, el.offsetHeight])
+  ok('지난 달 막대가 색으로 보임', bg[0] !== 'rgba(0, 0, 0, 0)' && bg[0] !== 'transparent' && bg[1] > 20, JSON.stringify(bg))
+  const gap = await w.evaluate(() => document.querySelector('[data-history-companies]').nextElementSibling.getBoundingClientRect().top - document.querySelector('[data-history-companies]').getBoundingClientRect().bottom)
+  ok('회사 칩과 합계 카드가 겹치지 않음', gap >= 4, String(gap))
 
   await chips.filter({ hasText: '새내기행사' }).click()
   await w.waitForURL(/co=/, { timeout: 8000 }).catch(() => {})

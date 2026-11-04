@@ -113,7 +113,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
       ) : (
         <>
           {companies.length > 1 && (
-            <nav aria-label="회사별 보기" className="-mx-4 -mb-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-history-companies>
+            <nav aria-label="회사별 보기" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-history-companies>
               {[{ id: '', name: '전체', n: all.length }, ...companies].map((c) => {
                 const on = c.id === pick
                 return (
@@ -132,7 +132,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
               })}
             </nav>
           )}
-          <section className="grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20">
+          <section className={`${companies.length > 1 ? '-mt-3 ' : ''}grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20`}>
             {(
               [
                 ['근무', `${total.days}일`],
@@ -166,7 +166,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                     <>
                       <span className={`text-[11px] font-semibold whitespace-nowrap tabular-nums ${now ? 'text-brand-700' : 'text-sub'}`}>{short(net)}</span>
                       <span
-                        className={`block w-full max-w-9 origin-bottom animate-grow-up rounded-t-lg ${net > 0 ? (now ? 'bg-brand-500' : 'bg-brand-200') : 'bg-line'}`}
+                        className={`block w-full max-w-9 origin-bottom animate-grow-up rounded-t-lg ${net > 0 ? (now ? 'bg-brand-500' : 'bg-brand-500/35') : 'bg-line'}`}
                         style={{ height: net > 0 ? `${Math.max(6, Math.round((net / top) * 84))}px` : '3px' }}
                       />
                       <span className={`text-xs ${now ? 'font-bold text-ink' : 'text-mute'}`}>{label}</span>
