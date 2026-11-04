@@ -27,9 +27,17 @@ export default async function VendorQuotePage(props: PageProps<'/quote/[token]'>
   ])
   const req = reqData as QuoteRequest | null
   if (!req) notFound()
-  // 견적을 요청한 회사
-  const settings = await getSettings(req.company_id)
-  const job = req.job_id ? await getJob(req.job_id) : null
+  // 견적을 요청한 회사 (해피워크가 확인한 회사인지도 — 처음 받는 업체가 믿고 견적을 낼 수 있게)
+  const [settings, job, verified] = await Promise.all([
+    getSettings(req.company_id),
+    req.job_id ? getJob(req.job_id) : null,
+    db()
+      .from('companies')
+      .select('verified')
+      .eq('id', req.company_id)
+      .maybeSingle()
+      .then((r) => (r.data as { verified?: boolean | null } | null)?.verified === true),
+  ])
   const company = settings.company_name || '해피워크'
   const open = req.status === 'open' && (q.status === 'requested' || q.status === 'submitted')
   const late = open && req.due_date && req.due_date < kstDate()
@@ -38,8 +46,13 @@ export default async function VendorQuotePage(props: PageProps<'/quote/[token]'>
     <div className="mx-auto max-w-xl space-y-4 px-4 pt-6 pb-16">
       <header className="flex items-center gap-2">
         <Logo />
-        <span className="font-extrabold">{company}</span>
-        <span className="text-sm text-mute">· 견적 요청</span>
+        <span className="min-w-0 truncate font-extrabold">{company}</span>
+        {verified && (
+          <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700" data-quote-verified>
+            ✓ 확인된 회사
+          </span>
+        )}
+        <span className="shrink-0 text-sm text-mute">· 견적 요청</span>
       </header>
 
       <section className="card space-y-3">

@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { createQuoteRequest, recordQuote, savePayment, saveVendor, submitQuote } from '@/app/actions/vendor'
+import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
 import { VENDOR_CATEGORIES } from '@/lib/vendors'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
@@ -26,7 +27,12 @@ function AmountInput({ defaultValue, label = '금액 (원)', autoFocus = false }
         onChange={(e) => setV(e.target.value.replace(/[^\d,]/g, ''))}
         required
       />
-      {n > 0 && <span className="mt-1 block text-sm font-semibold text-brand-700 tabular-nums">{n.toLocaleString('ko-KR')}원</span>}
+      {/* 쓰는 대로 '1,500,000원 · 150만 원' — 큰 금액의 0 자리 실수를 바로 알 수 있게 */}
+      {n > 0 && (
+        <span className="mt-1 block text-sm font-semibold text-brand-700 tabular-nums" data-amount-read>
+          {n.toLocaleString('ko-KR')}원{n >= 10000 && <span className="font-medium text-sub"> · {wonReadable(n)}</span>}
+        </span>
+      )}
     </label>
   )
 }

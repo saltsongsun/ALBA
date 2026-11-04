@@ -21,6 +21,23 @@ export function maskAccount(acc: string | null | undefined): string {
   return d.length <= 4 ? d : `${'*'.repeat(Math.min(d.length - 4, 8))}${d.slice(-4)}`
 }
 
+/**
+ * 금액을 소리 내어 읽듯이: 1,500,000 → '150만 원', 123,456,789 → '1억 2,345만 6,789원'.
+ * 큰 금액을 칠 때 0을 하나 더·덜 쳤는지 바로 보이게 (은행 앱처럼)
+ */
+export function wonReadable(n: number): string {
+  const v = Math.floor(Math.abs(n))
+  if (v < 10000) return `${v.toLocaleString('ko-KR')}원`
+  const eok = Math.floor(v / 1e8)
+  const man = Math.floor((v % 1e8) / 1e4)
+  const rest = v % 1e4
+  const parts: string[] = []
+  if (eok) parts.push(`${eok.toLocaleString('ko-KR')}억`)
+  if (man) parts.push(`${man.toLocaleString('ko-KR')}만`)
+  if (rest) parts.push(rest.toLocaleString('ko-KR'))
+  return rest ? `${parts.join(' ')}원` : `${parts.join(' ')} 원`
+}
+
 /** 숫자 → 한글 금액 (임금명세서 "일금 ○○원정") */
 export function wonKorean(n: number): string {
   const digits = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구']
