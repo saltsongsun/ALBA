@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { markTabNav } from './PageTransition'
 
 /**
  * 아래 탭을 누른 순간 표시(밑 동그라미·색)부터 그 탭으로 옮김. 새 화면이 다 그려질 때까지 기다리지 않음.
@@ -12,6 +13,7 @@ export function useTabTarget(path: string) {
   const onTap = (href: string) => (e: React.MouseEvent) => {
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
     setPending({ href, from: path })
+    markTabNav()
   }
   return [shown, onTap] as const
 }

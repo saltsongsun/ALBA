@@ -1,34 +1,67 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { ViewTransition } from 'react'
+import { useEffect, useState } from 'react'
 
 /**
- * 화면 전환 (React ViewTransition). 모양은 globals.css '화면 전환'.
- * · 아래 탭으로 다른 화면: 이전 내용은 빠르게 흐려지고 새 내용이 살짝 떠오름 ('page')
- * · 공고·글·대화 열기 Link transitionTypes={['nav-forward']}: 오른쪽에서 / ← 돌아가기 ['nav-back']: 왼쪽에서
- * · 휴대폰 뒤로 가기(버튼·밀기)는 Next가 전환 없이 바로 바꿈 → 브라우저·휴대폰이 보여 주는 모양 그대로 (두 번 움직이지 않음)
- * · 같은 화면 안에서 바뀌는 것(거르기 칩·새로 고침)은 움직이지 않음
+ * 화면 전환 — CSS만 씀 (globals.css '화면 전환').
+ * 예전에는 브라우저 View Transition으로 화면을 캡처해 바꿨는데, 캡처할 때마다 화면이 잠깐 멈춰
+ * 휴대폰에서 뚝뚝 끊겼음. 지금은 새 화면만 위치·투명도로 움직여서 화면을 멈추지 않음.
+ * · 아래 탭으로 다른 화면: 살짝 떠오름 (tab)
+ * · 더 깊이 들어가기(공고·글·대화 열기): 오른쪽에서 (forward) / 돌아가기: 왼쪽에서 (back)
+ * · 처음 열 때·같은 화면 안에서 바뀔 때(거르기 칩·새로 고침)는 움직이지 않음
+ * · 불러오던 회색 자리 → 실제 내용은 내용이 살짝 나타남
+ * (곳곳의 Link transitionTypes는 예전 View Transition용이라 지금은 아무 영향 없음)
  */
-const DIRECTIONS = { 'nav-forward': 'nav-forward', 'nav-back': 'nav-back' } as const
+export type NavDir = 'none' | 'tab' | 'forward' | 'back'
+
+let prevPath: string | null = null
+let tabIntent = false
+/** 아래 탭을 눌렀을 때 (화면 깊이와 상관없이 '탭 이동'으로) — BottomNav·AdminTabBar */
+export const markTabNav = () => {
+  tabIntent = true
+}
+
+/** 아래 탭 첫 화면들 (서로 오가면 '탭 이동') */
+const TAB_ROOTS = new Set([
+  '/', '/me', '/community', '/me/chat', '/me/profile', '/pro', '/pro/money',
+  '/admin', '/admin/jobs', '/admin/workers', '/admin/chat', '/admin/reports', '/admin/vendors', '/admin/docs', '/admin/settings', '/admin/companies', '/admin/community',
+])
+/** child가 parent 화면 안쪽인지 (첫 화면 '/' 아래는 공고 화면) */
+const under = (child: string, parent: string) => (parent === '/' ? child.startsWith('/jobs/') : child.startsWith(`${parent}/`))
+const depth = (p: string) => p.split('/').filter(Boolean).length
+
+export function navDirection(from: string | null, to: string, tab: boolean): NavDir {
+  if (!from || from === to) return 'none'
+  if (tab || (TAB_ROOTS.has(from) && TAB_ROOTS.has(to))) return 'tab'
+  if (under(to, from)) return 'forward'
+  if (under(from, to)) return 'back'
+  return depth(to) > depth(from) ? 'forward' : depth(to) < depth(from) ? 'back' : 'tab'
+}
 
 export default function PageTransition({ children }: { children: React.ReactNode }) {
   const path = usePathname()
+  // 주소가 바뀔 때마다 새 칸 (template는 '/community' → '/community/글'처럼 앞부분이 같으면 다시 그려지지 않으므로)
   return (
-    <ViewTransition key={path} enter={{ ...DIRECTIONS, default: 'page' }} exit={{ ...DIRECTIONS, default: 'page' }} update={{ ...DIRECTIONS, default: 'none' }} default="none">
-      <div className="page-rise">{children}</div>
-    </ViewTransition>
+    <PageIn key={path} path={path}>
+      {children}
+    </PageIn>
   )
 }
 
-/**
- * 불러오는 동안의 회색 자리(Skeleton). 실제 내용이 오면 회색 자리가 부드럽게 사라지며 내용으로 바뀜 (뚝 바뀌지 않게).
- * 화면에 들어올 때는 바깥 화면 전환에 맡김
- */
-export function SkeletonFade({ children }: { children: React.ReactNode }) {
+function PageIn({ path, children }: { path: string; children: React.ReactNode }) {
+  // 새 칸을 처음 그릴 때 한 번만 방향을 정함
+  const [dir] = useState<NavDir>(() => {
+    const d = navDirection(prevPath, path, tabIntent)
+    tabIntent = false
+    return d
+  })
+  useEffect(() => {
+    prevPath = path
+  }, [path])
   return (
-    <ViewTransition enter="none" exit="skeleton-out" update="none" default="none">
+    <div className="page-in" data-dir={dir}>
       {children}
-    </ViewTransition>
+    </div>
   )
 }

@@ -221,17 +221,25 @@
   }
 }
 
-/* 스크롤하면 머리글 아래에 그림자 (지원하는 브라우저만, 자바스크립트 없이) */
+/* 스크롤하면 머리글 아래에 그림자 (지원하는 브라우저만, 자바스크립트 없이).
+   그림자는 따로 그려 둔 층의 투명도만 바꿈 (스크롤할 때마다 다시 그리지 않게) */
 @supports (animation-timeline: scroll()) {
-  .scroll-shadow {
+  .scroll-shadow::after {
+    content: '';
+    position: absolute;
+    inset-inline: 0;
+    top: 100%;
+    height: 14px;
+    pointer-events: none;
+    background: linear-gradient(rgb(0 0 0 / 0.07), transparent);
+    opacity: 0;
     animation: header-shadow linear both;
     animation-timeline: scroll();
     animation-range: 0 48px;
   }
   @keyframes header-shadow {
     to {
-      border-color: transparent;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+      opacity: 1;
     }
   }
 }
@@ -433,20 +441,13 @@
   }
 }
 
-/* 불러오는 중 회색 자리: 빛이 화면을 가로질러 한 번에 쓸고 지나감 (모든 자리가 같은 빛을 공유) */
-.skeleton [class*='bg-line'] {
-  background-image: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.65) 50%, transparent 80%);
-  background-size: 200vw 100%;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  animation: shimmer 1.5s ease-in-out infinite;
+/* 불러오는 중 회색 자리: 전체가 천천히 숨 쉬듯 밝아졌다 흐려짐 (투명도만 바꿔 그리기를 다시 하지 않음 — 휴대폰에서 끊기지 않게) */
+.skeleton {
+  animation: skeleton-pulse 1.4s ease-in-out infinite;
 }
-@keyframes shimmer {
-  from {
-    background-position: -200vw 0;
-  }
-  to {
-    background-position: 200vw 0;
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.55;
   }
 }
 
@@ -488,135 +489,49 @@
   }
 }
 
-/* ── 화면 전환 (components/PageTransition.tsx · React ViewTransition) ──
-   화면 내용만 움직이고 머리글·아래 탭·배경(root)은 제자리. 움직이는 동안에도 누르는 건 그대로 됨.
-   짧게(0.3초 안), 끝은 멈추듯 감속하고 튕기지 않음 — 손가락보다 화면이 늦게 따라오지 않게 */
+/* ── 화면 전환 (components/PageTransition.tsx) ──
+   CSS만 씀: 화면을 캡처하지 않고 새 화면을 위치(transform)·투명도로만 움직여서 휴대폰에서도 멈춤 없이 부드러움.
+   머리글·아래 탭은 화면 밖(레이아웃)이라 그대로. 짧게(0.3초 안), 끝은 멈추듯 감속, 튕김 없음 */
 :root {
   --vt-ease: cubic-bezier(0.2, 0, 0, 1);
 }
-::view-transition {
-  pointer-events: none;
+/* 아래 탭으로 다른 화면: 살짝 떠오름 */
+.page-in[data-dir='tab'] {
+  animation: pt-rise 220ms var(--vt-ease) both;
 }
-::view-transition-old(root) {
-  display: none;
+/* 깊이 들어가기: 오른쪽에서 / 돌아가기: 왼쪽에서 */
+.page-in[data-dir='forward'] {
+  --pt-x: 28px;
+  animation: pt-slide 260ms var(--vt-ease) both;
 }
-::view-transition-new(root) {
-  animation: none;
+.page-in[data-dir='back'] {
+  --pt-x: -28px;
+  animation: pt-slide 260ms var(--vt-ease) both;
 }
-/* 머리글·아래 탭·맨 위로 버튼은 전환하는 동안 따로 떼어 맨 위에 그대로 둠.
-   (안 그러면 움직이는 화면 내용이 그 위를 덮어서, 탭을 누르는 순간 아래 탭이 사라졌다 나타남)
-   단, 사파리(아이폰·맥 — font: -apple-system-body를 아는 브라우저)는 빼 둠: 2026-11-04 아이폰에서 아래 탭이 화면 가운데에 뜨고
-   머리글이 위로 사라지는 문제가 보고됨 (사파리가 화면에 붙은 fixed 요소를 따로 뗄 때 높이를 잘못 잡는 것으로 보임).
-   사파리에서는 예전처럼 머리글·아래 탭이 함께 그대로 있음 */
-@supports not (font: -apple-system-body) {
-  :root:active-view-transition [data-app-header] {
-    view-transition-name: app-header;
-  }
-  :root:active-view-transition [data-bottom-nav] {
-    view-transition-name: app-tabbar;
-  }
-  :root:active-view-transition [data-admin-tabbar] {
-    view-transition-name: app-admin-tabbar;
-  }
-  :root:active-view-transition [data-scroll-top] {
-    view-transition-name: app-scroll-top;
-  }
+/* 새 화면(또는 불러오던 회색 자리 대신 들어온 실제 내용)은 투명에서 나타남 */
+.page-in:not([data-dir='none']) > * {
+  animation: pt-fade 200ms ease-out both;
 }
-::view-transition-group(app-header),
-::view-transition-group(app-tabbar),
-::view-transition-group(app-admin-tabbar),
-::view-transition-group(app-scroll-top) {
-  animation: none;
-  z-index: 1;
-}
-::view-transition-old(app-header),
-::view-transition-old(app-tabbar),
-::view-transition-old(app-admin-tabbar),
-::view-transition-old(app-scroll-top) {
-  display: none;
-}
-::view-transition-new(app-header),
-::view-transition-new(app-tabbar),
-::view-transition-new(app-admin-tabbar),
-::view-transition-new(app-scroll-top) {
-  animation: none;
-}
-/* 다른 화면으로 (아래 탭): 이전 내용은 바로 흐려지고, 새 내용이 살짝 떠오름 */
-::view-transition-old(.page) {
-  animation: 90ms linear both vt-out;
-}
-::view-transition-new(.page) {
-  animation: 220ms var(--vt-ease) 30ms both vt-rise;
-}
-/* 깊이 들어가기(공고·글·대화 열기): 새 화면이 오른쪽에서 / ← 돌아가기: 왼쪽에서 */
-::view-transition-old(.nav-forward) {
-  --vt-x: -24px;
+/* (불러오는 중 회색 자리는 나타난 뒤 숨쉬기를 이어서) */
+.page-in:not([data-dir='none']) > .skeleton {
   animation:
-    100ms linear both vt-out,
-    280ms var(--vt-ease) both vt-away;
+    pt-fade 200ms ease-out both,
+    skeleton-pulse 1.4s ease-in-out 200ms infinite;
 }
-::view-transition-new(.nav-forward) {
-  --vt-x: 32px;
-  animation:
-    200ms var(--vt-ease) 40ms both vt-fade,
-    300ms var(--vt-ease) both vt-slide;
-}
-::view-transition-old(.nav-back) {
-  --vt-x: 24px;
-  animation:
-    100ms linear both vt-out,
-    280ms var(--vt-ease) both vt-away;
-}
-::view-transition-new(.nav-back) {
-  --vt-x: -32px;
-  animation:
-    200ms var(--vt-ease) 40ms both vt-fade,
-    300ms var(--vt-ease) both vt-slide;
-}
-/* 불러오던 회색 자리 → 실제 내용: 회색 자리가 걷히며 그 아래 내용이 드러남 (뚝 바뀌지 않게) */
-::view-transition-old(.skeleton-out) {
-  animation: 160ms ease-out both vt-out;
-}
-@keyframes vt-fade {
+@keyframes pt-rise {
   from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
+    transform: translateY(8px);
   }
 }
-@keyframes vt-out {
-  to {
-    opacity: 0;
-  }
-}
-@keyframes vt-rise {
+@keyframes pt-slide {
   from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
+    transform: translateX(var(--pt-x));
   }
 }
-@keyframes vt-slide {
+@keyframes pt-fade {
+  /* 0이 아니라 0.35부터: 회색 자리가 사라진 뒤 빈 화면이 깜빡이지 않게 */
   from {
-    translate: var(--vt-x) 0;
-  }
-  to {
-    translate: 0 0;
-  }
-}
-@keyframes vt-away {
-  to {
-    translate: var(--vt-x) 0;
-  }
-}
-/* 화면 전환을 지원하지 않는 브라우저: 예전처럼 새 화면이 떠오르기만 */
-@supports not (view-transition-name: none) {
-  .page-rise {
-    animation: var(--animate-rise);
+    opacity: 0.35;
   }
 }
 
@@ -808,9 +723,6 @@
     background-image: linear-gradient(160deg, var(--dk-brand-bg) 0%, var(--dk-surface) 65%);
   }
   /* 불러오는 중 빛은 은은하게 */
-  & .skeleton [class*='bg-line'] {
-    background-image: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.07) 50%, transparent 80%);
-  }
 }
 
 /* 기기에서 '동작 줄이기'를 켰으면 움직임을 거의 없앰 */
@@ -823,12 +735,6 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation-duration: 0s !important;
-    animation-delay: 0s !important;
   }
 }
 
