@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
+import LiveNumber from '@/components/LiveNumber'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
@@ -135,14 +136,18 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
           <section className={`${companies.length > 1 ? '-mt-3 ' : ''}grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20`}>
             {(
               [
-                ['근무', `${total.days}일`],
-                ['행사', `${items.length}곳`],
-                ['실수령', won(total.net)],
+                ['근무', total.days, '일'],
+                ['행사', items.length, '곳'],
+                ['실수령', Math.round(total.net), '원'],
               ] as const
-            ).map(([k, v]) => (
+            ).map(([k, v, unit]) => (
               <div key={k}>
                 <p className="text-xs font-semibold opacity-80">{k}</p>
-                <p className="mt-0.5 text-lg font-extrabold tracking-tight whitespace-nowrap tabular-nums">{v}</p>
+                {/* 화면을 열면 0에서 그 숫자까지 올라감 ('움직임 줄이기'면 바로) */}
+                <p className="mt-0.5 text-lg font-extrabold tracking-tight whitespace-nowrap tabular-nums" data-summary={k}>
+                  <LiveNumber value={v} countUp />
+                  {unit}
+                </p>
               </div>
             ))}
           </section>

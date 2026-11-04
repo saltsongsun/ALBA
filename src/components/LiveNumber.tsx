@@ -11,6 +11,8 @@ const COUNT_MS = 650
 export default function LiveNumber({ value, className = '', countUp = false }: { value: number; className?: string; countUp?: boolean }) {
   const prev = useRef(value)
   const ref = useRef<HTMLSpanElement>(null)
+  // 올라가는 중인 애니메이션 (숫자가 바뀌면 멈추고 새 숫자를 보여 줘야 함)
+  const raf = useRef(0)
   const [shown, setShown] = useState(value)
 
   // 처음 그릴 때 화면에 숫자가 보이기 전에 0으로 바꿔 두고 올라가게 (서버 화면은 실제 숫자라 깜빡임 없음)
@@ -21,14 +23,13 @@ export default function LiveNumber({ value, className = '', countUp = false }: {
     } catch {}
     setShown(0)
     const start = performance.now()
-    let raf = 0
     const step = (t: number) => {
       const p = Math.min(1, (t - start) / COUNT_MS)
       setShown(Math.round(value * (1 - Math.pow(1 - p, 3))))
-      if (p < 1) raf = requestAnimationFrame(step)
+      if (p < 1) raf.current = requestAnimationFrame(step)
     }
-    raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
+    raf.current = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf.current)
     // 처음 한 번만 (그 뒤 바뀌는 숫자는 아래 '통 튀기'로)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -36,6 +37,8 @@ export default function LiveNumber({ value, className = '', countUp = false }: {
   useEffect(() => {
     if (prev.current === value) return
     prev.current = value
+    // 처음 올라가는 중에 숫자가 바뀌면(거르기·자동 새로 고침) 올라가기를 멈추고 새 숫자로
+    cancelAnimationFrame(raf.current)
     setShown(value)
     const el = ref.current
     if (!el) return

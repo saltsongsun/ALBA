@@ -5,13 +5,20 @@ import { addCompanyAdmin, createCompany, switchCompany } from '@/app/actions/com
 import { FormMessage, SubmitButton } from './ui'
 
 /** 관리자 화면 위 회사 고르기 (고르면 바로 그 회사 화면으로) */
-export function CompanySwitcher({ companies, current }: { companies: { id: string; name: string }[]; current: string }) {
+export function CompanySwitcher({ companies, current, unread = {} }: { companies: { id: string; name: string }[]; current: string; unread?: Record<string, number> }) {
+  // 다른 회사에 새 문의가 있으면 점 + 고르기 목록에 '· 새 문의 N'
+  const other = Object.values(unread).reduce((n, x) => n + x, 0)
   return (
     <form action={switchCompany} className="min-w-0">
       <label className="flex min-w-0 items-center gap-1.5 text-sm">
-        <span aria-hidden>🏢</span>
+        <span aria-hidden className="relative">
+          🏢
+          {other > 0 && <span data-other-unread className="absolute -top-0.5 -right-1 size-2 animate-pop rounded-full bg-rose-500 ring-2 ring-white" />}
+        </span>
         <span className="sr-only">회사</span>
+        {/* key: 다른 곳(대시보드 안내 등)에서 회사를 바꿔도 고르기 칸이 지금 회사로 맞춰지게 */}
         <select
+          key={current}
           name="company"
           defaultValue={current}
           aria-label="회사 고르기"
@@ -21,6 +28,7 @@ export function CompanySwitcher({ companies, current }: { companies: { id: strin
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
+              {c.id !== current && unread[c.id] ? ` · 새 문의 ${unread[c.id]}` : ''}
             </option>
           ))}
         </select>

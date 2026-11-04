@@ -175,6 +175,17 @@ export const unreadForAdmins = cache(async (companyId: string): Promise<number> 
 })
 
 /**
+ * 여러 회사를 맡은 관리자: 지금 보는 회사 말고 다른 회사에 온 새(안 읽은) 문의 수.
+ * 맡은 회사 목록(adminCompanies) 안에서만, 12곳까지. 새 문의가 있는 회사만 돌려줌
+ */
+export async function otherCompaniesUnread(companies: { id: string; name: string }[], currentId: string): Promise<{ id: string; name: string; n: number }[]> {
+  const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
+  if (!others.length) return []
+  const counts = await Promise.all(others.map((c) => unreadForAdmins(c.id).catch(() => 0)))
+  return others.map((c, i) => ({ id: c.id, name: c.name, n: counts[i] })).filter((c) => c.n > 0)
+}
+
+/**
  * 끝난 행사에서 근무를 마쳤는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (공고별, 이 회사만).
  * 급여 지급을 빠뜨리지 않게 대시보드 '확인할 일'·지난 공고 목록에 표시
  */

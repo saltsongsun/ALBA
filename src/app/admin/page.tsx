@@ -9,7 +9,8 @@ import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
@@ -89,6 +90,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   ])
   // 우리 회사 근무자 후기 (별명, 커뮤니티에 모두 공개된 것과 같음). 못 읽어도 대시보드는 그대로
   const reviewsP = companyReviews(admin.companyId, 2).catch(() => null)
+  // 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (바로 그 회사로 바꿔 보기)
+  const othersP = admin.companies.length > 1 ? otherCompaniesUnread(admin.companies, admin.companyId).catch(() => []) : Promise.resolve([])
   // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
   vendorP.catch(() => {})
   const today = kstDate()
@@ -266,7 +269,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     .filter((m) => m !== null)
   type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string; unit?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
-  const reviews = await reviewsP
+  const [reviews, otherUnread] = await Promise.all([reviewsP, othersP])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
   const paySoon = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date >= today && p.due_date <= in3)
@@ -401,6 +404,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           + 새 공고 등록
         </Link>
       </div>
+      {otherUnread.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
+          <span className="font-semibold text-brand-700">🏢 다른 회사에 새 문의</span>
+          {otherUnread.map((c) => (
+            <form key={c.id} action={switchCompany}>
+              <input type="hidden" name="company" value={c.id} />
+              <SubmitButton className="chip max-w-[14rem]" pendingText="바꾸는 중…">
+                <span className="min-w-0 truncate">{c.name}</span>
+                <b className="text-rose-600">{c.n}</b>
+              </SubmitButton>
+            </form>
+          ))}
+        </div>
+      )}
       {todos.length > 0 && (
         <section className="card animate-pop space-y-2 p-4">
           <h2 className="flex items-center gap-2 font-bold">

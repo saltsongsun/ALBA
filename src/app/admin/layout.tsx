@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
-import { unreadForAdmins } from '@/lib/data'
+import { otherCompaniesUnread, unreadForAdmins } from '@/lib/data'
 import { db } from '@/lib/db'
 import { adminRoomUnreadTotal } from '@/lib/room'
 import { requireAdmin } from '@/lib/session'
@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const admin = await requireAdmin()
   // 대표 관리자에게는 승인을 기다리는 관리자 가입 신청 수도 (회사 설정 옆에 표시)
   const owner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
-  const [unread, joinWait, roomUnread, reports] = await Promise.all([
+  const [unread, joinWait, roomUnread, reports, others] = await Promise.all([
     unreadForAdmins(admin.companyId),
     owner
       ? db()
@@ -37,6 +37,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           .is('resolved_at', null)
           .then((r) => (r.error ? 0 : (r.count ?? 0)))
       : 0,
+    // 여러 회사를 맡았으면 다른 회사의 새 문의 (회사 고르기에 표시)
+    admin.companies.length > 1 ? otherCompaniesUnread(admin.companies, admin.companyId) : Promise.resolve([]),
   ])
   return (
     <>
@@ -51,7 +53,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </span>
             </Link>
             {admin.companies.length > 1 ? (
-              <CompanySwitcher companies={admin.companies} current={admin.companyId} />
+              <CompanySwitcher companies={admin.companies} current={admin.companyId} unread={Object.fromEntries(others.map((o) => [o.id, o.n]))} />
             ) : (
               <p className="min-w-0 truncate text-[15px] font-bold">🏢 {admin.companyName}</p>
             )}

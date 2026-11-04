@@ -12,6 +12,8 @@ let fails = 0
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toISOString().slice(0, 10)
+// 합계 숫자가 0에서 올라가는 효과가 끝날 때까지
+const settled = (p) => p.waitForTimeout(900).then(() => p.waitForFunction(() => [...document.querySelectorAll('[data-summary] [data-value]')].every((e) => e.textContent.replace(/,/g, '') === e.dataset.value), null, { timeout: 4000 })).catch(() => {})
 
 ;(async () => {
   // 오늘 근무를 4시간 하고 퇴근한 것으로 (이번 달 실수령이 생기게)
@@ -65,9 +67,10 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   await chips.filter({ hasText: '새내기행사' }).click()
   await w.waitForURL(/co=/, { timeout: 8000 }).catch(() => {})
   await w.waitForFunction(() => document.querySelector('[data-history-companies] a[aria-current=page]')?.textContent?.includes('새내기행사'), null, { timeout: 8000 }).catch(() => {})
+  await settled(w)
   const body = await w.locator('main').innerText()
   ok('새내기행사만: 그 회사 근무만 보임', body.includes('가을 축제 주차 안내') && !body.includes('경상남도 생활체육대축전 행사장'), body.slice(0, 200).replace(/\n/g, ' | '))
-  ok('합계도 그 회사만 (행사 1곳)', /행사\s*1곳/.test(body))
+  ok('합계도 그 회사만 (행사 1곳)', /행사\s*1곳/.test(body), body.slice(0, 120).replace(/\n/g, ' | '))
   ok('이번 달 막대는 비어 있음', !/\d/.test((await nowBar.innerText()).replace(/\d+월/, '')))
 
   // 막대를 누르면 그 달로 이동
@@ -76,6 +79,7 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   ok('막대 누르면 그 달로 이동', (await w.evaluate(() => location.hash)) === `#m-${past.slice(0, 7)}`)
 
   await w.goto(`${D}/me/history?co=${encodeURIComponent('없는회사')}`)
+  await settled(w)
   ok('모르는 회사면 전체', /행사\s*2곳/.test(await w.locator('main').innerText()))
 
   // ── 3. 최고 관리자: 회사별 한눈에 ──
