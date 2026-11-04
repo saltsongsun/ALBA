@@ -9,6 +9,7 @@ import '@/fonts/pretendard/pretendardvariable-dynamic-subset.css'
 import './globals.css'
 import { APP_DESCRIPTION, APP_NAME, BRAND_COLOR } from '@/lib/brand'
 import { SPLASH } from '@/lib/splash'
+import KeyboardWatch from '@/components/KeyboardWatch'
 
 // 모든 화면이 로그인 상태·DB를 읽으므로 빌드 시 미리 만들지 않습니다.
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </Suspense>
         {children}
         <InstallGuide />
+        {/* 휴대폰 키보드가 올라와 있는 동안 아래 탭을 숨김 (html[data-kb]) */}
+        <KeyboardWatch />
         {/* 뒤에서 난 오류도 바로 복사해 보낼 수 있게 */}
         <ErrorToast />
       </body>

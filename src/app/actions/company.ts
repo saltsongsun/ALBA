@@ -21,13 +21,21 @@ function back(path: string, msg: string): never {
   redirect(`${path}${path.includes('?') ? '&' : '?'}m=${encodeURIComponent(msg)}`)
 }
 
-/** 관리자 화면에서 볼 회사 바꾸기 (들어갈 수 있는 회사만) */
+/** 회사를 바꾼 뒤 돌아갈 수 있는 관리자 화면 (정해 둔 목록만 — 다른 주소로는 보내지 않음) */
+const SECTIONS = ['jobs', 'workers', 'chat', 'reports', 'vendors', 'docs', 'settings', 'companies', 'community']
+/** 보고 있던 화면의 같은 메뉴로 (공고 하나·근무자 한 명처럼 회사마다 다른 화면이면 그 목록으로) */
+function switchTarget(path: string): string {
+  const seg = /^\/admin\/([a-z]+)(?:[/?#]|$)/.exec(path)?.[1]
+  return seg && SECTIONS.includes(seg) ? `/admin/${seg}` : '/admin'
+}
+
+/** 관리자 화면에서 볼 회사 바꾸기 (들어갈 수 있는 회사만). 보던 메뉴에 그대로 남고, 어느 회사로 바꿨는지 안내 */
 export async function switchCompany(form: FormData) {
   const companyId = str(form, 'company', 40)
   const user = await getUser()
   if (!user || user.role !== 'admin') redirect('/')
-  const ok = (await adminCompanies(user.id, user.isSuper)).some((c) => c.id === companyId)
-  if (!ok) back('/admin', '들어갈 수 없는 회사예요.')
+  const target = (await adminCompanies(user.id, user.isSuper)).find((c) => c.id === companyId)
+  if (!target) back('/admin', '들어갈 수 없는 회사예요.')
   ;(await cookies()).set(COMPANY_COOKIE, companyId, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -35,7 +43,7 @@ export async function switchCompany(form: FormData) {
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
   })
-  redirect('/admin')
+  back(switchTarget(str(form, 'back', 300)), `${target.name} 화면으로 바꿨어요`)
 }
 
 /**

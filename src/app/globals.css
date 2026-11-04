@@ -288,6 +288,33 @@
   }
 }
 
+/* ── 키보드 (components/KeyboardWatch.tsx: 휴대폰 키보드가 올라와 있으면 html[data-kb]) ──
+   글을 쓰는 동안은 아래 탭을 내려 숨겨 쓸 자리를 넓히고, 대화 입력칸은 키보드 바로 위로.
+   (아이폰에서 키보드 위로 아래 탭이 떠 화면 가운데를 가리는 일도 없게) */
+[data-bottom-nav],
+[data-admin-tabbar] {
+  transition:
+    translate 220ms var(--ease-spring),
+    opacity 160ms ease-out,
+    visibility 0s;
+}
+:root[data-kb] {
+  --tabbar-space: 8px;
+  /* 숨는 동안 누르거나 초점이 가지 않게 (내려간 뒤 visibility도 끔) */
+  & :is([data-bottom-nav], [data-admin-tabbar]) {
+    translate: 0 calc(100% + 24px);
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      translate 220ms var(--ease-spring),
+      opacity 160ms ease-out,
+      visibility 0s linear 220ms;
+  }
+  & [data-scroll-top] {
+    display: none;
+  }
+}
+
 /* 목록 항목이 차례로 떠오름 (간격은 짧게, 0.15초 안에 모두 시작 — 화면 전환과 겹쳐 길게 출렁이지 않게) */
 .stagger > * {
   animation: var(--animate-rise);

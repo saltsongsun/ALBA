@@ -1,15 +1,19 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { useActionState } from 'react'
 import { addCompanyAdmin, createCompany, switchCompany } from '@/app/actions/company'
 import { FormMessage, SubmitButton } from './ui'
 
-/** 관리자 화면 위 회사 고르기 (고르면 바로 그 회사 화면으로) */
+/** 관리자 화면 위 회사 고르기 (고르면 바로 그 회사 화면으로 — 보던 메뉴 그대로) */
 export function CompanySwitcher({ companies, current, unread = {} }: { companies: { id: string; name: string }[]; current: string; unread?: Record<string, number> }) {
+  const path = usePathname()
   // 다른 회사에 새 문의가 있으면 점 + 고르기 목록에 '· 새 문의 N'
   const other = Object.values(unread).reduce((n, x) => n + x, 0)
   return (
     <form action={switchCompany} className="min-w-0">
+      {/* 보고 있던 메뉴에 그대로 남도록 (서버에서 정해 둔 메뉴만 받음) */}
+      <input type="hidden" name="back" value={path} />
       <label className="flex min-w-0 items-center gap-1.5 text-sm">
         <span aria-hidden className="relative">
           🏢

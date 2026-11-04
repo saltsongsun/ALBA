@@ -11,6 +11,7 @@ import { companyWorkerIds } from '@/lib/company'
 import { isMemberType, MEMBER_TYPES } from '@/lib/members'
 import type { MemberType } from '@/lib/types'
 import { ageOn, fmtDate, kstDate } from '@/lib/time'
+import Flash from '@/components/Flash'
 
 export const metadata: Metadata = { title: '근무자' }
 
@@ -120,6 +121,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
 
   return (
     <div className="space-y-4">
+      <Flash m={sp.m} />
       <RosterOpenBar seconds={rosterLeft} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold">근무자 {users.length}명</h1>

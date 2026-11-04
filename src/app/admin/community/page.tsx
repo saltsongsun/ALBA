@@ -6,18 +6,21 @@ import { ConfirmSubmit } from '@/components/ui'
 import { AUTO_HIDE_REPORTS, ago, moderationQueue } from '@/lib/community'
 import { requireSuper } from '@/lib/session'
 import { plainBody } from '@/lib/stickers'
+import Flash from '@/components/Flash'
 
 export const metadata: Metadata = { title: '커뮤니티 관리' }
 
 const TYPE = { post: '글', comment: '댓글', review: '후기' } as const
 
 /** 최고 관리자: 신고 들어온 글·댓글·후기 확인 → 가리기 / 다시 보이기 (신고가 쌓이면 자동으로 가려져 있음) */
-export default async function CommunityAdminPage() {
+export default async function CommunityAdminPage(props: PageProps<'/admin/community'>) {
   await requireSuper()
+  const sp = await props.searchParams
   const items = await moderationQueue()
   const waiting = items.filter((i) => i.reports > 0).length
   return (
     <div className="space-y-4">
+      <Flash m={sp.m} />
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
           <h1 className="text-2xl font-extrabold">커뮤니티 관리</h1>

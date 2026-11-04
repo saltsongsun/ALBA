@@ -10,6 +10,7 @@ import { plainBody } from '@/lib/stickers'
 import { adminRooms } from '@/lib/room'
 import { fmtDateRange } from '@/lib/time'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
+import Flash from '@/components/Flash'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -48,6 +49,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      <Flash m={sp.m} />
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-2xl font-extrabold">문의</h1>

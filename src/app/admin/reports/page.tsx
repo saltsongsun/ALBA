@@ -5,6 +5,7 @@ import { won } from '@/lib/format'
 import { monthlyRows } from '@/lib/reports'
 import { requireAdmin } from '@/lib/session'
 import { kstDate, kstDateTime, minutesText } from '@/lib/time'
+import Flash from '@/components/Flash'
 
 export const metadata: Metadata = { title: '정산 · 신고자료' }
 
@@ -74,6 +75,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
 
   return (
     <div className="space-y-5">
+      <Flash m={sp.m} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold">정산 · 신고자료</h1>
         <div className="flex items-center gap-1">
