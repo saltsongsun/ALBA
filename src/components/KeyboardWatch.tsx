@@ -15,10 +15,11 @@ const typing = (el: Element | null) =>
  * 아이폰(iOS 26~27) 버그 보정: 키보드가 내려간 뒤에도 브라우저가 화면을 '키보드 있는 높이'로 기억해서
  * 고정 칸(머리글·아래 탭·대화 입력칸)이 실제 보이는 화면보다 offsetTop만큼 위에 그려짐
  * (아래 탭이 화면 가운데에 뜨고, 머리글은 위로 사라짐 · 스크롤할 때마다 오르내림).
- * → 입력 중이 아니고 확대도 안 했는데 visualViewport.offsetTop이 남아 있으면 [data-vv] 칸들을 그만큼 내려 실제 화면에 맞춤.
+ * → 입력 중이 아니고 확대도 안 했는데 보이는 높이(visualViewport.height)가 창 높이보다 작게 남아 있으면(버그 표시)
+ *   offsetTop만큼 [data-vv] 칸들을 내려 실제 화면에 맞춤.
  *   data-vv="pin": 화면에 붙은 칸(머리글·아래 탭·떠 있는 버튼) → 그만큼 내림 (translate)
  *   data-vv="end": 아래에 붙는 sticky 칸(대화 입력칸) → 붙는 기준을 그만큼 낮춤 (--vv, 붙어 있지 않을 땐 그대로)
- * 정상인 기기에선 offsetTop이 늘 0이라 아무것도 하지 않음.
+ * 정상인 기기에선 키보드가 내려가면 높이가 창과 같아져 아무것도 하지 않음 (맨 아래에서 튕길 때도 그대로).
  */
 export default function KeyboardWatch() {
   useEffect(() => {
@@ -41,7 +42,9 @@ export default function KeyboardWatch() {
     }
     const fix = () => {
       frame = 0
-      const next = !typing(document.activeElement) && Math.abs(vv.scale - 1) < 0.02 && vv.offsetTop >= 1 ? Math.round(vv.offsetTop) : 0
+      // 버그 표시: 입력 중이 아닌데 보이는 높이가 창 높이보다 작게 남아 있음 (맨 아래에서 튕길 때처럼 잠깐 생기는 offsetTop은 건드리지 않음)
+      const stuck = !typing(document.activeElement) && Math.abs(vv.scale - 1) < 0.02 && vv.height < window.innerHeight - 1
+      const next = stuck && vv.offsetTop >= 1 ? Math.round(vv.offsetTop) : 0
       if (next === shift) return
       shift = next
       place()

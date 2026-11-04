@@ -73,6 +73,10 @@ const stub = () => {
   await bug(ad, 120, { scale: 1.6 })
   ok('손가락으로 확대 중이면 보정 안 함', (await fix(ad)) === null && (await tr(ad, 'nav[data-admin-tabbar]')) === 'none')
 
+  await bug(ad, 120)
+  await bug(ad, 120, { height: 740 })
+  ok('보이는 높이가 창과 같으면(맨 아래에서 튕길 때 등) 보정 안 함', (await fix(ad)) === null && (await tr(ad, 'nav[data-admin-tabbar]')) === 'none')
+
   await bug(ad, null)
   ok('어긋남이 풀리면 원래대로 (덧붙인 값 없음)', (await fix(ad)) === null && (await ad.evaluate(() => [...document.querySelectorAll('[data-vv]')].every((el) => !el.style.translate && !el.style.getPropertyValue('--vv')))))
   const box = await ad.locator('nav[data-admin-tabbar]').boundingBox()
