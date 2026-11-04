@@ -42,7 +42,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   ])
   return (
     <>
-      <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-black/[0.05] bg-white/75 backdrop-blur-xl backdrop-saturate-[1.8]">
+      <header data-app-header className="no-print scroll-shadow sticky top-0 z-20 border-b border-black/[0.05] bg-white/75 backdrop-blur-xl backdrop-saturate-[1.8]">
         {/* 한 줄: 로고 · 회사(여럿이면 고르기) · 근무자 화면 · 로그아웃 */}
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
           <div className="flex min-w-0 items-center gap-2.5">

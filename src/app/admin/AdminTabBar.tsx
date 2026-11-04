@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useTabTarget } from '@/components/useTabTarget'
 
 type Item = { href: string; label: string; icon: React.ReactNode; exact?: boolean }
 
@@ -64,8 +65,11 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
   }, [open])
 
   const more = isSuper ? [...MORE, ...SUPER] : MORE
-  const inMore = more.some((m) => path.startsWith(m.href))
-  const at = inMore ? 4 : MAIN.findIndex((t) => (t.exact ? path === t.href : path.startsWith(t.href)))
+  // 표시는 누른 순간 옮겨 감 (shown), 화면 읽어 주기(aria-current)는 실제 주소 기준
+  const [shown, onTap] = useTabTarget(path)
+  const tabAt = (p: string) => (more.some((m) => p.startsWith(m.href)) ? 4 : MAIN.findIndex((t) => (t.exact ? p === t.href : p.startsWith(t.href))))
+  const at = tabAt(shown)
+  const current = tabAt(path)
   const moreBadge = joinWait + (isSuper ? reports : 0)
   const count = (href: string) => (href === '/admin/settings' ? joinWait : href === '/admin/community' && isSuper ? reports : 0)
 
@@ -117,7 +121,8 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
               <Link
                 key={t.href}
                 href={t.href}
-                aria-current={active ? 'page' : undefined}
+                onClick={onTap(t.href)}
+                aria-current={i === current ? 'page' : undefined}
                 className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
               >
                 <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">

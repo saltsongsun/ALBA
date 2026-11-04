@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
+import { useTabTarget } from './useTabTarget'
 
 type Tab = { href: string; label: string; on: (path: string) => boolean; icon: React.ReactNode }
 
@@ -89,7 +90,10 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
     if (path.startsWith('/community')) setCmSeen(true)
   }, [path])
   const tabs = mode === 'expert' ? EXPERT_TABS : mode === 'vendor' ? VENDOR_TABS : TABS
-  const at = tabs.findIndex((t) => t.on(path))
+  // 표시는 누른 순간 옮겨 감 (shown), 화면 읽어 주기(aria-current)는 실제 주소 기준
+  const [shown, onTap] = useTabTarget(path)
+  const at = tabs.findIndex((t) => t.on(shown))
+  const current = tabs.findIndex((t) => t.on(path))
   return (
     // 화면 아래에 떠 있는 유리 탭 (iOS 26 느낌): 뒤 내용이 흐리게 비치고, 누른 탭 표시가 미끄러지듯 옮겨 감
     <nav aria-label="주요 메뉴" data-bottom-nav className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
@@ -106,7 +110,8 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
             <Link
               key={t.href}
               href={t.href}
-              aria-current={active ? 'page' : undefined}
+              onClick={onTap(t.href)}
+              aria-current={i === current ? 'page' : undefined}
               className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
             >
               <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">

@@ -1,6 +1,9 @@
-import { ChatSkeleton } from '@/components/Skeleton'
+'use client'
 
-/** 문의 대화를 불러오는 동안 (말풍선 모양) */
+import { useSearchParams } from 'next/navigation'
+import { ChatSkeleton, InboxSkeleton } from '@/components/Skeleton'
+
+/** 문의를 불러오는 동안: 목록(아래 탭 '문의')이면 대화방 줄 모양, 회사와의 대화(?co=)면 말풍선 모양 */
 export default function Loading() {
-  return <ChatSkeleton />
+  return useSearchParams().has('co') ? <ChatSkeleton /> : <InboxSkeleton />
 }

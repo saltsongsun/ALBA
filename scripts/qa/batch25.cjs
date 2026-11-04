@@ -1,6 +1,7 @@
 // 묶음 25: 화면 전환 애니메이션 (React ViewTransition)
 // · 아래 탭으로 다른 화면: 전환이 일어남 · 공고·글 열기: 'nav-forward'(오른쪽에서) · ← 돌아가기: 'nav-back'(왼쪽에서)
-// · 같은 화면 거르기(칩)는 움직이지 않음 · 전환 중에도 머리글·아래 탭은 그대로 · 움직임 줄이기 설정이면 0초
+// · 같은 화면 거르기(칩)는 움직이지 않음 · 전환 중에도 머리글·아래 탭은 그대로(따로 떼어 맨 위에) · 움직임 줄이기 설정이면 0초
+// · 회색 자리 → 실제 내용은 회색 자리가 걷히며 바뀜(뚝 바뀌지 않음) · 문의 탭은 목록 모양 회색 자리 · 탭을 누른 순간 탭 표시부터 옮겨 감
 // node scripts/qa/batch25.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -21,7 +22,11 @@ const spy = () => {
     const rec = { types: (arg && arg.types) || [], pseudo: [] }
     window.__vt.push(rec)
     const t = orig(arg)
-    t.ready.then(() => { rec.pseudo = document.getAnimations().map((a) => `${a.effect?.pseudoElement ?? ''}|${a.animationName ?? ''}|${a.effect?.getTiming().duration}`) }).catch(() => {})
+    t.ready.then(() => {
+      rec.pseudo = document.getAnimations().map((a) => `${a.effect?.pseudoElement ?? ''}|${a.animationName ?? ''}|${a.effect?.getTiming().duration}`)
+      const vtn = (sel) => { const el = document.querySelector(sel); return el ? getComputedStyle(el).viewTransitionName : '' }
+      rec.pin = { header: vtn('[data-app-header]'), tabbar: vtn('[data-bottom-nav]') }
+    }).catch(() => {})
     return t
   }
 }
@@ -55,6 +60,8 @@ const spy = () => {
   ok('아래 탭 → 화면 전환 일어남', v.length >= 1, JSON.stringify(v))
   ok('새 화면은 떠오르는 모양(vt-rise), 머리글·탭은 그대로(root 움직임 없음)', v.some((r) => r.pseudo.some((x) => x.includes('::view-transition-new') && x.includes('vt-rise'))) && !v.some((r) => r.pseudo.some((x) => x.startsWith('::view-transition-new(root)') && !x.includes('|0'))), JSON.stringify(v.map((r) => r.pseudo)))
   ok('전환 뒤 화면 정상', (await w.locator('[data-post-list]').count()) === 1)
+  ok('전환하는 동안 머리글·아래 탭은 따로 떼어 맨 위에 (내용에 덮이지 않음)', v.length > 0 && v.every((r) => r.pin?.header === 'app-header' && r.pin?.tabbar === 'app-tabbar'), JSON.stringify(v.map((r) => r.pin)))
+  ok('전환이 끝나면 따로 떼기도 끝 (평소엔 이름 없음)', await w.evaluate(() => getComputedStyle(document.querySelector('[data-bottom-nav]')).viewTransitionName === 'none'))
 
   // ── 2. 글 열기 → 오른쪽에서 / ← 돌아가기 → 왼쪽에서 ──
   await w.evaluate(() => (window.__vt = []))
@@ -94,7 +101,42 @@ const spy = () => {
   // ── 5. 전환 중에도 누르기 됨 (덮개가 누르기를 막지 않음) ──
   ok('전환 덮개는 누르기를 막지 않음', await w.evaluate(() => { const s = document.createElement('style'); document.head.append(s); const r = [...document.styleSheets].flatMap((x) => { try { return [...x.cssRules] } catch { return [] } }).some((r) => r.selectorText === '::view-transition' && r.style.pointerEvents === 'none'); s.remove(); return r }))
 
-  // ── 6. 움직임 줄이기 ──
+  // ── 6. 처음 가는 화면이 늦게 오면: 회색 자리 → 걷히며 내용 (문의 탭은 목록 모양) ──
+  await fetch(`${MD}/__latency?ms=250`)
+  await w.goto(`${D}/me`)
+  await w.waitForLoadState('networkidle').catch(() => {})
+  await w.evaluate(() => { window.__vt = []; window.__skel = [] ; new MutationObserver(() => { const s = document.querySelector('[data-skeleton]'); if (s) window.__skel.push(s.getAttribute('data-skeleton')) }).observe(document.body, { subtree: true, childList: true }) })
+  await w.locator('nav[data-bottom-nav] a[href="/me/chat"]').click()
+  await w.locator('[data-chat-list]').waitFor({ timeout: 15000 }).catch(() => {})
+  await settle(w)
+  v = await vts(w)
+  const skel = await w.evaluate(() => [...new Set(window.__skel)])
+  ok('문의 탭: 목록 모양 회색 자리(inbox)', skel.includes('inbox') && !skel.includes('chat'), JSON.stringify(skel))
+  ok('회색 자리는 걷히며 내용으로 (뚝 바뀌지 않음)', v.some((r) => r.pseudo.some((x) => x.startsWith('::view-transition-old') && x.includes('|vt-out|160'))), JSON.stringify(v.map((r) => r.pseudo)))
+  await fetch(`${MD}/__latency?ms=5`)
+
+  // ── 7. 탭을 누른 순간 표시부터 옮겨 감 (새 화면을 기다리지 않음) ──
+  const slow = await pg(W)
+  await slow.goto(`${D}/me`)
+  await slow.waitForLoadState('networkidle').catch(() => {})
+  await fetch(`${MD}/__latency?ms=600`)
+  // 누른 바로 그 순간(같은 이벤트 처리 직후)의 표시 — 화면 옮기기(전환)는 아직 시작 전
+  const mid = await slow.evaluate(async () => {
+    const ind = () => document.querySelector('[data-tab-indicator]').getAttribute('style')
+    const before = ind()
+    document.querySelector('nav[data-bottom-nav] a[href="/community"]').dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }))
+    await Promise.resolve()
+    await Promise.resolve()
+    return { before, style: ind(), path: location.pathname, current: document.querySelector('nav[data-bottom-nav] [aria-current=page]')?.getAttribute('href') }
+  })
+  ok('누른 순간 탭 표시가 커뮤니티로 (화면은 아직)', mid.path === '/me' && mid.style !== mid.before && mid.style.includes('translateX(200%)'), JSON.stringify(mid))
+  ok('읽어 주기(aria-current)는 실제 화면 기준', mid.current === '/me', mid.current)
+  await slow.waitForURL(/\/community/, { timeout: 15000 }).catch(() => {})
+  await fetch(`${MD}/__latency?ms=5`)
+  await slow.locator('[data-post-list]').waitFor({ timeout: 10000 }).catch(() => {})
+  ok('화면이 바뀐 뒤에도 표시 그대로 · 읽어 주기도 커뮤니티', (await slow.locator('nav[data-bottom-nav] [aria-current=page]').getAttribute('href')) === '/community' && ((await slow.locator('[data-tab-indicator]').getAttribute('style')) || '').includes('translateX(200%)'))
+
+  // ── 8. 움직임 줄이기 ──
   const rm = await pg(W, { reducedMotion: 'reduce' })
   await rm.goto(`${D}/`)
   await rm.waitForLoadState('networkidle').catch(() => {})

@@ -288,27 +288,24 @@
   }
 }
 
-/* 목록 항목이 차례로 떠오름 */
+/* 목록 항목이 차례로 떠오름 (간격은 짧게, 0.15초 안에 모두 시작 — 화면 전환과 겹쳐 길게 출렁이지 않게) */
 .stagger > * {
   animation: var(--animate-rise);
 }
 .stagger > :nth-child(2) {
-  animation-delay: 40ms;
+  animation-delay: 30ms;
 }
 .stagger > :nth-child(3) {
-  animation-delay: 80ms;
+  animation-delay: 60ms;
 }
 .stagger > :nth-child(4) {
-  animation-delay: 120ms;
+  animation-delay: 90ms;
 }
 .stagger > :nth-child(5) {
-  animation-delay: 160ms;
+  animation-delay: 120ms;
 }
-.stagger > :nth-child(6) {
-  animation-delay: 200ms;
-}
-.stagger > :nth-child(n + 7) {
-  animation-delay: 240ms;
+.stagger > :nth-child(n + 6) {
+  animation-delay: 150ms;
 }
 
 /* iOS 사파리: 날짜·시간 칸이 고유 너비 때문에 칸 밖으로 넘치고, 비어 있으면 높이가 줄어드는 문제 */
@@ -459,7 +456,11 @@
 }
 
 /* ── 화면 전환 (components/PageTransition.tsx · React ViewTransition) ──
-   머리글·아래 탭·배경(root)은 그대로 두고 화면 내용만 움직임. 움직이는 동안에도 누르는 건 그대로 됨 */
+   화면 내용만 움직이고 머리글·아래 탭·배경(root)은 제자리. 움직이는 동안에도 누르는 건 그대로 됨.
+   짧게(0.3초 안), 끝은 멈추듯 감속하고 튕기지 않음 — 손가락보다 화면이 늦게 따라오지 않게 */
+:root {
+  --vt-ease: cubic-bezier(0.2, 0, 0, 1);
+}
 ::view-transition {
   pointer-events: none;
 }
@@ -469,37 +470,74 @@
 ::view-transition-new(root) {
   animation: none;
 }
-/* 다른 화면으로: 이전 내용은 빠르게 흐려지고 새 내용은 살짝 떠오름 */
+/* 머리글·아래 탭·맨 위로 버튼은 전환하는 동안 따로 떼어 맨 위에 그대로 둠.
+   (안 그러면 움직이는 화면 내용이 그 위를 덮어서, 탭을 누르는 순간 아래 탭이 사라졌다 나타남) */
+:root:active-view-transition [data-app-header] {
+  view-transition-name: app-header;
+}
+:root:active-view-transition [data-bottom-nav] {
+  view-transition-name: app-tabbar;
+}
+:root:active-view-transition [data-admin-tabbar] {
+  view-transition-name: app-admin-tabbar;
+}
+:root:active-view-transition [data-scroll-top] {
+  view-transition-name: app-scroll-top;
+}
+::view-transition-group(app-header),
+::view-transition-group(app-tabbar),
+::view-transition-group(app-admin-tabbar),
+::view-transition-group(app-scroll-top) {
+  animation: none;
+  z-index: 1;
+}
+::view-transition-old(app-header),
+::view-transition-old(app-tabbar),
+::view-transition-old(app-admin-tabbar),
+::view-transition-old(app-scroll-top) {
+  display: none;
+}
+::view-transition-new(app-header),
+::view-transition-new(app-tabbar),
+::view-transition-new(app-admin-tabbar),
+::view-transition-new(app-scroll-top) {
+  animation: none;
+}
+/* 다른 화면으로 (아래 탭): 이전 내용은 바로 흐려지고, 새 내용이 살짝 떠오름 */
 ::view-transition-old(.page) {
-  animation: 120ms ease-out both vt-fade reverse;
+  animation: 90ms linear both vt-out;
 }
 ::view-transition-new(.page) {
-  animation: 300ms var(--ease-spring) 60ms both vt-rise;
+  animation: 220ms var(--vt-ease) 30ms both vt-rise;
 }
-/* 깊이 들어가기(공고·글·대화 열기): 새 화면이 오른쪽에서 / 돌아가기: 왼쪽에서 */
+/* 깊이 들어가기(공고·글·대화 열기): 새 화면이 오른쪽에서 / ← 돌아가기: 왼쪽에서 */
 ::view-transition-old(.nav-forward) {
-  --vt-x: -40px;
+  --vt-x: -24px;
   animation:
-    140ms ease-in both vt-fade reverse,
-    320ms var(--ease-spring) both vt-slide reverse;
+    100ms linear both vt-out,
+    280ms var(--vt-ease) both vt-away;
 }
 ::view-transition-new(.nav-forward) {
-  --vt-x: 48px;
+  --vt-x: 32px;
   animation:
-    220ms ease-out 70ms both vt-fade,
-    360ms var(--ease-spring) both vt-slide;
+    200ms var(--vt-ease) 40ms both vt-fade,
+    300ms var(--vt-ease) both vt-slide;
 }
 ::view-transition-old(.nav-back) {
-  --vt-x: 40px;
+  --vt-x: 24px;
   animation:
-    140ms ease-in both vt-fade reverse,
-    320ms var(--ease-spring) both vt-slide reverse;
+    100ms linear both vt-out,
+    280ms var(--vt-ease) both vt-away;
 }
 ::view-transition-new(.nav-back) {
-  --vt-x: -48px;
+  --vt-x: -32px;
   animation:
-    220ms ease-out 70ms both vt-fade,
-    360ms var(--ease-spring) both vt-slide;
+    200ms var(--vt-ease) 40ms both vt-fade,
+    300ms var(--vt-ease) both vt-slide;
+}
+/* 불러오던 회색 자리 → 실제 내용: 회색 자리가 걷히며 그 아래 내용이 드러남 (뚝 바뀌지 않게) */
+::view-transition-old(.skeleton-out) {
+  animation: 160ms ease-out both vt-out;
 }
 @keyframes vt-fade {
   from {
@@ -509,10 +547,15 @@
     opacity: 1;
   }
 }
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
 @keyframes vt-rise {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
@@ -525,6 +568,11 @@
   }
   to {
     translate: 0 0;
+  }
+}
+@keyframes vt-away {
+  to {
+    translate: var(--vt-x) 0;
   }
 }
 /* 화면 전환을 지원하지 않는 브라우저: 예전처럼 새 화면이 떠오르기만 */
