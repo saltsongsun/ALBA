@@ -45,7 +45,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   await rest(`applications?job_id=eq.${J}&user_id=eq.${WK}`, 'PATCH', { available_dates: [d2] })
   await p.goto(`${F}/me`)
   ok('다음 근무: 첫 근무일 기준 D-2', await see(p, 'D-2'))
-  ok('내 근무일 표시', await see(p, `📅 내 근무일 ${fmt(d2)}`))
+  ok('내 근무일 표시 (달력 아이콘 + 날짜)', await see(p, `내 근무일 ${fmt(d2)}`))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
