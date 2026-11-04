@@ -119,7 +119,18 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
         ))}
       </div>
 
-      {tab === 'quotes' && (
+      {/* 새 회사: 등록한 업체가 아직 없으면 견적 양식 대신 '업체부터 등록' 한 단계만 */}
+      {tab === 'quotes' && activeVendors.length === 0 && requests.length === 0 && (
+        <div data-vendor-first>
+          <Empty icon="🏢" title="견적을 받으려면 업체부터 등록해요">
+            <p>상호·연락처만 넣으면 돼요. 등록하면 여러 업체에 한꺼번에 견적을 받아 비교할 수 있어요.</p>
+            <Link href="/admin/vendors?tab=list" className="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">
+              업체 등록하러 가기
+            </Link>
+          </Empty>
+        </div>
+      )}
+      {tab === 'quotes' && (activeVendors.length > 0 || requests.length > 0) && (
         <div className="space-y-3">
           <Fold title="＋ 새 견적 요청" summary="여러 업체에 같은 내용으로 견적을 받아 비교해요" open={!!presetJob || requests.length === 0} className="space-y-4">
             <QuoteRequestForm

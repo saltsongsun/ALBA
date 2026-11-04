@@ -140,7 +140,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
       <section>
         <h2 className="section-title">근무자별 합계</h2>
         {rows.length === 0 ? (
-          <div className="card py-10 text-center text-mute">이 달의 근무 기록이 없습니다.</div>
+          <div className="card py-10 text-center text-mute">이 달의 근무 기록이 없어요.</div>
         ) : (
           <div className="card overflow-x-auto p-0">
             <table className="table text-[13px]">
