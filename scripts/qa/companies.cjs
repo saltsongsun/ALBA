@@ -109,13 +109,16 @@ const errs = []
 
   // ── 4. 지원한 뒤에는 회사2가 그 근무자를 봄, 하지만 회사1 기록은 안 보임 ──
   await a2.goto(`${D}/admin/workers/${W}`)
-  ok('회사2: 지원한 근무자 정보 열림', await see(a2, '근무자'))
+  ok('회사2: 지원한 근무자 정보 열림', await a2.locator('main').getByText('근무자').first().waitFor({ timeout: 6000 }).then(() => true, () => false))
   ok('회사2 근무자 화면: 회사1 공고 이름 없음', !(await see(a2, J_TITLE, 1500)))
   ok('회사2 근무자 화면: 회사1 평가 메모 없음', !(await see(a2, '시간 약속 잘 지킴', 1000)))
 
   // ── 5. 문의함은 회사마다 ──
+  // 대화 목록에 두 회사 문의가 따로 (회사를 고르면 그 회사 대화)
+  await w.goto(`${D}/me/chat`)
+  await w.locator('[data-chat-list]').waitFor({ timeout: 10000 }).catch(() => {})
+  ok('근무자 문의: 대화 목록에 두 회사', (await w.locator('[data-chat-list] a[data-chat-row=company]').count()) === 2 && (await w.locator(`[data-chat-list] a[href="/me/chat?co=${C2}"]`).count()) === 1)
   await w.goto(`${D}/me/chat?co=${C2}`)
-  ok('근무자 문의: 회사 고르기 칩', (await w.locator('nav[aria-label="회사"] a').count()) === 2)
   ok('회사2 문의함엔 회사1 대화 없음', !(await see(w, '촉석문 앞 운영본부 천막입니다.', 1500)))
   await w.locator('textarea[name=body]').fill('두번째 회사에 묻습니다')
   await w.getByRole('button', { name: /보내기|보내/ }).last().click()

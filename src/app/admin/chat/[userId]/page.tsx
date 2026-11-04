@@ -81,7 +81,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
       ) : (
         <ChatMessages messages={messages} viewer="admin" />
       )}
-      <div className="sticky bottom-4 z-10 pt-2">
+      <div className="sticky bottom-[calc(var(--tabbar-space)+6px)] z-10 pt-2 sm:bottom-4">
         <ChatComposer action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...repliesFor(messages.filter((m) => !m.from_admin).at(-1)), ...QUICK_REPLIES])]}
         />
       </div>

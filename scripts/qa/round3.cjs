@@ -95,7 +95,7 @@ const errs = []
 
   // ── 근무자 목록 거르기 · 문의 안 읽음 ──
   await ad.goto(`${D}/admin/workers?f=nophoto`)
-  ok('근무자 목록: 사진 없음만', (await see(ad, '근무자')) && !(await see(ad, '김지원', 1200)))
+  ok('근무자 목록: 사진 없음만', (await ad.locator('main').getByText('근무자').first().waitFor({ timeout: 6000 }).then(() => true, () => false)) && !(await see(ad, '김지원', 1200)))
   await ad.goto(`${D}/admin/chat?unread=1`)
   ok('문의: 안 읽음만', await see(ad, /안 읽음 1/))
 

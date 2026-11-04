@@ -19,7 +19,7 @@ export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false, re
   // 회사 관리는 최고 관리자만
   const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }, { href: '/admin/community', label: '커뮤니티 관리' }] : ITEMS
   return (
-    <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-3 pb-2 text-sm font-semibold">
+    <nav aria-label="관리자 메뉴" className="mx-auto hidden max-w-6xl gap-1 overflow-x-auto px-3 pb-2 text-sm font-semibold sm:flex">
       {items.map((it) => {
         const active = it.exact ? path === it.href : path.startsWith(it.href)
         return (

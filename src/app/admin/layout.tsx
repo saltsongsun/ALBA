@@ -8,6 +8,7 @@ import { requireAdmin } from '@/lib/session'
 import AdminNav from './AdminNav'
 import { CompanySwitcher } from '@/components/company'
 import Logo from '@/components/Logo'
+import AdminTabBar from './AdminTabBar'
 import { APP_NAME } from '@/lib/brand'
 import AppBadge from '@/components/AppBadge'
 
@@ -40,31 +41,36 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <>
       <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-black/[0.05] bg-white/75 backdrop-blur-xl backdrop-saturate-[1.8]">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-          <Link href="/admin" className="flex shrink-0 items-center gap-2 text-[17px] font-extrabold whitespace-nowrap">
-            <Logo mono />
-            {APP_NAME} <span className="hidden text-sm font-semibold text-mute min-[400px]:inline">관리자</span>
-          </Link>
-          <div className="flex items-center gap-0.5 text-sm whitespace-nowrap">
-            <span className="hidden text-mute sm:inline">{admin.name}</span>
-            <Link href="/" className="rounded-lg px-2 py-1.5 font-semibold hover:bg-bg">
+        {/* 한 줄: 로고 · 회사(여럿이면 고르기) · 근무자 화면 · 로그아웃 */}
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <Link href="/admin" aria-label={`${APP_NAME} 관리자 홈`} className="flex shrink-0 items-center gap-2 text-[17px] font-extrabold whitespace-nowrap">
+              <Logo mono />
+              <span className="hidden sm:inline">
+                {APP_NAME} <span className="text-sm font-semibold text-mute">관리자</span>
+              </span>
+            </Link>
+            {admin.companies.length > 1 ? (
+              <CompanySwitcher companies={admin.companies} current={admin.companyId} />
+            ) : (
+              <p className="min-w-0 truncate text-[15px] font-bold">🏢 {admin.companyName}</p>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5 text-sm whitespace-nowrap">
+            <span className="hidden text-mute lg:inline">{admin.name}</span>
+            {/* 휴대폰에서는 아래 탭 '더보기' 안에 */}
+            <Link href="/" className="hidden rounded-lg px-2 py-1.5 font-semibold hover:bg-bg sm:inline">
               근무자 화면
             </Link>
             <LogoutButton className="rounded-lg px-2 py-1.5 text-mute hover:bg-bg" />
           </div>
         </div>
-        {/* 여러 회사를 운영하면 회사 고르기, 하나면 회사 이름만 */}
-        <div className="mx-auto flex max-w-6xl items-center gap-2 px-4 pb-1.5">
-          {admin.companies.length > 1 ? (
-            <CompanySwitcher companies={admin.companies} current={admin.companyId} />
-          ) : (
-            <p className="truncate text-sm font-semibold text-sub">🏢 {admin.companyName}</p>
-          )}
-        </div>
+        {/* 넓은 화면은 위쪽 메뉴, 휴대폰은 아래 탭 (AdminTabBar) */}
         <AdminNav unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
         <AppBadge count={unread + roomUnread} />
       </header>
-      <main className="mx-auto max-w-6xl px-4 pt-5 pb-20">{children}</main>
+      <main className="mx-auto max-w-6xl px-4 pt-5 pb-28 sm:pb-20">{children}</main>
+      <AdminTabBar unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
     </>
   )
 }

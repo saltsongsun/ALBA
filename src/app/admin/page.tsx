@@ -57,6 +57,40 @@ function Bar({ value, max, color }: { value: number; max: number; color: string 
 export default async function AdminHome(props: PageProps<'/admin'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
+  // 다른 조회와 상관없는 것(외주·시작하기·후기)은 먼저 출발 (한 번에 기다리는 횟수를 줄임)
+  // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
+  // 대표 관리자: 승인을 기다리는 관리자 가입 신청
+  const isOwner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  const vendorP = Promise.all([
+    db()
+      .from('vendor_payments')
+      .select('id, due_date, paid_at, invoice_at').eq('company_id', admin.companyId)
+      .then((r) => (r.error ? [] : (r.data as { id: string; due_date: string | null; paid_at: string | null; invoice_at: string | null }[]))),
+    db()
+      .from('quote_requests')
+      .select('id, title, due_date, status').eq('company_id', admin.companyId)
+      .eq('status', 'open')
+      .then((r) => (r.error ? [] : (r.data as { id: string; title: string; due_date: string | null; status: string }[]).filter((q) => q.status === 'open'))),
+    db()
+      .from('quotes')
+      .select('request_id, amount')
+      .then((r) => (r.error ? [] : (r.data as { request_id: string; amount: number | null }[]))),
+    isOwner
+      ? db()
+          .from('company_join_requests')
+          .select('user_id', { count: 'exact', head: true })
+          .eq('company_id', admin.companyId)
+          .then((r) => (r.error ? 0 : (r.count ?? 0)))
+      : 0,
+    // 새 회사 시작하기 체크리스트: 공고를 올린 적·지원을 받은 적·관리자가 더 있는지
+    db().from('jobs').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
+    db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
+    db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
+  ])
+  // 우리 회사 근무자 후기 (별명, 커뮤니티에 모두 공개된 것과 같음). 못 읽어도 대시보드는 그대로
+  const reviewsP = companyReviews(admin.companyId, 2).catch(() => null)
+  // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
+  vendorP.catch(() => {})
   const today = kstDate()
   const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount, unreadChats] = await Promise.all([
     getSettings(admin.companyId),
@@ -102,8 +136,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
   // 오늘 행사의 미출근: 오늘 근무하기로 한 확정자 중 출근 기록이 없는 사람 (시작 시각이 지난 행사만 표시)
   const todayIds = todayJobs.map((j) => j.id)
-  const [todayApps, todayAtts] = todayIds.length
-    ? await Promise.all([
+  const todayP = todayIds.length
+    ? Promise.all([
         db()
           .from('applications')
           .select('job_id, user_id, available_dates').eq('company_id', admin.companyId)
@@ -117,13 +151,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           .eq('work_date', today)
           .then((r) => must(r) as { job_id: string; user_id: string }[]),
       ])
-    : [[], []]
-  const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
-  const absentBy: Record<string, number> = {}
-  for (const a of todayApps) {
-    if (a.available_dates && !a.available_dates.includes(today)) continue
-    if (!arrived.has(`${a.job_id}|${a.user_id}`)) absentBy[a.job_id] = (absentBy[a.job_id] ?? 0) + 1
-  }
+    : Promise.resolve([[], []] as [{ job_id: string; user_id: string; available_dates: string[] | null }[], { job_id: string; user_id: string }[]])
   const started = (j: JobWithAppStatus) => kstAt(today, j.start_time) <= new Date()
 
   const group0 = <T,>(rows: T[], keyOf: (r: T) => string) => {
@@ -136,7 +164,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const outsideJobs = activeJobs.filter((j) => j.contract_method !== 'app' && j.start_date <= soon)
   // 내일 근무하는데 앱 서류(근로계약서 등)에 아직 서명 안 한 확정자 (현장에서 출근이 막히지 않게 하루 전에)
   const tomorrowJobs = activeJobs.filter((j) => j.start_date <= tomorrow && j.end_date >= tomorrow && j.contract_method !== 'paper' && j.contract_method !== 'external')
-  const [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid] = await Promise.all([
+  // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
+  todayP.catch(() => {})
+  const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
@@ -224,42 +254,19 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       : [],
     // 끝난 행사인데 아직 '지급 완료'로 처리하지 않은 근무자 (급여 지급을 빠뜨리지 않게)
     unpaidByJob(admin.companyId, today),
-  ])
+  ])])
+  const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
+  const absentBy: Record<string, number> = {}
+  for (const a of todayApps) {
+    if (a.available_dates && !a.available_dates.includes(today)) continue
+    if (!arrived.has(`${a.job_id}|${a.user_id}`)) absentBy[a.job_id] = (absentBy[a.job_id] ?? 0) + 1
+  }
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
     .map((g) => pendingFix(g, today))
     .filter((m) => m !== null)
   type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string; unit?: string }
-  // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
-  // 대표 관리자: 승인을 기다리는 관리자 가입 신청
-  const isOwner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
-  const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await Promise.all([
-    db()
-      .from('vendor_payments')
-      .select('id, due_date, paid_at, invoice_at').eq('company_id', admin.companyId)
-      .then((r) => (r.error ? [] : (r.data as { id: string; due_date: string | null; paid_at: string | null; invoice_at: string | null }[]))),
-    db()
-      .from('quote_requests')
-      .select('id, title, due_date, status').eq('company_id', admin.companyId)
-      .eq('status', 'open')
-      .then((r) => (r.error ? [] : (r.data as { id: string; title: string; due_date: string | null; status: string }[]).filter((q) => q.status === 'open'))),
-    db()
-      .from('quotes')
-      .select('request_id, amount')
-      .then((r) => (r.error ? [] : (r.data as { request_id: string; amount: number | null }[]))),
-    isOwner
-      ? db()
-          .from('company_join_requests')
-          .select('user_id', { count: 'exact', head: true })
-          .eq('company_id', admin.companyId)
-          .then((r) => (r.error ? 0 : (r.count ?? 0)))
-      : 0,
-    // 새 회사 시작하기 체크리스트: 공고를 올린 적·지원을 받은 적·관리자가 더 있는지
-    db().from('jobs').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
-    db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
-    db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('company_id', admin.companyId).then((r) => r.count ?? 0),
-  ])
-  // 우리 회사 근무자 후기 (별명, 커뮤니티에 모두 공개된 것과 같음). 못 읽어도 대시보드는 그대로
-  const reviews = await companyReviews(admin.companyId, 2).catch(() => null)
+  const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
+  const reviews = await reviewsP
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
   const paySoon = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date >= today && p.due_date <= in3)
@@ -282,6 +289,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   ] as (Todo | false)[]).filter((t): t is Todo => !!t)
   const group = group0
   const todos: Todo[] = [
+    // 새 문의 (따로 띄우던 띠를 할 일 맨 위로)
+    ...(unreadChats > 0 ? [{ key: 'chat', icon: '💬', text: '새 문의 · 답장해 주세요', n: unreadChats, unit: '건', href: '/admin/chat', tone: 'text-rose-600' }] : []),
     ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
       key: `arrive-${g[0].job_id}`,
       icon: '📍',
@@ -383,15 +392,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </p>
         </div>
       )}
-      <div className="card p-4">
-        <PushToggle publicKey={pushPublicKey()} admin />
-      </div>
-      {unreadChats > 0 && (
-        <Link href="/admin/chat" className="flex animate-slide-down items-center justify-between rounded-2xl bg-rose-50 px-5 py-4 text-sm font-semibold text-rose-700 transition active:scale-[0.99]">
-          <span>💬 새 문의 {unreadChats}건이 있어요</span>
-          <span>답장하기 →</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-extrabold">{fmtDate(today)} 현황</h1>
+          <AutoRefresh />
+        </div>
+        <Link href="/admin/jobs/new" className="btn-primary">
+          + 새 공고 등록
         </Link>
-      )}
+      </div>
       {todos.length > 0 && (
         <section className="card animate-pop space-y-2 p-4">
           <h2 className="flex items-center gap-2 font-bold">
@@ -418,35 +427,6 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             ))}
           </ul>
         </section>
-      )}
-      {/* 근무자 후기: 평균 별점 + 최근 2개 (실제로 일한 근무자가 별명으로 남긴 것) */}
-      {reviews && reviews.count > 0 && (
-        <Link href={`/community/company/${admin.companyId}`} className="card-link block space-y-2.5 p-4" data-admin-reviews>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold">⭐ 근무자 후기</h2>
-            <span className="text-sm font-semibold text-brand-600">모두 보기 →</span>
-          </div>
-          <p className="flex items-baseline gap-2">
-            <b className="text-2xl font-extrabold tabular-nums">{reviews.avg.toFixed(1)}</b>
-            <span className="text-amber-500" aria-hidden>
-              {'★'.repeat(Math.round(reviews.avg))}
-              <span className="text-line">{'★'.repeat(5 - Math.round(reviews.avg))}</span>
-            </span>
-            <span className="text-sm text-mute">후기 {reviews.count}개</span>
-          </p>
-          <ul className="space-y-1.5">
-            {reviews.recent.map((r) => (
-              <li key={r.id} className="rounded-xl bg-bg px-3 py-2 text-sm">
-                <p className="line-clamp-2">
-                  <b className="text-amber-500">{'★'.repeat(r.rating)}</b> {r.body}
-                </p>
-                <p className="truncate text-xs text-mute">
-                  {r.jobTitle} · {ago(r.created_at)}
-                </p>
-              </li>
-            ))}
-          </ul>
-        </Link>
       )}
       {short.length > 0 && (
         <section className="card animate-pop space-y-3 border-2 border-rose-200 bg-rose-50/40">
@@ -528,15 +508,6 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <b>회사 설정을 마무리해 주세요:</b> {setupTodo.join(', ')} — 근로계약서·임금명세서에 들어갑니다. →
         </Link>
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-extrabold">{fmtDate(today)} 현황</h1>
-          <AutoRefresh />
-        </div>
-        <Link href="/admin/jobs/new" className="btn-primary">
-          + 새 공고 등록
-        </Link>
-      </div>
       <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="지금 근무 중" value={working.length} href="/admin/jobs" icon="working" tone="bg-emerald-50 text-emerald-600" />
         <Stat label="확정 대기 지원" value={pendingApps.length} href="#pending" icon="pending" tone="bg-amber-50 text-amber-600" />
@@ -713,6 +684,40 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           ))}
         </div>
       </section>
+
+      {/* 근무자 후기 (급한 일이 아니라 맨 아래): 평균 별점 + 최근 2개 (실제로 일한 근무자가 별명으로 남긴 것) */}
+      {reviews && reviews.count > 0 && (
+        <Link href={`/community/company/${admin.companyId}`} className="card-link block space-y-2.5 p-4" data-admin-reviews>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="font-bold">⭐ 근무자 후기</h2>
+            <span className="text-sm font-semibold text-brand-600">모두 보기 →</span>
+          </div>
+          <p className="flex items-baseline gap-2">
+            <b className="text-2xl font-extrabold tabular-nums">{reviews.avg.toFixed(1)}</b>
+            <span className="text-amber-500" aria-hidden>
+              {'★'.repeat(Math.round(reviews.avg))}
+              <span className="text-line">{'★'.repeat(5 - Math.round(reviews.avg))}</span>
+            </span>
+            <span className="text-sm text-mute">후기 {reviews.count}개</span>
+          </p>
+          <ul className="space-y-1.5">
+            {reviews.recent.map((r) => (
+              <li key={r.id} className="rounded-xl bg-bg px-3 py-2 text-sm">
+                <p className="line-clamp-2">
+                  <b className="text-amber-500">{'★'.repeat(r.rating)}</b> {r.body}
+                </p>
+                <p className="truncate text-xs text-mute">
+                  {r.jobTitle} · {ago(r.created_at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Link>
+      )}
+      {/* 휴대폰 알림 켜기·상태 (맨 아래) */}
+      <div className="card p-4">
+        <PushToggle publicKey={pushPublicKey()} admin />
+      </div>
     </div>
   )
 }

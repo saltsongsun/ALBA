@@ -52,6 +52,27 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
   const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone, member_type, specialty'
+  // 조회 현황·후기는 공고 내용과 상관없이 먼저 출발 (기다리는 횟수를 줄임). 못 읽으면 빈 값
+  const viewP = Promise.all([viewStats([id]), admin.companyVerified ? memberViewers(id) : Promise.resolve([] as Awaited<ReturnType<typeof memberViewers>>)])
+    .then(async ([vstats, mviewers]) => ({
+      vstats,
+      mviewers,
+      viewerNames: mviewers.length
+        ? new Map((must(await db().from('users').select('id, name').in('id', mviewers.map((v) => v.user_id))) as { id: string; name: string }[]).map((u) => [u.id, u.name]))
+        : new Map<string, string>(),
+    }))
+  // 이 공고에서 일한 근무자 후기 (이 회사 것만, 가려진 것 빼고). 못 읽어도 화면은 그대로
+  const reviewsP = db()
+    .from('company_reviews')
+    .select('id, rating, body, created_at, hidden_at, job_id, company_id')
+    .eq('job_id', id)
+    .eq('company_id', admin.companyId)
+    .is('hidden_at', null)
+    .then(
+      (r) => ((r.data ?? []) as { id: string; rating: number; body: string; created_at: string; hidden_at: string | null; job_id: string; company_id: string }[]).filter((x) => !x.hidden_at && x.job_id === id && x.company_id === admin.companyId),
+      () => [] as { id: string; rating: number; body: string; created_at: string; hidden_at: string | null; job_id: string; company_id: string }[],
+    )
+  viewP.catch(() => {})
   const [job, settings, origin, apps, atts, docs, allTemplates, myRatings] = await Promise.all([
     companyJob(admin, id),
     getSettings(admin.companyId),
@@ -86,12 +107,6 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   if (!job) notFound()
   // 조회 현황 (관리자만): 확인한 인원·지금 보는 인원·본 가입자
   // 확인 전 회사에는 '본 가입자' 이름을 보여 주지 않음 (공고를 미끼로 회원 이름을 모으지 못하게)
-  const [vstats, mviewers] = await Promise.all([viewStats([id]), admin.companyVerified ? memberViewers(id) : Promise.resolve([] as Awaited<ReturnType<typeof memberViewers>>)])
-  const viewerNames = mviewers.length
-    ? new Map(
-        (must(await db().from('users').select('id, name').in('id', mviewers.map((v) => v.user_id))) as { id: string; name: string }[]).map((u) => [u.id, u.name]),
-      )
-    : new Map<string, string>()
   // 근로계약서를 종이·다른 서비스로 받으면 앱 서명 서류에서 계약서 서식은 뺌
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
@@ -105,9 +120,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 출퇴근 기록은 있는데 지원 내역이 없는 사람(관리자 직접 등록 등)도 정산에 포함
   const known = new Set(apps.map((a) => a.user_id))
   const extraIds = [...new Set(atts.map((a) => a.user_id))].filter((u) => !known.has(u))
-  const extraUsers = extraIds.length
-    ? (must(await db().from('users').select(userCols).in('id', extraIds)) as WorkerLite[])
-    : []
+  const extraUsersP = extraIds.length ? db().from('users').select(userCols).in('id', extraIds).then((r) => must(r) as WorkerLite[]) : Promise.resolve([] as WorkerLite[])
+  const [{ vstats, mviewers, viewerNames }, extraUsers, jobReviews] = await Promise.all([viewP, extraUsersP, reviewsP])
   const users = new Map<string, WorkerLite>([...apps.map((a) => [a.user_id, a.user] as const), ...extraUsers.map((u) => [u.id, u] as const)])
 
   const dates = dateList(job.start_date, job.end_date)
@@ -130,17 +144,6 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     ['docs', `서류${pendingDocs ? ` (대기 ${pendingDocs})` : ''}`],
   ] as const
 
-  // 이 공고에서 일한 근무자 후기 (이 회사 것만, 가려진 것 빼고). 못 읽어도 화면은 그대로
-  const jobReviews = await db()
-    .from('company_reviews')
-    .select('id, rating, body, created_at, hidden_at, job_id, company_id')
-    .eq('job_id', id)
-    .eq('company_id', admin.companyId)
-    .is('hidden_at', null)
-    .then(
-      (r) => ((r.data ?? []) as { id: string; rating: number; body: string; created_at: string; hidden_at: string | null; job_id: string; company_id: string }[]).filter((x) => !x.hidden_at && x.job_id === id && x.company_id === admin.companyId),
-      () => [] as { id: string; rating: number; body: string; created_at: string; hidden_at: string | null; job_id: string; company_id: string }[],
-    )
   const reviewAvg = jobReviews.length ? Math.round((jobReviews.reduce((n, r) => n + r.rating, 0) / jobReviews.length) * 10) / 10 : 0
   return (
     <div className="space-y-5">

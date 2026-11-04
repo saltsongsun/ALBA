@@ -283,7 +283,7 @@
 
 /* 휴대폰에서 아래 탭이 있으면 설치 안내를 탭 위로 올림 (탭을 가리지 않게) */
 @media (width < 40rem) {
-  body:has([data-bottom-nav]) .install-sheet {
+  body:has([data-bottom-nav], [data-admin-tabbar]) .install-sheet {
     bottom: var(--tabbar-space);
   }
 }
