@@ -38,6 +38,9 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   ok('360px: 옆으로 안 밀림', await m.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // 대시보드 순서: 현황 제목 → 확인할 일(새 문의 포함), 따로 뜨던 '새 문의' 띠 없음
+  // (스트리밍으로 그려진 내용이 드러난 뒤에 위치를 잼)
+  await m.locator('main h1', { hasText: '현황' }).first().waitFor({ timeout: 10000 }).catch(() => {})
+  await m.locator('main section', { hasText: '✅ 확인할 일' }).first().waitFor({ timeout: 10000 }).catch(() => {})
   const order = await m.evaluate(() => {
     const y = (el) => (el ? el.getBoundingClientRect().top + scrollY : -1)
     const h1 = [...document.querySelectorAll('main h1')].find((h) => h.textContent.includes('현황'))
