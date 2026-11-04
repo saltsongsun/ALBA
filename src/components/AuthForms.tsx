@@ -1,5 +1,6 @@
 'use client'
 
+import BizNoField from './BizNoField'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
@@ -245,7 +246,7 @@ function PinFields() {
           id="pin"
           name="pin"
           type="password"
-          className="input tracking-[0.3em]"
+          className="input tracking-[0.3em] placeholder:tracking-normal"
           inputMode="numeric"
           maxLength={6}
           placeholder="숫자 6자리"
@@ -522,8 +523,8 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
           <label className="label" htmlFor="business_no">
             사업자등록번호
           </label>
-          <input id="business_no" name="business_no" className="input" inputMode="numeric" maxLength={12} placeholder="숫자 10자리" onInput={digitsOnly} required />
-          <p className="hint">사업자등록증의 번호예요. 계약서·명세서에 들어가요.</p>
+          {/* 쓰는 대로 맞는 번호인지 바로 (잘못 치면 가입 전에 알 수 있게) */}
+          <BizNoField placeholder="숫자 10자리" required digits hint="사업자등록증의 번호예요. 계약서·명세서에 들어가요." />
         </div>
         <div>
           <label className="label" htmlFor="ceo_name">

@@ -65,7 +65,8 @@ function png(w = 64, h = 64) {
   ok('빈 칸은 노란 테두리', (await own.locator('input[name=company_address][data-missing]').count()) === 1)
 
   // ── 2. 쓰는 대로 바로 ✓ ──
-  await own.locator('input[name=business_no]').fill('123-45-67890')
+  // (끝자리 검증까지 맞는 번호 — 틀린 번호는 노란 테두리가 남음: batch43)
+  await own.locator('input[name=business_no]').fill('220-81-62517')
   ok('사업자등록번호를 쓰면 바로 ✓ (1/4) · 노란 테두리 사라짐', (await count(own)) === '1/4' && (await own.locator('[data-setup-item=business_no][data-done]').count()) === 1 && (await own.locator('input[name=business_no][data-missing]').count()) === 0)
   // 빈 항목을 누르면 그 칸으로
   await own.evaluate(() => window.scrollTo(0, 0))
@@ -93,7 +94,7 @@ function png(w = 64, h = 64) {
   await own.getByRole('button', { name: /저장/ }).first().click()
   await own.waitForTimeout(1200)
   const [c2] = await rest(`companies?id=eq.${C2}`)
-  ok('저장하면 회사 정보에 들어감', c2?.business_no === '123-45-67890' && c2?.company_address === '경남 진주시 진주대로 1' && c2?.contact_phone?.replace(/\D/g, '') === '01022223333' && !!c2?.seal_image, JSON.stringify({ b: c2?.business_no, a: c2?.company_address, p: c2?.contact_phone, s: !!c2?.seal_image }))
+  ok('저장하면 회사 정보에 들어감', c2?.business_no === '220-81-62517' && c2?.company_address === '경남 진주시 진주대로 1' && c2?.contact_phone?.replace(/\D/g, '') === '01022223333' && !!c2?.seal_image, JSON.stringify({ b: c2?.business_no, a: c2?.company_address, p: c2?.contact_phone, s: !!c2?.seal_image }))
   await own.goto(`${D}/admin/settings`)
   await own.locator('h1', { hasText: '회사 설정' }).waitFor({ timeout: 10000 }).catch(() => {})
   ok('다 채운 회사는 체크 목록이 안 보임', (await list(own).count()) === 0)

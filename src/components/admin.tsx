@@ -10,6 +10,7 @@ import SealField from './SealField'
 import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 import SetupChecklist from './SetupChecklist'
+import BizNoField from './BizNoField'
 
 export function RevealRrn({ userId, masked }: { userId: string; masked: string | null }) {
   const [state, action] = useActionState(revealRrn.bind(null, userId), null)
@@ -245,10 +246,12 @@ export function SettingsForm({ s }: { s: Settings }) {
             <span className="label">대표자</span>
             <input name="ceo_name" className="input" defaultValue={s.ceo_name ?? ''} />
           </label>
-          <label>
-            <span className="label">사업자등록번호</span>
-            <input name="business_no" className="input" defaultValue={s.business_no ?? ''} placeholder="000-00-00000" />
-          </label>
+          <div>
+            <label className="label" htmlFor="business_no">
+              사업자등록번호
+            </label>
+            <BizNoField defaultValue={s.business_no ?? ''} placeholder="000-00-00000" />
+          </div>
           <label>
             <span className="label">회사 전화</span>
             <input name="company_phone" className="input" defaultValue={s.company_phone ?? ''} />
