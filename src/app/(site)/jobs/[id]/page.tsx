@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Icon from '@/components/Icon'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { applyJob, cancelApplication, changeDates } from '@/app/actions/worker'
@@ -180,7 +181,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       <Flash m={sp.m} />
       {/* 공고 링크로 가입한 직후: 가입이 끝났고 아직 지원은 안 됐다고 분명히 (지원 버튼을 가입 마지막 단계로 착각하지 않게) */}
       {sp.joined === '1' && user && (!app || app.status === 'cancelled') && (
-        <div className="mb-3 animate-pop rounded-2xl border-2 border-emerald-200 bg-emerald-50 p-4">
+        <div className="mb-3 animate-pop rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200/70">
           <p className="font-bold text-emerald-800">🎉 가입이 끝났어요</p>
           <p className="mt-1 text-sm text-emerald-900">
             아직 이 {expert ? '의뢰' : '공고'}에 <b>지원하지 않았어요.</b> 내용을 보고 함께하고 싶을 때만 아래 지원 버튼을 눌러 주세요.
@@ -188,7 +189,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         </div>
       )}
       {job.status === 'cancelled' && (
-        <div className="mb-3 animate-pop rounded-2xl border-2 border-rose-200 bg-rose-50 p-4">
+        <div className="mb-3 animate-pop rounded-2xl bg-rose-50 p-4 ring-1 ring-rose-200/70">
           <p className="font-bold text-rose-700">❌ 취소된 행사예요</p>
           <p className="mt-1 text-sm text-rose-900">
             {app ? '지원·확정은 모두 취소됐어요. 사유는 문의함에서 볼 수 있어요.' : '이 행사는 열리지 않아요. 다른 모집 공고를 확인해 주세요.'}
@@ -359,7 +360,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       )}
       <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
         {clashes.length > 0 && (
-          <div className="animate-pop rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-sm">
+          <div className="animate-pop rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200/70">
             <p className="font-bold text-amber-900">⚠️ 같은 시간에 잡힌 근무가 있어요</p>
             <ul className="mt-1.5 space-y-1 text-amber-900">
               {clashes.map(({ m, at }) => (
@@ -401,10 +402,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             {app.available_dates && <p className="text-sm text-sub">가능한 날: {app.available_dates.map(fmtDate).join(', ')}</p>}
             {app.status === 'approved' && (
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                {app.position && <span className="rounded-lg bg-brand-50 px-2.5 py-1 font-bold text-brand-700">📍 내 배치 · {app.position}</span>}
+                {app.position && <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 font-bold text-brand-700"><Icon name="pin" /> 내 배치 · {app.position}</span>}
                 {!ended && (
                   <a href={`/me/calendar/${app.id}`} className="chip h-8 px-3 text-xs">
-                    📅 달력에 넣기
+                    <Icon name="calendar" /> 달력에 넣기
                   </a>
                 )}
               </div>
@@ -434,7 +435,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               {/* 확정되면 같은 근무 단체방 */}
               {app.status === 'approved' && (
                 <Link href={`/me/chat/room/${job.id}`} className="btn-gray shrink-0">
-                  👥 단체방
+                  <Icon name="users" /> 단체방
                 </Link>
               )}
               {app.status === 'applied' && !ended && (
@@ -572,7 +573,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             href={user ? `/me/chat?job=${job.id}` : `/login?next=${encodeURIComponent(`/me/chat?job=${job.id}`)}`}
             className="btn-gray btn-sm"
           >
-            💬 이 공고 문의하기
+            <Icon name="chat" /> 이 공고 문의하기
           </Link>
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>

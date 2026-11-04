@@ -19,6 +19,7 @@ import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
 import PrepChecklist from '@/components/PrepChecklist'
+import Icon from '@/components/Icon'
 import { won } from '@/lib/format'
 import { answerOvertime, answerShift } from '@/app/actions/worker'
 import { calcDay, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
@@ -228,9 +229,9 @@ export default async function MePage(props: PageProps<'/me'>) {
     <>
       {/* 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음) */}
       {!hasAccount && (approved.length > 0 || atts.length > 0) && (
-        <Link href="/me/profile" className="card-link flex items-center gap-3 p-4 ring-2 ring-rose-100">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-rose-50 text-xl">
-            💳
+        <Link href="/me/profile" className="card-link flex items-center gap-3 p-4 ring-rose-200/70">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-2xl bg-rose-50 text-xl text-rose-600">
+            <Icon name="card" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-bold">급여 계좌를 등록해 주세요</span>
@@ -242,8 +243,8 @@ export default async function MePage(props: PageProps<'/me'>) {
 
       {!photoAt && (
         <Link href="/me/profile#photo" className="card-link flex items-center gap-3 p-4">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
-            📷
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-xl text-brand-600">
+            <Icon name="camera" />
           </span>
           <span className="min-w-0 flex-1">
             <span className="block font-bold">얼굴 사진을 올려 주세요</span>
@@ -276,7 +277,7 @@ export default async function MePage(props: PageProps<'/me'>) {
 
       {/* 담당자가 근무시간을 바꿨을 때: 계속하시겠습니까? */}
       {pendingShifts.length > 0 && (
-        <section className="card animate-pop space-y-3 border-2 border-brand-100 bg-brand-50/40">
+        <section className="card animate-pop space-y-3 bg-brand-50/40 ring-brand-100">
           <div>
             <h2 className="font-bold">🕒 근무시간이 바뀌었어요</h2>
             <p className="text-sm text-sub">바뀐 시간으로 계속 근무하실 수 있는지 알려 주세요. 동의하면 바뀐 시간까지 급여가 계산돼요.</p>
@@ -324,7 +325,7 @@ export default async function MePage(props: PageProps<'/me'>) {
 
       {/* 계약 종료 시각 이후로 기록된 근무: 서로 확인해야 급여에 들어감 */}
       {otItems.length > 0 && (
-        <section className="card animate-pop space-y-3 border-2 border-amber-200 bg-amber-50/50">
+        <section className="card animate-pop space-y-3 bg-amber-50/50 ring-amber-200/70">
           <div>
             <h2 className="font-bold">⏱ 계약 시간 이후 근무 확인</h2>
             <p className="text-sm text-sub">계약 종료 시각 이후 시간은 담당자와 서로 확인한 뒤에만 급여에 들어가요.</p>
@@ -381,8 +382,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       )}
 
       {pendingDocs.length > 0 && (
-        <section className="card animate-pop border-2 border-amber-200 bg-amber-50/50">
-          <h2 className="mb-2 font-bold">✍️ 서명할 서류가 {pendingDocs.length}건 있어요</h2>
+        <section className="card animate-pop bg-amber-50/50 ring-amber-200/70">
+          <h2 className="mb-2 flex items-center gap-1.5 font-bold"><Icon name="pen" className="text-amber-600" />서명할 서류가 {pendingDocs.length}건 있어요</h2>
           <p className="mb-3 text-sm text-sub">서명을 마쳐야 근무 시작 버튼을 누를 수 있어요.</p>
           <div className="space-y-2">
             {pendingDocs.map((d) => (
@@ -450,8 +451,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       {/* 내 커뮤니티 글에 새 댓글 */}
       {newComments && (
         <Link href={`/community/${newComments.postId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-new-comments>
-          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
-            💬
+          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-xl text-brand-600">
+            <Icon name="chat" />
             <span className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white tabular-nums">
               {newComments.count > 9 ? '9+' : newComments.count}
             </span>
@@ -499,8 +500,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                 {fmtDateRange(nextApp.job.start_date, nextApp.job.end_date)} {scheduleText(nextApp.job)}
                 {nextApp.job.location_name && ` · ${nextApp.job.location_name}`}
               </p>
-              {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700">📅 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
-              {nextApp.job.meeting_point && <p className="text-sm text-sub">🚩 집결 {nextApp.job.meeting_point}</p>}
+              {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
+              {nextApp.job.meeting_point && <p className="text-sm text-sub"><Icon name="flag" className="text-mute" /> 집결 {nextApp.job.meeting_point}</p>}
               {/* 전날 미리 챙기기: 근무 날 오늘 근무 카드와 같은 체크가 이어짐 */}
               {(() => {
                 const items = [...new Set(`${nextApp.job.dress_code ?? ''},${nextApp.job.supplies ?? ''}`.split(/[,·、/\n]+/).map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 20))].slice(0, 8)
@@ -553,17 +554,17 @@ export default async function MePage(props: PageProps<'/me'>) {
                       <ul className="mt-2 space-y-1 rounded-xl bg-bg px-3 py-2.5 text-sm">
                         {job.meeting_point && (
                           <li>
-                            <span aria-hidden>🚩</span> <b className="font-semibold text-sub">집결</b> {job.meeting_point}
+                            <Icon name="flag" className="text-mute" /> <b className="font-semibold text-sub">집결</b> {job.meeting_point}
                           </li>
                         )}
                         {job.dress_code && (
                           <li>
-                            <span aria-hidden>👕</span> <b className="font-semibold text-sub">복장</b> {job.dress_code}
+                            <Icon name="shirt" className="text-mute" /> <b className="font-semibold text-sub">복장</b> {job.dress_code}
                           </li>
                         )}
                         {job.supplies && (
                           <li>
-                            <span aria-hidden>🎒</span> <b className="font-semibold text-sub">준비물</b> {job.supplies}
+                            <Icon name="bag" className="text-mute" /> <b className="font-semibold text-sub">준비물</b> {job.supplies}
                           </li>
                         )}
                       </ul>
@@ -575,7 +576,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     })()}
                     {a.position && (
                       <p className="mt-1.5 inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 text-sm font-bold text-brand-700">
-                        📍 내 배치 · {a.position}
+                        <Icon name="pin" /> 내 배치 · {a.position}
                       </p>
                     )}
                     {(() => {
@@ -602,7 +603,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                         )}
                         {map && (
                           <a href={map.route ?? map.kakao} target="_blank" rel="noreferrer" className="contact-btn bg-bg text-sub hover:bg-line">
-                            📍 {map.route ? '길찾기' : '지도'}
+                            <Icon name="route" /> {map.route ? '길찾기' : '지도'}
                           </a>
                         )}
                       </div>
@@ -707,8 +708,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <p className="text-sm text-sub">
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
-                  {a.available_dates && <p className="mt-0.5 text-xs font-semibold text-brand-700">📅 내 근무일 {a.available_dates.map(fmtDate).join(' · ')}</p>}
-                  {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700">📍 배치 · {a.position}</p>}
+                  {a.available_dates && <p className="mt-0.5 text-xs font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {a.available_dates.map(fmtDate).join(' · ')}</p>}
+                  {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700"><Icon name="pin" /> 배치 · {a.position}</p>}
                   <ContractNote job={a.job} received={a.contract_received_at} compact />
                   {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
                   {(() => {
@@ -725,7 +726,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <span className={`badge ${APP_STATUS.approved.cls}`}>확정</span>
                   {/* 휴대폰 달력에 넣기 (.ics) */}
                   <a href={`/me/calendar/${a.id}`} className="chip h-8 px-3 text-xs">
-                    📅 달력에 넣기
+                    <Icon name="calendar" /> 달력에 넣기
                   </a>
                 </div>
               </div>

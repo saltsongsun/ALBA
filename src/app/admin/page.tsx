@@ -388,7 +388,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <Flash m={sp.m} />
       {/* 직접 가입해 확인 전인 회사: 무엇이 되고 무엇이 확인 뒤에 열리는지 */}
       {!admin.companyVerified && (
-        <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200/70">
           <p className="font-bold">🔒 회사 확인 중이에요</p>
           <p className="mt-1">
             공고 올리기·지원자 확정·서류·출퇴근·정산은 지금 바로 쓸 수 있어요. 다른 회사에 지원한 사람까지 보이는 <b>해피워크 전체 회원 명단</b>과 번호로 직접 추가는 확인을 마친 뒤에 열려요.
@@ -446,7 +446,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </section>
       )}
       {short.length > 0 && (
-        <section className="card animate-pop space-y-3 border-2 border-rose-200 bg-rose-50/40">
+        <section className="card animate-pop space-y-3 bg-rose-50/40 ring-rose-200/70">
           <div>
             <h2 className="font-bold">🚨 곧 시작하는데 인원이 모자라요</h2>
             <p className="text-sm text-sub">취소나 미확정으로 빈자리가 있어요. 대기자를 확정하거나 예전 근무자에게 모집을 알려 보세요.</p>

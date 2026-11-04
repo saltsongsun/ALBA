@@ -693,18 +693,21 @@
     border-color: var(--dk-brand-bg2);
   }
   & .ring-amber-200,
+  & .ring-amber-200\/70,
   & .border-amber-200 {
     --tw-ring-color: #5a4519;
     border-color: #5a4519;
   }
   & .ring-rose-100,
   & .ring-rose-200,
+  & .ring-rose-200\/70,
   & .border-rose-200 {
     --tw-ring-color: #5c2630;
     border-color: #5c2630;
   }
   & .ring-emerald-100,
   & .ring-emerald-200,
+  & .ring-emerald-200\/70,
   & .border-emerald-200 {
     --tw-ring-color: #1d4d3a;
     border-color: #1d4d3a;

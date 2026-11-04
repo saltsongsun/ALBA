@@ -68,7 +68,7 @@ export default async function ProfilePage() {
         {vendor ? '← 홈' : '← 내 근무'}
       </Link>
       {doneN < checks.length && (
-        <section className="card space-y-3 border-2 border-brand-100">
+        <section className="card space-y-3 ring-brand-100">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-bold">
               정보 채우기 <span className="tabular-nums text-brand-700">{doneN}/{checks.length}</span>

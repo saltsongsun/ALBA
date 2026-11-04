@@ -193,7 +193,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             </Link>
           )}
           {noContract && (
-            <div className="mt-4 animate-pop rounded-2xl border-2 border-amber-200 bg-amber-50/50 p-4">
+            <div className="mt-4 animate-pop rounded-2xl bg-amber-50/50 p-4 ring-1 ring-amber-200/70">
               <p className="font-bold">✍️ {contractName}를 받지 않는 {expertJob ? '의뢰' : '공고'}예요</p>
               <p className="mt-1 text-sm text-sub">
                 {expertJob ? '전문가 의뢰는 용역계약서로 계약해요.' : '근로계약서는 근로기준법 제17조에 따라 서면(전자문서)으로 꼭 줘야 해요.'} 지정하면
