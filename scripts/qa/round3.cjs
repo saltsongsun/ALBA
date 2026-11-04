@@ -49,7 +49,7 @@ const errs = []
   await rest(MD, `signed_docs?id=eq.${DOC_SIGNED}`, 'PATCH', { status: 'void' })
   await wd.reload()
   ok('무효 서류는 근무자가 못 봄 (관리자 문의)', await see(wd, '관리자에게 문의해 주세요'))
-  ok('관리자는 무효 서류도 봄', (await (await ad.reload(), ad.getByText('무효 처리된 서류입니다.').count())) === 1)
+  ok('관리자는 무효 서류도 봄', (await (await ad.reload(), ad.getByText('무효 처리된 서류예요.').count())) === 1)
 
   // ── 개선: 진행 단계 · 내 근무 할 일 배지 · 다른 모집 공고 ──
   await rest(MD, 'jobs', 'POST', { ...(await rest(MD, `jobs?id=eq.${J}`))[0], id: 'cccccccc-0000-4000-8000-0000000000c2', title: '내일 다른 행사', start_date: tomorrow, end_date: tomorrow, status: 'open', applications: [] })

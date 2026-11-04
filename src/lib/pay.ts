@@ -209,6 +209,13 @@ export function calcDay(base: PayRule, a: AttendanceTimes): DayPay {
   }
 }
 
+/**
+ * 오늘 근무 중인 날 수 (출근만 하고 아직 퇴근 전 · 오늘 날짜). 근무 내역에서 '종료 기록 없음' 대신 '오늘 근무 중'으로 보여 줄 때만 씀.
+ * (급여 계산은 그대로 — 퇴근해야 그날이 계산됨)
+ */
+export const workingToday = (rows: Pick<Attendance, 'clock_in' | 'clock_out' | 'work_date'>[], today: string) =>
+  rows.filter((r) => !!r.clock_in && !r.clock_out && r.work_date === today).length
+
 /** 한 사람·한 공고의 정산 (지급 1회 기준으로 소액부징수 판단) */
 export function settle(rule: PayRule, days: DayPay[]): Settlement {
   const sum = (k: keyof DayPay) => days.reduce((s, d) => s + (d[k] as number), 0)

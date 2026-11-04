@@ -316,7 +316,7 @@ export function ClockPanel({
         {pending ? step || '처리 중…' : !open ? '근무 시작' : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}
       </button>
       {confirmOut && !pending && <p className="text-center text-sm font-semibold text-rose-600">실수로 끝나지 않도록 한 번 더 눌러야 종료돼요.</p>}
-      {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치를 함께 기록합니다.</p>}
+      {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치도 함께 기록돼요.</p>}
       <FormMessage state={result} />
       {offline && !pending && (
         <button type="button" onClick={run} className="btn-gray btn-sm w-full">
@@ -767,8 +767,8 @@ export function WithdrawForm() {
     <Fold title="회원 탈퇴" summary="계정 삭제 · 근무 기록은 법에 따라 3년 보관">
       <form action={action} onReset={keepInputs} className="space-y-3">
         <p className="text-sm text-sub">
-          근무 기록이 없으면 정보가 즉시 삭제됩니다. 근무 기록이 있으면 근로기준법에 따라 근로계약서·임금 기록을 3년간 보관한 뒤 파기하며,
-          계정은 바로 사용할 수 없게 됩니다.
+          근무 기록이 없으면 정보가 바로 지워져요. 근무 기록이 있으면 근로기준법에 따라 근로계약서·임금 기록을 3년 동안 보관한 뒤 지우고,
+          계정은 바로 쓸 수 없게 돼요.
         </p>
         <input name="pin" type="password" inputMode="numeric" maxLength={6} className="input" placeholder="비밀번호 확인" required />
         <FormMessage state={state} />

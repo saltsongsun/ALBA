@@ -22,7 +22,7 @@ import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
 import { won } from '@/lib/format'
 import { answerOvertime, answerShift } from '@/app/actions/worker'
-import { calcDay, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
+import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
@@ -220,7 +220,9 @@ export default async function MePage(props: PageProps<'/me'>) {
       if (!job) return null
       const rows = atts.filter((a) => a.job_id === jobId)
       const s = settle(job, rows.map((r) => calcDay(job, r)))
-      return { job, rows, s, paid: rows.every((r) => r.paid) }
+      // 오늘 아직 근무 중이면 '종료 기록 없음'이 아니라 '오늘 근무 중' (퇴근하면 그날이 계산됨)
+      const live = workingToday(rows, today)
+      return { job, rows, s, live, paid: rows.every((r) => r.paid) }
     })
     .filter((x) => x !== null)
 
@@ -764,20 +766,36 @@ export default async function MePage(props: PageProps<'/me'>) {
             </Link>
           </div>
           <div className="stagger space-y-2">
-            {history.slice(0, 3).map(({ job, s, paid }) => (
-              <div key={job.id} className="card space-y-3">
+            {history.slice(0, 3).map(({ job, s, live, paid }) => (
+              <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold">{job.title}</p>
                     <CompanyName job={job} />
                     <p className="text-sm text-sub">
-                      {s.days}일 · {minutesText(s.paidMin)}
-                      {s.incomplete > 0 && <span className="text-amber-600"> · 종료 기록 없음 {s.incomplete}일</span>}
+                      {/* 첫날 근무 중이면 '0일 · 0분' 없이 '오늘 근무 중'만 */}
+                      {!(live > 0 && s.days === 0) && `${s.days}일 · ${minutesText(s.paidMin)}`}
+                      {live > 0 && (
+                        <span className="font-semibold text-emerald-600" data-live-shift>
+                          {s.days > 0 ? ' · ' : ''}오늘 근무 중
+                        </span>
+                      )}
+                      {s.incomplete - live > 0 && <span className="text-amber-600"> · 종료 기록 없음 {s.incomplete - live}일</span>}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
-                    <p className="text-lg font-extrabold whitespace-nowrap">{won(s.net)}</p>
-                    <p className="text-xs whitespace-nowrap text-mute">{paid ? '지급완료' : '실수령 예상'}</p>
+                    {live > 0 && s.days === 0 ? (
+                      // 첫날 근무 중: 0원 대신 (퇴근하면 계산됨)
+                      <>
+                        <p className="text-base font-extrabold whitespace-nowrap text-emerald-600">근무 중</p>
+                        <p className="text-xs whitespace-nowrap text-mute">끝나면 계산돼요</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-lg font-extrabold whitespace-nowrap">{won(s.net)}</p>
+                        <p className="text-xs whitespace-nowrap text-mute">{paid ? '지급완료' : '실수령 예상'}</p>
+                      </>
+                    )}
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">

@@ -4,7 +4,7 @@ import Empty from '@/components/Empty'
 import LiveNumber from '@/components/LiveNumber'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
-import { calcDay, settle } from '@/lib/pay'
+import { calcDay, settle, workingToday } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
 import { fmtDateRange, kstDate, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
@@ -61,6 +61,8 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     rows,
     s: settle(job, rows.map((r) => calcDay(job, r))),
     paid: rows.every((r) => r.paid),
+    // 오늘 아직 근무 중 (퇴근 전) — '종료 기록 없음'이 아니라 '오늘 근무 중'으로
+    live: workingToday(rows, kstDate()),
     worked: rows.some((r) => !!r.clock_in),
     first: rows[rows.length - 1].work_date,
     last: rows[0].work_date,
@@ -200,20 +202,28 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                 <span className="text-sm text-mute tabular-nums">{won(list.reduce((n, it) => n + it.s.net, 0))}</span>
               </div>
               <div className="stagger space-y-2">
-                {list.map(({ job, s, paid, worked, first, last }) => (
-                  <div key={job.id} className="card space-y-3">
+                {list.map(({ job, s, paid, live, worked, first, last }) => (
+                  <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-bold">{job.title}</p>
                         {job.company?.company_name && <p className="truncate text-xs font-semibold text-sub">🏢 {job.company.company_name}</p>}
                         <p className="text-sm text-sub">
-                          {fmtDateRange(first, last)} · {s.days}일 · {minutesText(s.paidMin)}
+                          {fmtDateRange(first, last)}
+                          {!(live > 0 && s.days === 0) && ` · ${s.days}일 · ${minutesText(s.paidMin)}`}
                         </p>
-                        {s.incomplete > 0 && <p className="text-xs text-amber-600">종료 기록 없음 {s.incomplete}일</p>}
+                        {live > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
+                        {s.incomplete - live > 0 && <p className="text-xs text-amber-600">종료 기록 없음 {s.incomplete - live}일</p>}
                       </div>
                       <div className="shrink-0 text-right">
-                        <p className="text-lg font-extrabold tabular-nums">{won(s.net)}</p>
-                        <span className={`badge ${paid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{paid ? '지급완료' : '지급 예정'}</span>
+                        {live > 0 && s.days === 0 ? (
+                          <p className="text-base font-extrabold text-emerald-600">근무 중</p>
+                        ) : (
+                          <>
+                            <p className="text-lg font-extrabold tabular-nums">{won(s.net)}</p>
+                            <span className={`badge ${paid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{paid ? '지급완료' : '지급 예정'}</span>
+                          </>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">

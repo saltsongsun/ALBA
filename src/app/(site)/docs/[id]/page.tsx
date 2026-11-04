@@ -130,7 +130,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           </span>
         </div>
       )}
-      {doc.status === 'void' && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">무효 처리된 서류입니다.</p>}
+      {doc.status === 'void' && <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">무효 처리된 서류예요.</p>}
       {/* 근무자 화면: 복사·저장 막기 + 열람 일시·열람자 워터마크 */}
       <Guard>
       <DocSheet

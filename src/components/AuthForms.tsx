@@ -395,7 +395,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
                 required
               />
             </div>
-            <p className="hint">{pro ? '용역 대금의 사업소득(3.3%) 신고에 필요해요.' : '임금 지급 시 세금·보험 신고에 필요해요.'} 암호화해서 보관합니다.</p>
+            <p className="hint">{pro ? '용역 대금의 사업소득(3.3%) 신고에 필요해요.' : '임금 지급 시 세금·보험 신고에 필요해요.'} 암호화해서 보관해요.</p>
           </div>
           <div>
             <label className="label" htmlFor="phone">
