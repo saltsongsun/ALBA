@@ -114,7 +114,7 @@ export function ErrorToast() {
   }, [])
   if (!report) return null
   return (
-    <div role="alert" className="no-print fixed inset-x-3 bottom-[calc(var(--tabbar-space)+8px)] z-50 mx-auto flex max-w-md animate-pop items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm text-white shadow-xl sm:bottom-4">
+    <div role="alert" data-vv="pin" className="no-print fixed inset-x-3 bottom-[calc(var(--tabbar-space)+8px)] z-50 mx-auto flex max-w-md animate-pop items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-sm text-white shadow-xl sm:bottom-4">
       <span className="min-w-0 flex-1">⚠️ 문제가 생겼어요. 계속되면 오류 내용을 담당자에게 보내 주세요.</span>
       <button
         type="button"

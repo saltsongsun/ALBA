@@ -96,7 +96,7 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
   const current = tabs.findIndex((t) => t.on(path))
   return (
     // 화면 아래에 떠 있는 유리 탭 (iOS 26 느낌): 뒤 내용이 흐리게 비치고, 누른 탭 표시가 미끄러지듯 옮겨 감
-    <nav aria-label="주요 메뉴" data-bottom-nav className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
+    <nav aria-label="주요 메뉴" data-bottom-nav data-vv="pin" className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
       <div className={`glass pointer-events-auto relative mx-auto grid h-16 max-w-md rounded-[26px] p-1.5 ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
         <span
           aria-hidden

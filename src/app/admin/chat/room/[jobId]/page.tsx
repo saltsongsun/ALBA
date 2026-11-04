@@ -55,7 +55,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
       ) : (
         <RoomMessages messages={messages} viewerId={admin.id} />
       )}
-      <div className="sticky bottom-[calc(var(--tabbar-space)+6px)] z-10 pt-2 sm:bottom-4">
+      <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         {open ? (
           <ChatComposer
             action={sendRoom.bind(null, job.id)}

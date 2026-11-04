@@ -18,6 +18,7 @@ export default function ScrollTop() {
       type="button"
       aria-label="맨 위로"
       data-scroll-top
+      data-vv="pin"
       onClick={() => {
         haptic(8)
         const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches

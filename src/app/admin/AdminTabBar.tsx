@@ -76,7 +76,7 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
   return (
     <>
       {open && (
-        <div className="no-print fixed inset-0 z-40 sm:hidden" data-admin-more>
+        <div className="no-print fixed inset-0 z-40 sm:hidden" data-admin-more data-vv="pin">
           <button type="button" aria-label="닫기" className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
           <div role="dialog" aria-label="더보기" className="glass absolute inset-x-3 bottom-[calc(var(--tabbar-space)+8px)] animate-slide-up rounded-[26px] p-2">
             <ul className="grid grid-cols-2 gap-1.5">
@@ -108,7 +108,7 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
           </div>
         </div>
       )}
-      <nav aria-label="관리자 메뉴" data-admin-tabbar className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
+      <nav aria-label="관리자 메뉴" data-admin-tabbar data-vv="pin" className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
         <div className="glass pointer-events-auto relative mx-auto grid h-16 max-w-md grid-cols-5 rounded-[26px] p-1.5">
           <span
             aria-hidden

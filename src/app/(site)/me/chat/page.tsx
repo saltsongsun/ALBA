@@ -124,7 +124,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       )}
 
       {/* 휴대폰은 아래 탭 위에, 넓은 화면은 화면 아래에 붙어 있음 */}
-      <div className="sticky bottom-[calc(var(--tabbar-space)+6px)] z-10 pt-2 sm:bottom-4">
+      <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}

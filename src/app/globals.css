@@ -328,6 +328,11 @@
     display: none;
   }
 }
+/* 아이폰 화면 어긋남 보정 중 (KeyboardWatch: 키보드가 내려간 뒤에도 고정 칸이 위로 떠 있으면 html[data-vvfix])
+   — 스크롤 따라 바로 제자리여야 하므로 움직임 없이 */
+:root[data-vvfix] [data-vv] {
+  transition: none;
+}
 
 /* 목록 항목이 차례로 떠오름 (간격은 짧게, 0.15초 안에 모두 시작 — 화면 전환과 겹쳐 길게 출렁이지 않게) */
 .stagger > * {

@@ -665,6 +665,7 @@ export function JumpToSign() {
     <button
       type="button"
       onClick={() => document.getElementById('sign')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+      data-vv="pin"
       className="no-print fixed inset-x-4 bottom-[calc(var(--tabbar-space)+10px)] z-30 mx-auto max-w-md animate-pop rounded-2xl bg-brand-600 py-3.5 text-base font-bold text-white shadow-lg shadow-brand-600/30 active:scale-[0.98] sm:bottom-6"
     >
       ✍️ 다 읽었어요 · 서명하러 가기 ↓
