@@ -483,12 +483,17 @@ export default async function MePage(props: PageProps<'/me'>) {
         {todayApps.length === 0 ? (
           nextApp ? (
             // 오늘 근무가 없으면 다음 근무를 크게 (며칠 남았는지·시간·장소·길찾기)
-            <Link href={`/jobs/${nextApp.job_id}`} className="card-link block space-y-2 ring-2 ring-brand-100">
+            <div className="card space-y-2 ring-2 ring-brand-100" data-next-work>
               <p className="flex items-center gap-2 text-sm font-bold text-brand-700">
                 <span className="badge bg-brand-600 text-white">{dLabel(firstDay(nextApp))}</span>
                 다음 근무
+                <Link href={`/jobs/${nextApp.job_id}`} className="ml-auto text-sm font-semibold text-brand-600">
+                  공고 보기 →
+                </Link>
               </p>
-              <p className="text-lg font-bold">{nextApp.job.title}</p>
+              <Link href={`/jobs/${nextApp.job_id}`} className="block text-lg font-bold">
+                {nextApp.job.title}
+              </Link>
               <CompanyName job={nextApp.job} />
               <p className="text-sm text-sub">
                 {fmtDateRange(nextApp.job.start_date, nextApp.job.end_date)} {scheduleText(nextApp.job)}
@@ -496,8 +501,13 @@ export default async function MePage(props: PageProps<'/me'>) {
               </p>
               {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700">📅 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
               {nextApp.job.meeting_point && <p className="text-sm text-sub">🚩 집결 {nextApp.job.meeting_point}</p>}
+              {/* 전날 미리 챙기기: 근무 날 오늘 근무 카드와 같은 체크가 이어짐 */}
+              {(() => {
+                const items = [...new Set(`${nextApp.job.dress_code ?? ''},${nextApp.job.supplies ?? ''}`.split(/[,·、/\n]+/).map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 20))].slice(0, 8)
+                return items.length >= 2 ? <PrepChecklist storageKey={`prep-${nextApp.job_id}-${firstDay(nextApp)}`} items={items} /> : null
+              })()}
               <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
-            </Link>
+            </div>
           ) : (
             <Empty icon="🌤️" sticker="schedule" title={pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}>
               {/* 전문가는 알바 공고가 아닌 전문가 의뢰 목록으로 */}
