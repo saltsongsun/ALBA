@@ -451,7 +451,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <section className="card animate-pop space-y-3 bg-rose-50/40 ring-rose-200/70">
           <div>
             <h2 className="font-bold">🚨 곧 시작하는데 인원이 모자라요</h2>
-            <p className="text-sm text-sub">취소나 미확정으로 빈자리가 있어요. 대기자를 확정하거나 예전 근무자에게 모집을 알려 보세요.</p>
+            <p className="text-sm text-sub">
+              {appsEver === 0
+                ? '아직 지원자가 없어요. 공고 모음 링크를 단톡방에 올리거나 QR을 붙여 모집을 알려 보세요.'
+                : '취소나 미확정으로 빈자리가 있어요. 대기자를 확정하거나 예전 근무자에게 모집을 알려 보세요.'}
+            </p>
           </div>
           {short.map((j) => {
             const gap = j.headcount - (counts[j.id] ?? 0)
@@ -469,9 +473,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   <b className="text-ink">{when}</b> {hhmm(j.start_time)} 시작 · 확정 {counts[j.id] ?? 0}/{j.headcount}명 · 대기 {wait}명
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  <Link href={`/admin/jobs/${j.id}?tab=apps`} className="chip-primary">
-                    {wait > 0 ? `대기 ${wait}명 확정하러 가기` : '예전 근무자에게 알리기'}
-                  </Link>
+                  {wait === 0 && appsEver === 0 ? (
+                    // 처음 모집하는 회사: 알릴 예전 근무자가 없으니 공고 모음 링크·QR로
+                    <Link href="/admin/jobs/poster" className="chip-primary" data-short-share>
+                      공고 링크·QR로 알리기
+                    </Link>
+                  ) : (
+                    <Link href={`/admin/jobs/${j.id}?tab=apps`} className="chip-primary">
+                      {wait > 0 ? `대기 ${wait}명 확정하러 가기` : '예전 근무자에게 알리기'}
+                    </Link>
+                  )}
                   {j.status === 'closed' && (
                     <form action={setJobStatus.bind(null, j.id, 'open')}>
                       <SubmitButton className="chip" pendingText="여는 중…">
@@ -526,9 +537,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 <b className="block text-sm">공고 모음 링크를 단톡방에 올려 주세요</b>
                 <span className="block text-xs text-sub">근무자가 이 링크로 보고 바로 지원해요</span>
               </p>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-1.5">
                 <CopyButton text={companyLink} label="링크 복사" className="btn-gray btn-sm" />
                 <ShareButton title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} className="btn-primary btn-sm" />
+                {/* 현장·게시판에 붙일 인쇄용 QR */}
+                <Link href="/admin/jobs/poster" className="btn-gray btn-sm" data-start-qr>
+                  QR
+                </Link>
               </div>
             </div>
           )}
@@ -702,6 +717,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
 
       <section>
         <h2 className="section-title">진행·예정 공고</h2>
+        {activeJobs.length === 0 && (
+          <div data-dash-jobs-empty>
+            <Empty icon="📋" title="진행 중인 공고가 없어요">
+              <p>시간·시급·장소만 넣으면 바로 모집을 시작해요.</p>
+              <Link href="/admin/jobs/new" className="btn-primary btn-sm mt-3 inline-flex">
+                + 새 공고 등록
+              </Link>
+            </Empty>
+          </div>
+        )}
         <div className="stagger grid gap-3 md:grid-cols-2">
           {activeJobs.map((j) => (
             <Link key={j.id} href={`/admin/jobs/${j.id}`} className="card-link block">
