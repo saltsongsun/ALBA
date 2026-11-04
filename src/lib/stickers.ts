@@ -13,6 +13,18 @@ export const STICKERS = [
   { id: 'retime', label: '시간 변경했어요' },
   { id: 'brief', label: '업무 전달드려요' },
   { id: 'complete', label: '처리 완료!' },
+  { id: 'yes', label: '네! 좋아요' },
+  { id: 'please', label: '부탁드려요' },
+  { id: 'cheer', label: '오늘도 파이팅!' },
+  { id: 'checking', label: '일정 확인 중' },
+  { id: 'later', label: '확인 후 알려드릴게요' },
+  { id: 'help', label: '도와주세요' },
+  { id: 'cover', label: '대신 근무할게요' },
+  { id: 'rest', label: '쉬고 오세요' },
+  { id: 'tired', label: '힘들어요' },
+  { id: 'paid', label: '급여 지급했어요' },
+  { id: 'payday', label: '급여 들어왔다!' },
+  { id: 'welldone', label: '수고 많았어요!' },
 ] as const
 
 /** 예전 이모티콘 (이미 보낸 대화에 남아 있음): 그림 없이 글자로 보여 줌. 새로 보낼 수는 없음 */

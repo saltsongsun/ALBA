@@ -80,6 +80,18 @@ const see = (p, t, timeout = 6000) => p.getByText(t).first().waitFor({ timeout }
   await w.locator('textarea[name=body]').waitFor({ timeout: 10000 }).catch(() => {})
   ok('공고 문의: 바로 대화 (+ 대화 목록 버튼)', (await w.locator('[data-chat-list]').count()) === 0 && (await w.locator('[data-chat-back]').count()) === 1)
 
+  // ── 6. 병아리 이모티콘 22개 (새로 받은 12개 포함) ──
+  await w.getByRole('button', { name: '이모티콘', exact: true }).click()
+  const picks = w.locator('[role=dialog][aria-label=이모티콘] button')
+  await picks.first().waitFor({ timeout: 5000 }).catch(() => {})
+  ok('이모티콘 22개', (await picks.count()) === 22, String(await picks.count()))
+  const loaded = await w.locator('[role=dialog][aria-label=이모티콘] img').evaluateAll((imgs) => Promise.all(imgs.map((i) => (i.complete ? i.naturalWidth > 0 : new Promise((r) => { i.onload = () => r(i.naturalWidth > 0); i.onerror = () => r(false) })))))
+  ok('그림이 모두 열림', loaded.length === 22 && loaded.every(Boolean), JSON.stringify(loaded))
+  ok('새 이모티콘: 급여 들어왔다! · 대신 근무할게요', (await w.getByRole('button', { name: '급여 들어왔다!' }).count()) === 1 && (await w.getByRole('button', { name: '대신 근무할게요' }).count()) === 1)
+  await w.getByRole('button', { name: '오늘도 파이팅!' }).click()
+  ok('보내면 그림으로', await w.locator('main ol img[alt="이모티콘: 오늘도 파이팅!"]').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
+  ok('저장은 ::s:cheer::', (await rest('messages')).some((m) => m.body === '::s:cheer::'))
+
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED'); process.exit(fails ? 1 : 0)
