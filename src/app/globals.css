@@ -471,18 +471,23 @@
   animation: none;
 }
 /* 머리글·아래 탭·맨 위로 버튼은 전환하는 동안 따로 떼어 맨 위에 그대로 둠.
-   (안 그러면 움직이는 화면 내용이 그 위를 덮어서, 탭을 누르는 순간 아래 탭이 사라졌다 나타남) */
-:root:active-view-transition [data-app-header] {
-  view-transition-name: app-header;
-}
-:root:active-view-transition [data-bottom-nav] {
-  view-transition-name: app-tabbar;
-}
-:root:active-view-transition [data-admin-tabbar] {
-  view-transition-name: app-admin-tabbar;
-}
-:root:active-view-transition [data-scroll-top] {
-  view-transition-name: app-scroll-top;
+   (안 그러면 움직이는 화면 내용이 그 위를 덮어서, 탭을 누르는 순간 아래 탭이 사라졌다 나타남)
+   단, 사파리(아이폰·맥 — font: -apple-system-body를 아는 브라우저)는 빼 둠: 2026-11-04 아이폰에서 아래 탭이 화면 가운데에 뜨고
+   머리글이 위로 사라지는 문제가 보고됨 (사파리가 화면에 붙은 fixed 요소를 따로 뗄 때 높이를 잘못 잡는 것으로 보임).
+   사파리에서는 예전처럼 머리글·아래 탭이 함께 그대로 있음 */
+@supports not (font: -apple-system-body) {
+  :root:active-view-transition [data-app-header] {
+    view-transition-name: app-header;
+  }
+  :root:active-view-transition [data-bottom-nav] {
+    view-transition-name: app-tabbar;
+  }
+  :root:active-view-transition [data-admin-tabbar] {
+    view-transition-name: app-admin-tabbar;
+  }
+  :root:active-view-transition [data-scroll-top] {
+    view-transition-name: app-scroll-top;
+  }
 }
 ::view-transition-group(app-header),
 ::view-transition-group(app-tabbar),

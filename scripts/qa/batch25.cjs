@@ -61,6 +61,14 @@ const spy = () => {
   ok('새 화면은 떠오르는 모양(vt-rise), 머리글·탭은 그대로(root 움직임 없음)', v.some((r) => r.pseudo.some((x) => x.includes('::view-transition-new') && x.includes('vt-rise'))) && !v.some((r) => r.pseudo.some((x) => x.startsWith('::view-transition-new(root)') && !x.includes('|0'))), JSON.stringify(v.map((r) => r.pseudo)))
   ok('전환 뒤 화면 정상', (await w.locator('[data-post-list]').count()) === 1)
   ok('전환하는 동안 머리글·아래 탭은 따로 떼어 맨 위에 (내용에 덮이지 않음)', v.length > 0 && v.every((r) => r.pin?.header === 'app-header' && r.pin?.tabbar === 'app-tabbar'), JSON.stringify(v.map((r) => r.pin)))
+  // 사파리(아이폰)는 따로 떼지 않음: 고정 규칙이 '사파리가 아닐 때만' 안에 들어 있는지
+  ok('따로 떼기는 사파리가 아닐 때만 (@supports not (font: -apple-system-body))', await w.evaluate(() => {
+    const all = [...document.styleSheets].flatMap((x) => { try { return [...x.cssRules] } catch { return [] } })
+    const sup = all.filter((r) => r instanceof CSSSupportsRule && r.conditionText.replace(/\s+/g, '').includes('not(font:-apple-system-body)'))
+    const inside = sup.flatMap((r) => [...r.cssRules].map((c) => c.selectorText))
+    const outside = all.filter((r) => r instanceof CSSStyleRule && /:active-view-transition/.test(r.selectorText)).length
+    return ['[data-app-header]', '[data-bottom-nav]', '[data-admin-tabbar]'].every((k) => inside.some((t) => t?.includes(':active-view-transition') && t.includes(k))) && outside === 0
+  }))
   ok('전환이 끝나면 따로 떼기도 끝 (평소엔 이름 없음)', await w.evaluate(() => getComputedStyle(document.querySelector('[data-bottom-nav]')).viewTransitionName === 'none'))
 
   // ── 2. 글 열기 → 오른쪽에서 / ← 돌아가기 → 왼쪽에서 ──
