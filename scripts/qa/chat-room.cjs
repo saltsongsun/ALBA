@@ -196,6 +196,8 @@ const download = (p, url) =>
   // 예전에 보낸 이모티콘(지금 목록에 없음)은 글자 말풍선으로
   await rest('job_chat', 'POST', { id: 'dddddddd-0000-4000-8000-0000000000e1', job_id: J, company_id: C1, sender_id: W, from_admin: false, body: '::s:late::', pinned_at: null, created_at: new Date().toISOString() })
   await wk.goto(`${D}${room}`)
+  // (스트리밍으로 그려진 내용은 'load' 직후 잠깐 뒤에 드러날 수 있어 기다림)
+  await wk.locator('main ol [role=img][aria-label="이모티콘: 조금 늦어요"]').first().waitFor({ timeout: 8000 }).catch(() => {})
   ok('예전 이모티콘: 글자로 보임', (await wk.locator('main ol [role=img][aria-label="이모티콘: 조금 늦어요"]').count()) === 1 && (await see(wk, '🐥 조금 늦어요')))
   ok('끝나고 7일 지나면 읽기만', (await see(wk, '행사가 끝나 대화가 닫혔어요')) && (await wk.locator('textarea[name=body]').count()) === 0)
   r = await call(wk, 'room', 'sendRoom', [J, null], { body: '늦은 글' })

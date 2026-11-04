@@ -47,6 +47,8 @@ const latency = (ms) => fetch(`${MD}/__latency?ms=${ms}`).then((r) => r.json())
     const cdp = await ctx.newCDPSession(p)
     await p.goto(`${D}/me`)
     await p.locator('h2', { hasText: '오늘의 근무' }).waitFor({ timeout: 10000 }).catch(() => {})
+    // 화면이 다 연결된 뒤에 당김 (당기기 처리가 붙기 전이면 아무 일도 안 일어남)
+    await p.waitForLoadState('networkidle').catch(() => {})
     let mid = null
     let rsc = 0
     p.on('request', (r) => { if (r.headers()['rsc'] === '1') rsc++ })
@@ -62,7 +64,9 @@ const latency = (ms) => fetch(`${MD}/__latency?ms=${ms}`).then((r) => r.json())
     ok('새 내용을 서버에서 다시 받아 옴', rsc >= 1, `${rsc}번`)
     ok('끝나면 표시 사라짐', (await p.locator('[data-ptr]').count()) === 0)
 
-    // 조금만 당기면 새로 고치지 않음
+    // 조금만 당기면 새로 고치지 않음 (앞의 새로 고침·미리 받기가 다 끝난 뒤부터 셈)
+    await p.waitForLoadState('networkidle').catch(() => {})
+    await p.waitForTimeout(300)
     rsc = 0
     await drag(p, cdp, 160, 230)
     await p.waitForTimeout(600)
