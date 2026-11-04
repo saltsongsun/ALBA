@@ -28,7 +28,7 @@ export default function TextSizeToggle() {
         <span className="block text-sm text-sub">글자와 버튼을 조금 크게 보여 줘요 (이 휴대폰에만)</span>
       </span>
       <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${big ? 'bg-brand-600' : 'bg-line'}`}>
-        <span className={`absolute top-0.5 size-6 rounded-full bg-white shadow transition-all ${big ? 'left-[22px]' : 'left-0.5'}`} />
+        <span className={`absolute top-0.5 size-6 rounded-full bg-[#fff] shadow transition-all ${big ? 'left-[22px]' : 'left-0.5'}`} />
       </span>
     </button>
   )

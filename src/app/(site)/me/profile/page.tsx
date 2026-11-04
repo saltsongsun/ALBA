@@ -5,6 +5,7 @@ import OpenOnHash from '@/components/OpenOnHash'
 import PhotoUpload from '@/components/PhotoUpload'
 import PushToggle from '@/components/PushToggle'
 import TextSizeToggle from '@/components/TextSizeToggle'
+import ThemeToggle from '@/components/ThemeToggle'
 import { PinForm, ProfileForm, WithdrawForm } from '@/components/worker'
 import type { Career } from '@/lib/careers'
 import { decrypt } from '@/lib/crypto'
@@ -199,8 +200,9 @@ export default async function ProfilePage() {
       <div className="card p-4">
         <PushToggle publicKey={pushPublicKey()} />
       </div>
-      <div className="card p-4">
+      <div className="card divide-y divide-line p-0 [&>*]:p-4">
         <TextSizeToggle />
+        <ThemeToggle />
       </div>
       <PinForm />
       <WithdrawForm />

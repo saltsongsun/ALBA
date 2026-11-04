@@ -534,6 +534,182 @@
   }
 }
 
+/* ── 어두운 화면 (내 정보에서 켬 · 베타, components/ThemeToggle.tsx) ──
+   밝은 화면은 그대로 두고, 켰을 때만 색을 바꿔 씀. 서류·명세서·QR처럼 인쇄하는 화면(.print-sheet)은 늘 밝게 */
+:root[data-theme='dark']:not(:has(.print-sheet)) {
+  color-scheme: dark;
+  --color-bg: #0e1013;
+  --color-ink: #eceef1;
+  --color-sub: #b0b7c1;
+  --color-mute: #808893;
+  --color-line: #2b2f37;
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.7);
+  --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 16px 32px -12px rgb(0 0 0 / 0.8);
+  --dk-surface: #17191e;
+  --dk-raised: #22252b;
+  --dk-glass: rgb(23 25 30 / 0.72);
+  --dk-brand-bg: color-mix(in oklab, var(--color-brand-500) 20%, #17191e);
+  --dk-brand-bg2: color-mix(in oklab, var(--color-brand-500) 30%, #17191e);
+  --dk-brand-text: color-mix(in oklab, var(--color-brand-500) 55%, white);
+
+  /* 바탕: 카드·입력칸·칩·흰 칸 */
+  & .bg-white,
+  & .card,
+  & .fold-card,
+  & .input,
+  & .chip:not(.chip-primary) {
+    background-color: var(--dk-surface);
+  }
+  & .bg-white\/70,
+  & .bg-white\/75,
+  & .bg-white\/95,
+  & .glass {
+    background-color: var(--dk-glass);
+  }
+  & .glass {
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.07),
+      0 12px 32px -12px rgb(0 0 0 / 0.7);
+    --tw-ring-color: rgb(255 255 255 / 0.08);
+  }
+  & .border-black\/\[0\.05\] {
+    border-color: rgb(255 255 255 / 0.06);
+  }
+  & .ring-black\/\[0\.03\],
+  & .card,
+  & .fold-card {
+    --tw-ring-color: rgb(255 255 255 / 0.05);
+  }
+  & .btn-gray,
+  & .bg-gray-100,
+  & .bg-\[\#f9fafb\],
+  & .hover\:bg-\[\#f9fafb\]:hover,
+  & .hover\:bg-bg:hover {
+    background-color: var(--dk-raised);
+  }
+  & .bg-gray-300 {
+    background-color: #3a3f47;
+  }
+  /* 검은 칩(선택된 거르기·'오늘' 표시)은 반대로 밝은 칩 */
+  & .bg-ink {
+    background-color: var(--color-ink);
+    color: #0e1013;
+  }
+  & .btn-primary:hover,
+  & .chip-primary:hover {
+    background-color: var(--color-brand-500);
+  }
+  /* 연한 색 칸 → 어두운 색 칸 */
+  & .bg-brand-50,
+  & .bg-brand-50\/40,
+  & .bg-brand-50\/60 {
+    background-color: var(--dk-brand-bg);
+  }
+  & .bg-brand-100,
+  & .hover\:bg-brand-100:hover {
+    background-color: var(--dk-brand-bg2);
+  }
+  & .bg-amber-50,
+  & .bg-amber-50\/50,
+  & .bg-amber-50\/70 {
+    background-color: #2b2312;
+  }
+  & .bg-amber-100 {
+    background-color: #3a2e14;
+  }
+  & .bg-rose-50,
+  & .bg-rose-50\/40,
+  & .hover\:bg-rose-100:hover {
+    background-color: #2c1519;
+  }
+  & .bg-rose-100 {
+    background-color: #3d1b21;
+  }
+  & .bg-emerald-50 {
+    background-color: #10271e;
+  }
+  & .bg-emerald-100 {
+    background-color: #143528;
+  }
+  & .bg-violet-50 {
+    background-color: #221a3a;
+  }
+  & .bg-sky-50 {
+    background-color: #0f2433;
+  }
+  /* 진한 색 글자 → 밝은 색 글자 */
+  & .text-brand-500,
+  & .text-brand-600,
+  & .text-brand-700,
+  & .text-brand-800 {
+    color: var(--dk-brand-text);
+  }
+  & .text-amber-600,
+  & .text-amber-700,
+  & .text-amber-800,
+  & .text-amber-900 {
+    color: #fcd34d;
+  }
+  & .text-rose-600,
+  & .text-rose-700,
+  & .text-rose-800,
+  & .text-rose-900 {
+    color: #fb8a9c;
+  }
+  & .text-emerald-600,
+  & .text-emerald-700,
+  & .text-emerald-800,
+  & .text-emerald-900 {
+    color: #4ade9b;
+  }
+  & .text-violet-700,
+  & .text-violet-800,
+  & .text-violet-900 {
+    color: #c4b5fd;
+  }
+  & .text-sky-700 {
+    color: #7dd3fc;
+  }
+  /* 연한 테두리 */
+  & .ring-brand-100,
+  & .ring-brand-100\/60,
+  & .ring-brand-100\/70,
+  & .border-brand-100 {
+    --tw-ring-color: var(--dk-brand-bg2);
+    border-color: var(--dk-brand-bg2);
+  }
+  & .ring-amber-200,
+  & .border-amber-200 {
+    --tw-ring-color: #5a4519;
+    border-color: #5a4519;
+  }
+  & .ring-rose-100,
+  & .ring-rose-200,
+  & .border-rose-200 {
+    --tw-ring-color: #5c2630;
+    border-color: #5c2630;
+  }
+  & .ring-emerald-100,
+  & .ring-emerald-200,
+  & .border-emerald-200 {
+    --tw-ring-color: #1d4d3a;
+    border-color: #1d4d3a;
+  }
+  & .ring-violet-200 {
+    --tw-ring-color: #3b2d63;
+  }
+  /* 흰색으로 번지는 은은한 그라데이션 칸은 어두운 바탕에 강조색만 살짝 */
+  & [data-next-work],
+  & [data-profile-hero],
+  & [data-wage-box] {
+    background-image: linear-gradient(160deg, var(--dk-brand-bg) 0%, var(--dk-surface) 65%);
+  }
+  /* 불러오는 중 빛은 은은하게 */
+  & .skeleton [class*='bg-line'] {
+    background-image: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.07) 50%, transparent 80%);
+  }
+}
+
 /* 기기에서 '동작 줄이기'를 켰으면 움직임을 거의 없앰 */
 @media (prefers-reduced-motion: reduce) {
   *,

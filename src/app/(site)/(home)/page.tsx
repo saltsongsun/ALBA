@@ -132,7 +132,7 @@ export default async function HomePage(props: PageProps<'/'>) {
               {todayJob.location_name && ` · ${todayJob.location_name}`}
             </span>
           </span>
-          <span className="relative shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-bold text-teal-700 shadow-sm">출퇴근 →</span>
+          <span className="relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 shadow-sm">출퇴근 →</span>
         </Link>
       )}
       {company ? (
