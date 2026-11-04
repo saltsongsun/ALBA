@@ -1,16 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { SETUP_ITEMS, type SetupKey } from '@/lib/setup'
 import { haptic } from './ui'
-
-/** 근로계약서·임금명세서에 꼭 들어가는 회사 정보 (대시보드 '회사 설정을 마무리해 주세요'와 같은 항목) */
-export const SETUP_ITEMS = [
-  { key: 'business_no', label: '사업자등록번호' },
-  { key: 'company_address', label: '회사 주소' },
-  { key: 'seal', label: '직인' },
-  { key: 'contact_phone', label: '문의 연락처' },
-] as const
-export type SetupKey = (typeof SETUP_ITEMS)[number]['key']
 
 /** 그 항목의 입력칸(직인은 직인 칸)으로 가서 바로 쓸 수 있게 */
 function jump(form: HTMLFormElement, key: SetupKey) {

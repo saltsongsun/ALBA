@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation'
 import DocSheet from '@/components/DocSheet'
 import Flash from '@/components/Flash'
 import { PrintButton } from '@/components/ui'
-import { JumpToSign, SignForm } from '@/components/worker'
+import { JumpToSign, ReadProgress, SignForm } from '@/components/worker'
 import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
 import { buildDocVars, renderTemplate, type DocPerson } from '@/lib/docs'
@@ -150,6 +150,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
         <>
           <SignForm docId={doc.id} title={doc.title} userId={user.id} />
           <JumpToSign />
+          <ReadProgress />
         </>
       )}
     </div>

@@ -334,6 +334,35 @@
   transition: none;
 }
 
+/* 서명할 서류 읽는 정도 (components/worker.tsx ReadProgress): 머리글 바로 아래 얇은 막대가 스크롤만큼 채워짐.
+   위치(transform)만 바뀌고 스크롤에 붙어 움직여 끊김 없음 · 스크롤 애니메이션을 못 쓰는 브라우저에선 숨김 */
+.read-progress {
+  display: none;
+}
+@supports (animation-timeline: scroll()) {
+  .read-progress {
+    display: block;
+    position: fixed;
+    inset-inline: 0;
+    top: calc(3.5rem + env(safe-area-inset-top));
+    z-index: 21;
+    height: 3px;
+    pointer-events: none;
+    background: var(--color-brand-500);
+    transform-origin: 0 50%;
+    animation: read-progress linear both;
+    animation-timeline: scroll(root);
+  }
+  @keyframes read-progress {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+}
+
 /* 목록 항목이 차례로 떠오름 (간격은 짧게, 0.15초 안에 모두 시작 — 화면 전환과 겹쳐 길게 출렁이지 않게) */
 .stagger > * {
   animation: var(--animate-rise);

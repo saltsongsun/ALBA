@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
+import { useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import {
   changePin,
@@ -672,6 +672,18 @@ export function JumpToSign() {
     </button>,
     document.body,
   )
+}
+
+const noSubscribe = () => () => {}
+/**
+ * 서명할 서류를 읽는 동안 머리글 바로 아래 얇은 막대가 읽은 만큼 채워짐 (얼마나 남았는지 보이게).
+ * 스크롤에 맞춰 CSS만으로 움직임(globals.css '.read-progress') — 지원하지 않는 브라우저에선 안 보임.
+ * 화면 전환 효과(transform) 안에서는 fixed가 그 상자 기준이 되므로 body에 붙임
+ */
+export function ReadProgress() {
+  const client = useSyncExternalStore(noSubscribe, () => true, () => false)
+  if (!client) return null
+  return createPortal(<div aria-hidden data-read-progress data-vv="pin" className="read-progress no-print" />, document.body)
 }
 
 /** 이 기기에서 방금 한 서명 (서류가 여러 건이면 같은 서명을 다시 그리지 않게). 같은 계정·30분 안에만 */

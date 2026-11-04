@@ -16,6 +16,7 @@ import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
+import { missingSetup } from '@/lib/setup'
 import { ago, companyReviews } from '@/lib/community'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
@@ -368,13 +369,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
   const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
   // 계약서에 들어가는 회사 정보 (회사 설정 맨 위 체크 목록과 같은 4가지)
-  const setupItems = [
-    { key: 'business_no', done: !!settings.business_no },
-    { key: 'company_address', done: !!settings.company_address },
-    { key: 'seal', done: sealSet },
-    { key: 'contact_phone', done: !!settings.contact_phone },
-  ]
-  const firstEmpty = setupItems.find((it) => !it.done)
+  const firstEmpty = missingSetup(settings, sealSet)[0]
   // 회사 설정의 첫 빈 칸으로 바로 (커서까지). 빈 칸이 있으면 '시작하기'의 '회사 정보 채우기'가 남아 있음
   const setupHref = `/admin/settings${firstEmpty ? `#${firstEmpty.key}` : ''}`
   // 새 회사가 처음 할 일 (필수 3가지를 마치면 사라짐, 관리자 초대는 대표 관리자에게만 · 선택)
