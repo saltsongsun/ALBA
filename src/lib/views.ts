@@ -52,19 +52,57 @@ export async function mergeGuestViews(vid: string, userId: string) {
   return rows.length
 }
 
-/** 공고별 확인한 인원·가입자·지금 보는 인원 */
+/** 같은 사람으로 볼 간격: 로그인 없이 잠깐 보고(카톡 안 브라우저 등) 이 시간 안에 다른 브라우저·앱에서 로그인해 다시 본 경우 */
+const SWITCH_MS = 10 * 60_000
+/** 그 손님 기록이 '잠깐 본 것'인지 (오래 여러 번 본 손님은 다른 사람일 가능성이 커서 합치지 않음) */
+const SHORT_GUEST_MS = 30 * 60_000
+
+type ViewRow = Pick<Row, 'job_id' | 'viewer' | 'user_id' | 'first_seen' | 'last_seen'>
+
+/**
+ * 손님(로그인 안 함) 기록 중 곧바로 회원으로 다시 본 사람의 것 (같은 사람 → 한 번만 세게).
+ * 같은 휴대폰 같은 브라우저면 mergeGuestViews가 합치지만, 카톡 안 브라우저로 보고 크롬·앱에서 로그인하면
+ * 표시 쿠키가 달라 합칠 수 없음 → 잠깐 본 손님 기록 바로 뒤(10분 안)에 회원이 처음 보기 시작했으면 같은 사람으로 봄.
+ * 손님 기록 하나는 회원 한 명에게만 짝지음 (가장 가까운 것부터)
+ */
+function sameAsMember(rows: ViewRow[]): Set<ViewRow> {
+  const guests = rows.filter((r) => r.viewer.startsWith('v:') && Date.parse(r.last_seen) - Date.parse(r.first_seen) <= SHORT_GUEST_MS)
+  const members = rows.filter((r) => r.viewer.startsWith('u:'))
+  const pairs: { g: ViewRow; m: ViewRow; gap: number }[] = []
+  for (const g of guests)
+    for (const m of members) {
+      const gap = Date.parse(m.first_seen) - Date.parse(g.last_seen)
+      if (Date.parse(m.first_seen) >= Date.parse(g.first_seen) && gap >= -60_000 && gap <= SWITCH_MS) pairs.push({ g, m, gap })
+    }
+  pairs.sort((a, b) => a.gap - b.gap)
+  const usedG = new Set<ViewRow>()
+  const usedM = new Set<ViewRow>()
+  for (const { g, m } of pairs) {
+    if (usedG.has(g) || usedM.has(m)) continue
+    usedG.add(g)
+    usedM.add(m)
+  }
+  return usedG
+}
+
+/** 공고별 확인한 인원·가입자·지금 보는 인원 (같은 사람이 손님·회원으로 두 번 세지지 않게) */
 export async function viewStats(jobIds: string[]): Promise<Record<string, ViewStats>> {
   const out: Record<string, ViewStats> = {}
   for (const id of jobIds) out[id] = { total: 0, members: 0, live: 0 }
   if (!jobIds.length) return out
-  const rows = must(await db().from('job_views').select('job_id, user_id, last_seen').in('job_id', jobIds).limit(20000)) as Pick<Row, 'job_id' | 'user_id' | 'last_seen'>[]
+  const rows = must(await db().from('job_views').select('job_id, viewer, user_id, first_seen, last_seen').in('job_id', jobIds).limit(20000)) as ViewRow[]
+  const byJob = new Map<string, ViewRow[]>()
+  for (const r of rows) if (out[r.job_id]) byJob.set(r.job_id, [...(byJob.get(r.job_id) ?? []), r])
   const liveFrom = Date.now() - LIVE_SEC * 1000
-  for (const r of rows) {
-    const s = out[r.job_id]
-    if (!s) continue
-    s.total++
-    if (r.user_id) s.members++
-    if (Date.parse(r.last_seen) >= liveFrom) s.live++
+  for (const [jobId, list] of byJob) {
+    const dup = sameAsMember(list)
+    const s = out[jobId]
+    for (const r of list) {
+      if (dup.has(r)) continue
+      s.total++
+      if (r.user_id) s.members++
+      if (Date.parse(r.last_seen) >= liveFrom) s.live++
+    }
   }
   return out
 }
