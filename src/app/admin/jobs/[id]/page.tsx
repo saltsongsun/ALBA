@@ -227,9 +227,10 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
               </Link>
             )}
             {/* 자주 안 쓰는 것은 접어 둠 (복사·모집 열기/마감·행사 종료·삭제) */}
-            <details className="open:basis-full" data-job-more>
+            <details className="group/more open:basis-full" data-job-more>
               <summary className="btn-gray btn-sm cursor-pointer">더보기</summary>
-              <div className="mt-2 flex flex-wrap gap-2">
+              {/* 접혀 있을 때는 자리도 차지하지 않게 */}
+              <div className="mt-2 hidden flex-wrap gap-2 group-open/more:flex">
                 <form action={duplicateJob.bind(null, job.id)}>
                   <SubmitButton className="btn-gray btn-sm">복사해서 새 공고</SubmitButton>
                 </form>
