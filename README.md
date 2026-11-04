@@ -5,6 +5,8 @@
 
 GitHub → Vercel(자동 배포) → Supabase(Postgres) 구성입니다.
 
+화면을 만들거나 고칠 때의 기준(원칙·색·모양·움직임·문구·체크리스트)은 [docs/DESIGN.md](docs/DESIGN.md)에 있습니다.
+
 ## 기능
 
 **근무자 (휴대폰 화면)**
