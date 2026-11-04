@@ -269,3 +269,48 @@ export function ProfileSkeleton() {
     </div>
   )
 }
+
+/** 관리자 공고 화면: '← 공고 목록' · 제목 카드(상태·제목·일정·버튼) · 탭 · 지원자 카드 */
+export function AdminJobSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="공고 불러오는 중" className="skeleton space-y-4" data-skeleton="admin-job">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className="card space-y-3">
+        <div className="flex gap-1.5">
+          <div className="h-5 w-12 rounded-full bg-line/70" />
+          <div className={`h-5 w-36 ${bar}`} />
+        </div>
+        <div className={`h-7 w-11/12 ${bar}`} />
+        <div className={`h-7 w-2/3 ${bar}`} />
+        <div className={`h-4 w-48 max-w-full ${bar}`} />
+        <div className={`h-4 w-40 max-w-full ${bar}`} />
+        <div className="flex flex-wrap gap-2 pt-1">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-8 w-20 rounded-xl bg-line/60" />
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-4 border-b border-line pb-2">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className={`h-5 w-14 ${bar}`} />
+        ))}
+      </div>
+      {[0, 1].map((i) => (
+        <div key={i} className="card space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="size-12 shrink-0 rounded-full bg-line/70" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className={`h-5 w-28 ${bar}`} />
+              <div className={`h-4 w-40 max-w-full ${bar}`} />
+            </div>
+          </div>
+          <div className="h-16 rounded-xl bg-line/50" />
+          <div className="grid grid-cols-2 gap-2">
+            <div className="h-11 rounded-2xl bg-line/60" />
+            <div className="h-11 rounded-2xl bg-line/50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}

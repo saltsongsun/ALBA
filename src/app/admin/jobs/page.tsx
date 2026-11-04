@@ -61,7 +61,11 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
             <span className="block truncate font-bold">우리 회사 공고 모음 링크</span>
             <span className="block truncate text-sm text-sub">단톡방에 올려 두세요</span>
           </span>
-          <span className="shrink-0">
+          <span className="flex shrink-0 items-center gap-1.5">
+            {/* 현장·게시판에 붙일 QR (찍으면 이 회사 공고 모음) */}
+            <Link href="/admin/jobs/poster" className="btn-gray btn-sm" data-poster-link>
+              QR
+            </Link>
             <ShareButton title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} />
           </span>
         </div>
