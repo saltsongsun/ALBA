@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import { ShareButton } from '@/components/ui'
 import { countApps, JOB_WITH_APP_STATUS, unpaidByJob, type JobWithAppStatus } from '@/lib/data'
@@ -94,7 +95,37 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
         </p>
       )}
       {jobs.length === 0 ? (
-        <div className="card py-12 text-center text-mute">공고가 없습니다.</div>
+        // 빈 화면: 탭·검색마다 다음에 할 일 (새 회사는 '새 공고 등록'부터)
+        <div data-jobs-empty={term ? 'search' : tab}>
+          {term ? (
+            <Empty icon="🔍" title={`‘${term}’에 맞는 공고가 없어요`}>
+              <p>제목·행사명·장소로 찾아요.</p>
+              <Link href={`/admin/jobs?tab=${tab}`} className="btn-gray btn-sm mt-3 inline-flex">
+                검색 지우기
+              </Link>
+            </Empty>
+          ) : tab === 'active' ? (
+            <Empty icon="📋" title="진행 중인 공고가 없어요">
+              <p>시간·시급·장소만 넣으면 바로 모집을 시작해요.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <Link href="/admin/jobs/new" className="btn-primary btn-sm">
+                  + 새 공고 등록
+                </Link>
+                <Link href="/admin/jobs?tab=past" className="btn-gray btn-sm">
+                  지난 공고 복사하기
+                </Link>
+              </div>
+            </Empty>
+          ) : tab === 'draft' ? (
+            <Empty icon="📝" title="임시저장한 공고가 없어요">
+              <p>공고 상태를 &lsquo;임시저장&rsquo;으로 두면 근무자에게 보이지 않고 여기에 모여요.</p>
+            </Empty>
+          ) : (
+            <Empty icon="🗂️" title="지난 공고가 없어요">
+              <p>끝난 행사의 공고가 여기에 남아요. 복사해서 다시 쓸 수 있어요.</p>
+            </Empty>
+          )}
+        </div>
       ) : (
         <>
           {/* 휴대폰: 카드 (표는 칸이 좁아 옆으로 밀어야 해서) */}

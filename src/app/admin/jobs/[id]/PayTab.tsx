@@ -11,6 +11,7 @@ import { db } from '@/lib/db'
 import { payState } from '@/lib/vendors'
 import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
+import LiveNumber from '@/components/LiveNumber'
 
 export default async function PayTab({ job, atts, users, origin }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string }) {
   // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
@@ -57,8 +58,51 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
   const missing = atts.filter((a) => a.clock_in && !a.clock_out && a.work_date !== todayKst).sort((a, b) => a.work_date.localeCompare(b.work_date))
   const fixHref = missing[0] ? `/admin/jobs/${job.id}?tab=att&date=${missing[0].work_date}&fix=${missing[0].user_id}#att-${missing[0].user_id}` : null
 
+  // 한눈에: 지급할 사람 중 몇 명에게 보냈는지 · 남은 금액 (계산은 위 정산과 같은 값 — 규칙은 그대로)
+  const payable = rows.filter((r) => r.done > 0)
+  const paidN = payable.filter((r) => r.paid).length
+  const leftWon = unpaid.reduce((t, r) => t + r.s.net, 0)
+  const paidPct = payable.length ? Math.round((paidN / payable.length) * 100) : 0
+
   return (
     <div className="space-y-4">
+      {payable.length > 0 && (
+        <div className="card space-y-3" data-pay-summary>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="min-w-0">
+              <p className="text-xs text-mute">실수령 합계</p>
+              <p className="mt-0.5 truncate text-lg font-extrabold">
+                <LiveNumber value={sum('net')} countUp />
+                <span className="text-sm font-bold">원</span>
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-mute">지급 완료</p>
+              <p className={`mt-0.5 text-lg font-extrabold ${paidN === payable.length ? 'text-emerald-600' : ''}`} data-paid-count>
+                <LiveNumber value={paidN} />
+                <span className="text-sm font-bold text-mute">/{payable.length}명</span>
+              </p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-mute">남은 지급</p>
+              <p className={`mt-0.5 truncate text-lg font-extrabold ${leftWon > 0 ? 'text-rose-600' : 'text-emerald-600'}`} data-left>
+                {leftWon > 0 ? (
+                  <>
+                    <LiveNumber value={leftWon} countUp />
+                    <span className="text-sm font-bold">원</span>
+                  </>
+                ) : (
+                  '없음'
+                )}
+              </p>
+            </div>
+          </div>
+          {/* 지급 진행 막대 (보낸 사람 비율) */}
+          <div className="h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="지급 진행" aria-valuenow={paidPct} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full origin-left rounded-full bg-emerald-500 transition-transform duration-500" style={{ transform: `scaleX(${paidPct / 100})` }} />
+          </div>
+        </div>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
           {job.pay_type === 'daily' ? `일급 ${won(job.daily_wage)}` : `시급 ${won(job.hourly_wage)}`} · {TAX_LABEL[job.tax_type]}
