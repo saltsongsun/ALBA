@@ -403,6 +403,23 @@
   }
 }
 
+/* 불러오는 중 회색 자리: 빛이 화면을 가로질러 한 번에 쓸고 지나감 (모든 자리가 같은 빛을 공유) */
+.skeleton [class*='bg-line'] {
+  background-image: linear-gradient(100deg, transparent 20%, rgb(255 255 255 / 0.65) 50%, transparent 80%);
+  background-size: 200vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+@keyframes shimmer {
+  from {
+    background-position: -200vw 0;
+  }
+  to {
+    background-position: 200vw 0;
+  }
+}
+
 /* 화면 이동 중 맨 위 진행 막대 (NavProgress) */
 .nav-progress {
   position: fixed;

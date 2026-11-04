@@ -106,7 +106,7 @@ export default async function ProfilePage() {
           </p>
         </div>
       ) : (
-        <div id="photo" className="card scroll-mt-20 space-y-3">
+        <div id="photo" className="card scroll-mt-20 space-y-3 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_oklab,var(--color-brand-500)_12%,white),white_65%)]" data-profile-hero>
           <PhotoUpload userId={user.id} name={me.name} photoAt={me.photo_at}>
             <h1 className="text-xl font-extrabold">{me.name}</h1>
             <p className="mt-0.5 text-sm text-sub">

@@ -1,12 +1,12 @@
 /**
  * 화면을 불러오는 동안 보여 주는 회색 자리 (실제 화면과 같은 모양이라, 눌렀을 때 바로 넘어간 것처럼 느껴짐).
- * 깜빡임(animate-pulse)은 '움직임 줄이기' 설정이면 globals.css에서 꺼짐
+ * 회색 자리 위로 빛이 한 번에 쓸고 지나감(.skeleton, globals.css). '움직임 줄이기' 설정이면 멈춤
  */
 const bar = 'rounded bg-line/70'
 
 export default function Skeleton({ cards = 3, hero = false }: { cards?: number; hero?: boolean }) {
   return (
-    <div aria-busy="true" aria-label="불러오는 중" className="animate-pulse space-y-4">
+    <div aria-busy="true" aria-label="불러오는 중" className="skeleton space-y-4">
       {hero && <div className="h-36 rounded-3xl bg-line/70" />}
       <div className={`h-6 w-40 ${bar}`} />
       {Array.from({ length: cards }, (_, i) => (
@@ -23,7 +23,7 @@ export default function Skeleton({ cards = 3, hero = false }: { cards?: number; 
 /** 공고 목록 (홈): 인사 카드 · 날짜 칩 · 공고 카드 */
 export function JobListSkeleton() {
   return (
-    <div aria-busy="true" aria-label="공고 불러오는 중" className="animate-pulse space-y-4" data-skeleton="jobs">
+    <div aria-busy="true" aria-label="공고 불러오는 중" className="skeleton space-y-4" data-skeleton="jobs">
       <div className="card flex items-center gap-3 py-3.5">
         <div className="min-w-0 flex-1 space-y-2">
           <div className={`h-5 w-36 ${bar}`} />
@@ -59,7 +59,7 @@ export function JobListSkeleton() {
 /** 공고 화면: 제목 카드 · 급여 상자 · 항목 줄 · 지도 */
 export function JobDetailSkeleton() {
   return (
-    <div aria-busy="true" aria-label="공고 불러오는 중" className="animate-pulse space-y-4" data-skeleton="job">
+    <div aria-busy="true" aria-label="공고 불러오는 중" className="skeleton space-y-4" data-skeleton="job">
       <div className="card space-y-3">
         <div className="flex gap-1.5">
           <div className="h-5 w-12 rounded-full bg-line/70" />
@@ -88,7 +88,7 @@ export function JobDetailSkeleton() {
 /** 문의 대화: 말풍선이 왼쪽·오른쪽으로 번갈아 */
 export function ChatSkeleton() {
   return (
-    <div aria-busy="true" aria-label="대화 불러오는 중" className="animate-pulse space-y-4" data-skeleton="chat">
+    <div aria-busy="true" aria-label="대화 불러오는 중" className="skeleton space-y-4" data-skeleton="chat">
       <div className="flex items-center justify-between">
         <div className={`h-7 w-16 ${bar}`} />
         <div className="h-9 w-24 rounded-full bg-line/70" />
@@ -109,7 +109,7 @@ export function ChatSkeleton() {
 /** 지난 근무: 합계 숫자 · 월별 카드 */
 export function HistorySkeleton() {
   return (
-    <div aria-busy="true" aria-label="지난 근무 불러오는 중" className="animate-pulse space-y-4" data-skeleton="history">
+    <div aria-busy="true" aria-label="지난 근무 불러오는 중" className="skeleton space-y-4" data-skeleton="history">
       <div className={`h-4 w-16 ${bar}`} />
       <div className={`h-7 w-28 ${bar}`} />
       <div className="card grid grid-cols-3 gap-3">
@@ -142,7 +142,7 @@ export function HistorySkeleton() {
 /** 커뮤니티 글 목록: 제목 · 검색 · 말머리 칩 · 글 카드 */
 export function CommunitySkeleton() {
   return (
-    <div aria-busy="true" aria-label="커뮤니티 불러오는 중" className="animate-pulse space-y-4" data-skeleton="community">
+    <div aria-busy="true" aria-label="커뮤니티 불러오는 중" className="skeleton space-y-4" data-skeleton="community">
       <div className="flex items-end justify-between">
         <div className="space-y-2">
           <div className={`h-7 w-28 ${bar}`} />
@@ -174,7 +174,7 @@ export function CommunitySkeleton() {
 /** 커뮤니티 글 하나: 말머리 · 제목 · 내용 · 좋아요 줄 · 댓글 */
 export function PostSkeleton() {
   return (
-    <div aria-busy="true" aria-label="글 불러오는 중" className="animate-pulse space-y-4" data-skeleton="post">
+    <div aria-busy="true" aria-label="글 불러오는 중" className="skeleton space-y-4" data-skeleton="post">
       <div className={`h-4 w-16 ${bar}`} />
       <div className="card space-y-3">
         <div className="h-5 w-14 rounded-full bg-line/70" />

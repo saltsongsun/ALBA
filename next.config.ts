@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   // 어떤 프레임워크로 만들었는지 응답에 드러내지 않음 (공격 도구가 약점을 고르기 어렵게)
   poweredByHeader: false,
   experimental: {
+    // 한 번 연 화면은 30초 동안 휴대폰에 두었다가 다시 열 때 바로 보여 줌 (탭을 오갈 때 기다림 없음).
+    // 내가 무언가를 저장·보내면(서버 동작) 그 즉시 비워져 새로 받아 옴. 자동 새로 고침 화면은 그대로 최신으로
+    staleTimes: {
+      dynamic: 30,
+    },
     serverActions: {
       // 서명 이미지·직인 이미지(data URL)를 폼으로 보냄
       bodySizeLimit: '2mb',
@@ -31,6 +36,11 @@ const nextConfig: NextConfig = {
         // 로그인해야 보이는 화면은 검색·AI 수집 로봇이 저장하지 않게
         source: '/:dir(admin|me|docs|print|photo|api|login|signup|setup)/:path*',
         headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' }],
+      },
+      {
+        // 이모티콘·아이콘·시작 화면 그림: 하루 동안은 다시 묻지 않고 바로 씀 (그 뒤 일주일은 쓰면서 뒤에서 새로 확인)
+        source: '/:dir(stickers|icons|splash)/:file*',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, stale-while-revalidate=604800' }],
       },
       {
         // 서비스 워커는 항상 새로 받아 바로 갱신되도록
