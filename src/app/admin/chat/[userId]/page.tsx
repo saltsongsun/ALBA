@@ -75,8 +75,8 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         <ContactButtons phone={worker.phone} name={worker.name} />
       </div>
       {messages.length === 0 ? (
-        <Empty icon="✉️" title="아직 주고받은 메시지가 없습니다">
-          아래에 쓰면 {worker.name}님의 앱 &lsquo;문의&rsquo;에 표시됩니다.
+        <Empty icon="✉️" title="아직 주고받은 메시지가 없어요">
+          아래에 쓰면 {worker.name}님 앱의 &lsquo;문의&rsquo;에 바로 보여요.
         </Empty>
       ) : (
         <ChatMessages messages={messages} viewer="admin" />

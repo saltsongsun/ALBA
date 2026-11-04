@@ -8,14 +8,14 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
-import { ConfirmSubmit, SubmitButton } from '@/components/ui'
+import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { pendingFix, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
-import { requireAdmin } from '@/lib/session'
+import { requireAdmin, siteOrigin } from '@/lib/session'
 import { ago, companyReviews } from '@/lib/community'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
@@ -381,6 +381,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...(isOwner ? [{ key: 'team', done: memberCount > 1, title: '함께 일할 관리자 초대', desc: '초대 코드로 직원 초대 (선택)', href: '/admin/settings#admins', optional: true }] : []),
   ]
   const showStart = startSteps.some((st) => !st.optional && !st.done)
+  // 첫 공고를 올렸는데 아직 지원이 없으면: 공고 모음 링크를 여기서 바로 복사·공유 (공고 화면까지 가지 않게)
+  const shareNow = showStart && jobsEver > 0 && appsEver === 0
+  const companyLink = shareNow ? `${await siteOrigin()}/?co=${admin.companyId}` : ''
   const startDone = startSteps.filter((st) => st.done).length
 
   return (
@@ -518,6 +521,18 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
               </li>
             ))}
           </ol>
+          {shareNow && (
+            <div className="space-y-2.5 rounded-2xl bg-brand-50 px-3.5 py-3" data-start-share>
+              <p>
+                <b className="block text-sm">공고 모음 링크를 단톡방에 올려 주세요</b>
+                <span className="block text-xs text-sub">근무자가 이 링크로 보고 바로 지원해요</span>
+              </p>
+              <div className="grid grid-cols-2 gap-1.5">
+                <CopyButton text={companyLink} label="링크 복사" className="btn-gray btn-sm" />
+                <ShareButton title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} className="btn-primary btn-sm" />
+              </div>
+            </div>
+          )}
         </section>
       )}
       {!showStart && setupTodo.length > 0 && (
@@ -535,7 +550,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <section>
         <h2 className="section-title">오늘 진행 행사</h2>
         {todayJobs.length === 0 ? (
-          <Empty icon="🗓️" title="오늘 진행하는 행사가 없습니다" />
+          <Empty icon="🗓️" title="오늘 진행하는 행사가 없어요">
+            <Link href="/admin/jobs" className="font-semibold text-brand-600">
+              공고 보기 →
+            </Link>
+          </Empty>
         ) : (
           <div className="stagger grid gap-3 md:grid-cols-2">
             {todayJobs.map((j) => (
@@ -568,7 +587,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <section id="pending">
         <h2 className="section-title">확정 대기 지원자</h2>
         {pendingApps.length === 0 ? (
-          <Empty icon="📭" title="대기 중인 지원이 없습니다" />
+          <Empty icon="📭" title="확정을 기다리는 지원자가 없어요">
+            <Link href="/admin/jobs" className="font-semibold text-brand-600">
+              공고 모음 링크 공유하기 →
+            </Link>
+          </Empty>
         ) : (
           <>
             {/* 휴대폰: 카드 (확정·미선발 버튼까지 옆으로 밀지 않고 바로) */}

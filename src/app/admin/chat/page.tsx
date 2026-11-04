@@ -86,7 +86,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         </Link>
       </div>
       {list.length === 0 ? (
-        <Empty icon="💬" title="아직 들어온 문의가 없습니다">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모입니다.</Empty>
+        <Empty icon="💬" title="아직 들어온 문의가 없어요">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모여요.</Empty>
       ) : (
         <div className="stagger space-y-2">
           {list.map(({ last, unread }) => (
