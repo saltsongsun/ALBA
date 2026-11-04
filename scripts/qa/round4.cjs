@@ -86,7 +86,7 @@ const errs = []
   msgs = (await rest(MD, `messages?thread_user_id=eq.${AP}`)).filter((m) => m.body.startsWith('✅ 근무가 확정됐어요'))
   ok('4. 지원자 탭에서 확정해도 문의함에 안내', msgs.length === 2, String(msgs.length))
   const apPage = await pg(D, AP)
-  await apPage.goto(`${D}/me/chat`)
+  await apPage.goto(`${D}/me/chat?co=99999999-0000-4000-8000-000000000099`)
   ok('4. 근무자 문의함 화면에 보임', await see(apPage, '✅ 근무가 확정됐어요'))
 
   // ── 7. 명단 복사 (배치별) ──

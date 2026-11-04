@@ -38,7 +38,7 @@ const forgotMsgs = async () => (await rest(`messages?thread_user_id=eq.${WK}`)).
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
-  await p.goto(`${W_}/me/chat`)
+  await p.goto(`${W_}/me/chat?co=99999999-0000-4000-8000-000000000099`)
   ok('근무자 문의함에 안내', await p.getByText('⏰ 근무 종료 확인').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
   await p.goto(`${W_}/me`)
   ok('내 근무: 끝난 시각 카드', await p.getByText('근무 종료를 누르지 않았어요').first().waitFor({ timeout: 8000 }).then(() => true, () => false))

@@ -67,7 +67,7 @@ const download = (p, url) =>
   // ── 1. 들어갈 수 있는 사람 ──
   const wk = await pg(W)
   await wk.goto(`${D}/me/chat`)
-  ok('확정자: 문의에 단체방 목록', (await see(wk, '👥 같은 근무 단체방')) && (await wk.locator(`a[href="${room}"]`).count()) === 1)
+  ok('확정자: 문의 대화 목록에 단체방', (await wk.locator(`[data-chat-list] a[data-chat-row=room][href="${room}"]`).count()) === 1)
   await wk.goto(`${D}${room}`)
   ok('확정자: 단체방 열림', await see(wk, `👥 ${J_TITLE}`))
   const members = (await wk.locator('details', { hasText: '참여' }).textContent()) ?? ''
@@ -115,12 +115,12 @@ const download = (p, url) =>
   const w2 = await pg(W2)
   await w2.goto(`${D}/me/chat`)
   const chip = w2.locator(`a[href="${room}"]`)
-  ok('동료: 단체방에 안 읽은 2', (await chip.innerText()).includes('2'), await chip.innerText())
+  ok('동료: 단체방에 안 읽은 2', (await chip.locator('[data-unread]').innerText().catch(() => '')) === '2', await chip.innerText())
   ok('동료: 아래 탭 문의에 숫자', await w2.locator('nav[data-bottom-nav] a[href="/me/chat"]').innerText().then((t) => /\d/.test(t)).catch(() => false))
   await w2.goto(`${D}${room}`)
   ok('동료: 보낸 사람 이름과 내용', (await see(w2, '안녕하세요 오늘 잘 부탁드려요')) && (await w2.locator('main ol').innerText()).includes('근무자'))
   await w2.goto(`${D}/me/chat`)
-  ok('읽고 나면 숫자 사라짐', !/\d/.test(await w2.locator(`a[href="${room}"]`).innerText()))
+  ok('읽고 나면 숫자 사라짐', (await w2.locator(`a[href="${room}"] [data-unread]`).count()) === 0)
 
   // ── 4. 관리자: 목록·공지 고정 ──
   const ad = await pg(A)
@@ -151,7 +151,7 @@ const download = (p, url) =>
   // ── 5. 1:1 문의에도 이모티콘 ──
   // (가짜 DB는 정렬을 안 해서, 미리 들어 있던 예시 문의를 지워 방금 보낸 것이 '마지막'이 되게)
   await fetch(`${MD}/rest/v1/messages?thread_user_id=eq.${W}`, { method: 'DELETE' })
-  await wk.goto(`${D}/me/chat`)
+  await wk.goto(`${D}/me/chat?co=${C1}`)
   await wk.getByRole('button', { name: '이모티콘', exact: true }).click()
   await wk.getByRole('button', { name: '감사합니다' }).click()
   await wk.locator('main ol img[alt="이모티콘: 감사합니다"]').first().waitFor({ timeout: 8000 }).catch(() => {})

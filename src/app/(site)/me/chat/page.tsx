@@ -12,6 +12,8 @@ import { db, must } from '@/lib/db'
 import { requireUser } from '@/lib/session'
 import { workerRooms } from '@/lib/room'
 import { isUuid } from '@/lib/validate'
+import { plainBody } from '@/lib/stickers'
+import { fmtDate, kstDate, kstTime } from '@/lib/time'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -30,11 +32,11 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
     db().from('applications').select('company_id').eq('user_id', user.id).then((r) => must(r) as { company_id: string }[]),
     db()
       .from('messages')
-      .select('company_id, from_admin, read_at, created_at')
+      .select('company_id, from_admin, read_at, created_at, body')
       .eq('thread_user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(500)
-      .then((r) => must(r) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string }[]),
+      .then((r) => must(r) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }[]),
     platformCompanyId(),
     // 같은 근무 단체방 (확정된 공고)
     workerRooms(user.id),
@@ -53,6 +55,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const nameOf = (c: { id: string; company_name: string }) => (support(c.id) ? SUPPORT_NAME : c.company_name)
   const unreadBy = new Map<string, number>()
   for (const t of threads) if (t.from_admin && !t.read_at) unreadBy.set(t.company_id, (unreadBy.get(t.company_id) ?? 0) + 1)
+  // 대화가 둘 이상이면 (회사 문의 여러 곳 · 단체방) 문의 탭은 대화 목록부터
+  const many = companies.length + rooms.length >= 2
+  if (many && !jobId && !wantCo) return <ChatList userId={user.id} companies={companies.map((c) => ({ id: c.id, name: nameOf(c), support: support(c.id) }))} threads={threads} unreadBy={unreadBy} rooms={rooms} />
   const [messages, settings] = companyId
     ? await Promise.all([
         // 최근 300개 (오래된 것부터 보여 줌)
@@ -83,6 +88,11 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       {/* 열자마자 위·아래 문의 숫자를 맞추고 이 대화의 알림도 지움 */}
       {companyId && <ReadSync tag={`chat-${companyId}`} />}
       <div>
+        {many && (
+          <Link href="/me/chat" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-sub" data-chat-back>
+            ← 대화 목록
+          </Link>
+        )}
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-extrabold">문의</h1>
           {companyId && messages.length > 0 && (
@@ -91,41 +101,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
             </a>
           )}
         </div>
-        {/* 같은 근무 단체방 */}
-        {rooms.length > 0 && (
-          <section className="mt-3" aria-label="단체방">
-            <p className="mb-1.5 text-xs font-semibold text-mute">👥 같은 근무 단체방</p>
-            <div className="flex gap-1.5 overflow-x-auto pb-1">
-              {rooms.map((r) => (
-                <Link key={r.id} href={`/me/chat/room/${r.id}`} className="chip max-w-[15rem] shrink-0">
-                  <span className="truncate">{r.title}</span>
-                  {r.unread > 0 && <span className="grid h-4 min-w-4 shrink-0 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{r.unread}</span>}
-                </Link>
-              ))}
-            </div>
-          </section>
-        )}
         <p className="mt-1 text-sm text-sub">
           궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.
         </p>
-        {/* 여러 회사와 일하면 회사별 문의함 */}
-        {companies.length > 1 && (
-          <nav aria-label="회사" className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1">
-            {companies.map((c) => (
-              <Link
-                key={c.id}
-                href={`/me/chat?co=${c.id}`}
-                aria-current={c.id === companyId ? 'page' : undefined}
-                className={c.id === companyId ? 'chip-primary' : 'chip'}
-              >
-                {nameOf(c)}
-                {c.id !== companyId && (unreadBy.get(c.id) ?? 0) > 0 && (
-                  <span className="grid h-4 min-w-4 place-items-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">{unreadBy.get(c.id)}</span>
-                )}
-              </Link>
-            ))}
-          </nav>
-        )}
         {settings?.contact_phone && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-mute">급한 일은</span>
@@ -161,6 +139,146 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           }
         />
       </div>
+    </div>
+  )
+}
+
+type Thread = { company_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }
+type RoomRow = { job_id: string; sender_id: string | null; from_admin: boolean; body: string; created_at: string }
+
+/** 대화 목록 (카톡처럼): 회사 1:1 문의 + 같은 근무 단체방, 최근 대화 순 · 마지막 말 미리보기 · 안 읽은 수 */
+async function ChatList({
+  userId,
+  companies,
+  threads,
+  unreadBy,
+  rooms,
+}: {
+  userId: string
+  companies: { id: string; name: string; support: boolean }[]
+  threads: Thread[]
+  unreadBy: Map<string, number>
+  rooms: { id: string; title: string; start_date: string; end_date: string; unread: number }[]
+}) {
+  const roomIds = rooms.map((r) => r.id)
+  const { data: rc } = roomIds.length
+    ? await db().from('job_chat').select('job_id, sender_id, from_admin, body, created_at').in('job_id', roomIds).order('created_at', { ascending: false }).limit(400)
+    : { data: [] }
+  const lastRoom = new Map<string, RoomRow>()
+  for (const m of (rc ?? []) as RoomRow[]) {
+    if (!roomIds.includes(m.job_id)) continue
+    const prev = lastRoom.get(m.job_id)
+    if (!prev || m.created_at > prev.created_at) lastRoom.set(m.job_id, m)
+  }
+  // 단체방 마지막 말을 쓴 다른 근무자 이름 (단체방 안에서도 이름으로 보임)
+  const others = [...new Set([...lastRoom.values()].filter((m) => !m.from_admin && m.sender_id && m.sender_id !== userId).map((m) => m.sender_id!))]
+  const names = new Map(
+    others.length ? (((await db().from('users').select('id, name').in('id', others)).data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]) : [],
+  )
+  const lastCo = new Map<string, Thread>()
+  for (const t of threads) {
+    const prev = lastCo.get(t.company_id)
+    if (!prev || t.created_at > prev.created_at) lastCo.set(t.company_id, t)
+  }
+  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number }
+  const list: Row[] = [
+    ...rooms.map((r): Row => {
+      const m = lastRoom.get(r.id)
+      return {
+        key: `r-${r.id}`,
+        href: `/me/chat/room/${r.id}`,
+        kind: 'room',
+        title: r.title,
+        icon: 'room',
+        who: !m ? '' : m.from_admin ? '담당자' : m.sender_id === userId ? '나' : (names.get(m.sender_id ?? '') ?? '근무자'),
+        body: m ? plainBody(m.body) : null,
+        at: m?.created_at ?? null,
+        unread: r.unread,
+      }
+    }),
+    ...companies.map((c): Row => {
+      const m = lastCo.get(c.id)
+      return {
+        key: `c-${c.id}`,
+        href: `/me/chat?co=${c.id}`,
+        kind: 'company',
+        title: c.name,
+        icon: c.support ? 'support' : 'company',
+        who: m && !m.from_admin ? '나' : '',
+        body: m ? plainBody(m.body) : null,
+        at: m?.created_at ?? null,
+        unread: unreadBy.get(c.id) ?? 0,
+      }
+    }),
+  ].sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''))
+  const today = kstDate()
+  const when = (iso: string) => (kstDate(iso) === today ? kstTime(iso) : fmtDate(kstDate(iso)))
+  const unreadAll = list.reduce((n, r) => n + r.unread, 0)
+
+  return (
+    <div className="space-y-4">
+      <AutoRefresh seconds={10} quiet />
+      <div>
+        <h1 className="text-2xl font-extrabold">문의</h1>
+        <p className="mt-1 text-sm text-sub">
+          {unreadAll > 0 ? (
+            <>
+              안 읽은 메시지 <b className="text-rose-600">{unreadAll}개</b>가 있어요.
+            </>
+          ) : (
+            '담당자 1:1 문의와 같은 근무 단체방이 여기 모여요.'
+          )}
+        </p>
+      </div>
+      <ul className="card stagger divide-y divide-line overflow-hidden p-0" data-chat-list>
+        {list.map((r) => (
+          <li key={r.key}>
+            <Link href={r.href} className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-bg" data-chat-row={r.kind}>
+              <span
+                aria-hidden
+                className={`grid size-12 shrink-0 place-items-center rounded-[18px] text-xl ${
+                  r.icon === 'room' ? 'bg-[linear-gradient(135deg,var(--color-brand-500),#22d3ee)] text-white' : r.icon === 'support' ? 'bg-amber-50' : 'bg-brand-50'
+                }`}
+              >
+                {r.icon === 'room' ? (
+                  <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="9" cy="8" r="3.2" />
+                    <path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17.5 13.6a6 6 0 0 1 3.5 5.9" />
+                  </svg>
+                ) : r.icon === 'support' ? (
+                  '🎧'
+                ) : (
+                  '🏢'
+                )}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <b className="min-w-0 truncate">{r.title}</b>
+                  {r.kind === 'room' && <span className="badge shrink-0 bg-brand-50 text-brand-700">단체방</span>}
+                  {r.at && <span className="ml-auto shrink-0 pl-1 text-xs text-mute tabular-nums">{when(r.at)}</span>}
+                </span>
+                <span className="mt-0.5 flex items-center gap-2">
+                  <span className={`min-w-0 flex-1 truncate text-sm ${r.unread > 0 ? 'font-semibold text-ink' : 'text-sub'}`}>
+                    {r.body ? (
+                      <>
+                        {r.who && <span className="text-mute">{r.who}: </span>}
+                        {r.body.replace(/\s+/g, ' ')}
+                      </>
+                    ) : (
+                      <span className="text-mute">{r.kind === 'room' ? '아직 대화가 없어요. 먼저 인사해 보세요' : '궁금한 점을 남겨 보세요'}</span>
+                    )}
+                  </span>
+                  {r.unread > 0 && (
+                    <span data-unread className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">
+                      {r.unread > 99 ? '99+' : r.unread}
+                    </span>
+                  )}
+                </span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

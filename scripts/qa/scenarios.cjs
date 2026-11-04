@@ -161,7 +161,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   const rm = (await rest(MW, `messages?thread_user_id=eq.${WK}`)).find((m) => m.body.startsWith('⏰ 내일 근무 안내'))
   ok('S7 안내에 시간·장소', rm && /\d\d:\d\d~\d\d:\d\d · 광장/.test(rm.body), rm && rm.body.split('\n').slice(1, 3).join(' / '))
   const wm = await page(W_, WK)
-  await wm.goto(`${W_}/me/chat`)
+  await wm.goto(`${W_}/me/chat?co=99999999-0000-4000-8000-000000000099`)
   ok('S7 근무자 문의함 화면에 안내가 보임', await see(wm, '⏰ 내일 근무 안내'))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

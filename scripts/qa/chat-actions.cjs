@@ -46,7 +46,7 @@ const post = (body, i) =>
 
   // 근무자 화면: 처리 링크 없음, 공고 표시는 공고 페이지로
   const w = await pg(WK)
-  await w.goto(`${W_}/me/chat`)
+  await w.goto(`${W_}/me/chat?co=99999999-0000-4000-8000-000000000099`)
   await w.getByText('약 10분 늦어요').first().waitFor({ timeout: 8000 }).catch(() => {})
   ok('근무자: 처리 링크 없음', (await w.getByRole('link', { name: /처리 →|채우기 →/ }).count()) === 0)
   const wtag = await w.locator('li', { hasText: '약 10분 늦어요' }).getByRole('link', { name: /공고 보기/ }).getAttribute('href')
