@@ -163,7 +163,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             const cat = categoryOf(p.category)
             return (
               <li key={p.id}>
-                <Link href={`/community/${p.id}`} className="card-link block space-y-1.5 p-4" data-post>
+                <Link href={`/community/${p.id}`} className="card-link block space-y-1.5 p-4" data-post transitionTypes={['nav-forward']}>
                   <div className="flex items-center gap-2 text-xs font-bold">
                     <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">
                       {cat.icon} {cat.label}

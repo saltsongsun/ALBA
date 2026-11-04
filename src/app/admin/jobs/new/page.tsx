@@ -20,7 +20,7 @@ export default async function NewJobPage() {
   ])
   return (
     <div className="mx-auto max-w-3xl">
-      <Link href="/admin/jobs" className="text-sm font-semibold text-sub">
+      <Link href="/admin/jobs" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 공고 목록
       </Link>
       <h1 className="mt-2 mb-4 text-2xl font-extrabold">새 공고 등록</h1>

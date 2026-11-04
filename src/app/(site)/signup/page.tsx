@@ -28,7 +28,7 @@ export default async function SignupPage(props: PageProps<'/signup'>) {
   return (
     <div className="pt-2" data-mode={type === 'worker' ? undefined : 'pro'}>
       {type !== 'worker' && <ProMode />}
-      <Link href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ''}`} className="text-sm font-semibold text-sub">
+      <Link href={`/signup${next ? `?next=${encodeURIComponent(next)}` : ''}`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 유형 다시 고르기
       </Link>
       <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1 text-sm font-bold text-brand-700">

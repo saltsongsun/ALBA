@@ -28,7 +28,7 @@ export default async function AllPayslipsPage(props: PageProps<'/print/payslip/[
   return (
     <div className="space-y-4">
       <div className="no-print flex items-center justify-between gap-2">
-        <Link href={`/admin/jobs/${jobId}?tab=pay`} className="text-sm font-semibold text-sub">
+        <Link href={`/admin/jobs/${jobId}?tab=pay`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 돌아가기
         </Link>
         <p className="text-sm text-sub">{sheets.length}명 · 한 사람에 한 장</p>

@@ -53,7 +53,7 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
   return (
     <div className="space-y-4">
       <Flash m={sp.m} />
-      <Link href="/admin/vendors?tab=quotes" className="text-sm font-semibold text-sub">
+      <Link href="/admin/vendors?tab=quotes" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 견적 요청 목록
       </Link>
       <section className="card space-y-2">

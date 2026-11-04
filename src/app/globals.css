@@ -441,6 +441,82 @@
   }
 }
 
+/* ── 화면 전환 (components/PageTransition.tsx · React ViewTransition) ──
+   머리글·아래 탭·배경(root)은 그대로 두고 화면 내용만 움직임. 움직이는 동안에도 누르는 건 그대로 됨 */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(root) {
+  display: none;
+}
+::view-transition-new(root) {
+  animation: none;
+}
+/* 다른 화면으로: 이전 내용은 빠르게 흐려지고 새 내용은 살짝 떠오름 */
+::view-transition-old(.page) {
+  animation: 120ms ease-out both vt-fade reverse;
+}
+::view-transition-new(.page) {
+  animation: 300ms var(--ease-spring) 60ms both vt-rise;
+}
+/* 깊이 들어가기(공고·글·대화 열기): 새 화면이 오른쪽에서 / 돌아가기: 왼쪽에서 */
+::view-transition-old(.nav-forward) {
+  --vt-x: -40px;
+  animation:
+    140ms ease-in both vt-fade reverse,
+    320ms var(--ease-spring) both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --vt-x: 48px;
+  animation:
+    220ms ease-out 70ms both vt-fade,
+    360ms var(--ease-spring) both vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --vt-x: 40px;
+  animation:
+    140ms ease-in both vt-fade reverse,
+    320ms var(--ease-spring) both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --vt-x: -48px;
+  animation:
+    220ms ease-out 70ms both vt-fade,
+    360ms var(--ease-spring) both vt-slide;
+}
+@keyframes vt-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes vt-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes vt-slide {
+  from {
+    translate: var(--vt-x) 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+/* 화면 전환을 지원하지 않는 브라우저: 예전처럼 새 화면이 떠오르기만 */
+@supports not (view-transition-name: none) {
+  .page-rise {
+    animation: var(--animate-rise);
+  }
+}
+
 /* 기기에서 '동작 줄이기'를 켰으면 움직임을 거의 없앰 */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -451,6 +527,12 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 }
 

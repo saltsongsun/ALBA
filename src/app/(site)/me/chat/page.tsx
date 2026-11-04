@@ -89,7 +89,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       {companyId && <ReadSync tag={`chat-${companyId}`} />}
       <div>
         {many && (
-          <Link href="/me/chat" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-sub" data-chat-back>
+          <Link href="/me/chat" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-sub" data-chat-back transitionTypes={['nav-back']}>
             ← 대화 목록
           </Link>
         )}
@@ -233,7 +233,7 @@ async function ChatList({
       <ul className="card stagger divide-y divide-line overflow-hidden p-0" data-chat-list>
         {list.map((r) => (
           <li key={r.key}>
-            <Link href={r.href} className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-bg" data-chat-row={r.kind}>
+            <Link href={r.href} className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-bg" data-chat-row={r.kind} transitionTypes={['nav-forward']}>
               <span
                 aria-hidden
                 className={`grid size-12 shrink-0 place-items-center rounded-[18px] text-xl ${

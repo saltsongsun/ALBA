@@ -30,7 +30,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`room-${job.id}`} />
       <div className="flex items-center justify-between gap-2">
-        <Link href="/admin/chat" className="text-sm font-semibold text-sub">
+        <Link href="/admin/chat" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 문의 목록
         </Link>
         <a href={`/admin/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs">

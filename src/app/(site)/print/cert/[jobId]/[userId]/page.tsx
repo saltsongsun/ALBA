@@ -24,7 +24,7 @@ export default async function CertPage(props: PageProps<'/print/cert/[jobId]/[us
   return (
     <div className="space-y-4">
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
-        <Link href={viewer.id === userId ? '/me' : `/admin/jobs/${jobId}?tab=pay`} className="text-sm font-semibold text-sub">
+        <Link href={viewer.id === userId ? '/me' : `/admin/jobs/${jobId}?tab=pay`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 돌아가기
         </Link>
         <form className="flex gap-2">

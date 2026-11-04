@@ -145,7 +145,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
-      <Link href="/admin/jobs" className="text-sm font-semibold text-sub">
+      <Link href="/admin/jobs" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 공고 목록
       </Link>
 

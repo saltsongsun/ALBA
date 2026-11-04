@@ -98,7 +98,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/me" className="text-sm font-semibold text-sub">
+        <Link href="/me" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 내 근무
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold">지난 근무</h1>

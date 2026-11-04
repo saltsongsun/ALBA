@@ -17,7 +17,7 @@ export default async function PayslipPage(props: PageProps<'/print/payslip/[jobI
   return (
     <div className="space-y-4">
       <div className="no-print flex items-center justify-between">
-        <Link href={viewer.id === userId ? '/me' : `/admin/jobs/${jobId}?tab=pay`} className="text-sm font-semibold text-sub">
+        <Link href={viewer.id === userId ? '/me' : `/admin/jobs/${jobId}?tab=pay`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 돌아가기
         </Link>
         <PrintButton />

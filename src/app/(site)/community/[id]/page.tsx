@@ -56,7 +56,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
     <div className="space-y-4">
       <CommunitySeen />
       <Flash m={sp.m} />
-      <Link href={`/community?c=${post.category}`} className="text-sm font-semibold text-sub">
+      <Link href={`/community?c=${post.category}`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← {cat.label}
       </Link>
       <article className="card space-y-3" data-post-detail>
@@ -159,7 +159,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
           <ul className="space-y-2">
             {related.map((r) => (
               <li key={r.id}>
-                <Link href={`/community/${r.id}`} className="card-link flex items-center gap-3 p-3.5">
+                <Link href={`/community/${r.id}`} className="card-link flex items-center gap-3 p-3.5" transitionTypes={['nav-forward']}>
                   <span className="min-w-0 flex-1">
                     <b className="block truncate text-[15px]">{r.title}</b>
                     <span className="block truncate text-xs text-mute">

@@ -63,7 +63,7 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-4">
       <OpenOnHash />
-      <Link href={vendor ? '/pro' : '/me'} className="text-sm font-semibold text-sub">
+      <Link href={vendor ? '/pro' : '/me'} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         {vendor ? '← 홈' : '← 내 근무'}
       </Link>
       {doneN < checks.length && (

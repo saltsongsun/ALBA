@@ -112,13 +112,13 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
               <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">
                 {/* 안 읽은 담당자 답장 */}
                 {t.href === '/me/chat' && unread > 0 && (
-                  <span className="absolute -top-1.5 -right-0.5 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 ring-2 ring-white px-1 text-[10px] leading-none font-bold text-white">
+                  <span className="absolute -top-1.5 right-0 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 ring-2 ring-white px-1 text-[10px] leading-none font-bold text-white">
                     {unread > 9 ? '9+' : unread}
                   </span>
                 )}
                 {/* 해야 할 일 (서명·시간 변경 답·연장 확인) */}
                 {t.href === '/me' && todo > 0 && (
-                  <span className="absolute -top-1.5 -right-0.5 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 ring-2 ring-white px-1 text-[10px] leading-none font-bold text-white">
+                  <span className="absolute -top-1.5 right-0 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 ring-2 ring-white px-1 text-[10px] leading-none font-bold text-white">
                     {todo > 9 ? '9+' : todo}
                   </span>
                 )}

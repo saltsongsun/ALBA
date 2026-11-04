@@ -49,7 +49,7 @@ export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>
   return (
     <div className="space-y-4">
       <Flash m={sp.m} />
-      <Link href="/admin/vendors?tab=list" className="text-sm font-semibold text-sub">
+      <Link href="/admin/vendors?tab=list" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 업체 목록
       </Link>
       <section className="card space-y-2">

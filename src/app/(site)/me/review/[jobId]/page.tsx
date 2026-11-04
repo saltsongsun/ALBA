@@ -24,7 +24,7 @@ export default async function ReviewPage(props: PageProps<'/me/review/[jobId]'>)
   const had = mine as { rating: number; body: string } | null
   return (
     <div className="space-y-4">
-      <Link href="/me/history" className="text-sm font-semibold text-sub">
+      <Link href="/me/history" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 지난 근무
       </Link>
       <div>

@@ -24,7 +24,7 @@ export default async function TemplatePage(props: PageProps<'/admin/docs/[id]'>)
   return (
     <div className="space-y-4">
       <Flash m={sp.m} />
-      <Link href="/admin/docs" className="text-sm font-semibold text-sub">
+      <Link href="/admin/docs" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 서식 목록
       </Link>
       <h1 className="text-2xl font-extrabold">{tpl ? tpl.title : '새 서식'}</h1>

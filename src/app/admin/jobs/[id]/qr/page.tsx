@@ -66,7 +66,7 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
 
   return (
     <div className="space-y-4">
-      <Link href={`/admin/jobs/${job.id}?tab=att`} className="no-print text-sm font-semibold text-sub">
+      <Link href={`/admin/jobs/${job.id}?tab=att`} className="no-print text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 출퇴근으로
       </Link>
       <div className="print-sheet card mx-auto max-w-md space-y-4 text-center">

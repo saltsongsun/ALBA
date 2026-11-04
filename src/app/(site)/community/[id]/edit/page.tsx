@@ -18,7 +18,7 @@ export default async function EditPostPage(props: PageProps<'/community/[id]/edi
   const { post } = got
   return (
     <div className="space-y-4">
-      <Link href={`/community/${post.id}`} className="text-sm font-semibold text-sub">
+      <Link href={`/community/${post.id}`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 글로 돌아가기
       </Link>
       <h1 className="text-2xl font-extrabold">글 고치기</h1>

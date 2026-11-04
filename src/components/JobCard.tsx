@@ -53,7 +53,7 @@ export default function JobCard({
   const filled = Math.min(100, Math.round((approved / Math.max(job.headcount, 1)) * 100))
   const showCount = shows(job, 'headcount')
   return (
-    <Link href={`/jobs/${job.id}`} className="card-link block">
+    <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']}>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {job.audience === 'expert' && <span className="badge bg-violet-50 text-violet-700">🎛️ 전문가 의뢰</span>}
         {when && <span className="badge bg-ink text-white">{when}</span>}
