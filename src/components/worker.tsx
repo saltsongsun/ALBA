@@ -729,28 +729,106 @@ export function SignForm({ docId, title, userId }: { docId: string; title: strin
   )
 }
 
+/** 내 정보 '정보 채우기'에서 바로 가는 칸 (주소 끝 #이름) */
+const PROFILE_FIELDS = ['bank_account', 'emergency_phone', 'address'] as const
+type ProfileField = (typeof PROFILE_FIELDS)[number]
+
+/**
+ * 급여 계좌·연락 정보. 칸마다 이름표를 붙여 값이 채워져 있어도 무슨 칸인지 보이게.
+ * 아직 비어 있는 꼭 필요한 칸(need: 계좌번호·주소)은 노란 테두리 — 쓰기 시작하면 바로 사라짐.
+ * '정보 채우기'에서 누르고 오면(#bank_account 등) 그 칸을 화면 가운데로 옮기고 커서
+ */
 export function ProfileForm({
   initial,
+  need = [],
 }: {
   initial: { address: string; emergency_phone: string; bank_name: string; bank_account: string; account_holder: string }
+  need?: ProfileField[]
 }) {
   const [state, action] = useActionState(updateProfile, null)
+  const ref = useRef<HTMLFormElement>(null)
+  useEffect(() => {
+    const go = () => {
+      const id = decodeURIComponent(location.hash.slice(1)) as ProfileField
+      if (!PROFILE_FIELDS.includes(id)) return
+      const el = ref.current?.querySelector<HTMLInputElement>(`#${id}`)
+      if (!el) return
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+      el.focus({ preventScroll: true })
+      el.classList.remove('animate-pop')
+      void el.offsetWidth
+      el.classList.add('animate-pop')
+    }
+    go()
+    window.addEventListener('hashchange', go)
+    return () => window.removeEventListener('hashchange', go)
+  }, [])
+  // 비어 있으면 노란 테두리 (쓰는 대로 사라짐 · 다시 지우면 다시)
+  const missing = (key: ProfileField, value: string) => (need.includes(key) && !value.trim() ? '' : undefined)
+  const onInput = (e: React.FormEvent<HTMLFormElement>) => {
+    const el = e.target as HTMLInputElement
+    if (!PROFILE_FIELDS.includes(el.name as ProfileField) || !need.includes(el.name as ProfileField)) return
+    if (el.value.trim()) el.removeAttribute('data-missing')
+    else el.setAttribute('data-missing', '')
+  }
   return (
-    <form action={action} onReset={keepInputs} className="card space-y-4">
+    <form ref={ref} action={action} onReset={keepInputs} onInput={onInput} className="card space-y-4">
       <h2 className="font-bold">급여 계좌 · 연락 정보</h2>
       <div className="grid grid-cols-[1fr_1.2fr] gap-3">
-        <select name="bank_name" className="input" defaultValue={initial.bank_name}>
-          <option value="">은행 선택</option>
-          {BANKS.map((b) => (
-            <option key={b}>{b}</option>
-          ))}
-        </select>
-        <input name="bank_account" className="input" inputMode="numeric" placeholder="계좌번호" defaultValue={initial.bank_account} />
+        <div className="min-w-0">
+          <label className="label" htmlFor="bank_name">
+            은행
+          </label>
+          <select id="bank_name" name="bank_name" className="input" defaultValue={initial.bank_name}>
+            <option value="">은행 선택</option>
+            {BANKS.map((b) => (
+              <option key={b}>{b}</option>
+            ))}
+          </select>
+        </div>
+        <div className="min-w-0">
+          <label className="label" htmlFor="bank_account">
+            계좌번호
+          </label>
+          <input
+            id="bank_account"
+            name="bank_account"
+            className="input scroll-mt-24"
+            inputMode="numeric"
+            placeholder="숫자만"
+            defaultValue={initial.bank_account}
+            data-missing={missing('bank_account', initial.bank_account)}
+          />
+        </div>
       </div>
-      <input name="account_holder" className="input" placeholder="예금주 (비우면 본인 이름)" defaultValue={initial.account_holder} />
-      <p className="hint -mt-2">계좌번호는 숫자만 넣어도 돼요 (10~16자리). 급여는 본인 명의 계좌로 받는 게 가장 빨라요.</p>
-      <input name="address" className="input" placeholder="주소" defaultValue={initial.address} />
-      <input name="emergency_phone" className="input" inputMode="tel" placeholder="비상연락처 (선택 · 현장에서 연락이 안 될 때 담당자가 연락해요)" defaultValue={initial.emergency_phone} />
+      <div>
+        <label className="label" htmlFor="account_holder">
+          예금주
+        </label>
+        <input id="account_holder" name="account_holder" className="input" placeholder="비우면 본인 이름" defaultValue={initial.account_holder} />
+        <p className="hint mt-1">계좌번호는 숫자 10~16자리 · 본인 명의 계좌가 가장 빨라요</p>
+      </div>
+      <div>
+        <label className="label" htmlFor="address">
+          주소
+        </label>
+        <input id="address" name="address" className="input" placeholder="예) 진주시 남강로 123" defaultValue={initial.address} data-missing={missing('address', initial.address)} />
+      </div>
+      <div>
+        <label className="label" htmlFor="emergency_phone">
+          비상연락처 <span className="font-normal text-mute">(선택)</span>
+        </label>
+        <input
+          id="emergency_phone"
+          name="emergency_phone"
+          className="input"
+          inputMode="tel"
+          placeholder="가족 등 (현장에서 연락이 안 될 때)"
+          defaultValue={initial.emergency_phone}
+          data-missing={missing('emergency_phone', initial.emergency_phone)}
+        />
+      </div>
       <FormMessage state={state} />
       <SubmitButton>저장</SubmitButton>
     </form>
