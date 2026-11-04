@@ -110,6 +110,12 @@ const errs = []
   await payCard.locator('input[name=due_date]').fill(day(-1))
   await payCard.getByRole('button', { name: '날짜 저장' }).click()
   ok('지급일 지남 표시', await see(a, '지급일 지남'))
+  // (날짜 저장이 DB에 닿은 뒤에 대시보드로 — 바로 넘어가면 저장이 끊길 수 있음)
+  for (let i = 0; i < 40; i++) {
+    const rows = await fetch(`${MD}/rest/v1/vendor_payments`).then((r) => r.json()).catch(() => [])
+    if (rows.some((r) => r.due_date === day(-1))) break
+    await a.waitForTimeout(150)
+  }
   await a.goto(`${D}/admin`)
   ok('대시보드: 외주 대금 지급일 지남 1건', await see(a, '외주 대금 지급일 지남'))
   await a.goto(`${D}/admin/vendors?tab=pay`)

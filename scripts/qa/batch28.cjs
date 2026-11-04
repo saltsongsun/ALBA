@@ -59,12 +59,21 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   // ── 2. 지난 근무 합계 숫자 올라가기 ──
   const w = await pg(W)
   await rest(`attendance?user_id=eq.${W}`, 'PATCH', { clock_in: new Date(Date.now() - 4 * 3600e3).toISOString(), clock_out: new Date().toISOString() })
+  // 화면이 그려지는 처음부터 실수령 숫자를 모두 기록 (서버가 바쁘면 올라가기가 금방 끝나 버려서)
+  await w.addInitScript(() => {
+    window.__seen = []
+    new MutationObserver(() => {
+      const el = document.querySelector('[data-summary=실수령] [data-value]')
+      if (el) window.__seen.push(Number(el.textContent.replace(/,/g, '')))
+    }).observe(document, { subtree: true, childList: true, characterData: true })
+  })
   await w.goto(`${D}/me/history`)
   const money = w.locator('[data-summary=실수령] [data-value]')
   await money.waitFor({ timeout: 10000 }).catch(() => {})
+  await w.waitForTimeout(1200)
   const target = Number(await money.getAttribute('data-value'))
-  const early = Number((await money.innerText()).replace(/,/g, ''))
-  await w.waitForTimeout(1000)
+  const seen = await w.evaluate(() => window.__seen)
+  const early = Math.min(...seen)
   const late = Number((await money.innerText()).replace(/,/g, ''))
   ok('실수령 숫자가 올라가며 나타남 (처음엔 작고 끝엔 실제 금액)', target > 0 && early < target && late === target, `${early} → ${late} / ${target}`)
 
