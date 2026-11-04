@@ -7,6 +7,8 @@ import { ConfirmSubmit } from '@/components/ui'
 import { platformCompanyId } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { requireSuper } from '@/lib/session'
+import { companyRatings } from '@/lib/community'
+import { kstDate } from '@/lib/time'
 
 export const metadata: Metadata = { title: '회사 관리' }
 
@@ -46,6 +48,31 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
     ),
   )
   const members = memberRows.map((m) => ({ ...m, user: people.get(m.user_id) ?? null }))
+  // 회사별 한눈에: 모집 중 공고 · 이번 달 출근한 근무자 · 근무자 후기 (못 읽으면 칸만 비움)
+  const today = kstDate()
+  const monthStart = `${today.slice(0, 7)}-01`
+  const [openJobs, monthAtt, ratings] = await Promise.all([
+    db()
+      .from('jobs')
+      .select('company_id, status, end_date')
+      .eq('status', 'open')
+      .gte('end_date', today)
+      .limit(5000)
+      .then((r) => (r.data ?? []) as { company_id: string; status: string; end_date: string }[], () => []),
+    db()
+      .from('attendance')
+      .select('company_id, user_id, work_date, clock_in')
+      .gte('work_date', monthStart)
+      .not('clock_in', 'is', null)
+      .limit(20000)
+      .then((r) => (r.data ?? []) as { company_id: string; user_id: string; work_date: string; clock_in: string | null }[], () => []),
+    companyRatings(companies.map((c) => c.id)),
+  ])
+  const stats = (id: string) => ({
+    open: openJobs.filter((j) => j.company_id === id && j.status === 'open' && j.end_date >= today).length,
+    worked: new Set(monthAtt.filter((a) => a.company_id === id && a.clock_in && a.work_date >= monthStart && a.work_date <= today).map((a) => a.user_id)).size,
+    rating: ratings[id] ?? null,
+  })
   companies.sort((a, b) => a.created_at.localeCompare(b.created_at))
   // 직접 가입해 확인을 기다리는 회사 (확인 전에는 해피워크 전체 회원 명단을 못 봄)
   const waiting = companies.filter((c) => c.active && c.verified === false)
@@ -67,6 +94,7 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
       <div className="space-y-3">
         {companies.map((c) => {
           const list = members.filter((m) => m.company_id === c.id)
+          const st = stats(c.id)
           return (
             <section key={c.id} className={`card space-y-3 ${c.active ? '' : 'opacity-60'}`}>
               <div className="flex flex-wrap items-start justify-between gap-2">
@@ -107,6 +135,20 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
                   )}
                 </div>
               </div>
+              <dl className="grid grid-cols-3 gap-1.5 rounded-xl bg-bg p-2 text-center" data-company-stats>
+                {(
+                  [
+                    ['모집 중', `${st.open}건`],
+                    [`${Number(today.slice(5, 7))}월 근무`, `${st.worked}명`],
+                    ['후기', st.rating ? `★${st.rating.avg.toFixed(1)} (${st.rating.count})` : '-'],
+                  ] as const
+                ).map(([k, v]) => (
+                  <div key={k} className="min-w-0">
+                    <dt className="text-xs text-mute">{k}</dt>
+                    <dd className="truncate font-bold tabular-nums">{v}</dd>
+                  </div>
+                ))}
+              </dl>
               <div>
                 <h3 className="mb-1 text-sm font-semibold text-sub">관리자 {list.length}명</h3>
                 {list.length === 0 ? (

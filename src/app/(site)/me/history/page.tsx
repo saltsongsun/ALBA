@@ -5,7 +5,7 @@ import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
 import { calcDay, settle } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
-import { fmtDateRange, minutesText } from '@/lib/time'
+import { fmtDateRange, kstDate, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { canWrite, myReviewedJobs } from '@/lib/community'
@@ -15,8 +15,12 @@ export const metadata: Metadata = { title: '지난 근무' }
 /** 공고 + 낸 회사 이름 (여러 회사 일을 하면 어느 회사 급여인지 보이게) */
 type JobCo = Job & { company?: { company_name: string } | null }
 
-export default async function HistoryPage() {
+/** 막대 위 짧은 금액 (123.4만) */
+const short = (n: number) => (n >= 10_000 ? `${(Math.round(n / 1000) / 10).toLocaleString('ko-KR')}만` : n > 0 ? `${n.toLocaleString('ko-KR')}원` : '')
+
+export default async function HistoryPage(props: PageProps<'/me/history'>) {
   const user = await requireUser('/me/history')
+  const sp = await props.searchParams
   const [atts, docs, apps, reviewed] = await Promise.all([
     db()
       .from('attendance')
@@ -51,7 +55,7 @@ export default async function HistoryPage() {
     g.rows.push(a)
     byJob.set(a.job_id, g)
   }
-  const items = [...byJob.values()].map(({ job, rows }) => ({
+  const all = [...byJob.values()].map(({ job, rows }) => ({
     job,
     rows,
     s: settle(job, rows.map((r) => calcDay(job, r))),
@@ -60,6 +64,13 @@ export default async function HistoryPage() {
     first: rows[rows.length - 1].work_date,
     last: rows[0].work_date,
   }))
+
+  // 여러 회사 일을 했으면 회사별로 골라 보기 (합계·월별도 그 회사만)
+  const coNames = new Map<string, string>()
+  for (const it of all) if (it.job.company_id) coNames.set(it.job.company_id, it.job.company?.company_name ?? '회사')
+  const companies = [...coNames.entries()].map(([id, name]) => ({ id, name, n: all.filter((it) => it.job.company_id === id).length }))
+  const pick = companies.length > 1 && typeof sp.co === 'string' && coNames.has(sp.co) ? sp.co : ''
+  const items = pick ? all.filter((it) => it.job.company_id === pick) : all
 
   // 마지막 근무일이 속한 달로 묶음
   const months = new Map<string, typeof items>()
@@ -74,6 +85,15 @@ export default async function HistoryPage() {
   // 아직 입금되지 않은 급여 (지급 완료되면 알림이 감)
   const unpaid = items.filter((it) => !it.paid && it.s.net > 0)
   const unpaidNet = unpaid.reduce((n, it) => n + it.s.net, 0)
+  // 최근 6개월 실수령 막대 (이번 달 포함)
+  const nowYm = kstDate().slice(0, 7)
+  const recent = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(`${nowYm}-15T00:00:00Z`)
+    d.setUTCMonth(d.getUTCMonth() - (5 - i))
+    const ym = d.toISOString().slice(0, 7)
+    return { ym, net: (months.get(ym) ?? []).reduce((n, it) => n + it.s.net, 0) }
+  })
+  const top = Math.max(...recent.map((m) => m.net))
 
   return (
     <div className="space-y-6">
@@ -92,6 +112,26 @@ export default async function HistoryPage() {
         </Empty>
       ) : (
         <>
+          {companies.length > 1 && (
+            <nav aria-label="회사별 보기" className="-mx-4 -mb-2 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-history-companies>
+              {[{ id: '', name: '전체', n: all.length }, ...companies].map((c) => {
+                const on = c.id === pick
+                return (
+                  <Link
+                    key={c.id || 'all'}
+                    href={c.id ? `/me/history?co=${c.id}` : '/me/history'}
+                    replace
+                    scroll={false}
+                    aria-current={on ? 'page' : undefined}
+                    className={`flex max-w-[60vw] shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-sm font-bold whitespace-nowrap ring-1 transition active:scale-95 ${on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'}`}
+                  >
+                    <span className="min-w-0 truncate">{c.id ? `🏢 ${c.name}` : c.name}</span>
+                    <span className={`tabular-nums ${on ? 'text-white/80' : 'text-mute'}`}>{c.n}</span>
+                  </Link>
+                )
+              })}
+            </nav>
+          )}
           <section className="grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20">
             {(
               [
@@ -115,8 +155,39 @@ export default async function HistoryPage() {
               <b className="text-base tabular-nums">{won(unpaidNet)}</b>
             </p>
           )}
+          {top > 0 && (
+            <section className="card" data-month-bars aria-label="최근 6개월 실수령">
+              <h2 className="text-sm font-bold text-sub">최근 6개월 실수령</h2>
+              <div className="mt-3 grid grid-cols-6 gap-1.5">
+                {recent.map(({ ym, net }) => {
+                  const now = ym === nowYm
+                  const label = `${Number(ym.slice(5))}월`
+                  const body = (
+                    <>
+                      <span className={`text-[11px] font-semibold whitespace-nowrap tabular-nums ${now ? 'text-brand-700' : 'text-sub'}`}>{short(net)}</span>
+                      <span
+                        className={`block w-full max-w-9 origin-bottom animate-grow-up rounded-t-lg ${net > 0 ? (now ? 'bg-brand-500' : 'bg-brand-200') : 'bg-line'}`}
+                        style={{ height: net > 0 ? `${Math.max(6, Math.round((net / top) * 84))}px` : '3px' }}
+                      />
+                      <span className={`text-xs ${now ? 'font-bold text-ink' : 'text-mute'}`}>{label}</span>
+                    </>
+                  )
+                  const cls = 'flex h-28 flex-col items-center justify-end gap-1 rounded-lg'
+                  return months.has(ym) ? (
+                    <a key={ym} href={`#m-${ym}`} className={`${cls} transition active:scale-95`} aria-label={`${label} ${won(net)}`} data-month-bar={ym}>
+                      {body}
+                    </a>
+                  ) : (
+                    <div key={ym} className={cls} aria-label={`${label} 없음`} data-month-bar={ym}>
+                      {body}
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
           {[...months.entries()].map(([ym, list]) => (
-            <section key={ym}>
+            <section key={ym} id={`m-${ym}`} className="scroll-mt-20">
               <div className="mb-3 flex items-baseline justify-between">
                 <h2 className="text-[17px] font-bold">
                   {Number(ym.slice(0, 4))}년 {Number(ym.slice(5))}월

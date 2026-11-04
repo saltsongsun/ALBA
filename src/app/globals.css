@@ -24,6 +24,7 @@
   --animate-float: float 3.2s ease-in-out infinite;
   --animate-bump: bump 0.7s var(--ease-spring);
   --animate-grow: grow 0.7s var(--ease-spring) 0.15s both;
+  --animate-grow-up: grow-up 0.7s var(--ease-spring) 0.15s both;
   --animate-heart: heart 0.8s var(--ease-spring) both;
 }
 
@@ -107,6 +108,11 @@
 @keyframes grow {
   from {
     transform: scaleX(0);
+  }
+}
+@keyframes grow-up {
+  from {
+    transform: scaleY(0);
   }
 }
 
