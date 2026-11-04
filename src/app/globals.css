@@ -288,6 +288,12 @@
   }
 }
 
+/* 회사 설정: 계약서에 꼭 들어가는데 아직 빈 칸 (components/SetupChecklist.tsx) */
+.input[data-missing] {
+  border-color: #fbbf24;
+  box-shadow: 0 0 0 3px rgb(251 191 36 / 0.22);
+}
+
 /* ── 키보드 (components/KeyboardWatch.tsx: 휴대폰 키보드가 올라와 있으면 html[data-kb]) ──
    글을 쓰는 동안은 아래 탭을 내려 숨겨 쓸 자리를 넓히고, 대화 입력칸은 키보드 바로 위로.
    (아이폰에서 키보드 위로 아래 탭이 떠 화면 가운데를 가리는 일도 없게) */

@@ -49,12 +49,15 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('새 회사: 시작하기 보임', await see(own, '🚀 해피워크 시작하기'))
   ok('0/4 (대표는 관리자 초대까지)', (await progress(own)) === '0/4', await progress(own))
   for (const [t, href] of [
-    ['회사 정보 채우기', '/admin/settings'],
+    // 회사 정보: 회사 설정의 첫 빈 칸으로 (#사업자번호·주소·직인·연락처 중 하나)
+    ['회사 정보 채우기', /^\/admin\/settings#(business_no|company_address|seal|contact_phone)$/],
     ['첫 공고 올리기', '/admin/jobs/new'],
     ['근무자 모으기', '/admin/jobs'],
     ['함께 일할 관리자 초대', '/admin/settings#admins'],
-  ])
-    ok(`단계 ${t} → ${href}`, (await card(own).locator('a', { hasText: t }).getAttribute('href')) === href)
+  ]) {
+    const got = await card(own).locator('a', { hasText: t }).getAttribute('href')
+    ok(`단계 ${t} → ${href}`, typeof href === 'string' ? got === href : href.test(got ?? ''), got ?? '')
+  }
   ok('예전 \'회사 설정 마무리\' 띠는 겹치지 않게 숨김', !(await see(own, '회사 설정을 마무리해 주세요', 800)))
   ok('360px: 옆으로 안 밀림', await own.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   const rows = await card(own).locator('li a').evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))

@@ -9,6 +9,7 @@ import { DocBody } from './DocSheet'
 import SealField from './SealField'
 import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
+import SetupChecklist from './SetupChecklist'
 
 export function RevealRrn({ userId, masked }: { userId: string; masked: string | null }) {
   const [state, action] = useActionState(revealRrn.bind(null, userId), null)
@@ -223,6 +224,10 @@ export function SettingsForm({ s }: { s: Settings }) {
   const [state, action] = useActionState(saveSettings, null)
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
+      {/* 계약서에 들어가는 정보 4가지: 쓰는 대로 ✓, 누르면 그 칸으로 */}
+      <SetupChecklist
+        initial={{ business_no: !!s.business_no, company_address: !!s.company_address, seal: !!s.seal_image, contact_phone: !!s.contact_phone }}
+      />
       <section className="card space-y-4">
         <div>
           <h2 className="font-bold">회사(사업주) 정보</h2>
@@ -254,7 +259,7 @@ export function SettingsForm({ s }: { s: Settings }) {
           </label>
         </div>
       </section>
-      <section className="card space-y-4">
+      <section id="seal" className="card scroll-mt-24 space-y-4">
         <h2 className="font-bold">직인</h2>
         <SealField current={s.seal_image} />
         {s.seal_image && (

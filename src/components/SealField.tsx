@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 const MAX_SIDE = 600
 const MAX_LEN = 520_000 // data URL 길이 (약 380KB)
@@ -54,6 +54,11 @@ export default function SealField({ current }: { current: string | null }) {
   const [file, setFile] = useState<File | null>(null)
   const [clearBg, setClearBg] = useState(true)
   const [data, setData] = useState<string | null>(null)
+  // 직인 그림이 바뀌면 폼에 알림 (회사 설정 맨 위 '계약서에 들어가는 정보'가 바로 ✓)
+  const hiddenRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    hiddenRef.current?.dispatchEvent(new Event('change', { bubbles: true }))
+  }, [data])
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
@@ -112,7 +117,7 @@ export default function SealField({ current }: { current: string | null }) {
             흰 종이 배경 지우기
           </label>
         )}
-        <input type="hidden" name="seal_data" value={data ?? ''} />
+        <input ref={hiddenRef} type="hidden" name="seal_data" value={data ?? ''} />
         <p className="hint">
           {data
             ? '아래 ‘저장’을 눌러야 바뀌어요.'

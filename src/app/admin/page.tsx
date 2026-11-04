@@ -367,15 +367,19 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
   const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
   const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
-  const setupTodo = [
-    !settings.business_no && '사업자등록번호',
-    !settings.company_address && '회사 주소',
-    !sealSet && '직인 이미지',
-    !settings.contact_phone && '문의 연락처',
-  ].filter(Boolean)
+  // 계약서에 들어가는 회사 정보 (회사 설정 맨 위 체크 목록과 같은 4가지)
+  const setupItems = [
+    { key: 'business_no', done: !!settings.business_no },
+    { key: 'company_address', done: !!settings.company_address },
+    { key: 'seal', done: sealSet },
+    { key: 'contact_phone', done: !!settings.contact_phone },
+  ]
+  const firstEmpty = setupItems.find((it) => !it.done)
+  // 회사 설정의 첫 빈 칸으로 바로 (커서까지). 빈 칸이 있으면 '시작하기'의 '회사 정보 채우기'가 남아 있음
+  const setupHref = `/admin/settings${firstEmpty ? `#${firstEmpty.key}` : ''}`
   // 새 회사가 처음 할 일 (필수 3가지를 마치면 사라짐, 관리자 초대는 대표 관리자에게만 · 선택)
   const startSteps = [
-    { key: 'info', done: setupTodo.length === 0, title: '회사 정보 채우기', desc: '직인·주소 등 계약서에 들어가요', href: '/admin/settings', optional: false },
+    { key: 'info', done: !firstEmpty, title: '회사 정보 채우기', desc: '직인·주소 등 계약서에 들어가요', href: setupHref, optional: false },
     { key: 'job', done: jobsEver > 0, title: '첫 공고 올리기', desc: '시간·시급·장소만 넣으면 돼요', href: '/admin/jobs/new', optional: false },
     { key: 'share', done: appsEver > 0, title: '근무자 모으기', desc: '공고 모음 링크를 단톡방에', href: '/admin/jobs', optional: false },
     ...(isOwner ? [{ key: 'team', done: memberCount > 1, title: '함께 일할 관리자 초대', desc: '초대 코드로 직원 초대 (선택)', href: '/admin/settings#admins', optional: true }] : []),
@@ -534,11 +538,6 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             </div>
           )}
         </section>
-      )}
-      {!showStart && setupTodo.length > 0 && (
-        <Link href="/admin/settings" className="block rounded-2xl bg-amber-50 px-5 py-4 text-sm text-amber-800">
-          <b>회사 설정을 마무리해 주세요:</b> {setupTodo.join(', ')} — 근로계약서·임금명세서에 들어갑니다. →
-        </Link>
       )}
       <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="지금 근무 중" value={working.length} href="/admin/jobs" icon="working" tone="bg-emerald-50 text-emerald-600" />
