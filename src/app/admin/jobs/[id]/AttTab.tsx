@@ -30,6 +30,7 @@ export default async function AttTab({
   pos,
   openShift = false,
   faces = false,
+  fix = null,
 }: {
   job: Job
   apps: AppRow[]
@@ -46,6 +47,8 @@ export default async function AttTab({
   openShift?: boolean
   /** 얼굴 명단으로 보기 (현장 입구에서 얼굴 확인용) */
   faces?: boolean
+  /** 정산 탭 '출퇴근에서 고치기'로 온 사람 (그 줄로 가서 잠깐 반짝) */
+  fix?: string | null
 }) {
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
   const changes = (
@@ -198,7 +201,8 @@ export default async function AttTab({
         <div className="grid grid-cols-3 divide-x divide-line text-center">
           {(
             [
-              ['근무 중', working, 'text-emerald-600'],
+              // 지난 날짜에 퇴근이 없으면 '근무 중'이 아니라 '퇴근 기록 없음'
+              [date < today ? '퇴근 기록 없음' : '근무 중', working, date < today ? (working ? 'text-amber-600' : 'text-mute') : 'text-emerald-600'],
               ['종료', done, 'text-ink'],
               ['미출근', absent.length, absent.length && date <= today ? 'text-rose-500' : 'text-mute'],
             ] as const
@@ -359,7 +363,7 @@ export default async function AttTab({
           {shown.map((uid) => {
             const u = users.get(uid)
             const a = byUser.get(uid)
-            const label = !a ? (arriveOf.has(uid) ? '출근 요청' : lateOf.has(uid) ? '늦음 알림' : '미출근') : !a.clock_out ? '근무 중' : '종료'
+            const label = !a ? (arriveOf.has(uid) ? '출근 요청' : lateOf.has(uid) ? '늦음 알림' : '미출근') : !a.clock_out ? (date < today ? '퇴근 기록 없음' : '근무 중') : '종료'
             const cls = !a
               ? arriveOf.has(uid)
                 ? 'bg-brand-600 text-white'
@@ -398,12 +402,20 @@ export default async function AttTab({
                 ? { label: `${late.minutes}분 늦음`, cls: 'bg-amber-100 text-amber-800' }
                 : { label: '미출근', cls: date <= today ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-mute' }
             : !a.clock_out
-              ? { label: '근무 중', cls: 'bg-emerald-50 text-emerald-700' }
+              ? // 지난 날짜인데 퇴근이 없으면 '근무 중'이 아니라 고칠 일
+                date < today
+                ? { label: '퇴근 기록 없음', cls: 'bg-amber-100 text-amber-800' }
+                : { label: '근무 중', cls: 'bg-emerald-50 text-emerald-700' }
               : a.confirmed
                 ? { label: '확정', cls: 'bg-ink text-white' }
                 : { label: '종료', cls: 'bg-gray-100 text-sub' }
           return (
-            <div key={uid} className="card p-4">
+            <div
+              key={uid}
+              id={`att-${uid}`}
+              data-att-row={uid}
+              className={`card scroll-mt-24 p-4 ${fix === uid ? 'animate-pop ring-2 ring-amber-300' : ''}`}
+            >
               <div className="flex items-center gap-3">
                 {/* 얼굴 사진 (눌러서 크게) + 오른쪽 아래 상태 점 */}
                 <span className="relative shrink-0">
@@ -486,7 +498,7 @@ export default async function AttTab({
               {a && (
                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
                   <span className="font-semibold tabular-nums">
-                    {kstTime(a.adj_in ?? a.clock_in)} ~ {a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : '근무 중'}
+                    {kstTime(a.adj_in ?? a.clock_in)} ~ {a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : date < today ? '퇴근 기록 없음' : '근무 중'}
                   </span>
                   {pay && !pay.incomplete && (
                     <span className="text-sub">

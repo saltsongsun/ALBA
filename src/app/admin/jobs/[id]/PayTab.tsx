@@ -4,7 +4,7 @@ import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { maskAccount, won } from '@/lib/format'
-import { calcDay, settle, TAX_LABEL } from '@/lib/pay'
+import { calcDay, settle, TAX_LABEL, workingToday } from '@/lib/pay'
 import { kstDate, minutesText } from '@/lib/time'
 import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
@@ -50,6 +50,12 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
   const unpaid = rows.filter((r) => r.done > 0 && !r.paid)
   // 계약 종료 시각 이후 기록이 있는데 아직 서로 확인이 안 끝난 근무 (금액에서 빠져 있음)
   const otWaiting = atts.filter((a) => a.clock_out && calcDay(job, a).otOpen).length
+  // 오늘 아직 근무 중(퇴근 전)은 따로: 고칠 일이 아니라 퇴근하면 금액에 들어감
+  const todayKst = kstDate()
+  const live = workingToday(atts, todayKst)
+  // 지난날 퇴근 기록이 없는 근무 → 출퇴근 탭의 그 날짜·그 사람으로 바로 가서 고치기
+  const missing = atts.filter((a) => a.clock_in && !a.clock_out && a.work_date !== todayKst).sort((a, b) => a.work_date.localeCompare(b.work_date))
+  const fixHref = missing[0] ? `/admin/jobs/${job.id}?tab=att&date=${missing[0].work_date}&fix=${missing[0].user_id}#att-${missing[0].user_id}` : null
 
   return (
     <div className="space-y-4">
@@ -110,15 +116,29 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
           </form>
         </div>
       )}
-      {(incomplete > 0 || unconfirmed > 0 || otWaiting > 0) && (
-        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          {otWaiting > 0 && `계약 종료 시각 이후 근무 ${otWaiting}건은 아직 서로 확인되지 않아 종료 시각까지만 계산돼 있습니다. `}
-          {incomplete > 0 && `퇴근 기록이 없는 근무 ${incomplete}건은 금액에서 빠져 있습니다. `}
-          {unconfirmed > 0 && `아직 확정하지 않은 근무 ${unconfirmed}건이 있습니다. 출퇴근 탭에서 확인해 주세요.`}
+      {live > 0 && (
+        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800" data-live-note>
+          오늘 근무 중 {live}명은 퇴근하면 금액에 들어가요.
+        </p>
+      )}
+      {(missing.length > 0 || unconfirmed > 0 || otWaiting > 0) && (
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800" data-pay-warn>
+          {otWaiting > 0 && `계약 종료 시각 이후 근무 ${otWaiting}건은 아직 서로 확인되지 않아 종료 시각까지만 계산돼 있어요. `}
+          {missing.length > 0 && (
+            <>
+              퇴근 기록이 없는 근무 {missing.length}건은 금액에서 빠져 있어요.{' '}
+              {fixHref && (
+                <Link href={fixHref} className="font-bold whitespace-nowrap underline-offset-2 hover:underline" data-fix-link>
+                  출퇴근에서 고치기 →
+                </Link>
+              )}{' '}
+            </>
+          )}
+          {unconfirmed > 0 && `아직 확정하지 않은 근무 ${unconfirmed}건이 있어요. 출퇴근 탭에서 확인해 주세요.`}
         </p>
       )}
       {rows.length === 0 ? (
-        <div className="card py-10 text-center text-mute">아직 근무 기록이 없습니다.</div>
+        <div className="card py-10 text-center text-mute">아직 근무 기록이 없어요.</div>
       ) : (
         <div className="card overflow-x-auto p-0">
           <table className="table text-[13px]">
