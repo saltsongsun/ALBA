@@ -9,7 +9,7 @@ export default async function SiteHeader() {
   const user = await getUser()
   const unread = user ? await unreadForWorker(user.id) : 0
   return (
-    <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-line bg-white/90 backdrop-blur">
+    <header className="no-print scroll-shadow sticky top-0 z-20 border-b border-black/[0.05] bg-white/70 backdrop-blur-xl backdrop-saturate-[1.8]">
       <div className="mx-auto flex h-14 max-w-xl items-center justify-between px-4">
         <Link href="/" className="flex items-center gap-2 text-[17px] font-extrabold tracking-tight">
           <Logo />

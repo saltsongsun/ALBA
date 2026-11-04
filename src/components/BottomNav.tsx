@@ -89,34 +89,42 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
     if (path.startsWith('/community')) setCmSeen(true)
   }, [path])
   const tabs = mode === 'expert' ? EXPERT_TABS : mode === 'vendor' ? VENDOR_TABS : TABS
+  const at = tabs.findIndex((t) => t.on(path))
   return (
-    <nav aria-label="주요 메뉴" data-bottom-nav className="no-print fixed inset-x-0 bottom-0 z-30 border-t border-line bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
-      <div className={`mx-auto grid max-w-xl ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
-        {tabs.map((t) => {
-          const active = t.on(path)
+    // 화면 아래에 떠 있는 유리 탭 (iOS 26 느낌): 뒤 내용이 흐리게 비치고, 누른 탭 표시가 미끄러지듯 옮겨 감
+    <nav aria-label="주요 메뉴" data-bottom-nav className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
+      <div className={`glass pointer-events-auto relative mx-auto grid h-16 max-w-md rounded-[26px] p-1.5 ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+        <span
+          aria-hidden
+          data-tab-indicator
+          className={`absolute inset-y-1.5 left-1.5 rounded-[20px] bg-brand-50 ring-1 ring-brand-100/70 transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.3,1.35,0.4,1)] ${at < 0 ? 'opacity-0' : ''}`}
+          style={{ width: `calc((100% - 12px) / ${tabs.length})`, transform: `translateX(${Math.max(at, 0) * 100}%)` }}
+        />
+        {tabs.map((t, i) => {
+          const active = i === at
           return (
             <Link
               key={t.href}
               href={t.href}
               aria-current={active ? 'page' : undefined}
-              className={`group flex flex-col items-center gap-0.5 pt-2 pb-1.5 text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
+              className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
             >
-              <span className={`relative grid h-7 w-12 place-items-center rounded-full transition duration-200 group-active:scale-90 ${active ? 'bg-brand-50' : ''}`}>
+              <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">
                 {/* 안 읽은 담당자 답장 */}
                 {t.href === '/me/chat' && unread > 0 && (
-                  <span className="absolute -top-1 right-1 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 text-[10px] leading-none font-bold text-white">
+                  <span className="absolute -top-1.5 -right-0.5 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 ring-2 ring-white px-1 text-[10px] leading-none font-bold text-white">
                     {unread > 9 ? '9+' : unread}
                   </span>
                 )}
                 {/* 해야 할 일 (서명·시간 변경 답·연장 확인) */}
                 {t.href === '/me' && todo > 0 && (
-                  <span className="absolute -top-1 right-1 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 px-1 text-[10px] leading-none font-bold text-white">
+                  <span className="absolute -top-1.5 -right-0.5 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 ring-2 ring-white px-1 text-[10px] leading-none font-bold text-white">
                     {todo > 9 ? '9+' : todo}
                   </span>
                 )}
                 {/* 커뮤니티 새 글 (지금 커뮤니티를 보고 있으면 숨김) */}
                 {t.href === '/community' && communityNew && !cmSeen && !active && (
-                  <span aria-label="새 글" data-community-dot className="absolute top-0 right-2.5 size-2.5 animate-pop rounded-full bg-rose-500 ring-2 ring-white" />
+                  <span aria-label="새 글" data-community-dot className="absolute -top-0.5 right-1 size-2.5 animate-pop rounded-full bg-rose-500 ring-2 ring-white" />
                 )}
                 {/* 활성 탭이 바뀌면 아이콘이 톡 튀어나옴 */}
                 <svg

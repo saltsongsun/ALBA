@@ -266,8 +266,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       <PushToggle publicKey={pushPublicKey()} variant="card" />
       <div className="flex items-end justify-between">
         <div>
-          <p className="text-sm text-mute">{fmtDate(today)}</p>
-          <h1 className="text-2xl font-extrabold">{user.name}님, 안녕하세요</h1>
+          <p className="text-sm font-semibold text-brand-600">{fmtDate(today)}</p>
+          <h1 className="text-[26px] leading-tight font-extrabold">{user.name}님, 안녕하세요</h1>
         </div>
         <Link href="/me/profile" className="btn-gray btn-sm">
           내 정보
@@ -483,7 +483,7 @@ export default async function MePage(props: PageProps<'/me'>) {
         {todayApps.length === 0 ? (
           nextApp ? (
             // 오늘 근무가 없으면 다음 근무를 크게 (며칠 남았는지·시간·장소·길찾기)
-            <div className="card space-y-2 ring-2 ring-brand-100" data-next-work>
+            <div className="card space-y-2 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-brand-500)_10%,white)_0%,white_60%)] ring-brand-100" data-next-work>
               <p className="flex items-center gap-2 text-sm font-bold text-brand-700">
                 <span className="badge bg-brand-600 text-white">{dLabel(firstDay(nextApp))}</span>
                 다음 근무
@@ -528,7 +528,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               // 지난 근무를 종료하지 않고 그 근무 시간도 끝났으면: 끝난 시각을 따로 받음 (지금 누르면 다음 날 시각이 찍힘)
               const forgot = open && open.work_date < today && Date.now() >= scheduledEnd(shiftOf(job, open), open.work_date).getTime() ? open : null
               return (
-                <div key={a.id} className="card space-y-4">
+                <div key={a.id} className="card relative space-y-4 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:rounded-t-[22px] before:bg-[linear-gradient(90deg,var(--color-brand-500),#22d3ee)] before:content-['']">
                   <div>
                     <p className="truncate text-xs font-semibold text-mute">
                       {[job.company?.company_name && `🏢 ${job.company.company_name}`, job.event_name].filter(Boolean).join(' · ')}

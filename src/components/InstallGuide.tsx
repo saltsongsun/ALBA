@@ -185,7 +185,7 @@ export default function InstallGuide() {
       {/* 안내창에 가려지는 만큼 아래 여백을 두어 맨 아래 버튼까지 스크롤할 수 있게 */}
       <div aria-hidden className="no-print h-96" />
       <div role="dialog" aria-label="앱 설치 안내" className="install-sheet no-print fixed inset-x-0 bottom-0 z-40 p-3 sm:inset-x-auto sm:right-4 sm:bottom-4 sm:w-96 sm:p-0">
-        <div className="animate-slide-up rounded-2xl bg-white p-5 shadow-[0_8px_30px_rgba(0,0,0,0.18)] ring-1 ring-line">
+        <div className="animate-slide-up rounded-[26px] bg-white p-5 shadow-lift ring-1 ring-black/[0.05]">
           <div className="mb-3 flex items-start gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/icon-192.png" alt="" className="size-11 rounded-xl" />

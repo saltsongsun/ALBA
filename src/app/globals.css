@@ -14,6 +14,10 @@
   --color-line: #e5e8eb;
   --color-bg: #f2f4f6;
 
+  /* 떠 있는 느낌: 아주 옅은 테두리 그림자 + 아래로 번지는 부드러운 그림자 */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.1);
+  --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.04), 0 16px 32px -12px rgb(15 23 42 / 0.16);
+
   /* 마이크로 인터랙션: 살짝 튀어 오르며 멈추는 곡선 */
   --ease-spring: cubic-bezier(0.2, 0.8, 0.2, 1);
   --animate-rise: rise 0.38s var(--ease-spring) both;
@@ -125,8 +129,17 @@
   html:has([data-week]) {
     scroll-behavior: smooth;
   }
+  /* 아래 탭(떠 있는 유리 탭)이 차지하는 높이: 탭 64px + 아래 여백(홈 표시줄이 있으면 그만큼) */
+  :root {
+    --tabbar-space: calc(64px + max(12px, env(safe-area-inset-bottom)));
+  }
   body {
     @apply bg-bg text-ink antialiased;
+    /* 화면 위쪽에 강조색이 은은하게 번지는 배경 (전문가 화면은 보라로 따라 바뀜) */
+    background-image:
+      radial-gradient(100% 340px at 10% -80px, color-mix(in oklab, var(--color-brand-500) 18%, transparent), transparent 75%),
+      radial-gradient(80% 300px at 100% -40px, color-mix(in oklab, #22d3ee 14%, transparent), transparent 75%);
+    background-repeat: no-repeat;
     font-family: var(--font-sans);
     /* 한글은 단어(띄어쓰기) 단위로 줄바꿈, 칸보다 긴 주소·숫자만 끊음.
        anywhere가 아니라 break-word: anywhere는 표 칸을 한 글자 너비까지 줄여 글자가 세로로 쪼개짐 */
@@ -147,6 +160,12 @@
   h2,
   h3 {
     letter-spacing: -0.02em;
+  }
+  h1 {
+    letter-spacing: -0.03em;
+  }
+  ::selection {
+    background: color-mix(in oklab, var(--color-brand-500) 22%, transparent);
   }
   /* 체크박스·라디오를 누르면 살짝 눌림 */
   input[type='checkbox'],
@@ -265,7 +284,7 @@
 /* 휴대폰에서 아래 탭이 있으면 설치 안내를 탭 위로 올림 (탭을 가리지 않게) */
 @media (width < 40rem) {
   body:has([data-bottom-nav]) .install-sheet {
-    bottom: calc(61px + env(safe-area-inset-bottom));
+    bottom: var(--tabbar-space);
   }
 }
 
@@ -309,13 +328,14 @@
 }
 
 @utility card {
-  @apply rounded-2xl bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)];
+  @apply rounded-[22px] bg-white p-5 shadow-card ring-1 ring-black/[0.03];
 }
 @utility btn {
-  @apply inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-[15px] font-semibold transition duration-150 outline-none select-none focus-visible:ring-2 focus-visible:ring-brand-500/40 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
+  @apply inline-flex items-center justify-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[15px] font-semibold transition duration-150 outline-none select-none focus-visible:ring-4 focus-visible:ring-brand-500/25 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
+/* 강조 버튼: 위쪽이 살짝 밝은 입체감 + 강조색 그림자 (바탕색은 그대로 강조색) */
 @utility btn-primary {
-  @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  @apply btn bg-brand-600 bg-[linear-gradient(180deg,rgb(255_255_255/0.16),rgb(255_255_255/0))] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.22),0_6px_16px_-6px_color-mix(in_oklab,var(--color-brand-600)_70%,transparent)] hover:bg-brand-700;
 }
 @utility btn-soft {
   @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
@@ -327,7 +347,7 @@
   @apply btn bg-rose-50 text-rose-600 hover:bg-rose-100;
 }
 @utility btn-sm {
-  @apply rounded-lg px-3 py-1.5 text-sm whitespace-nowrap;
+  @apply rounded-[11px] px-3 py-1.5 text-sm whitespace-nowrap;
 }
 /* 전화·문자 바로가기 (components/Contact.tsx) */
 @utility contact-btn {
@@ -338,30 +358,34 @@
   @apply inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-white px-3.5 text-[13px] font-semibold whitespace-nowrap text-sub ring-1 ring-line transition duration-150 select-none hover:bg-bg active:scale-95 disabled:opacity-50;
 }
 @utility chip-primary {
-  @apply chip bg-brand-600 text-white ring-0 hover:bg-brand-700;
+  @apply chip bg-brand-600 text-white shadow-[0_4px_12px_-4px_color-mix(in_oklab,var(--color-brand-600)_60%,transparent)] ring-0 hover:bg-brand-700;
 }
 /* 누르면 이동하는 카드: 마우스를 올리면 살짝 뜨고, 누르면 눌림 */
 /* 접었다 펴는 카드 (components/Fold.tsx): card와 같은 모양, 안쪽 여백은 제목 줄·내용이 따로 가짐 */
 @utility fold-card {
-  @apply rounded-2xl bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_0_0_1px_rgba(0,0,0,0.02)];
+  @apply rounded-[22px] bg-white shadow-card ring-1 ring-black/[0.03];
 }
 @utility card-link {
-  @apply card transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(0,0,0,0.07)] active:translate-y-0 active:scale-[0.985];
+  @apply card transition duration-200 hover:-translate-y-0.5 hover:shadow-lift active:translate-y-0 active:scale-[0.985];
 }
 @utility label {
   @apply mb-1.5 block text-sm font-semibold text-sub;
 }
 @utility input {
-  @apply w-full min-w-0 rounded-xl border border-line bg-white px-3.5 py-2.5 text-ink outline-none transition placeholder:text-mute focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+  @apply w-full min-w-0 rounded-[14px] border border-line bg-white px-3.5 py-2.5 text-ink outline-none transition placeholder:text-mute focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15;
 }
 @utility hint {
   @apply mt-1 text-xs text-mute;
 }
 @utility badge {
-  @apply inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap;
+  @apply inline-flex items-center rounded-full px-[7px] py-0.5 text-xs font-semibold whitespace-nowrap;
 }
 @utility section-title {
-  @apply mb-3 text-[17px] font-bold;
+  @apply mb-3 text-lg font-extrabold tracking-tight;
+}
+/* 반투명 유리 (떠 있는 아래 탭·머리글): 뒤가 흐리게 비치고 위쪽 테두리에 빛이 맺힘 */
+@utility glass {
+  @apply bg-white/72 shadow-[inset_0_1px_0_rgb(255_255_255/0.8),0_12px_32px_-12px_rgb(15_23_42/0.28),0_2px_8px_rgb(15_23_42/0.06)] ring-1 ring-black/[0.06] backdrop-blur-xl backdrop-saturate-[1.8];
 }
 
 @layer components {

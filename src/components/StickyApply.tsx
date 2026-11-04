@@ -50,9 +50,9 @@ export default function StickyApply({
 
   return createPortal(
     <div
-      className={`no-print fixed inset-x-0 z-20 px-3 pb-3 sm:hidden ${aboveTabs ? 'bottom-[calc(61px+env(safe-area-inset-bottom))]' : 'bottom-[env(safe-area-inset-bottom)]'}`}
+      className={`no-print fixed inset-x-0 z-20 px-3 pb-3 sm:hidden ${aboveTabs ? 'bottom-[var(--tabbar-space)]' : 'bottom-[env(safe-area-inset-bottom)]'}`}
     >
-      <div className="mx-auto flex max-w-xl animate-slide-up items-center gap-3 rounded-2xl bg-white/95 p-2 pl-4 shadow-[0_8px_30px_rgba(0,0,0,0.14)] ring-1 ring-line backdrop-blur">
+      <div className="glass mx-auto flex max-w-md animate-slide-up items-center gap-3 rounded-[22px] p-2 pl-4">
         <div className="min-w-0 flex-1">
           <p className="truncate text-xs text-mute">{title}</p>
           <p className="font-extrabold tracking-tight">{summary}</p>

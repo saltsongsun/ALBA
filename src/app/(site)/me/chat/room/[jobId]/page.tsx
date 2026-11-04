@@ -49,7 +49,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
       ) : (
         <RoomMessages messages={messages} viewerId={user.id} />
       )}
-      <div className="sticky bottom-[calc(69px+env(safe-area-inset-bottom))] z-10 pt-2 sm:bottom-4">
+      <div className="sticky bottom-[calc(var(--tabbar-space)+6px)] z-10 pt-2 sm:bottom-4">
         {open ? (
           <ChatComposer action={sendRoom.bind(null, job.id)} placeholder="모두에게 보낼 메시지" />
         ) : (

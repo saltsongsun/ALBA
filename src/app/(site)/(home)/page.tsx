@@ -110,22 +110,29 @@ export default async function HomePage(props: PageProps<'/'>) {
     <>
       <Flash m={sp.m} />
       {todayJob && (
-        <Link href="/me" className="card-link mb-4 flex animate-pop items-center gap-3 p-4 ring-2 ring-emerald-200">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-emerald-500 text-white">
+        // 오늘 근무: 초록→청록 그라데이션 카드 (빛 번짐 + 유리 아이콘)
+        <Link
+          href="/me"
+          data-today-hero
+          className="relative mb-4 flex animate-pop items-center gap-3 overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#10b981_0%,#0d9488_55%,#0891b2_100%)] p-4 text-white shadow-[0_16px_32px_-16px_rgb(13_148_136/0.75)] transition active:scale-[0.985]"
+        >
+          <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-36 rounded-full bg-white/20 blur-2xl" />
+          <span aria-hidden className="pointer-events-none absolute -bottom-16 left-10 size-32 rounded-full bg-cyan-300/30 blur-2xl" />
+          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20 ring-1 ring-white/35 backdrop-blur">
             <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="13" r="8" />
               <path d="M12 9v4l2.5 2.5M9.5 2.5h5" />
             </svg>
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-bold text-emerald-700">오늘 근무가 있어요</span>
+          <span className="relative min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-white/85">오늘 근무가 있어요</span>
             <span className="block truncate font-bold">{todayJob.title}</span>
-            <span className="block truncate text-sm text-sub">
+            <span className="block truncate text-sm text-white/80">
               {scheduleText(todayJob)}
               {todayJob.location_name && ` · ${todayJob.location_name}`}
             </span>
           </span>
-          <span className="shrink-0 text-sm font-bold text-emerald-700">출퇴근 →</span>
+          <span className="relative shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-bold text-teal-700 shadow-sm">출퇴근 →</span>
         </Link>
       )}
       {company ? (
