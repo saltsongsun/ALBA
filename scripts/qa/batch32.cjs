@@ -48,13 +48,23 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
     return p
   }
   const picker = (p) => p.locator('[data-sticker-picker]')
+  // 이모티콘 고르기 창 열기 (화면이 막 그려져 아직 누르기가 연결되기 전이면 다시 누름)
+  const openPicker = async (p, scope = '') => {
+    for (let i = 0; i < 4; i++) {
+      await p.locator(`${scope} [data-sticker-toggle]`.trim()).first().click()
+      if (await picker(p).waitFor({ timeout: 2500 }).then(() => true, () => false)) return true
+      await p.waitForLoadState('networkidle').catch(() => {})
+    }
+    return false
+  }
 
   // ── 1. 근무자 1:1 문의: 고르기 창 ──
+  // (가짜 DB는 정렬을 안 해서, 미리 들어 있던 예시 문의를 지워 방금 보낸 것이 '마지막'이 되게 — chat-room.cjs와 같음)
+  await fetch(`${MD}/rest/v1/messages?thread_user_id=eq.${W}`, { method: 'DELETE' })
   const w = await pg(W)
   await w.goto(`${D}/me/chat?co=${C1}`)
   await w.locator('textarea[name=body]').fill('쓰던 글 그대로')
-  await w.locator('[data-sticker-toggle]').click()
-  await picker(w).waitFor({ timeout: 8000 }).catch(() => {})
+  await openPicker(w)
   const tabs = picker(w).getByRole('tab')
   ok('팩 탭 2개: 일하는 쥐돌이(먼저·선택됨) · 병아리', (await tabs.count()) === 2 && (await tabs.nth(0).innerText()).includes('일하는 쥐돌이') && (await tabs.nth(0).getAttribute('aria-selected')) === 'true' && (await tabs.nth(1).innerText()).includes('병아리'))
   const grid = picker(w).locator('[data-sticker-grid=working-mouse-21] button')
@@ -75,7 +85,7 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   ok('Esc: 닫히고 이모티콘 버튼으로', (await picker(w).count()) === 0 && (await w.evaluate(() => document.activeElement?.hasAttribute('data-sticker-toggle'))))
 
   // 보내기: '오늘 회식하실 분?'
-  await w.locator('[data-sticker-toggle]').click()
+  await openPicker(w)
   await picker(w).getByRole('button', { name: '오늘 회식하실 분?' }).click()
   const sent = w.locator('main ol img[alt="이모티콘: 오늘 회식하실 분?"]')
   await sent.first().waitFor({ timeout: 8000 }).catch(() => {})
@@ -87,23 +97,26 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   ok('없는 쥐돌이 번호는 거절', r.includes('보낼 수 없는 이모티콘이에요'), r.slice(0, 120))
 
   // ── 2. 관리자: 받은 쥐돌이 보기 · 쥐돌이로 답장 · 목록 미리보기 ──
+  // (가짜 DB는 새 메시지에 보낸 사람을 붙이지 않아서 직접 붙임 — 실제 DB는 자동)
+  const dm = (await rest(`messages?thread_user_id=eq.${W}`)).find((m) => m.body === '::s:working-mouse-21::')
+  if (dm) await rest(`messages?id=eq.${dm.id}`, 'PATCH', { user: { id: W, name: '근무자', phone: '01033334444', photo_at: null } })
   const ad = await pg(A)
   await ad.goto(`${D}/admin/chat`)
   ok('관리자 목록 미리보기: [이모티콘] 오늘 회식하실 분?', await see(ad, '[이모티콘] 오늘 회식하실 분?'))
   await ad.goto(`${D}/admin/chat/${W}`)
   ok('관리자 대화: 쥐돌이 그림', await ad.locator('main ol img[alt="이모티콘: 오늘 회식하실 분?"]').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
-  await ad.locator('[data-sticker-toggle]').click()
+  await openPicker(ad)
   ok('관리자 고르기 창도 쥐돌이가 기본', (await picker(ad).locator('[data-sticker-grid=working-mouse-21] button').count()) === 21)
   await picker(ad).getByRole('button', { name: '넵! 확인!' }).click()
   await ad.locator('main ol img[alt="이모티콘: 넵! 확인!"]').first().waitFor({ timeout: 8000 }).catch(() => {})
   ok('관리자: 쥐돌이로 답장', (await rest(`messages?thread_user_id=eq.${W}`)).some((m) => m.body === '::s:working-mouse-04::' && m.from_admin === true))
-  ok('관리자 360px: 고르기 창 열어도 옆으로 안 밀림', await (async () => { await ad.locator('[data-sticker-toggle]').click(); return noScroll(ad) })())
+  ok('관리자 360px: 고르기 창 열어도 옆으로 안 밀림', await (async () => { await openPicker(ad); return noScroll(ad) })())
   await w.reload()
   ok('근무자: 관리자 답장 쥐돌이 그림', await w.locator('main ol img[alt="이모티콘: 넵! 확인!"]').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
 
   // ── 3. 단체방 (근무자·관리자) ──
   await w.goto(`${D}/me/chat/room/${J}`)
-  await w.locator('[data-sticker-toggle]').click()
+  await openPicker(w)
   await picker(w).getByRole('button', { name: '출근했쥐!' }).click()
   await w.locator('main img[alt="이모티콘: 출근했쥐!"]').first().waitFor({ timeout: 8000 }).catch(() => {})
   ok('단체방: 쥐돌이 보내기 · 저장', (await w.locator('main img[alt="이모티콘: 출근했쥐!"]').count()) >= 1 && (await rest(`job_chat?job_id=eq.${J}`)).some((m) => m.body === '::s:working-mouse-01::'))
@@ -116,10 +129,13 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   for (const body of ['::s:hi::', '::s:late::']) await rest('messages', 'POST', { thread_user_id: W, sender_id: W, from_admin: false, job_id: null, company_id: C1, body, read_at: null, created_at: new Date().toISOString() })
   await w.goto(`${D}/me/chat?co=${C1}`)
   const chick = w.locator('main ol img[alt="이모티콘: 안녕하세요"]')
-  ok('예전 병아리 메시지: 그림 그대로', (await chick.count()) >= 1 && (await chick.first().getAttribute('src')) === '/stickers/hi.webp' && (await natural(chick.first())) > 0)
+  // (스트리밍으로 그려진 내용은 페이지 'load' 직후 잠깐 뒤에 드러날 수 있어 기다림)
+  await chick.first().waitFor({ timeout: 8000 }).catch(() => {})
+  const why = async () => JSON.stringify({ alts: await w.locator('main ol img').evaluateAll((l) => l.map((i) => i.alt)), db: (await rest(`messages?thread_user_id=eq.${W}`)).map((m) => m.body), url: w.url(), text: (await w.locator('main').innerText()).slice(0, 300).replace(/\n/g, ' / ') })
+  ok('예전 병아리 메시지: 그림 그대로', (await chick.count()) >= 1 && (await chick.first().getAttribute('src')) === '/stickers/hi.webp' && (await natural(chick.first())) > 0, (await chick.count()) ? '' : await why())
   ok('옛 이모티콘(그림 없음): 글자로', (await w.locator('main ol [role=img][aria-label="이모티콘: 조금 늦어요"]').count()) === 1)
   // 병아리도 여전히 보낼 수 있음
-  await w.locator('[data-sticker-toggle]').click()
+  await openPicker(w)
   await picker(w).getByRole('tab', { name: /병아리/ }).click()
   await picker(w).getByRole('button', { name: '오늘도 파이팅!' }).click()
   ok('병아리 탭에서 보내기도 됨', await w.locator('main ol img[alt="이모티콘: 오늘도 파이팅!"]').first().waitFor({ timeout: 8000 }).then(() => true, () => false))
@@ -129,7 +145,7 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   await w.locator('[data-post-form] label', { hasText: '자유' }).click()
   await w.fill('#post-title', '오늘 행사 끝나고 회식')
   await w.fill('#post-body', '광장 앞 고깃집 7시 어때요?\n::s:working-mouse-08::')
-  await w.locator('[data-post-sticker] [data-sticker-toggle]').click()
+  await openPicker(w, '[data-post-sticker]')
   await picker(w).getByRole('button', { name: '오늘 회식하실 분?' }).click()
   ok('글쓰기: 넣은 이모티콘 미리보기', (await w.locator('[data-post-sticker] img[alt="이모티콘: 오늘 회식하실 분?"]').count()) === 1)
   await w.getByRole('button', { name: '올리기' }).click()
@@ -157,7 +173,7 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   // ── 6. 커뮤니티 이모티콘 댓글 ──
   await w.goto(`${D}/community/${postId}`)
   await w.locator('[data-comment-form] textarea').fill('저도 갈래요')
-  await w.locator('[data-comment-form] [data-sticker-toggle]').click()
+  await openPicker(w, '[data-comment-form]')
   await picker(w).getByRole('button', { name: '완전 공감!' }).click()
   const cs = w.locator('[data-comment-sticker] img[alt="이모티콘: 완전 공감!"]')
   ok('이모티콘 댓글: 그림으로', await cs.first().waitFor({ timeout: 8000 }).then(() => true, () => false))
@@ -170,8 +186,7 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   const dk = await pg(W)
   await dk.addInitScript(() => { try { localStorage.setItem('theme', 'dark') } catch {} })
   await dk.goto(`${D}/me/chat?co=${C1}`)
-  await dk.locator('[data-sticker-toggle]').click()
-  await picker(dk).waitFor({ timeout: 8000 }).catch(() => {})
+  await openPicker(dk)
   const lum = (c) => { const m = c.match(/\d+(\.\d+)?/g)?.map(Number) ?? [255, 255, 255]; return 0.2126 * m[0] + 0.7152 * m[1] + 0.0722 * m[2] }
   const pickBg = await picker(dk).evaluate((el) => getComputedStyle(el).backgroundColor)
   const labelColor = await picker(dk).locator('[data-sticker-grid] button span').first().evaluate((el) => getComputedStyle(el).color)
