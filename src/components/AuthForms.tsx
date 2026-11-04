@@ -1,5 +1,6 @@
 'use client'
 
+import AccountDigits from './AccountDigits'
 import BizNoField from './BizNoField'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -331,6 +332,8 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
   const [state, action] = useActionState(signup, null)
   const vendor = type === 'vendor'
   const pro = type !== 'worker'
+  // 계좌번호 몇 자리인지 바로 보여 주려고 (칸 자체는 그대로 폼이 읽음)
+  const [acct, setAcct] = useState('')
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
       <Honeypot />
@@ -424,17 +427,43 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
         <h2 className="font-bold">
           {vendor ? '대금 받을 계좌' : pro ? '용역 대금 받을 계좌' : '급여 받을 계좌'} <span className="text-sm font-medium text-mute">선택 · 나중에 입력해도 돼요</span>
         </h2>
+        {/* 칸마다 이름표 (값을 넣어도 무슨 칸인지 보이게) · 계좌번호는 쓰는 대로 몇 자리인지 */}
         <div className="grid grid-cols-[1fr_1.2fr] gap-3">
-          <select name="bank_name" className="input" defaultValue="">
-            <option value="">은행 선택</option>
-            {BANKS.map((b) => (
-              <option key={b}>{b}</option>
-            ))}
-          </select>
-          <input name="bank_account" className="input" inputMode="numeric" placeholder="계좌번호" />
+          <div className="min-w-0">
+            <label className="label" htmlFor="bank_name">
+              은행
+            </label>
+            <select id="bank_name" name="bank_name" className="input" defaultValue="">
+              <option value="">은행 선택</option>
+              {BANKS.map((b) => (
+                <option key={b}>{b}</option>
+              ))}
+            </select>
+          </div>
+          <div className="min-w-0">
+            <label className="label" htmlFor="bank_account">
+              계좌번호
+            </label>
+            <input id="bank_account" name="bank_account" className="input" inputMode="numeric" placeholder="숫자만" onInput={(e) => setAcct(e.currentTarget.value)} />
+          </div>
         </div>
-        <input name="account_holder" className="input" placeholder={vendor ? '예금주 (비우면 상호)' : '예금주 (비우면 본인 이름)'} />
-        {!vendor && <input name="address" className="input" placeholder="주소 (선택)" autoComplete="street-address" />}
+        <div className="-mt-2">
+          <AccountDigits value={acct} fallback="계좌번호는 숫자 10~16자리예요" />
+        </div>
+        <div>
+          <label className="label" htmlFor="account_holder">
+            예금주
+          </label>
+          <input id="account_holder" name="account_holder" className="input" placeholder={vendor ? '비우면 상호' : '비우면 본인 이름'} />
+        </div>
+        {!vendor && (
+          <div>
+            <label className="label" htmlFor="address">
+              주소 <span className="font-normal text-mute">(선택)</span>
+            </label>
+            <input id="address" name="address" className="input" placeholder="예) 진주시 남강로 123" autoComplete="street-address" />
+          </div>
+        )}
       </section>
 
       {!vendor && (

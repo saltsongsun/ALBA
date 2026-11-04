@@ -16,6 +16,7 @@ import {
   type ClockResult,
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
+import AccountDigits from './AccountDigits'
 import Fold from './Fold'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
@@ -778,6 +779,7 @@ export function ProfileForm({
 }) {
   const [state, action] = useActionState(updateProfile, null)
   const ref = useRef<HTMLFormElement>(null)
+  const [acct, setAcct] = useState(initial.bank_account)
   useEffect(() => {
     const go = () => {
       const id = decodeURIComponent(location.hash.slice(1)) as ProfileField
@@ -799,6 +801,7 @@ export function ProfileForm({
   const missing = (key: ProfileField, value: string) => (need.includes(key) && !value.trim() ? '' : undefined)
   const onInput = (e: React.FormEvent<HTMLFormElement>) => {
     const el = e.target as HTMLInputElement
+    if (el.name === 'bank_account') setAcct(el.value)
     if (!PROFILE_FIELDS.includes(el.name as ProfileField) || !need.includes(el.name as ProfileField)) return
     if (el.value.trim()) el.removeAttribute('data-missing')
     else el.setAttribute('data-missing', '')
@@ -833,12 +836,15 @@ export function ProfileForm({
           />
         </div>
       </div>
+      {/* 계좌번호: 쓰는 대로 몇 자리인지 (10~16자리면 ✓) */}
+      <div className="-mt-2">
+        <AccountDigits value={acct} fallback="계좌번호는 숫자 10~16자리 · 본인 명의 계좌가 가장 빨라요" />
+      </div>
       <div>
         <label className="label" htmlFor="account_holder">
           예금주
         </label>
         <input id="account_holder" name="account_holder" className="input" placeholder="비우면 본인 이름" defaultValue={initial.account_holder} />
-        <p className="hint mt-1">계좌번호는 숫자 10~16자리 · 본인 명의 계좌가 가장 빨라요</p>
       </div>
       <div>
         <label className="label" htmlFor="address">
