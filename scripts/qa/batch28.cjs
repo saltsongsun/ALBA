@@ -9,6 +9,8 @@ const [D, MD] = process.argv.slice(2)
 const A = 'aaaaaaaa-0000-4000-8000-000000000001', W = 'bbbbbbbb-0000-4000-8000-000000000002'
 const C1 = '99999999-0000-4000-8000-000000000099', C2 = '99999999-0000-4000-8000-000000000098'
 let fails = 0
+// 오늘(한국 시간) 10:00~14:00 근무 — 공고 시간(09~18시) 안이라 언제 돌려도 4시간으로 계산됨 (지금-4시간이면 저녁 6시 뒤엔 0분이 됨)
+const inShift = () => { const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); return { clock_in: `${d}T01:00:00.000Z`, clock_out: `${d}T05:00:00.000Z` } }
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 
@@ -58,7 +60,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   // ── 2. 지난 근무 합계 숫자 올라가기 ──
   const w = await pg(W)
-  await rest(`attendance?user_id=eq.${W}`, 'PATCH', { clock_in: new Date(Date.now() - 4 * 3600e3).toISOString(), clock_out: new Date().toISOString() })
+  await rest(`attendance?user_id=eq.${W}`, 'PATCH', inShift())
   // 화면이 그려지는 처음부터 실수령 숫자를 모두 기록 (서버가 바쁘면 올라가기가 금방 끝나 버려서)
   await w.addInitScript(() => {
     window.__seen = []

@@ -9,6 +9,8 @@ const A = 'aaaaaaaa-0000-4000-8000-000000000001', W = 'bbbbbbbb-0000-4000-8000-0
 const C1 = '99999999-0000-4000-8000-000000000099', C2 = '99999999-0000-4000-8000-000000000098'
 const J2 = 'cccccccc-0000-4000-8000-0000000000e2'
 let fails = 0
+// 오늘(한국 시간) 10:00~14:00 근무 — 공고 시간(09~18시) 안이라 언제 돌려도 4시간으로 계산됨 (지금-4시간이면 저녁 6시 뒤엔 0분이 됨)
+const inShift = () => { const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); return { clock_in: `${d}T01:00:00.000Z`, clock_out: `${d}T05:00:00.000Z` } }
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toISOString().slice(0, 10)
@@ -17,7 +19,7 @@ const settled = (p) => p.waitForTimeout(900).then(() => p.waitForFunction(() => 
 
 ;(async () => {
   // 오늘 근무를 4시간 하고 퇴근한 것으로 (이번 달 실수령이 생기게)
-  await rest(`attendance?user_id=eq.${W}&job_id=eq.${J}`, 'PATCH', { clock_in: new Date(Date.now() - 4 * 3600e3).toISOString(), clock_out: new Date().toISOString() })
+  await rest(`attendance?user_id=eq.${W}&job_id=eq.${J}`, 'PATCH', inShift())
 
   const b = await chromium.launch()
   const errs = []

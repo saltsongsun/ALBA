@@ -8,6 +8,8 @@ const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.
 const [D, MD] = process.argv.slice(2)
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', J = 'cccccccc-0000-4000-8000-000000000003'
 let fails = 0
+// 오늘(한국 시간) 10:00~14:00 근무 — 공고 시간(09~18시) 안이라 언제 돌려도 4시간으로 계산됨 (지금-4시간이면 저녁 6시 뒤엔 0분이 됨)
+const inShift = () => { const d = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10); return { clock_in: `${d}T01:00:00.000Z`, clock_out: `${d}T05:00:00.000Z` } }
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 const kst = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
@@ -52,7 +54,7 @@ const kst = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
   ok("어제 퇴근 기록이 없으면 '종료 기록 없음 1일' + 오늘은 '오늘 근무 중'", t.includes('오늘 근무 중') && t.includes('종료 기록 없음 1일'), t)
 
   // ── 3. 오늘 퇴근하면: 금액으로 (근무 중 표시 없음) ──
-  await rest(`attendance?id=eq.${att.id}`, 'PATCH', { clock_in: new Date(Date.now() - 4 * 3600e3).toISOString(), clock_out: new Date().toISOString() })
+  await rest(`attendance?id=eq.${att.id}`, 'PATCH', inShift())
   await open(w, '/me')
   t = await text(w)
   ok('퇴근하면 금액(원) · 실수령 예상, 근무 중 표시 없음', (await card(w).locator('[data-live-shift]').count()) === 0 && /\d[\d,]*원/.test(t) && !/^0원/.test(t) && t.includes('실수령 예상') && !t.includes('끝나면 계산돼요'), t)
