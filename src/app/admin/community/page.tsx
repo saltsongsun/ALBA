@@ -5,6 +5,7 @@ import Empty from '@/components/Empty'
 import { ConfirmSubmit } from '@/components/ui'
 import { AUTO_HIDE_REPORTS, ago, moderationQueue } from '@/lib/community'
 import { requireSuper } from '@/lib/session'
+import { plainBody } from '@/lib/stickers'
 
 export const metadata: Metadata = { title: '커뮤니티 관리' }
 
@@ -44,7 +45,7 @@ export default async function CommunityAdminPage() {
                 </span>
               </div>
               <p className="font-bold break-words">{it.title}</p>
-              <p className="line-clamp-4 text-sm whitespace-pre-wrap break-words text-sub">{it.body}</p>
+              <p className="line-clamp-4 text-sm whitespace-pre-wrap break-words text-sub">{plainBody(it.body)}</p>
               {it.reasons.length > 0 && <p className="text-xs text-mute">사유: {[...new Set(it.reasons)].join(' · ')}</p>}
               <div className="flex flex-wrap items-center gap-2">
                 {it.hidden ? (

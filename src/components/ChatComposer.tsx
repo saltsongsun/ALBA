@@ -1,10 +1,10 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState } from 'react'
+import { startTransition, useActionState, useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 import type { FormState } from '@/app/actions/auth'
-import { STICKERS, stickerToken, type StickerId } from '@/lib/stickers'
-import Sticker, { StickerIcon } from './Sticker'
+import { stickerToken } from '@/lib/stickers'
+import StickerPicker, { StickerToggle } from './StickerPicker'
 import { FormMessage, haptic, keepInputs } from './ui'
 
 function SendButton() {
@@ -49,13 +49,17 @@ export default function ChatComposer({
   const textRef = useRef<HTMLTextAreaElement>(null)
   const formRef = useRef<HTMLFormElement>(null)
   const [picker, setPicker] = useState(false)
-  // 이모티콘: 누르면 바로 보냄
-  const sendSticker = (id: StickerId) => {
-    const el = textRef.current!
-    el.value = stickerToken(id)
+  // 이모티콘을 보낸 거면, 보낸 뒤에도 입력칸에 쓰던 글은 그대로 둠
+  const stickerSent = useRef(false)
+  // 이모티콘: 누르면 바로 보냄 (같은 폼의 다른 칸 — 공지 고정 등 — 은 그대로 함께)
+  const sendSticker = (id: string) => {
+    const form = formRef.current
+    if (!form) return
+    const fd = new FormData(form)
+    fd.set('body', stickerToken(id))
+    stickerSent.current = true
     setPicker(false)
-    haptic(12)
-    formRef.current?.requestSubmit()
+    startTransition(() => formAction(fd))
   }
 
   const fit = () => {
@@ -66,7 +70,15 @@ export default function ChatComposer({
   }
 
   useEffect(() => {
-    if (!state?.ok || !textRef.current) return
+    if (!state) return
+    const wasSticker = stickerSent.current
+    stickerSent.current = false
+    if (!state.ok || !textRef.current) return
+    if (wasSticker) {
+      haptic(10)
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
+      return
+    }
     textRef.current.value = ''
     // 보낸 뒤에는 '공지로 고정' 같은 체크도 풀어 둠 (다음 글이 실수로 고정되지 않게)
     formRef.current?.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((c) => (c.checked = false))
@@ -99,32 +111,16 @@ export default function ChatComposer({
       {context}
       {state?.error && <FormMessage state={state} />}
       {picker && (
-        <div role="dialog" aria-label="이모티콘" className="animate-pop rounded-3xl bg-white p-2 shadow-[0_4px_20px_rgba(0,0,0,0.1)] ring-1 ring-line">
-          <div className="grid max-h-72 grid-cols-4 gap-1 overflow-y-auto">
-            {STICKERS.map((st) => (
-              <button
-                key={st.id}
-                type="button"
-                aria-label={st.label}
-                onClick={() => sendSticker(st.id)}
-                className="grid place-items-center rounded-2xl p-1 transition hover:bg-bg active:scale-90"
-              >
-                <Sticker id={st.id} size={72} />
-              </button>
-            ))}
-          </div>
-        </div>
+        <StickerPicker
+          onPick={sendSticker}
+          onClose={() => {
+            setPicker(false)
+            formRef.current?.querySelector<HTMLButtonElement>('[data-sticker-toggle]')?.focus()
+          }}
+        />
       )}
       <div className="flex items-end gap-1.5 rounded-3xl bg-white p-1.5 pl-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.08)] ring-1 ring-line">
-        <button
-          type="button"
-          aria-label="이모티콘"
-          aria-expanded={picker}
-          onClick={() => setPicker((v) => !v)}
-          className={`grid size-11 shrink-0 place-items-center rounded-full transition active:scale-90 ${picker ? 'bg-brand-50' : ''}`}
-        >
-          <StickerIcon size={34} />
-        </button>
+        <StickerToggle open={picker} onClick={() => setPicker((v) => !v)} />
         <textarea
           ref={textRef}
           name="body"

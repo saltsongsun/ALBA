@@ -10,6 +10,7 @@ import { sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, overLimit } from '@/lib/ratelimit'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
+import { badSticker, joinPostBody, plainBody, sendable, splitPostBody } from '@/lib/stickers'
 
 type State = { error?: string; ok?: string } | null
 
@@ -38,17 +39,31 @@ async function writer(next: string, form?: FormData) {
 /** 띄어쓰기·기호를 빼고 비교 (같은 글 복사·붙여넣기 도배 막기) */
 const squash = (s: string) => s.toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, '')
 
+/**
+ * 글 내용 + '이모티콘 넣기'로 고른 이모티콘 하나 (맨 끝 한 줄 '::s:아이디::'로 저장).
+ * 내용에 직접 써 넣은 이모티콘 모양 줄은 빼 버림 (그림 도배 막기)
+ */
+function postBody(form: FormData): { body: string; typed: string; error?: string } {
+  const typed = splitPostBody(text(form, 'body')).text
+  const sticker = text(form, 'sticker')
+  if (sticker && !sendable(sticker)) return { body: '', typed, error: '보낼 수 없는 이모티콘이에요.' }
+  if (typed.length < 2 || typed.length > 3000) return { body: '', typed, error: '내용은 2~3000자로 써 주세요.' }
+  const body = joinPostBody(maskPhones(typed), sticker || null)
+  if (body.length > 3000) return { body: '', typed, error: '내용이 너무 길어요. 이모티콘을 넣으면 조금 짧게 써 주세요.' }
+  return { body, typed }
+}
+
 /** 글쓰기 (한 시간에 5개까지) */
 export async function createPost(_: State, form: FormData): Promise<State> {
   const { user, error } = await writer('/community/new', form)
   if (error) return { error }
   const category = text(form, 'category')
   const title = text(form, 'title')
-  const body = text(form, 'body')
   if (!isCategory(category)) return { error: '말머리를 골라 주세요.' }
   if (title.length < 2 || title.length > 60) return { error: '제목은 2~60자로 써 주세요.' }
-  if (body.length < 2 || body.length > 3000) return { error: '내용은 2~3000자로 써 주세요.' }
-  if (tooManyLinks(title + body)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
+  const { body, typed, error: bodyError } = postBody(form)
+  if (bodyError) return { error: bodyError }
+  if (tooManyLinks(title + typed)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
   // 하루 안에 같은 제목이나 같은 내용으로 또 올리면 막음 (도배·광고 봇)
   const { data: mine } = await db().from('community_posts').select('title, body, created_at, author_id').eq('author_id', user.id).gte('created_at', new Date(Date.now() - 86_400_000).toISOString()).limit(30)
   const recentMine = ((mine ?? []) as { title: string; body: string; author_id: string }[]).filter((p) => p.author_id === user.id)
@@ -57,7 +72,7 @@ export async function createPost(_: State, form: FormData): Promise<State> {
   await ensureNickname(user.id)
   const { data } = await db()
     .from('community_posts')
-    .insert({ author_id: user.id, category, title: maskPhones(title), body: maskPhones(body) })
+    .insert({ author_id: user.id, category, title: maskPhones(title), body })
     .select('id')
     .single()
   revalidatePath('/community')
@@ -75,13 +90,13 @@ export async function updatePost(postId: string, _: State, form: FormData): Prom
   if (p.hidden_at) return { error: '가려진 글은 고칠 수 없어요.' }
   const category = text(form, 'category')
   const title = text(form, 'title')
-  const body = text(form, 'body')
   if (!isCategory(category)) return { error: '말머리를 골라 주세요.' }
   if (title.length < 2 || title.length > 60) return { error: '제목은 2~60자로 써 주세요.' }
-  if (body.length < 2 || body.length > 3000) return { error: '내용은 2~3000자로 써 주세요.' }
-  if (tooManyLinks(title + body)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
+  const { body, typed, error: bodyError } = postBody(form)
+  if (bodyError) return { error: bodyError }
+  if (tooManyLinks(title + typed)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
   if (await overLimit(`community-edit:${user.id}`, 20, 3600)) return { error: '잠시 뒤에 다시 고쳐 주세요.' }
-  must(await db().from('community_posts').update({ category, title: maskPhones(title), body: maskPhones(body), updated_at: new Date().toISOString() }).eq('id', postId).eq('author_id', user.id))
+  must(await db().from('community_posts').update({ category, title: maskPhones(title), body, updated_at: new Date().toISOString() }).eq('id', postId).eq('author_id', user.id))
   revalidatePath('/community')
   revalidatePath(`/community/${postId}`)
   redirect(`/community/${postId}?m=${encodeURIComponent('글을 고쳤어요.')}`)
@@ -104,8 +119,10 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
   const { user, error } = await writer(`/community/${postId}`, form)
   if (error) return { error }
   if (!isUuid(postId)) return { error: '글을 찾을 수 없어요.' }
+  // 이모티콘 댓글은 '::s:아이디::' 한 줄 (대화와 같은 모양)
   const body = text(form, 'body')
   if (body.length < 1 || body.length > 500) return { error: '댓글은 500자까지 쓸 수 있어요.' }
+  if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
   if (tooManyLinks(body)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
   const { data: post } = await db().from('community_posts').select('id, author_id, title, hidden_at').eq('id', postId).maybeSingle()
   const p = post as { id: string; author_id: string; title: string; hidden_at: string | null } | null
@@ -118,7 +135,7 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
   must(await db().from('community_comments').insert({ post_id: postId, author_id: user.id, body: maskPhones(body) }))
   // 글쓴이에게 알림 (내 글에 내가 단 댓글은 빼고, 글마다 10분에 한 번)
   if (p.author_id !== user.id && !(await overLimit(`community-notify:${postId}`, 1, 600))) {
-    after(() => sendPush([p.author_id], { title: `💬 ${nick}님이 댓글을 달았어요`, body: `${p.title}: ${body.slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
+    after(() => sendPush([p.author_id], { title: `💬 ${nick}님이 댓글을 달았어요`, body: `${p.title}: ${plainBody(body).slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
   }
   // 답글('@별명 ...')이면 그 댓글을 단 사람에게도 알림 (이 글에 댓글을 단 사람만, 10분에 한 번)
   const tag = body.match(/^@(\S{2,12})\s/)?.[1]
@@ -128,7 +145,7 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
     if (target && target.id !== user.id && target.id !== p.author_id) {
       const { count: commented } = await db().from('community_comments').select('id', { count: 'exact', head: true }).eq('post_id', postId).eq('author_id', target.id)
       if (commented && !(await overLimit(`community-reply:${postId}:${target.id}`, 1, 600))) {
-        after(() => sendPush([target.id], { title: `↩ ${nick}님이 답글을 달았어요`, body: `${p.title}: ${body.slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
+        after(() => sendPush([target.id], { title: `↩ ${nick}님이 답글을 달았어요`, body: `${p.title}: ${plainBody(body).slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
       }
     }
   }

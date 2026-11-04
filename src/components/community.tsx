@@ -1,7 +1,11 @@
 'use client'
 
-import { useActionState, useEffect, useRef, useState, useTransition } from 'react'
+import { startTransition, useActionState, useEffect, useRef, useState, useTransition } from 'react'
 import { addComment, createPost, report, saveReview, setNickname, toggleLike, updatePost } from '@/app/actions/community'
+import { sendable, splitPostBody, stickerToken } from '@/lib/stickers'
+import Icon from './Icon'
+import Sticker from './Sticker'
+import StickerPicker, { StickerToggle } from './StickerPicker'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
 /** 봇 함정 칸: 사람에게는 안 보이고, 자동 입력 봇만 채움 */
@@ -27,18 +31,23 @@ const DRAFT_KEY = 'community-draft'
 
 export function PostForm({ defaultCategory, post }: { defaultCategory: string; post?: { id: string; title: string; body: string } }) {
   const [state, action] = useActionState(post ? updatePost.bind(null, post.id) : createPost, null)
-  const [body, setBody] = useState(post?.body ?? '')
+  // 고칠 때: 저장된 내용에서 맨 끝 이모티콘 줄을 떼어 '넣은 이모티콘'으로
+  const initial = splitPostBody(post?.body ?? '')
+  const [body, setBody] = useState(initial.text)
+  const [sticker, setSticker] = useState<string | null>(initial.sticker?.id ?? null)
+  const [picker, setPicker] = useState(false)
   const [restored, setRestored] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   // 새 글: 쓰던 글을 이 휴대폰에 잠시 저장 (앱이 꺼지거나 화면을 나가도 다시 불러옴)
   useEffect(() => {
     if (post) return
     try {
-      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { title?: string; body?: string; category?: string } | null
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { title?: string; body?: string; category?: string; sticker?: string } | null
       const f = formRef.current
       if (!d || !f || (!d.title && !d.body)) return
       ;(f.elements.namedItem('title') as HTMLInputElement).value = d.title ?? ''
       setBody(d.body ?? '')
+      if (d.sticker && sendable(d.sticker)) setSticker(d.sticker)
       const cat = f.querySelector<HTMLInputElement>(`input[name=category][value="${d.category}"]`)
       if (cat) cat.checked = true
       setRestored(true)
@@ -50,7 +59,7 @@ export function PostForm({ defaultCategory, post }: { defaultCategory: string; p
     if (!f) return
     const fd = new FormData(f)
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: fd.get('title'), body: fd.get('body'), category: fd.get('category') }))
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: fd.get('title'), body: fd.get('body'), category: fd.get('category'), sticker: fd.get('sticker') || undefined }))
     } catch {}
   }
   return (
@@ -77,6 +86,7 @@ export function PostForm({ defaultCategory, post }: { defaultCategory: string; p
               try { localStorage.removeItem(DRAFT_KEY) } catch {}
               ;(formRef.current?.elements.namedItem('title') as HTMLInputElement).value = ''
               setBody('')
+              setSticker(null)
               setRestored(false)
             }}
           >
@@ -110,6 +120,50 @@ export function PostForm({ defaultCategory, post }: { defaultCategory: string; p
         </label>
         <textarea id="post-body" name="body" className="input min-h-40" maxLength={3000} required value={body} onChange={(e) => setBody(e.target.value)} placeholder="서로 돕는 공간이에요. 남을 깎아내리거나 개인정보(전화번호 등)를 올리지 말아 주세요." />
         <p className="mt-1 text-right text-xs text-mute tabular-nums">{body.length}/3000</p>
+      </div>
+      {/* 이모티콘 하나 붙이기 (글 맨 아래에 크게 보임) */}
+      <div className="space-y-2" data-post-sticker>
+        <input type="hidden" name="sticker" value={sticker ?? ''} />
+        {sticker ? (
+          <div className="flex items-center gap-3 rounded-2xl bg-bg p-2 pr-3">
+            <Sticker id={sticker} size={72} />
+            <p className="min-w-0 flex-1 text-sm font-semibold text-sub">글 맨 아래에 붙어요</p>
+            <button type="button" className="chip h-9 shrink-0 px-3 text-xs" onClick={() => setPicker(true)}>
+              바꾸기
+            </button>
+            <button
+              type="button"
+              className="chip h-9 shrink-0 px-3 text-xs"
+              onClick={() => {
+                setSticker(null)
+                setPicker(false)
+                setTimeout(save, 0)
+              }}
+            >
+              빼기
+            </button>
+          </div>
+        ) : (
+          !picker && (
+            <button type="button" className="chip h-10 gap-1.5 px-3.5 text-sm" onClick={() => setPicker(true)} data-sticker-toggle>
+              <span aria-hidden className="text-[18px]">
+                <Icon name="smile" />
+              </span>
+              이모티콘 넣기
+            </button>
+          )
+        )}
+        {picker && (
+          <StickerPicker
+            title="글에 넣을 이모티콘"
+            onPick={(id) => {
+              setSticker(id)
+              setPicker(false)
+              setTimeout(save, 0)
+            }}
+            onClose={() => setPicker(false)}
+          />
+        )}
       </div>
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText={post ? '고치는 중…' : '올리는 중…'}>
@@ -157,12 +211,30 @@ export function LikeButton({ postId, liked, likes, disabled }: { postId: string;
 
 /** 댓글 쓰기 */
 export function CommentForm({ postId }: { postId: string }) {
-  const [state, action] = useActionState(addComment.bind(null, postId), null)
+  const [state, action, sending] = useActionState(addComment.bind(null, postId), null)
   const ref = useRef<HTMLTextAreaElement>(null)
+  const formRef = useRef<HTMLFormElement>(null)
+  const [picker, setPicker] = useState(false)
+  // 이모티콘 댓글: 누르면 바로 달림 (쓰던 댓글은 칸에 그대로)
+  const stickerSent = useRef(false)
+  const sendSticker = (id: string) => {
+    const form = formRef.current
+    if (!form) return
+    const fd = new FormData(form)
+    fd.set('body', stickerToken(id))
+    stickerSent.current = true
+    setPicker(false)
+    startTransition(() => action(fd))
+  }
   useEffect(() => {
-    if (state?.ok && ref.current) {
-      ref.current.value = ''
-      ref.current.style.height = ''
+    if (!state) return
+    const wasSticker = stickerSent.current
+    stickerSent.current = false
+    if (state.ok && ref.current) {
+      if (!wasSticker) {
+        ref.current.value = ''
+        ref.current.style.height = ''
+      }
       // 방금 단 댓글로 이동해 잠깐 반짝 (목록이 새로 그려진 뒤)
       setTimeout(() => {
         const mine = document.querySelectorAll<HTMLElement>('[data-comment][data-mine]')
@@ -195,7 +267,7 @@ export function CommentForm({ postId }: { postId: string }) {
     return () => window.removeEventListener('community-reply', onReply)
   }, [])
   return (
-    <form action={action} onReset={keepInputs} className="space-y-2" data-comment-form>
+    <form ref={formRef} action={action} onReset={keepInputs} className="space-y-2" data-comment-form>
       <Honeypot />
       <textarea
         ref={ref}
@@ -213,9 +285,22 @@ export function CommentForm({ postId }: { postId: string }) {
         }}
       />
       {state?.error && <FormMessage state={state} />}
-      <SubmitButton className="btn-primary btn-sm w-full" pendingText="다는 중…">
-        댓글 달기
-      </SubmitButton>
+      {picker && (
+        <StickerPicker
+          title="댓글로 보낼 이모티콘"
+          onPick={sendSticker}
+          onClose={() => {
+            setPicker(false)
+            formRef.current?.querySelector<HTMLButtonElement>('[data-sticker-toggle]')?.focus()
+          }}
+        />
+      )}
+      <div className="flex items-center gap-2">
+        <StickerToggle open={picker} onClick={() => setPicker((v) => !v)} className="ring-1 ring-line" />
+        <SubmitButton className="btn-primary btn-sm flex-1" pendingText="다는 중…">
+          {sending ? '다는 중…' : '댓글 달기'}
+        </SubmitButton>
+      </div>
     </form>
   )
 }

@@ -10,6 +10,8 @@ import { ago, canWrite, categoryOf, getPost, readAllowed, relatedPosts } from '@
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 import { linkedAmong } from '@/lib/coworkers'
+import { splitPostBody, stickerOf } from '@/lib/stickers'
+import Sticker from '@/components/Sticker'
 
 export const metadata: Metadata = { title: '커뮤니티 글' }
 
@@ -75,7 +77,20 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
         </p>
         {/* 내용을 두 번 톡 누르면 좋아요 */}
         <DoubleTapLike enabled={writer}>
-          <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{post.body}</p>
+          {(() => {
+            // 맨 끝 이모티콘 줄은 그림으로 (글쓰기의 '이모티콘 넣기')
+            const { text, sticker } = splitPostBody(post.body)
+            return (
+              <>
+                <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{text}</p>
+                {sticker && (
+                  <div className="mt-2" data-post-sticker-view>
+                    <Sticker id={sticker.id} size={140} />
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </DoubleTapLike>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
           <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!writer} />
@@ -113,6 +128,12 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
                   <span>· {ago(c.created_at)}</span>
                   {c.hidden_at && <span className="font-semibold text-rose-600">· 가려짐</span>}
                 </p>
+                {stickerOf(c.body) ? (
+                  // 이모티콘 댓글은 말풍선 없이 그림으로
+                  <div className="mt-1.5" data-comment-sticker>
+                    <Sticker id={stickerOf(c.body)!.id} size={96} />
+                  </div>
+                ) : (
                 <p className="mt-1 text-[15px] whitespace-pre-wrap break-words">
                   {/* 답글이면 맨 앞 '@별명'을 강조 */}
                   {(() => {
@@ -126,6 +147,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
                     )
                   })()}
                 </p>
+                )}
                 <div className="mt-1.5 flex items-center justify-end gap-3">
                   {writer && !post.hidden_at && !c.mine && <ReplyButton nick={c.nick} />}
                   {(c.mine || user.isSuper) && (

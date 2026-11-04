@@ -43,6 +43,13 @@ const PATHS = {
       <path d="M9 8.5V7a3 3 0 0 1 6 0v1.5" />
     </>
   ),
+  close: <path d="M6.5 6.5l11 11M17.5 6.5l-11 11" />,
+  smile: (
+    <>
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M8.5 14.2a4.2 4.2 0 0 0 7 0M9.2 9.6v.6M14.8 9.6v.6" />
+    </>
+  ),
   route: (
     <>
       <circle cx="6" cy="18" r="2" />

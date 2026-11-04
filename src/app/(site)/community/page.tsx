@@ -6,6 +6,10 @@ import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { linkedAmong, pendingRequests } from '@/lib/coworkers'
+import { PACKS, splitPostBody } from '@/lib/stickers'
+
+/** 이모티콘 아이디 → 작은 그림 */
+const PACK_THUMB = new Map(PACKS.flatMap((p) => p.items.map((it) => [it.id, it.thumb] as const)))
 
 export const metadata: Metadata = { title: '커뮤니티' }
 
@@ -161,6 +165,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         <ul className="stagger space-y-2" data-post-list>
           {posts.map((p, i) => {
             const cat = categoryOf(p.category)
+            // 이모티콘을 붙인 글은 목록에서 작은 그림으로 (128px 작은 그림)
+            const { text, sticker } = splitPostBody(p.body)
+            const thumb = sticker ? PACK_THUMB.get(sticker.id) : null
             return (
               <li key={p.id}>
                 <Link href={`/community/${p.id}`} className="card-link block space-y-1.5 p-4" data-post transitionTypes={['nav-forward']}>
@@ -171,8 +178,16 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                     {hot && i < 3 && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-600">🔥 {i + 1}위</span>}
                     {p.author_id === user.id && <span className="text-mute">내 글</span>}
                   </div>
-                  <p className="line-clamp-1 font-bold">{p.title}</p>
-                  <p className="line-clamp-2 text-sm text-sub">{p.body}</p>
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1 space-y-1.5">
+                      <p className="line-clamp-1 font-bold">{p.title}</p>
+                      <p className="line-clamp-2 text-sm text-sub">{text}</p>
+                    </div>
+                    {thumb && (
+                      // eslint-disable-next-line @next/next/no-img-element -- 목록의 작은 그림
+                      <img src={thumb} alt={`이모티콘: ${sticker!.label}`} width={48} height={48} loading="lazy" decoding="async" className="size-12 shrink-0 object-contain" data-post-sticker-thumb />
+                    )}
+                  </div>
                   <p className="flex items-center gap-3 text-xs text-mute">
                     <span className="min-w-0 truncate">
                       {p.nick}

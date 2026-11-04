@@ -1,0 +1,199 @@
+{
+  "id": "working-mouse-21",
+  "name": "일하는 쥐돌이",
+  "version": 1,
+  "count": 21,
+  "description": "작은 꼬리, 노란 모자와 남색 작업복의 일하는 쥐돌이. 업무·커뮤니티·회식 모집 21종.",
+  "thumbnail": "/stickers/working-mouse-21/thumbs/01-clock-in.png",
+  "items": [
+    {
+      "id": "working-mouse-01",
+      "label": "출근했쥐!",
+      "category": "출근",
+      "src": "/stickers/working-mouse-21/01-clock-in.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/01-clock-in.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-02",
+      "label": "퇴근이다!",
+      "category": "퇴근",
+      "src": "/stickers/working-mouse-21/02-clock-out.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/02-clock-out.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-03",
+      "label": "커피 수혈",
+      "category": "커피",
+      "src": "/stickers/working-mouse-21/03-coffee.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/03-coffee.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-04",
+      "label": "넵! 확인!",
+      "category": "확인",
+      "src": "/stickers/working-mouse-21/04-confirmed.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/04-confirmed.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-05",
+      "label": "잠깐만요!",
+      "category": "대기",
+      "src": "/stickers/working-mouse-21/05-one-moment.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/05-one-moment.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-06",
+      "label": "도와주세요",
+      "category": "도움",
+      "src": "/stickers/working-mouse-21/06-help.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/06-help.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-07",
+      "label": "처리 완료!",
+      "category": "완료",
+      "src": "/stickers/working-mouse-21/07-completed.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/07-completed.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-08",
+      "label": "멘붕…",
+      "category": "당황",
+      "src": "/stickers/working-mouse-21/08-overwhelmed.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/08-overwhelmed.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-09",
+      "label": "월급 들어왔다!",
+      "category": "월급",
+      "src": "/stickers/working-mouse-21/09-payday.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/09-payday.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-10",
+      "label": "ㅋㅋㅋㅋ",
+      "category": "웃음",
+      "src": "/stickers/working-mouse-21/10-lol.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/10-lol.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-11",
+      "label": "완전 공감!",
+      "category": "공감",
+      "src": "/stickers/working-mouse-21/11-agree.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/11-agree.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-12",
+      "label": "추천 꾹!",
+      "category": "추천",
+      "src": "/stickers/working-mouse-21/12-recommend.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/12-recommend.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-13",
+      "label": "눈팅 중",
+      "category": "눈팅",
+      "src": "/stickers/working-mouse-21/13-lurking.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/13-lurking.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-14",
+      "label": "공지 확인!",
+      "category": "공지",
+      "src": "/stickers/working-mouse-21/14-notice.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/14-notice.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-15",
+      "label": "질문 있어요",
+      "category": "질문",
+      "src": "/stickers/working-mouse-21/15-question.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/15-question.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-16",
+      "label": "수고했어요",
+      "category": "격려",
+      "src": "/stickers/working-mouse-21/16-good-work.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/16-good-work.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-17",
+      "label": "잠깐 쉬는 중",
+      "category": "휴식",
+      "src": "/stickers/working-mouse-21/17-break.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/17-break.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-18",
+      "label": "감사합니다",
+      "category": "감사",
+      "src": "/stickers/working-mouse-21/18-thanks.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/18-thanks.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-19",
+      "label": "죄송해요",
+      "category": "사과",
+      "src": "/stickers/working-mouse-21/19-sorry.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/19-sorry.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-20",
+      "label": "잘 부탁드려요",
+      "category": "첫인사",
+      "src": "/stickers/working-mouse-21/20-nice-to-work.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/20-nice-to-work.png",
+      "width": 512,
+      "height": 512
+    },
+    {
+      "id": "working-mouse-21",
+      "label": "오늘 회식하실 분?",
+      "category": "회식 모집",
+      "src": "/stickers/working-mouse-21/21-team-dinner.png",
+      "thumbnail": "/stickers/working-mouse-21/thumbs/21-team-dinner.png",
+      "width": 512,
+      "height": 512
+    }
+  ]
+}
