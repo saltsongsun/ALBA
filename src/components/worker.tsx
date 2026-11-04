@@ -535,7 +535,20 @@ export function LateNotice({ jobId, sent }: { jobId: string; sent: { minutes: nu
   )
 }
 
-export function SignaturePad({ name, reuse = null }: { name: string; /** 앞 서류에 방금 한 서명 (있으면 '같은 서명 쓰기') */ reuse?: string | null }) {
+export function SignaturePad({
+  name,
+  reuse = null,
+  invalid = false,
+  onDrawn,
+}: {
+  name: string
+  /** 앞 서류에 방금 한 서명 (있으면 '같은 서명 쓰기') */
+  reuse?: string | null
+  /** 서명 없이 제출하려 했을 때: 빨간 테두리 + 안내 */
+  invalid?: boolean
+  /** 서명이 생기면 (그리기·같은 서명 쓰기) */
+  onDrawn?: () => void
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const drawing = useRef(false)
@@ -554,6 +567,7 @@ export function SignaturePad({ name, reuse = null }: { name: string; /** 앞 서
       ctx.drawImage(img, (r.width - img.width * k) / 2, (r.height - img.height * k) / 2, img.width * k, img.height * k)
       inputRef.current!.value = reuse
       setEmpty(false)
+      onDrawn?.()
     }
     img.src = reuse
   }
@@ -588,11 +602,11 @@ export function SignaturePad({ name, reuse = null }: { name: string; /** 앞 서
   }
 
   return (
-    <div>
+    <div data-sign-pad data-invalid={invalid && empty ? '' : undefined}>
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className="h-44 w-full touch-none rounded-xl border-2 border-dashed border-line bg-white"
+          className={`h-44 w-full touch-none rounded-xl border-2 border-dashed bg-white transition-colors ${invalid && empty ? 'border-rose-400' : 'border-line'}`}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
             drawing.current = true
@@ -615,10 +629,13 @@ export function SignaturePad({ name, reuse = null }: { name: string; /** 앞 서
             drawing.current = false
             setEmpty(false)
             exportImage()
+            onDrawn?.()
           }}
         />
         {empty ? (
-          <span className="pointer-events-none absolute inset-0 grid place-items-center text-mute">여기에 서명해 주세요</span>
+          <span className={`pointer-events-none absolute inset-0 grid place-items-center ${invalid ? 'font-semibold text-rose-600' : 'text-mute'}`}>
+            {invalid ? '손가락으로 여기에 서명해 주세요' : '여기에 서명해 주세요'}
+          </span>
         ) : (
           <span className="badge pointer-events-none absolute top-2 right-2 animate-pop bg-emerald-50 text-emerald-700">서명됨 ✓</span>
         )}
@@ -693,6 +710,8 @@ const REUSE_MS = 30 * 60_000
 export function SignForm({ docId, title, userId }: { docId: string; title: string; userId: string }) {
   const [state, action] = useActionState(signDocument.bind(null, docId), null)
   const [saved, setSaved] = useState<string | null>(null)
+  // 서명 없이 '제출'을 누르면 서버까지 가지 않고 바로 서명란으로 (빨간 테두리 · 흔들림)
+  const [needSign, setNeedSign] = useState(false)
   useEffect(() => {
     try {
       const v = JSON.parse(sessionStorage.getItem(LAST_SIGNATURE) ?? 'null') as { u?: string; at?: number; data?: string } | null
@@ -706,17 +725,29 @@ export function SignForm({ docId, title, userId }: { docId: string; title: strin
       onReset={keepInputs}
       onSubmit={(e) => {
         const sig = new FormData(e.currentTarget).get('signature')
-        if (typeof sig === 'string' && sig.startsWith('data:image/png;base64,')) {
-          try {
-            sessionStorage.setItem(LAST_SIGNATURE, JSON.stringify({ u: userId, at: Date.now(), data: sig }))
-          } catch {}
+        if (!(typeof sig === 'string' && sig.startsWith('data:image/png;base64,'))) {
+          e.preventDefault()
+          setNeedSign(true)
+          haptic([20, 40, 20])
+          const pad = e.currentTarget.querySelector<HTMLElement>('[data-sign-pad]')
+          if (pad) {
+            const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+            pad.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+            pad.classList.remove('animate-shake')
+            void pad.offsetWidth
+            pad.classList.add('animate-shake')
+          }
+          return
         }
+        try {
+          sessionStorage.setItem(LAST_SIGNATURE, JSON.stringify({ u: userId, at: Date.now(), data: sig }))
+        } catch {}
       }}
       id="sign"
       className="card no-print scroll-mt-20 space-y-4"
     >
       <h2 className="font-bold">근로자 서명</h2>
-      <SignaturePad name="signature" reuse={saved} />
+      <SignaturePad name="signature" reuse={saved} invalid={needSign} onDrawn={() => setNeedSign(false)} />
       <label className="flex items-start gap-2.5 text-sm">
         <input type="checkbox" name="agree" className="mt-0.5 size-5 accent-brand-600" required />
         <span>위 「{title}」 내용을 모두 읽고 이해했으며, 전자서명으로 체결(제출)하는 데 동의합니다.</span>

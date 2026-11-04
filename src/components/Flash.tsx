@@ -5,8 +5,8 @@ import { createPortal } from 'react-dom'
 import { haptic } from './ui'
 
 const SHOW_MS = 6000
-/** 지원 접수·근무 확정처럼 기쁜 소식이면 화면 가운데에서 색 점이 톡 터지고 체크가 그려짐 (1.2초) */
-const PARTY = /지원이 접수됐어요|확정됐어요!|글을 올렸어요/
+/** 지원 접수·근무 확정·서류 서명을 다 마친 것처럼 기쁜 소식이면 화면 가운데에서 색 점이 톡 터지고 체크가 그려짐 (1.2초) */
+const PARTY = /지원이 접수됐어요|확정됐어요!|글을 올렸어요|서류 서명을 모두 마쳤어요/
 const DOTS = Array.from({ length: 12 }, (_, i) => {
   const a = (i / 12) * Math.PI * 2
   const r = 70 + (i % 3) * 16
