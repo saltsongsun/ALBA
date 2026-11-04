@@ -555,6 +555,7 @@
   /* 바탕: 카드·입력칸·칩·흰 칸 */
   & .bg-white,
   & .card,
+  & .card-link,
   & .fold-card,
   & .input,
   & .chip:not(.chip-primary) {
@@ -577,6 +578,7 @@
   }
   & .ring-black\/\[0\.03\],
   & .card,
+  & .card-link,
   & .fold-card {
     --tw-ring-color: rgb(255 255 255 / 0.05);
   }
@@ -589,6 +591,18 @@
   }
   & .bg-gray-300 {
     background-color: #3a3f47;
+  }
+  /* 연한 강조 버튼 · 지우기 버튼 */
+  & .btn-soft {
+    background-color: var(--dk-brand-bg);
+    color: var(--dk-brand-text);
+  }
+  & .btn-soft:hover {
+    background-color: var(--dk-brand-bg2);
+  }
+  & .btn-danger {
+    background-color: #2c1519;
+    color: #fb8a9c;
   }
   /* 검은 칩(선택된 거르기·'오늘' 표시)은 반대로 밝은 칩 */
   & .bg-ink {

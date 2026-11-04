@@ -114,7 +114,12 @@ const latency = (ms) => fetch(`${MD}/__latency?ms=${ms}`).then((r) => r.json())
       await p.waitForTimeout(1500)
       await latency(400)
       await p.locator('nav[data-bottom-nav] a[href="/"]').click()
-      ok('알바 찾기를 누르면 바로 공고 카드 모양', await p.locator('[data-skeleton=jobs]').waitFor({ timeout: 800 }).then(() => true, () => false))
+      // 방금(30초 안) 본 화면이면 휴대폰에 둔 것을 곧바로, 아니면 공고 카드 모양부터 (어느 쪽이든 기다림 없이 바로)
+      const quick = await Promise.any([
+        p.locator('[data-skeleton=jobs]').waitFor({ timeout: 800 }).then(() => 'skeleton'),
+        p.locator('a.card-link[href^="/jobs/"]').first().waitFor({ timeout: 800 }).then(() => 'cached'),
+      ]).catch(() => null)
+      ok('알바 찾기를 누르면 바로 (공고 카드 모양 또는 방금 본 화면)', !!quick, String(quick))
       await p.locator('[data-skeleton=jobs]').waitFor({ state: 'detached', timeout: 30000 }).catch(() => {})
     } finally {
       await latency(5)
