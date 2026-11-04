@@ -48,7 +48,13 @@ const views = async (job) => (await rest('job_views')).filter((v) => v.job_id ==
   ok('30분 안에 다시 본 것은 같은 방문 (1번)', v[0]?.visits === 1, String(v[0]?.visits))
   const v2 = await views(J2)
   ok('로그인 전에 본 다른 공고도 그 사람 기록으로', v2.length === 1 && v2[0].viewer === `u:${W}`, JSON.stringify(v2.map((x) => x.viewer)))
-  ok('비로그인 표시 쿠키는 지움', !(await ctx.cookies()).some((c) => c.name === 'hw_vid'))
+  // (DB가 먼저 합쳐지고, 쿠키를 지우라는 응답은 그 뒤에 휴대폰에 닿으므로 잠깐 기다림)
+  let vidGone = false
+  for (let i = 0; i < 30 && !vidGone; i++) {
+    vidGone = !(await ctx.cookies()).some((c) => c.name === 'hw_vid')
+    if (!vidGone) await p.waitForTimeout(100)
+  }
+  ok('비로그인 표시 쿠키는 지움', vidGone)
 
   // ── 3. 다른 사람(지원자) 1명 더: 로그인해서 봄 ──
   const ctx2 = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
