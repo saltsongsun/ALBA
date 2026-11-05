@@ -1,5 +1,6 @@
 'use client'
 
+import UnsavedBar from '@/components/UnsavedBar'
 import { useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -807,7 +808,9 @@ export function ProfileForm({
     else el.setAttribute('data-missing', '')
   }
   return (
-    <form ref={ref} action={action} onReset={keepInputs} onInput={onInput} className="card space-y-4">
+    <form id="profile-form" ref={ref} action={action} onReset={keepInputs} onInput={onInput} className="card space-y-4">
+      {/* 계좌·주소를 고친 뒤 '저장'을 잊고 나가지 않게: 아래 탭 위에 저장 바 */}
+      <UnsavedBar formId="profile-form" state={state} />
       <h2 className="font-bold">급여 계좌 · 연락 정보</h2>
       <div className="grid grid-cols-[1fr_1.2fr] gap-3">
         <div className="min-w-0">

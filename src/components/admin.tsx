@@ -1,5 +1,6 @@
 'use client'
 
+import UnsavedBar from '@/components/UnsavedBar'
 import { useActionState, useMemo, useOptimistic, useRef, useState } from 'react'
 import { rateWorker, resetPin, revealRrn, saveSettings, saveTemplate, setPosition, updateWorker } from '@/app/actions/admin'
 import { renderTemplate } from '@/lib/docs'
@@ -224,7 +225,9 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
 export function SettingsForm({ s }: { s: Settings }) {
   const [state, action] = useActionState(saveSettings, null)
   return (
-    <form action={action} onReset={keepInputs} className="space-y-5">
+    <form id="settings-form" action={action} onReset={keepInputs} className="space-y-5">
+      {/* 고친 뒤 맨 아래 '설정 저장'을 잊고 나가지 않게: 아래 탭 위에 저장 바 */}
+      <UnsavedBar formId="settings-form" state={state} />
       {/* 계약서에 들어가는 정보 4가지: 쓰는 대로 ✓, 누르면 그 칸으로 */}
       <SetupChecklist
         initial={{ business_no: !!s.business_no, company_address: !!s.company_address, seal: !!s.seal_image, contact_phone: !!s.contact_phone }}
