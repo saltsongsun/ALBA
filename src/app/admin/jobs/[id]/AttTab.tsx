@@ -146,6 +146,8 @@ export default async function AttTab({
   const positions = [...new Set(apps.map((a) => a.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, 'ko'))
   const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
   const shown = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
+  // 사람이 많으면(9명 이상) 자세히 목록을 한 줄씩 접어 둠 (위아래로 너무 길어지지 않게)
+  const compact = roster.length > 8
   // 출석 체크는 오늘(진행 중인 공고)만
   const canCheck = date === today && !['cancelled', 'draft'].includes(job.status)
   const view: 'list' | 'faces' | 'check' = check && canCheck ? 'check' : faces ? 'faces' : 'list'
@@ -390,7 +392,7 @@ export default async function AttTab({
         />
       )}
       {view === 'faces' && (
-        <div className="stagger grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="stagger grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
           {shown.map((uid) => {
             const u = users.get(uid)
             const a = byUser.get(uid)
@@ -405,11 +407,12 @@ export default async function AttTab({
                 ? 'bg-emerald-50 text-emerald-700'
                 : 'bg-gray-100 text-sub'
             return (
-              <div key={uid} className="card flex flex-col items-center p-3 text-center">
-                <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="xl" />
-                <p className="mt-2 w-full truncate text-[17px] font-bold">{u?.name ?? '알 수 없음'}</p>
-                {posOf(uid) && <p className="w-full truncate text-xs font-semibold text-brand-700">📍 {posOf(uid)}</p>}
-                <span className={`badge mt-1.5 ${cls}`}>{label}</span>
+              <div key={uid} className="card flex min-w-0 flex-col items-center px-1.5 py-2.5 text-center">
+                {/* 사진을 누르면 크게 (입구에서 얼굴 확인) */}
+                <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="lg" />
+                <p className="mt-1.5 w-full truncate text-[14px] leading-tight font-bold">{u?.name ?? '알 수 없음'}</p>
+                <p className="w-full truncate text-[11px] leading-tight font-semibold text-brand-700">{posOf(uid) ? `📍 ${posOf(uid)}` : '\u00a0'}</p>
+                <span className={`badge mt-1 max-w-full truncate px-2 text-[11px] ${cls}`}>{label}</span>
               </div>
             )
           })}
@@ -447,299 +450,357 @@ export default async function AttTab({
               data-att-row={uid}
               className={`card scroll-mt-24 p-4 ${fix === uid ? 'animate-pop ring-2 ring-amber-300' : ''}`}
             >
-              <div className="flex items-center gap-3">
-                {/* 얼굴 사진 (눌러서 크게) + 오른쪽 아래 상태 점 */}
-                <span className="relative shrink-0">
-                  <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="lg" />
-                  <span className="absolute right-0 bottom-0 flex size-3.5 rounded-full ring-2 ring-white">
-                    {a && !a.clock_out && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
-                    <span className={`relative inline-flex size-3.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`} />
-                  </span>
-                </span>
-                <div className="min-w-0 flex-1">
-                  <Link href={`/admin/workers/${uid}`} className="block truncate text-[17px] font-bold">
-                    {u?.name ?? '알 수 없음'}
-                  </Link>
-                  {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
-                  {appOf.get(uid)?.admin_memo === EMERGENCY_MEMO && <span className="badge mt-1 mr-1 bg-rose-600 text-white">
-                      <Icon name="qr" /> 긴급 투입
-                    </span>}
-                  {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
-                    <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge mt-1 bg-rose-50 text-rose-600">
-                      📝 계약서 미수령
-                    </Link>
-                  )}
-                </div>
-                <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
-              </div>
-
-              {/* 근무시간 변경 동의 */}
               {(() => {
-                const c = changeOf.get(uid)
-                if (!c) return null
-                const to = `${hhmm(c.start_time)}~${hhmm(c.end_time)}`
-                const scope = c.work_date ? '' : '전체 일정 '
-                if (c.status === 'agreed')
-                  return (
-                    <p className="mt-2.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                      ✓ {scope}
-                      <b>{to}</b> 동의{c.answered_by && c.answered_by !== uid ? ' (현장 동의)' : ''} · {c.answered_at ? kstTime(c.answered_at) : ''}
-                    </p>
-                  )
-                if (c.status === 'declined')
-                  return (
-                    <p className="mt-2.5 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
-                      ✕ {scope}
-                      {to} 변경 어려움 · {c.work_date ? `원래 ${hhmm(c.prev_end)}에 종료` : '확정 취소됨'}
-                    </p>
-                  )
-                return (
-                  <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    <span className="min-w-0 flex-1">
-                      🕒 {scope}
-                      <b>{to}</b> 변경 · 근무자 동의 기다리는 중
+                const head = (
+                  <div className="flex items-center gap-3">
+                    {/* 얼굴 사진 (눌러서 크게) + 오른쪽 아래 상태 점 */}
+                    <span className="relative shrink-0">
+                      <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="lg" />
+                      <span className="absolute right-0 bottom-0 flex size-3.5 rounded-full ring-2 ring-white">
+                        {a && !a.clock_out && <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+                        <span className={`relative inline-flex size-3.5 rounded-full ${!a ? 'bg-gray-300' : !a.clock_out ? 'bg-emerald-500' : a.confirmed ? 'bg-ink' : 'bg-brand-500'}`} />
+                      </span>
                     </span>
-                    <form action={answerShiftByAdmin.bind(null, c.id)}>
-                      <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="현장에서 동의받았나요?">
-                        현장 동의 받음
-                      </ConfirmSubmit>
-                    </form>
+                    <div className="min-w-0 flex-1">
+                      <Link href={`/admin/workers/${uid}`} className="block truncate text-[17px] font-bold">
+                        {u?.name ?? '알 수 없음'}
+                      </Link>
+                      {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
+                      {appOf.get(uid)?.admin_memo === EMERGENCY_MEMO && <span className="badge mt-1 mr-1 bg-rose-600 text-white">
+                          <Icon name="qr" /> 긴급 투입
+                        </span>}
+                      {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
+                        <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge mt-1 bg-rose-50 text-rose-600">
+                          📝 계약서 미수령
+                        </Link>
+                      )}
+                    </div>
+                    <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
                   </div>
                 )
-              })()}
-
-              {/* 현장 위치 확인이 안 된 근무자의 출근 확인 요청: 요청 시각으로 바로 출근 처리 */}
-              {ask && (
-                <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm ring-1 ring-brand-100">
-                  <span className="min-w-0 flex-1 text-brand-700">
-                    📍 <b>{ask.at}</b> 현장 도착 · 위치 확인 실패{ask.distance != null ? ` (약 ${ask.distance.toLocaleString()}m로 잡힘)` : ''}
-                  </span>
-                  <form action={approveArrival.bind(null, job.id, uid, date)}>
-                    <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="처리 중…">
-                      {ask.at} 출근 처리
-                    </SubmitButton>
-                  </form>
-                </div>
-              )}
-              {late && !ask && (
-                <p className="mt-2.5 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                  🕒 {late.at}에 알림 · 약 {late.minutes}분 늦음, <b>{late.eta} 도착 예정</b>
-                  {late.reason && <span className="text-amber-800"> · {late.reason}</span>}
-                </p>
-              )}
-
-              {a && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
-                  <span className="font-semibold tabular-nums">
-                    {kstTime(a.adj_in ?? a.clock_in)} ~ {a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : date < today ? '퇴근 기록 없음' : '근무 중'}
-                  </span>
-                  {pay && !pay.incomplete && (
-                    <span className="text-sub">
-                      · {minutesText(pay.paidMin)} · {won(pay.gross)}
-                    </span>
-                  )}
+                const rest = (
+                  <>
+                  {/* 근무시간 변경 동의 */}
                   {(() => {
-                    const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000
-                    if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {Math.round(diff)}분</span>
-                    if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {Math.round(-diff)}분{job.early_clamp ? '(미인정)' : ''}</span>
-                    return null
-                  })()}
-                  {(a.adj_in || a.adj_out) && <span className="badge bg-amber-50 text-amber-700">보정</span>}
-                  {a.source === 'admin' && <span className="badge bg-gray-100 text-sub">관리자 등록</span>}
-                  {(far(a.in_distance_m) || far(a.out_distance_m)) && <span className="badge bg-rose-50 text-rose-600">위치 벗어남</span>}
-                  {a.paid && <span className="badge bg-emerald-50 text-emerald-700">지급</span>}
-                  {a.note?.startsWith(DISMISS_NOTE) && <span className="badge bg-rose-600 text-white">{a.note.split(' · ')[0]}</span>}
-                </div>
-              )}
-
-              {/* 근무자의 기록 정정 요청: 요청대로 한 번에 고치거나 그대로 두기 */}
-              {a?.clock_out &&
-                (() => {
-                  const f = fixOf.get(uid)
-                  if (!f) return null
-                  return (
-                    <div className="mt-2.5 space-y-2 rounded-xl bg-violet-50 px-3 py-2.5 text-sm text-violet-900 ring-1 ring-violet-200">
-                      <p>
-                        ✏️ {f.at} 정정 요청 · <b>실제 {f.field === 'in' ? '출근' : '종료'} {f.time}</b>
-                        <span className="text-violet-700">
-                          {' '}
-                          (지금 {kstTime(f.field === 'in' ? (a.adj_in ?? a.clock_in) : (a.adj_out ?? a.clock_out)!)})
+                    const c = changeOf.get(uid)
+                    if (!c) return null
+                    const to = `${hhmm(c.start_time)}~${hhmm(c.end_time)}`
+                    const scope = c.work_date ? '' : '전체 일정 '
+                    if (c.status === 'agreed')
+                      return (
+                        <p className="mt-2.5 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                          ✓ {scope}
+                          <b>{to}</b> 동의{c.answered_by && c.answered_by !== uid ? ' (현장 동의)' : ''} · {c.answered_at ? kstTime(c.answered_at) : ''}
+                        </p>
+                      )
+                    if (c.status === 'declined')
+                      return (
+                        <p className="mt-2.5 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">
+                          ✕ {scope}
+                          {to} 변경 어려움 · {c.work_date ? `원래 ${hhmm(c.prev_end)}에 종료` : '확정 취소됨'}
+                        </p>
+                      )
+                    return (
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                        <span className="min-w-0 flex-1">
+                          🕒 {scope}
+                          <b>{to}</b> 변경 · 근무자 동의 기다리는 중
                         </span>
-                        {f.reason && <span className="text-violet-800"> · {f.reason}</span>}
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <form action={decideFix.bind(null, job.id, uid, date, true)}>
-                          <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="고치는 중…">
-                            요청대로 {f.time}(으)로 고치기
-                          </SubmitButton>
-                        </form>
-                        <form action={decideFix.bind(null, job.id, uid, date, false)}>
-                          <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="한 번 더 누르면 그대로 둬요">
-                            그대로 두기
+                        <form action={answerShiftByAdmin.bind(null, c.id)}>
+                          <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="현장에서 동의받았나요?">
+                            현장 동의 받음
                           </ConfirmSubmit>
                         </form>
                       </div>
-                    </div>
-                  )
-                })()}
+                    )
+                  })()}
 
-              {/* 계약 종료 시각 이후 기록: 서로 확인해야 금액에 들어감 */}
-              {a && pay && pay.afterMin >= OT_ASK_MIN && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-sm">
-                  <span className="font-semibold text-amber-800">계약 후 {minutesText(pay.afterMin)}</span>
-                  <span className="text-amber-700">
-                    {a.ot_status === 'agreed'
-                      ? `· 연장 ${minutesText(pay.agreedOtMin)} 확정`
-                      : a.ot_status === 'rejected'
-                        ? `· 불인정${a.ot_by === 'worker' ? ' (근무자: 제시간 종료)' : ''}`
-                        : a.ot_status === 'pending' && a.ot_by === 'worker'
-                          ? '· 근무자가 연장 확인 요청'
-                          : a.ot_status === 'pending'
-                            ? '· 인정함, 근무자 확인 대기'
-                            : '· 금액 미포함'}
-                  </span>
-                  {!a.paid && a.ot_status !== 'agreed' && (
-                    <span className="ml-auto flex gap-1">
-                      {!(a.ot_status === 'pending' && a.ot_by === 'admin') && (
-                        <form action={decideOvertime.bind(null, a.id, 'approve')}>
-                          <SubmitButton className="chip-primary h-7 px-2.5 text-xs" pendingText="…">
-                            {a.ot_status === 'pending' && a.ot_by === 'worker' ? '인정' : '연장 인정'}
-                          </SubmitButton>
-                        </form>
+                  {/* 현장 위치 확인이 안 된 근무자의 출근 확인 요청: 요청 시각으로 바로 출근 처리 */}
+                  {ask && (
+                    <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-brand-50 px-3 py-2.5 text-sm ring-1 ring-brand-100">
+                      <span className="min-w-0 flex-1 text-brand-700">
+                        📍 <b>{ask.at}</b> 현장 도착 · 위치 확인 실패{ask.distance != null ? ` (약 ${ask.distance.toLocaleString()}m로 잡힘)` : ''}
+                      </span>
+                      <form action={approveArrival.bind(null, job.id, uid, date)}>
+                        <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="처리 중…">
+                          {ask.at} 출근 처리
+                        </SubmitButton>
+                      </form>
+                    </div>
+                  )}
+                  {late && !ask && (
+                    <p className="mt-2.5 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                      🕒 {late.at}에 알림 · 약 {late.minutes}분 늦음, <b>{late.eta} 도착 예정</b>
+                      {late.reason && <span className="text-amber-800"> · {late.reason}</span>}
+                    </p>
+                  )}
+
+                  {a && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                      <span className="font-semibold tabular-nums">
+                        {kstTime(a.adj_in ?? a.clock_in)} ~ {a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : date < today ? '퇴근 기록 없음' : '근무 중'}
+                      </span>
+                      {pay && !pay.incomplete && (
+                        <span className="text-sub">
+                          · {minutesText(pay.paidMin)} · {won(pay.gross)}
+                        </span>
                       )}
-                      {a.ot_status !== 'rejected' && (
-                        <form action={decideOvertime.bind(null, a.id, 'reject')}>
-                          <SubmitButton className="chip h-7 px-2.5 text-xs" pendingText="…">
-                            불인정
-                          </SubmitButton>
-                        </form>
+                      {(() => {
+                        const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000
+                        if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {Math.round(diff)}분</span>
+                        if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {Math.round(-diff)}분{job.early_clamp ? '(미인정)' : ''}</span>
+                        return null
+                      })()}
+                      {(a.adj_in || a.adj_out) && <span className="badge bg-amber-50 text-amber-700">보정</span>}
+                      {a.source === 'admin' && <span className="badge bg-gray-100 text-sub">관리자 등록</span>}
+                      {(far(a.in_distance_m) || far(a.out_distance_m)) && <span className="badge bg-rose-50 text-rose-600">위치 벗어남</span>}
+                      {a.paid && <span className="badge bg-emerald-50 text-emerald-700">지급</span>}
+                      {a.note?.startsWith(DISMISS_NOTE) && <span className="badge bg-rose-600 text-white">{a.note.split(' · ')[0]}</span>}
+                    </div>
+                  )}
+
+                  {/* 근무자의 기록 정정 요청: 요청대로 한 번에 고치거나 그대로 두기 */}
+                  {a?.clock_out &&
+                    (() => {
+                      const f = fixOf.get(uid)
+                      if (!f) return null
+                      return (
+                        <div className="mt-2.5 space-y-2 rounded-xl bg-violet-50 px-3 py-2.5 text-sm text-violet-900 ring-1 ring-violet-200">
+                          <p>
+                            ✏️ {f.at} 정정 요청 · <b>실제 {f.field === 'in' ? '출근' : '종료'} {f.time}</b>
+                            <span className="text-violet-700">
+                              {' '}
+                              (지금 {kstTime(f.field === 'in' ? (a.adj_in ?? a.clock_in) : (a.adj_out ?? a.clock_out)!)})
+                            </span>
+                            {f.reason && <span className="text-violet-800"> · {f.reason}</span>}
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            <form action={decideFix.bind(null, job.id, uid, date, true)}>
+                              <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="고치는 중…">
+                                요청대로 {f.time}(으)로 고치기
+                              </SubmitButton>
+                            </form>
+                            <form action={decideFix.bind(null, job.id, uid, date, false)}>
+                              <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="한 번 더 누르면 그대로 둬요">
+                                그대로 두기
+                              </ConfirmSubmit>
+                            </form>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
+                  {/* 계약 종료 시각 이후 기록: 서로 확인해야 금액에 들어감 */}
+                  {a && pay && pay.afterMin >= OT_ASK_MIN && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-xl bg-amber-50 px-3 py-2 text-sm">
+                      <span className="font-semibold text-amber-800">계약 후 {minutesText(pay.afterMin)}</span>
+                      <span className="text-amber-700">
+                        {a.ot_status === 'agreed'
+                          ? `· 연장 ${minutesText(pay.agreedOtMin)} 확정`
+                          : a.ot_status === 'rejected'
+                            ? `· 불인정${a.ot_by === 'worker' ? ' (근무자: 제시간 종료)' : ''}`
+                            : a.ot_status === 'pending' && a.ot_by === 'worker'
+                              ? '· 근무자가 연장 확인 요청'
+                              : a.ot_status === 'pending'
+                                ? '· 인정함, 근무자 확인 대기'
+                                : '· 금액 미포함'}
+                      </span>
+                      {!a.paid && a.ot_status !== 'agreed' && (
+                        <span className="ml-auto flex gap-1">
+                          {!(a.ot_status === 'pending' && a.ot_by === 'admin') && (
+                            <form action={decideOvertime.bind(null, a.id, 'approve')}>
+                              <SubmitButton className="chip-primary h-7 px-2.5 text-xs" pendingText="…">
+                                {a.ot_status === 'pending' && a.ot_by === 'worker' ? '인정' : '연장 인정'}
+                              </SubmitButton>
+                            </form>
+                          )}
+                          {a.ot_status !== 'rejected' && (
+                            <form action={decideOvertime.bind(null, a.id, 'reject')}>
+                              <SubmitButton className="chip h-7 px-2.5 text-xs" pendingText="…">
+                                불인정
+                              </SubmitButton>
+                            </form>
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      <ContactButtons phone={u?.phone} name={u?.name} showNumber={false} />
+                      {/* 연락이 안 되는 미출근자·현장 사고 때: 근무자가 넣어 둔 비상연락처로 바로 전화 */}
+                      {(u?.emergency_phone ?? '').replace(/\D/g, '').length >= 9 && (
+                        <a
+                          href={`tel:${u!.emergency_phone!.replace(/\D/g, '')}`}
+                          aria-label={`${u?.name ?? ''} 비상연락처에 전화`}
+                          className={`contact-btn ${!a && started ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' : 'bg-bg text-sub'}`}
+                        >
+                          🆘 비상연락처
+                        </a>
                       )}
                     </span>
-                  )}
-                </div>
-              )}
-
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                <span className="flex flex-wrap items-center gap-1.5">
-                  <ContactButtons phone={u?.phone} name={u?.name} showNumber={false} />
-                  {/* 연락이 안 되는 미출근자·현장 사고 때: 근무자가 넣어 둔 비상연락처로 바로 전화 */}
-                  {(u?.emergency_phone ?? '').replace(/\D/g, '').length >= 9 && (
-                    <a
-                      href={`tel:${u!.emergency_phone!.replace(/\D/g, '')}`}
-                      aria-label={`${u?.name ?? ''} 비상연락처에 전화`}
-                      className={`contact-btn ${!a && started ? 'bg-rose-50 text-rose-700 ring-1 ring-rose-200' : 'bg-bg text-sub'}`}
-                    >
-                      🆘 비상연락처
-                    </a>
-                  )}
-                </span>
-                {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) */}
-                <span className="inline-flex items-center gap-1 text-xs text-mute">
-                  평가
-                  <QuickRate action={rateQuick.bind(null, uid, job.id)} score={myScores[uid] ?? null} />
-                </span>
-              </div>
-
-              {/* 불성실 근무자 귀가 조치: 지금 시각으로 종료하고 사유를 남겨 알림 (일한 시간 급여는 지급) */}
-              {a && !a.clock_out && (
-                <details className="mt-3 border-t border-line pt-2.5">
-                  <summary className="cursor-pointer text-sm font-semibold text-rose-600">🏠 귀가 조치 (불성실 근무)</summary>
-                  <form action={dismissWorker.bind(null, a.id)} className="mt-2 space-y-2.5">
-                    <div className="flex flex-wrap gap-1.5">
-                      {DISMISS_REASONS.map((r, i) => (
-                        <label
-                          key={r}
-                          className="has-checked:bg-rose-600 has-checked:text-white has-checked:ring-rose-600 cursor-pointer rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line"
-                        >
-                          <input type="radio" name="reason" value={r} defaultChecked={i === 0} className="sr-only" />
-                          {r}
-                        </label>
-                      ))}
-                    </div>
-                    <input name="memo" maxLength={200} className="input py-2 text-sm" placeholder="상황 메모 (선택) 예: 14시경 두 번 주의 후에도 자리 이탈" />
-                    {job.end_date > date && (
-                      <label className="flex items-center gap-2 text-sm">
-                        <input type="checkbox" name="cancel_rest" className="size-4 accent-rose-600" /> 남은 날짜 근무도 취소
-                      </label>
-                    )}
-                    <p className="hint">지금 시각으로 근무를 종료하고 사유를 근무자에게 알려요. 일한 시간까지의 급여는 지급돼요(근로계약서 ‘근로계약의 해지’ 조항).</p>
-                    <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 귀가 조치할까요?">
-                      귀가 조치
-                    </ConfirmSubmit>
-                  </form>
-                </details>
-              )}
-
-              {a ? (
-                <details className="mt-3 border-t border-line pt-2.5">
-                  <summary className="cursor-pointer text-sm font-semibold text-sub">기록 보기 · 수정</summary>
-                  <div className="mt-2 rounded-xl bg-bg px-3 py-2 text-xs text-sub">
-                    앱 기록: 출근 {kstTime(a.clock_in)}
-                    {a.in_distance_m != null && ` (현장에서 ${a.in_distance_m}m)`} · 퇴근 {a.clock_out ? kstTime(a.clock_out) : '없음'}
-                    {a.out_distance_m != null && ` (${a.out_distance_m}m)`}
-                    {pay && !pay.incomplete && ` · 체류 ${minutesText(pay.spanMin)}, 휴게 ${pay.breakMin}분`}
-                    {pay && pay.overtimeMin > 0 && `, 연장 ${minutesText(pay.overtimeMin)}`}
-                    {pay && pay.nightMin > 0 && `, 야간 ${minutesText(pay.nightMin)}`}
-                    {a.note && <div className="mt-1">메모: {a.note}</div>}
+                    {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) */}
+                    <span className="inline-flex items-center gap-1 text-xs text-mute">
+                      평가
+                      <QuickRate action={rateQuick.bind(null, uid, job.id)} score={myScores[uid] ?? null} />
+                    </span>
                   </div>
-                  <form action={saveAttendance.bind(null, a.id)} className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-6">
-                    <label className="col-span-2 sm:col-span-2">
-                      <span className="label">출근</span>
-                      <input type="datetime-local" name="adj_in" className="input py-2 text-sm" defaultValue={toKstInput(a.adj_in ?? a.clock_in)} />
-                    </label>
-                    <label className="col-span-2 sm:col-span-2">
-                      <span className="label">퇴근</span>
-                      <input type="datetime-local" name="adj_out" className="input py-2 text-sm" defaultValue={toKstInput(a.adj_out ?? a.clock_out)} />
-                    </label>
-                    <label>
-                      <span className="label">휴게(분)</span>
-                      <input type="number" name="break_override" className="input py-2 text-sm" defaultValue={a.break_override ?? ''} placeholder="규칙대로" />
-                    </label>
-                    <label>
-                      <span className="label">추가지급</span>
-                      <input type="number" name="extra_pay" className="input py-2 text-sm" defaultValue={a.extra_pay} step={1000} />
-                    </label>
-                    <label>
-                      <span className="label">기타공제</span>
-                      <input type="number" name="deduction" className="input py-2 text-sm" defaultValue={a.deduction} step={1000} />
-                    </label>
-                    <label className="col-span-2 sm:col-span-4">
-                      <span className="label">메모</span>
-                      <input name="note" className="input py-2 text-sm" defaultValue={a.note ?? ''} placeholder="지각·조퇴 사유 등" />
-                    </label>
-                    <label className="flex items-end gap-2 pb-2 text-sm font-semibold">
-                      <input type="checkbox" name="confirmed" defaultChecked={a.confirmed} className="size-5 accent-brand-600" />
-                      확정
-                    </label>
-                    <div className="col-span-2 flex items-end gap-2 sm:col-span-6">
-                      <SubmitButton className="btn-primary btn-sm">저장</SubmitButton>
+
+                  {/* 불성실 근무자 귀가 조치: 지금 시각으로 종료하고 사유를 남겨 알림 (일한 시간 급여는 지급) */}
+                  {a && !a.clock_out && (
+                    <details className="mt-3 border-t border-line pt-2.5">
+                      <summary className="cursor-pointer text-sm font-semibold text-rose-600">🏠 귀가 조치 (불성실 근무)</summary>
+                      <form action={dismissWorker.bind(null, a.id)} className="mt-2 space-y-2.5">
+                        <div className="flex flex-wrap gap-1.5">
+                          {DISMISS_REASONS.map((r, i) => (
+                            <label
+                              key={r}
+                              className="has-checked:bg-rose-600 has-checked:text-white has-checked:ring-rose-600 cursor-pointer rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line"
+                            >
+                              <input type="radio" name="reason" value={r} defaultChecked={i === 0} className="sr-only" />
+                              {r}
+                            </label>
+                          ))}
+                        </div>
+                        <input name="memo" maxLength={200} className="input py-2 text-sm" placeholder="상황 메모 (선택) 예: 14시경 두 번 주의 후에도 자리 이탈" />
+                        {job.end_date > date && (
+                          <label className="flex items-center gap-2 text-sm">
+                            <input type="checkbox" name="cancel_rest" className="size-4 accent-rose-600" /> 남은 날짜 근무도 취소
+                          </label>
+                        )}
+                        <p className="hint">지금 시각으로 근무를 종료하고 사유를 근무자에게 알려요. 일한 시간까지의 급여는 지급돼요(근로계약서 ‘근로계약의 해지’ 조항).</p>
+                        <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 귀가 조치할까요?">
+                          귀가 조치
+                        </ConfirmSubmit>
+                      </form>
+                    </details>
+                  )}
+
+                  {a ? (
+                    <details className="mt-3 border-t border-line pt-2.5">
+                      <summary className="cursor-pointer text-sm font-semibold text-sub">기록 보기 · 수정</summary>
+                      <div className="mt-2 rounded-xl bg-bg px-3 py-2 text-xs text-sub">
+                        앱 기록: 출근 {kstTime(a.clock_in)}
+                        {a.in_distance_m != null && ` (현장에서 ${a.in_distance_m}m)`} · 퇴근 {a.clock_out ? kstTime(a.clock_out) : '없음'}
+                        {a.out_distance_m != null && ` (${a.out_distance_m}m)`}
+                        {pay && !pay.incomplete && ` · 체류 ${minutesText(pay.spanMin)}, 휴게 ${pay.breakMin}분`}
+                        {pay && pay.overtimeMin > 0 && `, 연장 ${minutesText(pay.overtimeMin)}`}
+                        {pay && pay.nightMin > 0 && `, 야간 ${minutesText(pay.nightMin)}`}
+                        {a.note && <div className="mt-1">메모: {a.note}</div>}
+                      </div>
+                      <form action={saveAttendance.bind(null, a.id)} className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-6">
+                        <label className="col-span-2 sm:col-span-2">
+                          <span className="label">출근</span>
+                          <input type="datetime-local" name="adj_in" className="input py-2 text-sm" defaultValue={toKstInput(a.adj_in ?? a.clock_in)} />
+                        </label>
+                        <label className="col-span-2 sm:col-span-2">
+                          <span className="label">퇴근</span>
+                          <input type="datetime-local" name="adj_out" className="input py-2 text-sm" defaultValue={toKstInput(a.adj_out ?? a.clock_out)} />
+                        </label>
+                        <label>
+                          <span className="label">휴게(분)</span>
+                          <input type="number" name="break_override" className="input py-2 text-sm" defaultValue={a.break_override ?? ''} placeholder="규칙대로" />
+                        </label>
+                        <label>
+                          <span className="label">추가지급</span>
+                          <input type="number" name="extra_pay" className="input py-2 text-sm" defaultValue={a.extra_pay} step={1000} />
+                        </label>
+                        <label>
+                          <span className="label">기타공제</span>
+                          <input type="number" name="deduction" className="input py-2 text-sm" defaultValue={a.deduction} step={1000} />
+                        </label>
+                        <label className="col-span-2 sm:col-span-4">
+                          <span className="label">메모</span>
+                          <input name="note" className="input py-2 text-sm" defaultValue={a.note ?? ''} placeholder="지각·조퇴 사유 등" />
+                        </label>
+                        <label className="flex items-end gap-2 pb-2 text-sm font-semibold">
+                          <input type="checkbox" name="confirmed" defaultChecked={a.confirmed} className="size-5 accent-brand-600" />
+                          확정
+                        </label>
+                        <div className="col-span-2 flex items-end gap-2 sm:col-span-6">
+                          <SubmitButton className="btn-primary btn-sm">저장</SubmitButton>
+                        </div>
+                      </form>
+                      <form action={deleteAttendance.bind(null, a.id)} className="mt-2 text-right">
+                        <ConfirmSubmit className="btn-danger btn-sm" confirmText="기록을 삭제할까요?">
+                          기록 삭제
+                        </ConfirmSubmit>
+                      </form>
+                    </details>
+                  ) : (
+                    <details className="mt-3 border-t border-line pt-2.5">
+                      <summary className="cursor-pointer text-sm font-semibold text-sub">수기로 출퇴근 등록</summary>
+                      <form action={addAttendance.bind(null, job.id)} className="mt-2 flex flex-wrap items-end gap-2">
+                        <input type="hidden" name="user_id" value={uid} />
+                        <input type="hidden" name="work_date" value={date} />
+                        <label>
+                          <span className="label">출근</span>
+                          <input type="time" name="in" className="input py-2 text-sm" defaultValue={job.start_time.slice(0, 5)} />
+                        </label>
+                        <label>
+                          <span className="label">퇴근</span>
+                          <input type="time" name="out" className="input py-2 text-sm" defaultValue={job.end_time.slice(0, 5)} />
+                        </label>
+                        <input name="note" className="input w-48 py-2 text-sm" placeholder="사유 (휴대폰 방전 등)" />
+                        <SubmitButton className="btn-gray btn-sm">등록</SubmitButton>
+                      </form>
+                    </details>
+                  )}
+                  </>
+                )
+                if (!compact) return (
+                  <>
+                    {head}
+                    {rest}
+                  </>
+                )
+                // 사람이 많을 때: 한 줄로 접어 두고 누르면 펼침 (처리할 일이 있는 사람은 펼쳐 둠)
+                const out = a ? (a.adj_out ?? a.clock_out) : null
+                const when = a ? `${kstTime(a.adj_in ?? a.clock_in)}~${out ? kstTime(out) : ''}` : late ? `${late.eta} 도착 예정` : ''
+                const needs =
+                  !!ask ||
+                  fix === uid ||
+                  (!!a?.clock_out && fixOf.has(uid)) ||
+                  (!!a && !a.clock_out && date < today) ||
+                  changeOf.get(uid)?.status === 'declined' ||
+                  (!!a && !!pay && pay.afterMin >= OT_ASK_MIN && !a.paid && a.ot_status !== 'agreed' && a.ot_status !== 'rejected')
+                return (
+                  <details open={needs} className="group" data-att-fold>
+                    <summary className="flex cursor-pointer list-none items-center gap-2.5 [&::-webkit-details-marker]:hidden">
+                      <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="md" zoom={false} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[15px] font-bold">{u?.name ?? '알 수 없음'}</span>
+                        <span className="block truncate text-xs text-mute tabular-nums">{[posOf(uid), when].filter(Boolean).join(' · ') || '\u00a0'}</span>
+                      </span>
+                      <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
+                      <svg viewBox="0 0 24 24" className="size-4 shrink-0 text-mute transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </summary>
+                    <div className="mt-3 border-t border-line pt-3">
+                      {/* 펼치면: 이름·사진은 위 줄에 있으니 배치·표시만 */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Link href={`/admin/workers/${uid}`} className="chip h-8 px-3 text-xs">
+                          근무자 정보
+                        </Link>
+                        {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
+                        {appOf.get(uid)?.admin_memo === EMERGENCY_MEMO && (
+                          <span className="badge bg-rose-600 text-white">
+                            <Icon name="qr" /> 긴급 투입
+                          </span>
+                        )}
+                        {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
+                          <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge bg-rose-50 text-rose-600">
+                            📝 계약서 미수령
+                          </Link>
+                        )}
+                      </div>
+                      {rest}
                     </div>
-                  </form>
-                  <form action={deleteAttendance.bind(null, a.id)} className="mt-2 text-right">
-                    <ConfirmSubmit className="btn-danger btn-sm" confirmText="기록을 삭제할까요?">
-                      기록 삭제
-                    </ConfirmSubmit>
-                  </form>
-                </details>
-              ) : (
-                <details className="mt-3 border-t border-line pt-2.5">
-                  <summary className="cursor-pointer text-sm font-semibold text-sub">수기로 출퇴근 등록</summary>
-                  <form action={addAttendance.bind(null, job.id)} className="mt-2 flex flex-wrap items-end gap-2">
-                    <input type="hidden" name="user_id" value={uid} />
-                    <input type="hidden" name="work_date" value={date} />
-                    <label>
-                      <span className="label">출근</span>
-                      <input type="time" name="in" className="input py-2 text-sm" defaultValue={job.start_time.slice(0, 5)} />
-                    </label>
-                    <label>
-                      <span className="label">퇴근</span>
-                      <input type="time" name="out" className="input py-2 text-sm" defaultValue={job.end_time.slice(0, 5)} />
-                    </label>
-                    <input name="note" className="input w-48 py-2 text-sm" placeholder="사유 (휴대폰 방전 등)" />
-                    <SubmitButton className="btn-gray btn-sm">등록</SubmitButton>
-                  </form>
-                </details>
-              )}
+                  </details>
+                )
+              })()}
             </div>
           )
         })}

@@ -44,6 +44,7 @@ export default function RollCall({
   const stateOf = useMemo(() => new Map(people.map((p) => [p.id, p.state])), [people])
   const absent = people.filter((p) => p.state === 'absent')
   const working = people.filter((p) => p.state === 'working')
+  const finished = people.filter((p) => p.state === 'done')
   const toStart = [...picked].filter((id) => stateOf.get(id) === 'absent')
   const toEnd = [...picked].filter((id) => stateOf.get(id) === 'working')
 
@@ -91,45 +92,26 @@ export default function RollCall({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {people.map((p) => {
-          const on = picked.has(p.id)
-          const done = p.state === 'done'
-          return (
-            <button
-              key={p.id}
-              type="button"
-              disabled={done}
-              aria-pressed={on}
-              data-roll={p.id}
-              data-state={p.state}
-              onClick={() => toggle(p.id)}
-              className={`card relative flex flex-col items-center p-3 text-center transition duration-150 active:scale-[0.97] disabled:opacity-50 ${
-                on ? 'bg-brand-50 ring-2 ring-brand-500' : ''
-              }`}
-            >
-              <span
-                aria-hidden
-                className={`absolute top-2 right-2 grid size-6 place-items-center rounded-full text-white transition duration-150 ${
-                  on ? 'scale-100 bg-brand-600' : done ? 'scale-0' : 'scale-100 bg-white ring-2 ring-line'
-                }`}
-              >
-                {on && <Icon name="check" className="animate-pop" />}
-              </span>
-              <Avatar id={p.id} name={p.name} photoAt={p.photoAt} size="xl" zoom={false} />
-              <p className="mt-2 w-full truncate text-[17px] font-bold">{p.name}</p>
-              {p.pos && <p className="w-full truncate text-xs font-semibold text-brand-700">{p.pos}</p>}
-              <span
-                className={`badge mt-1.5 ${
-                  p.state === 'absent' ? (p.hint ? 'bg-amber-100 text-amber-800' : 'bg-rose-50 text-rose-600') : p.state === 'working' ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-sub'
-                }`}
-              >
-                {p.state === 'absent' ? (p.hint ?? '미출근') : p.state === 'working' ? '근무 중' : '종료'}
-              </span>
-            </button>
-          )
-        })}
+      {/* 작은 카드 3장씩 (사람이 많아도 위아래로 덜 길게) · 미출근 → 근무 중 순서 · 종료한 사람은 접어 둠 */}
+      <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-6" data-roll-grid>
+        {[...absent, ...working].map((p) => (
+          <Card key={p.id} p={p} on={picked.has(p.id)} onToggle={toggle} />
+        ))}
       </div>
+      {finished.length > 0 && (
+        <details className="group rounded-2xl bg-white ring-1 ring-line" data-roll-done>
+          <summary className="flex cursor-pointer items-center justify-between px-4 py-2.5 text-sm font-semibold text-sub">
+            종료 {finished.length}명
+            <span className="text-xs text-mute group-open:hidden">펼치기</span>
+            <span className="hidden text-xs text-mute group-open:inline">접기</span>
+          </summary>
+          <div className="grid grid-cols-3 gap-1.5 p-1.5 pt-0 sm:grid-cols-5 lg:grid-cols-6">
+            {finished.map((p) => (
+              <Card key={p.id} p={p} on={false} onToggle={toggle} />
+            ))}
+          </div>
+        </details>
+      )}
 
       {/* 고른 사람이 있으면 아래에 붙는 처리 칸 (휴대폰은 아래 탭 위) */}
       {picked.size > 0 && (
@@ -179,5 +161,42 @@ export default function RollCall({
         </div>
       )}
     </div>
+  )
+}
+
+/** 작은 얼굴 카드 (사진 56px · 이름 · 배치 · 상태 점) — 눌러서 체크, 종료한 사람은 못 고름 */
+function Card({ p, on, onToggle }: { p: RollPerson; on: boolean; onToggle: (id: string) => void }) {
+  const done = p.state === 'done'
+  const tone =
+    p.state === 'absent' ? (p.hint ? 'text-amber-700' : 'text-rose-600') : p.state === 'working' ? 'text-emerald-700' : 'text-mute'
+  const dot = p.state === 'absent' ? (p.hint ? 'bg-amber-500' : 'bg-rose-500') : p.state === 'working' ? 'bg-emerald-500' : 'bg-gray-300'
+  return (
+    <button
+      type="button"
+      disabled={done}
+      aria-pressed={on}
+      data-roll={p.id}
+      data-state={p.state}
+      onClick={() => onToggle(p.id)}
+      className={`card relative flex min-w-0 flex-col items-center px-1.5 py-2.5 text-center transition duration-150 active:scale-[0.96] disabled:opacity-60 ${
+        on ? 'bg-brand-50 ring-2 ring-brand-500' : ''
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`absolute top-1.5 right-1.5 grid size-5 place-items-center rounded-full text-[11px] text-white transition duration-150 ${
+          on ? 'scale-100 bg-brand-600' : done ? 'scale-0' : 'scale-100 bg-white ring-2 ring-line'
+        }`}
+      >
+        {on && <Icon name="check" className="animate-pop" />}
+      </span>
+      <Avatar id={p.id} name={p.name} photoAt={p.photoAt} size="lg" zoom={false} />
+      <p className="mt-1.5 w-full truncate text-[14px] leading-tight font-bold">{p.name}</p>
+      <p className="w-full truncate text-[11px] leading-tight font-semibold text-brand-700">{p.pos || '\u00a0'}</p>
+      <span className={`mt-1 inline-flex max-w-full items-center gap-1 text-[11px] font-bold ${tone}`}>
+        <span className={`size-1.5 shrink-0 rounded-full ${dot}`} />
+        <span className="truncate">{p.state === 'absent' ? (p.hint ?? '미출근') : p.state === 'working' ? '근무 중' : '종료'}</span>
+      </span>
+    </button>
   )
 }
