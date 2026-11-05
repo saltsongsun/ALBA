@@ -227,7 +227,7 @@ export default async function HomePage(props: PageProps<'/'>) {
         모집 중인 알바 {listed.length > 0 && <span className="text-brand-600">{listed.length}</span>}
       </h2>
       {jobs.length > 0 && (
-        <div className="-mt-1 mb-3 flex gap-1.5 overflow-x-auto pb-1">
+        <div className="fade-x -mt-1 mb-3 flex gap-1.5 overflow-x-auto pb-1" data-chip-row>
           {(
             [
               [null, '전체'],

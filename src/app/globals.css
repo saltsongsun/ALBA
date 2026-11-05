@@ -334,6 +334,45 @@
   transition: none;
 }
 
+/* 옆으로 미는 칩 줄(.fade-x): 끝을 살짝 흐리게 해서 '더 있어요'를 알려 줌.
+   밀기 시작하면 왼쪽도 흐려지고, 끝까지 밀면 오른쪽 흐림이 사라짐 (스크롤에 붙은 CSS)
+   넘치지 않는 줄이나 스크롤 애니메이션을 못 쓰는 브라우저에선 흐림 없음 (끝 칩이 괜히 흐려지지 않게) */
+@property --fade-s {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-e {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+.fade-x {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-s), #000 calc(100% - var(--fade-e)), transparent);
+}
+@supports (animation-timeline: scroll()) {
+  .fade-x {
+    animation: fade-x-edges linear both;
+    animation-timeline: scroll(self inline);
+  }
+  @keyframes fade-x-edges {
+    0% {
+      --fade-s: 0px;
+      --fade-e: 28px;
+    }
+    8% {
+      --fade-s: 20px;
+    }
+    92% {
+      --fade-e: 28px;
+    }
+    100% {
+      --fade-s: 20px;
+      --fade-e: 0px;
+    }
+  }
+}
+
 /* 서명할 서류 읽는 정도 (components/worker.tsx ReadProgress): 머리글 바로 아래 얇은 막대가 스크롤만큼 채워짐.
    위치(transform)만 바뀌고 스크롤에 붙어 움직여 끊김 없음 · 스크롤 애니메이션을 못 쓰는 브라우저에선 숨김 */
 .read-progress {

@@ -90,7 +90,7 @@ export default function ChatComposer({
   return (
     <form ref={formRef} action={formAction} onReset={keepInputs} className="space-y-2">
       {quickReplies.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <div className="fade-x flex gap-1.5 overflow-x-auto pb-0.5" data-quick-replies>
           {quickReplies.map((q) => (
             <button
               key={q}

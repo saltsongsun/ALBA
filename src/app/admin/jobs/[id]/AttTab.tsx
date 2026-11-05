@@ -148,7 +148,7 @@ export default async function AttTab({
   return (
     <div className="space-y-4">
       {/* 날짜 (행사가 여러 날이면 옆으로 넘김) */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
         {dates.map((d) => {
           const n = atts.filter((a) => a.work_date === d).length
           return (
@@ -250,7 +250,7 @@ export default async function AttTab({
 
       {/* 할 일: 한 줄로 (넘치면 옆으로 넘김) */}
       {roster.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
           {date <= today && absent.length > 0 && (
             <GroupContact
               copy={false}
@@ -312,7 +312,7 @@ export default async function AttTab({
 
       {/* 배치별 보기 (배치를 하나라도 정했을 때만) */}
       {positions.length > 0 && roster.length > 0 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
           {(
             [
               [null, '전체', roster.length],

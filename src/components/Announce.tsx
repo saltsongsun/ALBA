@@ -67,7 +67,7 @@ export default function Announce({
             </option>
           ))}
         </select>
-        <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        <div className="fade-x flex gap-1.5 overflow-x-auto pb-0.5">
           {TEMPLATES.map((t) => (
             <button
               key={t}
