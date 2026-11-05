@@ -14,13 +14,22 @@ import KeyboardWatch from '@/components/KeyboardWatch'
 // 모든 화면이 로그인 상태·DB를 읽으므로 빌드 시 미리 만들지 않습니다.
 export const dynamic = 'force-dynamic'
 
+// 공유 미리보기(og:image)가 전체 주소로 나가도록 (카카오톡은 전체 주소만 읽음)
+const SITE = process.env.VERCEL_PROJECT_PRODUCTION_URL
+  ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+  : process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : 'http://localhost:3000'
+
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE),
   title: { default: APP_NAME, template: `%s · ${APP_NAME}` },
   description: APP_DESCRIPTION,
   applicationName: APP_NAME,
   // 아이폰: 홈 화면에서 열 때 보이는 시작 화면 (기기 크기별)
   appleWebApp: { capable: true, title: APP_NAME, statusBarStyle: 'default', startupImage: SPLASH },
   formatDetection: { telephone: false },
+  openGraph: { siteName: APP_NAME, locale: 'ko_KR', type: 'website', title: APP_NAME, description: APP_DESCRIPTION },
 }
 
 export const viewport: Viewport = {

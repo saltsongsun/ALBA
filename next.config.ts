@@ -3,6 +3,12 @@ import type { NextConfig } from 'next'
 const nextConfig: NextConfig = {
   // 어떤 프레임워크로 만들었는지 응답에 드러내지 않음 (공격 도구가 약점을 고르기 어렵게)
   poweredByHeader: false,
+  // 공유 미리보기 그림에 쓰는 한글 글꼴(OTF)을 그 그림을 만드는 서버 함수에만 함께 올림
+  outputFileTracingIncludes: {
+    '/opengraph-image': ['./src/fonts/og/*.otf'],
+    '/jobs/[id]/opengraph-image': ['./src/fonts/og/*.otf'],
+    '/og/company/[id]': ['./src/fonts/og/*.otf'],
+  },
   experimental: {
     // 한 번 연 화면은 30초 동안 휴대폰에 두었다가 다시 열 때 바로 보여 줌 (탭을 오갈 때 기다림 없음).
     // 내가 무언가를 저장·보내면(서버 동작) 그 즉시 비워져 새로 받아 옴. 자동 새로 고침 화면은 그대로 최신으로

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
@@ -16,6 +17,26 @@ import { overlapDay } from '@/lib/overlap'
 import { NewJobsChip } from '@/components/NewJobs'
 import { companyRating, companyRatings } from '@/lib/community'
 import { coworkerCounts } from '@/lib/coworkers'
+
+/** 회사 공고 모음 링크(/?co=회사)를 보내면: 미리보기에 회사 이름 · 모집 중 공고 수 · 그림 */
+export async function generateMetadata(props: PageProps<'/'>): Promise<Metadata> {
+  const sp = await props.searchParams
+  const coId = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
+  if (!coId) return {}
+  const [{ data: co }, { count }] = await Promise.all([
+    db().from('companies').select('company_name').eq('id', coId).eq('active', true).maybeSingle(),
+    db().from('jobs').select('id', { count: 'exact', head: true }).eq('company_id', coId).eq('audience', 'worker').eq('status', 'open').gte('end_date', kstDate()),
+  ])
+  const name = (co as { company_name: string } | null)?.company_name
+  if (!name) return {}
+  const title = `${name} 모집 공고`
+  const description = count ? `지금 모집 중 ${count}개 · 간편가입 후 바로 지원` : '공고가 올라오면 여기에서 바로 지원할 수 있어요'
+  return {
+    title,
+    description,
+    openGraph: { title, description, type: 'website', images: [{ url: `/og/company/${coId}`, width: 1200, height: 630, alt: title }] },
+  }
+}
 
 export default async function HomePage(props: PageProps<'/'>) {
   const sp = await props.searchParams
