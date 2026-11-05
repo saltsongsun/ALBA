@@ -8,7 +8,7 @@ import { db, must } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { plainBody } from '@/lib/stickers'
-import { adminRooms } from '@/lib/room'
+import { adminRooms, roomEnded } from '@/lib/room'
 import { fmtDateRange } from '@/lib/time'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import Flash from '@/components/Flash'
@@ -60,28 +60,49 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
           ⬇️ 모든 대화 저장
         </a>
       </div>
-      {/* 같은 근무 단체방: 공고마다 확정자 + 담당자 */}
-      {rooms.length > 0 && (
-        <section className="space-y-2" aria-label="단체방">
-          <h2 className="flex items-center gap-1.5 text-sm font-bold text-sub">
-            <Icon name="users" /> 단체방
-          </h2>
-          {rooms.map((r) => (
-            <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5">
-              <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
-                👥
+      {/* 같은 근무 단체방: 공고마다 확정자 + 담당자 · 행사가 끝난 방은 아래 '종료된 행사'로 접어 둠 */}
+      {(() => {
+        const live = rooms.filter((r) => !roomEnded(r))
+        const past = rooms.filter((r) => roomEnded(r))
+        const pastUnread = past.reduce((n, r) => n + r.unread, 0)
+        const card = (r: (typeof rooms)[number]) => (
+          <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5" data-room-row>
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
+              👥
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block truncate font-bold">{r.title}</span>
+              <span className="block truncate text-xs text-sub">
+                {fmtDateRange(r.start_date, r.end_date)} · 확정 {r.members}명
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-bold">{r.title}</span>
-                <span className="block truncate text-xs text-sub">
-                  {fmtDateRange(r.start_date, r.end_date)} · 확정 {r.members}명
-                </span>
-              </span>
-              {r.unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{r.unread}</span>}
-            </Link>
-          ))}
-        </section>
-      )}
+            </span>
+            {r.unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{r.unread}</span>}
+          </Link>
+        )
+        if (!rooms.length) return null
+        return (
+          <section className="space-y-2" aria-label="단체방">
+            <h2 className="flex items-center gap-1.5 text-sm font-bold text-sub">
+              <Icon name="users" /> 단체방
+            </h2>
+            {live.length === 0 && <p className="text-sm text-mute">진행 중인 행사 단체방이 없어요.</p>}
+            {live.map(card)}
+            {past.length > 0 && (
+              <details className="group" data-rooms-ended>
+                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line [&::-webkit-details-marker]:hidden">
+                  <Icon name="clock" className="text-mute" />
+                  종료된 행사 단체방 {past.length}
+                  {pastUnread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">{pastUnread}</span>}
+                  <svg viewBox="0 0 24 24" className="ml-auto size-4 text-mute transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </summary>
+                <div className="mt-2 space-y-2 opacity-90">{past.map(card)}</div>
+              </details>
+            )}
+          </section>
+        )
+      })()}
       <div className="flex gap-1.5">
         <Link href="/admin/chat" className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
           전체 {all.length}

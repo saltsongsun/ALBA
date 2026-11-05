@@ -21,6 +21,11 @@ export function roomOpen(job: Pick<RoomJob, 'end_date'>): boolean {
   return kstDate() <= until
 }
 
+/** 행사가 끝난 방 (대화 목록에서 '종료된 행사'로 따로 모음): 마지막 날이 지났거나 취소·종료된 공고 */
+export function roomEnded(job: Pick<RoomJob, 'end_date' | 'status'>): boolean {
+  return job.end_date < kstDate() || job.status === 'cancelled' || job.status === 'done'
+}
+
 /** 근무자가 들어갈 수 있는 방 (그 공고에 지금 확정된 사람만) */
 export async function workerRoom(userId: string, jobId: string): Promise<RoomJob | null> {
   if (!isUuid(jobId)) return null

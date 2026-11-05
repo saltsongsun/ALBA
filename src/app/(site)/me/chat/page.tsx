@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { sendInquiry } from '@/app/actions/chat'
 import AutoRefresh from '@/components/AutoRefresh'
+import Icon from '@/components/Icon'
 import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/Chat'
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import { ContactButtons } from '@/components/Contact'
@@ -10,7 +11,7 @@ import { getJob, getSettings, platformCompanyId, SUPPORT_NAME } from '@/lib/data
 import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireUser } from '@/lib/session'
-import { workerRooms, type RoomLast } from '@/lib/room'
+import { roomEnded, workerRooms, type RoomJob, type RoomLast } from '@/lib/room'
 import { isUuid } from '@/lib/validate'
 import { plainBody } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
@@ -162,7 +163,7 @@ async function ChatList({
   companies: { id: string; name: string; support: boolean }[]
   threads: Thread[]
   unreadBy: Map<string, number>
-  rooms: { id: string; title: string; start_date: string; end_date: string; unread: number; last: RoomLast | null }[]
+  rooms: { id: string; title: string; start_date: string; end_date: string; status: RoomJob['status']; unread: number; last: RoomLast | null }[]
 }) {
   // 단체방 마지막 말은 안 읽은 수를 셀 때 함께 읽어 옴 (workerRooms)
   const lastRoom = new Map<string, RoomLast>(rooms.filter((r) => r.last).map((r) => [r.id, r.last!]))
@@ -176,8 +177,8 @@ async function ChatList({
     const prev = lastCo.get(t.company_id)
     if (!prev || t.created_at > prev.created_at) lastCo.set(t.company_id, t)
   }
-  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number }
-  const list: Row[] = [
+  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number; ended?: boolean }
+  const all: Row[] = [
     ...rooms.map((r): Row => {
       const m = lastRoom.get(r.id)
       return {
@@ -190,6 +191,7 @@ async function ChatList({
         body: m ? plainBody(m.body) : null,
         at: m?.created_at ?? null,
         unread: r.unread,
+        ended: roomEnded(r),
       }
     }),
     ...companies.map((c): Row => {
@@ -207,9 +209,60 @@ async function ChatList({
       }
     }),
   ].sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''))
+  // 행사가 끝난 단체방은 아래 '종료된 행사'로 따로 모아 접어 둠 (진행 중인 대화가 위에)
+  const live = all.filter((r) => !r.ended)
+  const past = all.filter((r) => r.ended)
+  const pastUnread = past.reduce((n, r) => n + r.unread, 0)
   const today = kstDate()
   const when = (iso: string) => (kstDate(iso) === today ? kstTime(iso) : fmtDate(kstDate(iso)))
-  const unreadAll = list.reduce((n, r) => n + r.unread, 0)
+  const unreadAll = all.reduce((n, r) => n + r.unread, 0)
+  const row = (r: Row) => (
+    <li key={r.key}>
+      <Link href={r.href} className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-bg" data-chat-row={r.kind} transitionTypes={['nav-forward']}>
+        <span
+          aria-hidden
+          className={`grid size-12 shrink-0 place-items-center rounded-[18px] text-xl ${
+            r.icon === 'room' ? 'bg-[linear-gradient(135deg,var(--color-brand-500),#22d3ee)] text-white' : r.icon === 'support' ? 'bg-amber-50' : 'bg-brand-50'
+          }`}
+        >
+          {r.icon === 'room' ? (
+            <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="9" cy="8" r="3.2" />
+              <path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17.5 13.6a6 6 0 0 1 3.5 5.9" />
+            </svg>
+          ) : r.icon === 'support' ? (
+            '🎧'
+          ) : (
+            '🏢'
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-1.5">
+            <b className="min-w-0 truncate">{r.title}</b>
+            {r.kind === 'room' && <span className="badge shrink-0 bg-brand-50 text-brand-700">단체방</span>}
+            {r.at && <span className="ml-auto shrink-0 pl-1 text-xs text-mute tabular-nums">{when(r.at)}</span>}
+          </span>
+          <span className="mt-0.5 flex items-center gap-2">
+            <span className={`min-w-0 flex-1 truncate text-sm ${r.unread > 0 ? 'font-semibold text-ink' : 'text-sub'}`}>
+              {r.body ? (
+                <>
+                  {r.who && <span className="text-mute">{r.who}: </span>}
+                  {r.body.replace(/\s+/g, ' ')}
+                </>
+              ) : (
+                <span className="text-mute">{r.kind === 'room' ? '아직 대화가 없어요. 먼저 인사해 보세요' : '궁금한 점을 남겨 보세요'}</span>
+              )}
+            </span>
+            {r.unread > 0 && (
+              <span data-unread className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">
+                {r.unread > 99 ? '99+' : r.unread}
+              </span>
+            )}
+          </span>
+        </span>
+      </Link>
+    </li>
+  )
 
   return (
     <div className="space-y-4">
@@ -226,55 +279,26 @@ async function ChatList({
           )}
         </p>
       </div>
-      <ul className="card stagger divide-y divide-line overflow-hidden p-0" data-chat-list>
-        {list.map((r) => (
-          <li key={r.key}>
-            <Link href={r.href} className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-bg" data-chat-row={r.kind} transitionTypes={['nav-forward']}>
-              <span
-                aria-hidden
-                className={`grid size-12 shrink-0 place-items-center rounded-[18px] text-xl ${
-                  r.icon === 'room' ? 'bg-[linear-gradient(135deg,var(--color-brand-500),#22d3ee)] text-white' : r.icon === 'support' ? 'bg-amber-50' : 'bg-brand-50'
-                }`}
-              >
-                {r.icon === 'room' ? (
-                  <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="9" cy="8" r="3.2" />
-                    <path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17.5 13.6a6 6 0 0 1 3.5 5.9" />
-                  </svg>
-                ) : r.icon === 'support' ? (
-                  '🎧'
-                ) : (
-                  '🏢'
-                )}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-1.5">
-                  <b className="min-w-0 truncate">{r.title}</b>
-                  {r.kind === 'room' && <span className="badge shrink-0 bg-brand-50 text-brand-700">단체방</span>}
-                  {r.at && <span className="ml-auto shrink-0 pl-1 text-xs text-mute tabular-nums">{when(r.at)}</span>}
-                </span>
-                <span className="mt-0.5 flex items-center gap-2">
-                  <span className={`min-w-0 flex-1 truncate text-sm ${r.unread > 0 ? 'font-semibold text-ink' : 'text-sub'}`}>
-                    {r.body ? (
-                      <>
-                        {r.who && <span className="text-mute">{r.who}: </span>}
-                        {r.body.replace(/\s+/g, ' ')}
-                      </>
-                    ) : (
-                      <span className="text-mute">{r.kind === 'room' ? '아직 대화가 없어요. 먼저 인사해 보세요' : '궁금한 점을 남겨 보세요'}</span>
-                    )}
-                  </span>
-                  {r.unread > 0 && (
-                    <span data-unread className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">
-                      {r.unread > 99 ? '99+' : r.unread}
-                    </span>
-                  )}
-                </span>
-              </span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {live.length > 0 && (
+        <ul className="card stagger divide-y divide-line overflow-hidden p-0" data-chat-list>
+          {live.map(row)}
+        </ul>
+      )}
+      {past.length > 0 && (
+        <details className="group" data-chat-ended open={live.length === 0}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line [&::-webkit-details-marker]:hidden">
+            <Icon name="clock" className="text-mute" />
+            종료된 행사 단체방 {past.length}
+            {pastUnread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">{pastUnread}</span>}
+            <svg viewBox="0 0 24 24" className="ml-auto size-4 text-mute transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </summary>
+          <ul className="card mt-2 divide-y divide-line overflow-hidden p-0 opacity-90" data-chat-list-ended>
+            {past.map(row)}
+          </ul>
+        </details>
+      )}
     </div>
   )
 }
