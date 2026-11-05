@@ -68,7 +68,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const page = (await wk.locator('main').innerText()).replace(/\s+/g, ' ')
   ok("글쓴이(근무자가 볼 때): '주식회사 테스트 관리자' (별명 아님)", page.includes('주식회사 테스트 관리자'), page.slice(0, 200))
   await wk.goto(`${D}/community`)
-  ok("근무자 목록에서도 '주식회사 테스트 관리자'", (await wk.locator('main').innerText()).includes('주식회사 테스트 관리자'))
+  await wk.locator('main a[href^="/community/"]').first().waitFor({ timeout: 8000 }).catch(() => {})
+  const listText = (await wk.locator('main').innerText()).replace(/\s+/g, ' ')
+  ok("근무자 목록에서도 '주식회사 테스트 관리자'", listText.includes('주식회사 테스트 관리자'), listText.slice(0, 300))
 
   // ── 3. 근무자 상세 화면 ──
   const wide = await pg(A, true)

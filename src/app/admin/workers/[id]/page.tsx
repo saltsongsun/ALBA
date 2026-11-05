@@ -144,7 +144,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         ← 근무자 목록
       </Link>
       <div className="grid items-start gap-4 lg:grid-cols-2">
-        <section className="card space-y-3.5">
+        <section className="card min-w-0 space-y-3.5">
           {/* 우리 회사에 지원한 사람만 관리자가 사진을 바꿀 수 있음 (지원 전 회원은 보기만) */}
           <Head userId={u.id} name={u.name} photoAt={u.photo_at} editable={related}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -196,13 +196,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           <dl className="grid grid-cols-[96px_1fr] items-baseline gap-y-2.5 text-sm">
             {/* 보안: 휴대폰·주소·계좌·비상연락처는 가려 두고 '전체 보기'(기록됨) · 전화·문자도 누르면 기록하고 바로 걸기 */}
             <dt className="text-mute">휴대폰</dt>
-            <dd className="flex flex-wrap items-center gap-1.5 tabular-nums" data-worker-contact>
-              <RevealInfo userId={u.id} field="phone" masked={maskPhone(u.phone)} call>
-                <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
-                  앱 메시지
-                </Link>
-              </RevealInfo>
-            </dd>
+            <RevealInfo userId={u.id} field="phone" masked={maskPhone(u.phone)} call rows>
+              <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
+                앱 메시지
+              </Link>
+            </RevealInfo>
             <dt className="text-mute">생년월일</dt>
             <dd>{u.birth_date ? fmtDateLong(u.birth_date) : '-'}</dd>
             {related && (
@@ -260,7 +258,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           )}
         </section>
         {/* 오른쪽(넓은 화면): 바로 확정 · 정보 수정 · 평가 · 근무 이력 · 지원 내역 · 서류 — 휴대폰은 아래로 차례대로 */}
-        <div className="space-y-3" data-worker-side>
+        <div className="min-w-0 space-y-3" data-worker-side>
           {/* 모집 중인 공고에 바로 확정 (예전에 잘한 사람 다시 부르기) */}
           {u.active && assignable.length > 0 && (
             <section className="card space-y-2.5 p-4" data-worker-assign>
