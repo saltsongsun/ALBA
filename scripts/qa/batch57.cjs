@@ -119,7 +119,7 @@ const hold = (loc) =>
   await hold(bubble(wk, '지각 알림'))
   await menu(wk).waitFor({ timeout: 3000 }).catch(() => {})
   ok('앱이 보낸 현장 알림: 복사만 (기록이라 삭제 없음)', (await menu(wk).getByRole('menuitem').allInnerTexts()).map((s) => s.trim()).join(',') === '복사')
-  await wk.mouse.click(180, 120)
+  await wk.locator('main h1').first().click() // 바깥(제목)을 누름 — 링크가 아닌 곳
   ok('바깥을 누르면 메뉴 닫힘', (await menu(wk).count()) === 0)
 
   // ── 3. 삭제: 한 번 더 눌러야 · 자리에 '삭제된 메시지예요' · 상대도 곧 ──
