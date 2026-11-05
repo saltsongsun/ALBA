@@ -9,7 +9,7 @@ import type { CompanySnapshot } from './types'
 /**
  * 서류 PDF: 화면의 서류(DocSheet)와 같은 내용·순서로 A4 PDF를 만듦 (인쇄·보관용).
  * 서식은 화면과 같이 '# 제목', '## 소제목', '- 목록', 그 밖은 문단만 씀.
- * 글꼴은 한글이 들어간 Noto Sans KR(부분 글꼴)을 넣고, PDF에는 실제로 쓴 글자만 담겨 파일이 작음.
+ * 글꼴은 한글이 들어간 Noto Sans KR(한글·영문·기호만 남긴 부분 글꼴)을 통째로 넣음 (글자가 깨지지 않게).
  * 여러 서류를 한 파일로 묶을 때는 서류마다 새 쪽에서 시작하고, 쪽 번호는 서류마다 따로 셈
  */
 
@@ -133,8 +133,9 @@ export async function docsToPdf(docs: PdfDoc[], meta: { title: string }): Promis
   const [regular, bold] = await loadFonts()
   const pdf = await PDFDocument.create()
   pdf.registerFontkit(fontkit)
-  const r = await pdf.embedFont(regular, { subset: true })
-  const b = await pdf.embedFont(bold, { subset: true })
+  // 글꼴은 통째로 넣음: pdf-lib의 '쓴 글자만 넣기(subset)'는 한글 글꼴에서 글자 모양이 빠져 대부분 비어 보임 (파일은 1~2MB)
+  const r = await pdf.embedFont(regular, { subset: false })
+  const b = await pdf.embedFont(bold, { subset: false })
   if (!glyphCheck) {
     const fk = fontkit.create(regular)
     glyphCheck = (cp) => fk.hasGlyphForCodePoint(cp)

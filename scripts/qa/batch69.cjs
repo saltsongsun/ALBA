@@ -25,7 +25,9 @@ const pdfText = (buf) => {
   fs.writeFileSync(f, buf)
   const text = execFileSync('pdftotext', ['-layout', f, '-'], { encoding: 'utf8' })
   const pages = Number((execFileSync('pdfinfo', [f], { encoding: 'utf8' }).match(/Pages:\s+(\d+)/) || [])[1] || 0)
-  return { text: text.replace(/[ \t]+/g, ' '), pages }
+  // 글꼴이 '쓴 글자만(subset)'으로 들어가면 한글 모양이 빠져 비어 보임 (파일이 몇 KB) → 통째로 들어갔는지 크기로 확인 (약 1MB 이상)
+  const fullFonts = buf.length > 500_000
+  return { text: text.replace(/[ \t]+/g, ' '), pages, fullFonts, fonts: `${Math.round(buf.length / 1024)}KB` }
 }
 
 ;(async () => {
@@ -75,6 +77,7 @@ const pdfText = (buf) => {
   const disp = decodeURIComponent(one.headers()['content-disposition'] || '')
   ok('서류 하나 PDF: application/pdf · 파일 이름 서약서_근무자_….pdf', one.status() === 200 && one.headers()['content-type'] === 'application/pdf' && /filename\*=UTF-8''서약서_근무자_\d{4}-\d{2}-\d{2}\.pdf/.test(disp), `${one.status()} ${disp}`)
   const t1 = pdfText(await one.body())
+  ok('PDF 글꼴이 통째로 들어감 (한글 글자 모양이 빠지지 않게)', t1.fullFonts, t1.fonts)
   ok('PDF 안 한글: 제목·이름·전자서명 기록', t1.text.includes('서약서') && t1.text.includes('근무자') && t1.text.includes('전자서명 일시') && t1.text.includes('(근로자)'), t1.text.slice(0, 200).replace(/\n/g, ' | '))
 
   // ── 3. 보이는 서류 전체를 한 PDF ──
