@@ -47,6 +47,9 @@ const beacon = (uid, body) => fetch(`${D}/api/t`, { method: 'POST', headers: { '
   ok('본문 줄에서 휴게·공제·지급일·집결이 빠짐', !dts.some((t) => ['휴게', '공제', '지급일', '집결', '수당'].includes(t.trim())), dts.join(','))
   ok("돈 칸 '휴게 · 수당 · 공제 · 지급일 자세히' (처음엔 접힘)", /휴게.*공제.*지급일 자세히/.test(await more.locator('summary').innerText()) && (await more.getAttribute('open')) === null)
   await more.locator('summary').click()
+  // 펼침은 짧은 애니메이션으로 열림 → 내용이 보일 때까지 기다림
+  await more.locator('dl').waitFor({ state: 'visible', timeout: 3000 }).catch(() => {})
+  await wk.waitForTimeout(400)
   const moreText = await more.innerText()
   ok('펼치면 공제 · 고용보험 · 지급일', moreText.includes('고용보험 0.9%') && moreText.includes('익월 10일'), moreText.replace(/\s+/g, ' ').slice(0, 120))
   ok('모이는 곳은 장소 아래', (await wk.locator('[data-meeting-point]').innerText()).includes('정문 매표소 앞'))
