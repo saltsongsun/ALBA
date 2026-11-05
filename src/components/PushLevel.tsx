@@ -49,8 +49,9 @@ export default function PushLevel({ initial, admin = false }: { initial: 'all' |
           </button>
         ))}
       </div>
-      <p className="text-xs text-mute" aria-live="polite">
-        {msg || (level === 'min' ? (admin ? '단체방 일반 메시지·새 지원자 알림은 오지 않아요' : '단체방 일반 메시지·커뮤니티·새 모집·단체 공지는 오지 않아요') : ' ')}
+      {/* 안내가 없을 때는 줄을 차지하지 않게 (내 정보 화면이 길어지지 않게) */}
+      <p className="text-xs text-mute empty:hidden" aria-live="polite">
+        {msg || (level === 'min' ? (admin ? '단체방 일반 메시지·새 지원자 알림은 오지 않아요' : '단체방 일반 메시지·커뮤니티·새 모집·단체 공지는 오지 않아요') : '')}
       </p>
     </div>
   )

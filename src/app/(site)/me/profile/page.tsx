@@ -202,7 +202,7 @@ export default async function ProfilePage() {
           <CareerForm initial={(me.careers as Career[] | null) ?? []} />
         </div>
       )}
-      <div className="card space-y-4 p-4" data-push-settings>
+      <div className="card space-y-3 p-4" data-push-settings>
         <PushToggle publicKey={pushPublicKey()} />
         <PushLevel initial={await myPushLevel()} />
       </div>
