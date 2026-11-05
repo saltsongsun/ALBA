@@ -38,9 +38,23 @@ export default function UsageTracker() {
   useEffect(() => {
     if (!path) return
     const last = prev.current
-    if (last && last !== path && shown.current) send({ k: 'leave', p: last, ms: shown.current + (since.current ? Date.now() - since.current : 0) })
+    // 앱 안에서 화면을 옮기면: 떠난 화면에 머문 시간
+    if (last && last !== path) {
+      const ms = shown.current + (since.current ? Date.now() - since.current : 0)
+      if (ms > 0) send({ k: 'leave', p: last, ms })
+    }
     if (last !== path) {
-      send({ k: 'view', p: path, r: last })
+      // 바로 전 화면: 새로 고침·주소로 직접 들어와도 이어지게 이 탭에 기억해 둔 것
+      let before = last
+      if (!before) {
+        try {
+          before = sessionStorage.getItem('hw_last')
+        } catch {}
+      }
+      send({ k: 'view', p: path, r: before && before !== path ? before : null })
+      try {
+        sessionStorage.setItem('hw_last', path)
+      } catch {}
       prev.current = path
       shown.current = 0
       since.current = document.visibilityState === 'visible' ? Date.now() : 0
@@ -59,8 +73,20 @@ export default function UsageTracker() {
         }
       } else if (!since.current) since.current = Date.now()
     }
+    // 다른 주소로 떠나거나 탭을 닫을 때도 (페이지가 내려가기 직전)
+    const onHide = () => {
+      if (!prev.current) return
+      const ms = shown.current + (since.current ? Date.now() - since.current : 0)
+      shown.current = 0
+      since.current = 0
+      if (ms > 0) send({ k: 'leave', p: prev.current, ms })
+    }
     document.addEventListener('visibilitychange', onVis)
-    return () => document.removeEventListener('visibilitychange', onVis)
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      window.removeEventListener('pagehide', onHide)
+    }
   }, [])
 
   return null

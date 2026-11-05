@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       gender = u?.gender === 'M' || u?.gender === 'F' ? u.gender : null
       age = ageBand(u?.birth_date)
     }
-    await db().from('usage_events').insert({ session: body.s, role, gender, age_band: age, path, prev, kind, ms })
+    await db().from('usage_events').insert({ at: new Date().toISOString(), session: body.s, role, gender, age_band: age, path, prev, kind, ms })
   } catch {
     // 기록 실패는 무시
   }
