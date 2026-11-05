@@ -1,6 +1,6 @@
-import { deleteRoomMessage, unpinRoom } from '@/app/actions/room'
+import { deleteRoomMessage, nudgeRoomUnread, unpinRoom } from '@/app/actions/room'
 import { isDeleted } from '@/lib/deleted'
-import type { RoomMessage } from '@/lib/room'
+import { unreadFor, type RoomMessage } from '@/lib/room'
 import { stickerOf } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import { DeletedBubble } from './Chat'
@@ -11,11 +11,28 @@ import { ConfirmSubmit } from './ui'
 
 type Msg = RoomMessage & { name: string }
 
+type Members = { workers: { id: string; name: string }[]; admins: { id: string; name: string }[] }
+
 /**
  * 단체방 말풍선: 내가 보낸 건 오른쪽, 다른 사람 건 왼쪽에 이름(담당자는 표시)과 함께.
+ * 말풍선 옆 노란 숫자 = 아직 안 읽은 사람 수 (모두에게) · 담당자는 꾹 누르면 누가 안 읽었는지 이름과 '다시 알림'.
  * 꾹 누르면(PC는 오른쪽 클릭) 복사 · 내가 쓴 건 삭제 (담당자는 방 정리를 위해 누구 글이든 삭제)
  */
-export function RoomMessages({ messages, viewerId, jobId, moderator = false }: { messages: Msg[]; viewerId: string; jobId: string; moderator?: boolean }) {
+export function RoomMessages({
+  messages,
+  viewerId,
+  jobId,
+  moderator = false,
+  members,
+  reads,
+}: {
+  messages: Msg[]
+  viewerId: string
+  jobId: string
+  moderator?: boolean
+  members: Members
+  reads: Record<string, string>
+}) {
   let lastDay = ''
   return (
     <ol className="space-y-2">
@@ -27,6 +44,8 @@ export function RoomMessages({ messages, viewerId, jobId, moderator = false }: {
         const prev = messages[i - 1]
         const showName = !mine && (showDay || !prev || prev.sender_id !== m.sender_id)
         const st = stickerOf(m.body)
+        const gone = isDeleted(m.body)
+        const unread = gone ? [] : unreadFor(m, members, reads, viewerId)
         return (
           <li key={m.id}>
             {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
@@ -38,10 +57,15 @@ export function RoomMessages({ messages, viewerId, jobId, moderator = false }: {
                 </span>
               )}
               <div className={`flex items-end gap-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
-                {isDeleted(m.body) ? (
+                {gone ? (
                   <DeletedBubble body={m.body} mine={mine} />
                 ) : (
-                  <MessageMenu mine={mine} copy={st ? null : m.body} remove={mine || moderator ? deleteRoomMessage.bind(null, jobId, m.id) : undefined}>
+                  <MessageMenu
+                    mine={mine}
+                    copy={st ? null : m.body}
+                    remove={mine || moderator ? deleteRoomMessage.bind(null, jobId, m.id) : undefined}
+                    unread={moderator ? { names: unread.map((u) => u.name), nudge: unread.length ? nudgeRoomUnread.bind(null, jobId, m.id) : undefined } : undefined}
+                  >
                     {st ? (
                       <Sticker id={st.id} size={120} />
                     ) : (
@@ -56,7 +80,14 @@ export function RoomMessages({ messages, viewerId, jobId, moderator = false }: {
                     )}
                   </MessageMenu>
                 )}
-                <span className="mb-0.5 shrink-0 text-[11px] text-mute tabular-nums">{kstTime(m.created_at)}</span>
+                <span className={`mb-0.5 flex shrink-0 flex-col text-[11px] text-mute tabular-nums ${mine ? 'items-end' : 'items-start'}`}>
+                  {unread.length > 0 && (
+                    <b className="font-bold text-amber-500" data-unread-count title={`안 읽은 사람 ${unread.length}명`}>
+                      {unread.length}
+                    </b>
+                  )}
+                  {kstTime(m.created_at)}
+                </span>
               </div>
             </div>
           </li>

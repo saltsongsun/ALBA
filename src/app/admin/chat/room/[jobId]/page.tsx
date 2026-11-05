@@ -8,7 +8,7 @@ import Empty from '@/components/Empty'
 import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
 import { companyJob } from '@/lib/company'
-import { markRoomRead, pinnedReads, roomMembers, roomMessages, roomOpen, roomPinned } from '@/lib/room'
+import { markRoomRead, pinnedReads, roomMembers, roomMessages, roomOpen, roomPinned, roomReads } from '@/lib/room'
 import { requireAdmin } from '@/lib/session'
 import { fmtDateRange } from '@/lib/time'
 
@@ -20,7 +20,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
   const { jobId } = await props.params
   const job = await companyJob(admin, jobId)
   if (!job) notFound()
-  const [messages, members, pinned] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), markRoomRead(job.id, admin.id)])
+  const [messages, members, pinned, readMap] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), roomReads(job.id), markRoomRead(job.id, admin.id)])
   const open = roomOpen(job)
   const reads = pinned?.pinned_at ? await pinnedReads(job.id, pinned.pinned_at, members.workers) : undefined
 
@@ -53,7 +53,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
           집합 장소·복장 같은 안내를 올리고 &lsquo;공지로 고정&rsquo;해 보세요
         </Empty>
       ) : (
-        <RoomMessages messages={messages} viewerId={admin.id} jobId={job.id} moderator />
+        <RoomMessages messages={messages} viewerId={admin.id} jobId={job.id} moderator members={members} reads={readMap} />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         {open ? (

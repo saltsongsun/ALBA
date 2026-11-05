@@ -62,9 +62,39 @@ export async function roomMessages(jobId: string, limit = 300): Promise<(RoomMes
   return rows.map((r) => ({ ...r, name: (r.sender_id && name.get(r.sender_id)) || (r.from_admin ? '담당자' : '근무자') }))
 }
 
-/** 이 방을 지금까지 읽음으로 */
+/**
+ * 이 방을 지금까지 읽음으로. 새로 온 메시지가 있을 때만 씀 —
+ * 화면을 다시 그릴 때마다 쓰면 '바뀐 게 있나요?'(pulse) 값이 계속 바뀌어, 방을 열어 둔 사람끼리 서로 몇 초마다 다시 그리게 됨
+ */
 export async function markRoomRead(jobId: string, userId: string) {
+  const [{ data: mine }, { data: last }] = await Promise.all([
+    db().from('job_chat_reads').select('read_at').eq('job_id', jobId).eq('user_id', userId).maybeSingle(),
+    db().from('job_chat').select('created_at').eq('job_id', jobId).order('created_at', { ascending: false }).limit(1),
+  ])
+  const at = (mine as { read_at: string } | null)?.read_at
+  const lastAt = ((last ?? []) as { created_at: string }[])[0]?.created_at
+  if (at && (!lastAt || lastAt <= at)) return
   await db().from('job_chat_reads').upsert({ job_id: jobId, user_id: userId, read_at: new Date().toISOString() }, { onConflict: 'job_id,user_id' })
+}
+
+/** 이 방에서 사람마다 마지막으로 읽은 시각 (메시지마다 안 읽은 사람 세기) */
+export async function roomReads(jobId: string): Promise<Record<string, string>> {
+  const { data } = await db().from('job_chat_reads').select('user_id, read_at, job_id').eq('job_id', jobId).limit(2000)
+  return Object.fromEntries(((data ?? []) as { user_id: string; read_at: string; job_id: string }[]).filter((r) => r.job_id === jobId).map((r) => [r.user_id, r.read_at]))
+}
+
+/**
+ * 메시지를 아직 안 읽은 사람: 확정 근무자 + 방에 한 번이라도 들어온 담당자 중, 보낸 사람·지금 보는 사람 빼고
+ * (방을 연 적 없는 다른 관리자까지 세면 숫자가 늘 남아 있어서)
+ */
+export function unreadFor(
+  m: { sender_id: string | null; created_at: string },
+  members: { workers: { id: string; name: string }[]; admins: { id: string; name: string }[] },
+  reads: Record<string, string>,
+  viewerId: string,
+): { id: string; name: string }[] {
+  const group = [...members.workers, ...members.admins.filter((a) => a.id in reads)]
+  return group.filter((u) => u.id !== m.sender_id && u.id !== viewerId && !((reads[u.id] ?? '') >= m.created_at))
 }
 
 /** 방마다 안 읽은 수 (내가 보낸 건 빼고) */

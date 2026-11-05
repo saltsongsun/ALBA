@@ -1,24 +1,31 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import type { FormState } from '@/app/actions/auth'
 import Icon from './Icon'
 import { haptic } from './ui'
 
 const MENU_W = 176
+const MENU_W_WIDE = 208
 const ITEM_H = 46
 
+/** 아래 입력칸(휴대폰은 탭 위에 붙어 있음)에 가리지 않게: 입력칸 위쪽까지만 씀 */
+const floorY = () => Math.min(window.innerHeight, document.querySelector('[data-vv="end"]')?.getBoundingClientRect().top ?? window.innerHeight) - 8
+
 /**
- * 말풍선을 꾹 누르면(PC는 오른쪽 클릭·키보드 Enter) 작은 메뉴: 복사 · 삭제.
+ * 말풍선을 꾹 누르면(PC는 오른쪽 클릭·키보드 Enter) 작은 메뉴: 복사 · 삭제 (단체방 담당자는 '안 읽은 사람'도).
  * 삭제는 한 번 더 눌러야 지워짐 (실수 방지). 메뉴는 말풍선 바로 아래(아래 입력칸에 가리면 위)에 뜸
  */
 export default function MessageMenu({
   copy,
   remove,
+  unread,
   mine = false,
   children,
 }: {
+  /** 단체방 담당자: 이 메시지를 안 읽은 사람 이름 + 그 사람들에게 다시 알림 */
+  unread?: { names: string[]; nudge?: () => Promise<FormState> }
   /** 내가 보낸 말풍선(오른쪽)이면 메뉴도 오른쪽에 맞춤 */
   mine?: boolean
   /** 복사할 글자 (이모티콘·지운 메시지는 없음) */
@@ -35,11 +42,14 @@ export default function MessageMenu({
   const [armed, setArmed] = useState(false)
   const [toast, setToast] = useState('')
   const [pending, startTransition] = useTransition()
-  const items = (copy ? 1 : 0) + (remove ? 1 : 0)
+  const [whoOpen, setWhoOpen] = useState(false)
+  const [nudging, startNudge] = useTransition()
+  const items = (copy ? 1 : 0) + (remove ? 1 : 0) + (unread ? 1 : 0)
 
   const close = useCallback(() => {
     setPos(null)
     setArmed(false)
+    setWhoOpen(false)
   }, [])
 
   const show = useCallback((keyboard = false) => {
@@ -47,14 +57,14 @@ export default function MessageMenu({
     if (!el || pos) return
     const r = el.getBoundingClientRect()
     const h = items * ITEM_H + 12
-    // 아래 입력칸(휴대폰은 탭 위에 붙어 있음)에 가리지 않게: 입력칸 위쪽까지만 씀
-    const floor = Math.min(window.innerHeight, document.querySelector('[data-vv="end"]')?.getBoundingClientRect().top ?? window.innerHeight) - 8
+    const floor = floorY()
     const mineSide = el.dataset.side === 'right'
-    const left = Math.max(12, Math.min(window.innerWidth - MENU_W - 12, mineSide ? r.right - MENU_W : r.left))
+    const w = unread ? MENU_W_WIDE : MENU_W
+    const left = Math.max(12, Math.min(window.innerWidth - w - 12, mineSide ? r.right - w : r.left))
     const top = r.bottom + 6 + h <= floor ? r.bottom + 6 : Math.max(12, r.top - 6 - h)
     haptic(10)
     setPos({ top, left, keyboard })
-  }, [items, pos])
+  }, [items, pos, unread])
 
   // 열려 있는 동안: 바깥을 누르거나 Esc·화면을 움직이면 닫힘
   useEffect(() => {
@@ -81,6 +91,14 @@ export default function MessageMenu({
       window.removeEventListener('resize', close)
     }
   }, [pos, close])
+
+  // '안 읽은 사람'을 펼쳐 메뉴가 길어지면 화면 안으로 올림
+  useLayoutEffect(() => {
+    if (!pos || !menu.current) return
+    const h = menu.current.offsetHeight
+    const floor = floorY()
+    if (pos.top + h > floor) setPos((p) => (p ? { ...p, top: Math.max(12, floor - h) } : p))
+  }, [whoOpen, pos])
 
   // '한 번 더 누르면 삭제'는 3초 지나면 원래대로
   useEffect(() => {
@@ -187,13 +205,62 @@ export default function MessageMenu({
             role="menu"
             data-msg-actions
             className="fixed z-50 animate-pop overflow-hidden rounded-2xl bg-white p-1.5 shadow-[0_10px_40px_rgba(0,0,0,0.18)] ring-1 ring-line"
-            style={{ top: pos.top, left: pos.left, width: MENU_W }}
+            style={{ top: pos.top, left: pos.left, width: unread ? MENU_W_WIDE : MENU_W }}
           >
             {copy && (
               <button type="button" role="menuitem" className="flex h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-[15px] font-semibold text-ink outline-none focus-visible:bg-bg active:bg-bg" onClick={doCopy}>
                 <Icon name="copy" className="text-sub" />
                 복사
               </button>
+            )}
+            {unread && (
+              <>
+                <button
+                  type="button"
+                  role="menuitem"
+                  aria-expanded={whoOpen}
+                  data-unread-item
+                  disabled={!unread.names.length}
+                  className="flex h-11 w-full items-center gap-2.5 rounded-xl px-3 text-left text-[15px] font-semibold whitespace-nowrap text-ink outline-none focus-visible:bg-bg active:bg-bg disabled:text-mute"
+                  onClick={() => {
+                    haptic(8)
+                    setWhoOpen((v) => !v)
+                  }}
+                >
+                  <Icon name="eye" className="text-sub" />
+                  {unread.names.length ? `안 읽은 사람 ${unread.names.length}명` : '모두 읽었어요'}
+                </button>
+                {whoOpen && unread.names.length > 0 && (
+                  <div className="mx-1 mb-1 animate-pop rounded-xl bg-bg p-2.5" data-unread-list>
+                    <ul className="flex max-h-32 flex-wrap gap-1 overflow-y-auto">
+                      {unread.names.map((n, i) => (
+                        <li key={`${n}-${i}`} className="rounded-full bg-white px-2 py-0.5 text-[13px] font-semibold text-sub ring-1 ring-line">
+                          {n}
+                        </li>
+                      ))}
+                    </ul>
+                    {unread.nudge && (
+                      <button
+                        type="button"
+                        disabled={nudging}
+                        data-unread-nudge
+                        className="mt-2 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg bg-brand-600 text-[13px] font-bold text-white transition active:scale-[0.98] disabled:opacity-60"
+                        onClick={() =>
+                          startNudge(async () => {
+                            const r = await unread.nudge!()
+                            close()
+                            setToast(r?.error ?? r?.ok ?? '')
+                            haptic(12)
+                          })
+                        }
+                      >
+                        <Icon name="bell" />
+                        {nudging ? '보내는 중…' : '안 읽은 근무자에게 알림'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
             )}
             {remove && (
               <button

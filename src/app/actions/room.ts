@@ -6,7 +6,7 @@ import { audit } from '@/lib/data'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { sendPush } from '@/lib/push'
-import { markRoomRead, pinnedReads, roomMembers, roomOpen, roomPinned, workerRoom, type RoomJob } from '@/lib/room'
+import { markRoomRead, pinnedReads, roomMembers, roomOpen, roomPinned, roomReads, unreadFor, workerRoom, type RoomJob } from '@/lib/room'
 import { requireAdmin, requireUser } from '@/lib/session'
 import { overLimit } from '@/lib/ratelimit'
 import { badSticker, plainBody } from '@/lib/stickers'
@@ -89,6 +89,33 @@ export async function deleteRoomMessage(jobId: string, id: number | string): Pro
   await audit(user.id, mine ? 'room.delete' : 'room.delete_other', mine ? null : m.sender_id, job.title, job.company_id)
   roomPaths(jobId)
   return { ok: '지웠어요' }
+}
+
+/**
+ * 담당자: 이 메시지를 아직 안 읽은 근무자에게만 다시 휴대폰 알림 (메시지마다 10분에 한 번)
+ */
+export async function nudgeRoomUnread(jobId: string, id: number | string): Promise<FormState> {
+  const admin = await requireAdmin()
+  if (!isUuid(jobId) || !validMessageId(id)) return { error: '잘못된 요청입니다.' }
+  const job = await companyJob(admin, jobId)
+  if (!job) return { error: '공고를 찾을 수 없어요.' }
+  const { data } = await db().from('job_chat').select('id, sender_id, from_admin, body, created_at').eq('id', id).eq('job_id', jobId).maybeSingle()
+  const m = data as { sender_id: string | null; from_admin: boolean; body: string; created_at: string } | null
+  if (!m || isDeleted(m.body)) return { error: '메시지를 찾을 수 없어요.' }
+  const [members, reads] = await Promise.all([roomMembers(job), roomReads(jobId)])
+  const workerIds = new Set(members.workers.map((w) => w.id))
+  const unread = unreadFor(m, members, reads, admin.id).filter((u) => workerIds.has(u.id))
+  if (!unread.length) return { ok: '근무자는 모두 읽었어요.' }
+  if (await overLimit(`room-unread:${jobId}:${id}`, 1, 600)) return { error: '방금 알림을 보냈어요. 10분 뒤에 다시 보낼 수 있어요.' }
+  const who = m.from_admin ? '담당자' : (members.workers.find((w) => w.id === m.sender_id)?.name ?? '근무자')
+  after(() =>
+    sendPush(
+      unread.map((u) => u.id),
+      { title: `👥 ${job.title} · 안 읽은 메시지`, body: `${who}: ${plainBody(m.body).slice(0, 80)}`, url: `/me/chat/room/${jobId}`, tag: `room-${jobId}` },
+    ),
+  )
+  await audit(admin.id, 'room.unread_nudge', null, `${job.title} · ${unread.length}명`, job.company_id)
+  return { ok: `안 읽은 ${unread.length}명에게 알림을 보냈어요.` }
 }
 
 /** 고정된 공지 내리기 (관리자) */

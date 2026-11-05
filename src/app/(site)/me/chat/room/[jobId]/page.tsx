@@ -7,7 +7,7 @@ import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import Empty from '@/components/Empty'
 import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
-import { markRoomRead, roomMembers, roomMessages, roomOpen, roomPinned, workerRoom } from '@/lib/room'
+import { markRoomRead, roomMembers, roomMessages, roomOpen, roomPinned, roomReads, workerRoom } from '@/lib/room'
 import { requireUser } from '@/lib/session'
 import { fmtDateRange } from '@/lib/time'
 
@@ -20,7 +20,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
   if (user.role === 'admin') redirect(`/admin/chat/room/${jobId}`)
   const job = await workerRoom(user.id, jobId)
   if (!job) notFound()
-  const [messages, members, pinned] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), markRoomRead(job.id, user.id)])
+  const [messages, members, pinned, reads] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), roomReads(job.id), markRoomRead(job.id, user.id)])
   const open = roomOpen(job)
 
   return (
@@ -47,7 +47,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
           같이 일할 분들께 먼저 인사해 보세요
         </Empty>
       ) : (
-        <RoomMessages messages={messages} viewerId={user.id} jobId={job.id} />
+        <RoomMessages messages={messages} viewerId={user.id} jobId={job.id} members={members} reads={reads} />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         {open ? (
