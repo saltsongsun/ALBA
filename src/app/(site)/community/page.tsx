@@ -4,7 +4,7 @@ import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
-import { ago, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
+import { ago, canPost, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { linkedAmong, pendingRequests } from '@/lib/coworkers'
 import { PACKS, splitPostBody } from '@/lib/stickers'
@@ -28,7 +28,8 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
     reviewTab ? [] : hot && !q ? hotPosts(user.id) : listPosts({ category, viewerId: user.id, q, mine }),
     reviewTab ? recentReviews(30) : [],
   ])
-  const writer = canWrite(user)
+  const writer = canWrite(user) // 동료 맺기 등 근무자끼리 기능
+  const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
   // 서로 동료 맺은 사람이 쓴 글에는 '🤝 동료'
   const [pals, requests] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), pendingRequests(user.id)]) : [new Set<string>(), 0]
   const tabs: { id: string; label: string; icon: IconName | '' }[] = [
@@ -36,7 +37,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
     { id: 'hot', label: '인기', icon: 'flame' },
     ...CATEGORIES,
     { id: 'review', label: '회사 후기', icon: 'star' },
-    ...(writer ? [{ id: 'mine', label: '내 글', icon: 'pen' as const }] : []),
+    ...(poster ? [{ id: 'mine', label: '내 글', icon: 'pen' as const }] : []),
   ]
 
   return (
@@ -48,7 +49,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
           <h1 className="text-2xl font-extrabold">커뮤니티</h1>
           <p className="mt-0.5 text-sm text-sub">별명으로 편하게 묻고 나눠요</p>
         </div>
-        {writer && !reviewTab && (
+        {poster && !reviewTab && (
           <Link href={`/community/new${category ? `?c=${category}` : ''}`} className="btn-primary btn-sm shrink-0" data-write>
             <Icon name="pen" /> 글쓰기
           </Link>
@@ -102,9 +103,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         </Link>
       )}
 
-      {!writer && (
+      {!poster && (
         <p className="rounded-2xl bg-bg px-4 py-3 text-sm text-sub" data-readonly>
-          👀 회사 관리자·외주 업체 계정은 읽기만 할 수 있어요. 근무자 목소리를 들어 보세요.
+          👀 외주 업체 계정은 읽기만 할 수 있어요.
         </p>
       )}
 
@@ -153,7 +154,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         </Empty>
       ) : posts.length === 0 ? (
         <Empty icon="💬" sticker="hi" title={category ? `${categoryOf(category).label} 글이 아직 없어요` : '첫 글을 남겨 주세요'}>
-          {writer ? (
+          {poster ? (
             <Link href="/community/new" className="font-semibold text-brand-600">
               <Icon name="pen" /> 첫 글 쓰기 →
             </Link>

@@ -1,3 +1,4 @@
+import { APP_NAME } from './brand'
 import 'server-only'
 import { randomInt } from 'node:crypto'
 import { db, must } from './db'
@@ -49,12 +50,30 @@ export async function ensureNickname(userId: string): Promise<string> {
   return '병아리'
 }
 
-/** 여러 사람의 별명 (별명이 아직 없으면 '병아리'로만 보임, 실명은 절대 내보내지 않음) */
+/**
+ * 여러 사람의 별명 (별명이 아직 없으면 '병아리'로만 보임, 실명은 절대 내보내지 않음).
+ * 회사 관리자는 별명 대신 '회사명 관리자'(운영자는 '해피워크 운영자') — 관리자가 근무자인 척 글을 쓰지 못하게
+ */
 export async function nicknames(ids: string[]): Promise<Map<string, string>> {
   const uniq = [...new Set(ids)]
   if (!uniq.length) return new Map()
-  const rows = must(await db().from('users').select('id, nickname').in('id', uniq)) as { id: string; nickname: string | null }[]
-  return new Map(rows.map((r) => [r.id, r.nickname || '병아리']))
+  const rows = must(await db().from('users').select('id, nickname, role, is_super').in('id', uniq)) as { id: string; nickname: string | null; role?: string; is_super?: boolean | null }[]
+  const admins = rows.filter((r) => r.role === 'admin' && !r.is_super).map((r) => r.id)
+  const companyOf = new Map<string, string>()
+  if (admins.length) {
+    const { data: mem } = await db().from('company_members').select('user_id, company_id, created_at').in('user_id', admins)
+    const members = ((mem ?? []) as { user_id: string; company_id: string; created_at?: string }[]).filter((m) => admins.includes(m.user_id))
+    const coIds = [...new Set(members.map((m) => m.company_id))]
+    const { data: cos } = coIds.length ? await db().from('companies').select('id, company_name').in('id', coIds) : { data: [] }
+    const name = new Map(((cos ?? []) as { id: string; company_name: string }[]).map((c) => [c.id, c.company_name]))
+    for (const m of members.sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))) if (!companyOf.has(m.user_id) && name.get(m.company_id)) companyOf.set(m.user_id, name.get(m.company_id)!)
+  }
+  return new Map(
+    rows.map((r) => [
+      r.id,
+      r.role === 'admin' ? (r.is_super ? `${APP_NAME} 운영자` : `${companyOf.get(r.id) ?? '회사'} 관리자`) : r.nickname || '병아리',
+    ]),
+  )
 }
 
 export type PostCard = PostRow & { nick: string; likes: number; comments: number; liked: boolean }
@@ -153,8 +172,14 @@ export async function workedJob(userId: string, jobId: string): Promise<boolean>
   return (count ?? 0) > 0
 }
 
-/** 게시판에 글을 쓸 수 있는 사람: 근무자·전문가 (회사 관리자·외주 업체는 읽기만) */
+/** 동료 맺기 등 근무자끼리만 쓰는 기능: 근무자·전문가 (회사 관리자·외주 업체는 빼고) */
 export const canWrite = (u: { role: string; memberType?: string | null }) => u.role !== 'admin' && u.memberType !== 'vendor'
+
+/**
+ * 게시판 글·댓글·좋아요: 근무자·전문가 + 회사 관리자 (외주 업체는 읽기만).
+ * 관리자 글은 별명 대신 '회사명 관리자'로 보여서 근무자인 척할 수 없음 (nicknames)
+ */
+export const canPost = (u: { role: string; memberType?: string | null }) => u.memberType !== 'vendor'
 
 /** '방금 · 5분 전 · 3시간 전 · 2일 전 · 10월 3일' */
 export function ago(iso: string, now = Date.now()): string {

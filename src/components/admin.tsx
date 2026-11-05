@@ -2,7 +2,7 @@
 
 import UnsavedBar from '@/components/UnsavedBar'
 import { useActionState, useMemo, useOptimistic, useRef, useState } from 'react'
-import { rateWorker, resetPin, revealRrn, saveSettings, saveTemplate, setPosition, updateWorker } from '@/app/actions/admin'
+import { rateWorker, resetPin, revealRrn, revealWorkerField, saveSettings, saveTemplate, setPosition, updateWorker, type RevealField } from '@/app/actions/admin'
 import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
@@ -21,6 +21,69 @@ export function RevealRrn({ userId, masked }: { userId: string; masked: string |
       {!state?.ok && masked && <SubmitButton className="btn-gray btn-sm">전체 보기 (기록됨)</SubmitButton>}
       {state?.error && <span className="text-xs text-rose-600">{state.error}</span>}
     </form>
+  )
+}
+
+/**
+ * 보안: 가린 값만 먼저 보여 주고 '전체 보기'(기록됨)를 누르면 서버에서 받아 보여 줌.
+ * 휴대폰·비상연락처는 전화·문자 버튼도 — 누르면 열람을 기록하고 바로 걸기/문자 (번호가 화면 코드에 미리 실리지 않게)
+ */
+export function RevealInfo({ userId, field, masked, call = false, children }: { userId: string; field: RevealField; masked: string; call?: boolean; children?: React.ReactNode }) {
+  const [value, setValue] = useState<string | null>(null)
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
+  const get = async (): Promise<string | null> => {
+    if (value) return value
+    setPending(true)
+    const r = await revealWorkerField(userId, field).catch(() => ({ error: '잠시 뒤에 다시 시도해 주세요.' }) as { ok?: string; error?: string })
+    setPending(false)
+    if (r.ok) {
+      setValue(r.ok)
+      setError('')
+      return r.ok
+    }
+    setError(r.error ?? '볼 수 없어요.')
+    return null
+  }
+  const go = async (scheme: 'tel' | 'sms') => {
+    const v = await get()
+    const digits = v?.replace(/\D/g, '')
+    if (digits) window.location.href = `${scheme}:${digits}`
+  }
+  return (
+    <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1.5" data-reveal={field}>
+      <span className={value ? '' : 'tracking-wide text-sub'} data-reveal-value>
+        {value ?? masked}
+      </span>
+      {!value && (
+        <button type="button" className="contact-btn bg-bg text-sub hover:bg-line" onClick={get} disabled={pending} data-reveal-btn>
+          {pending ? '…' : '전체 보기 (기록됨)'}
+        </button>
+      )}
+      {(call || children) && (
+        // 전화·문자(·앱 메시지)는 한 덩어리로 (좁은 화면에서 따로 꺾이지 않게)
+        <span className="inline-flex flex-nowrap gap-1.5" data-contact-group>
+          {call && (
+          <button type="button" className="contact-btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100" onClick={() => go('tel')} aria-label="전화 (열람 기록)">
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z" />
+            </svg>
+            전화
+          </button>
+          )}
+          {call && (
+          <button type="button" className="contact-btn bg-brand-50 text-brand-700 hover:bg-brand-100" onClick={() => go('sms')} aria-label="문자 (열람 기록)">
+            <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8v.5z" />
+            </svg>
+            문자
+          </button>
+          )}
+          {children}
+        </span>
+      )}
+      {error && <span className="text-xs text-rose-600">{error}</span>}
+    </span>
   )
 }
 
@@ -66,7 +129,12 @@ export function WorkerEditForm({
         </label>
         <label>
           <span className="label">휴대폰 번호{!canEditIdentity && ' (본인만 바꿀 수 있어요)'}</span>
-          <input name="phone" className="input read-only:bg-bg read-only:text-sub" defaultValue={initial.phone} readOnly={!canEditIdentity} />
+          {canEditIdentity ? (
+            <input name="phone" className="input" defaultValue={initial.phone} />
+          ) : (
+            // 보안: 번호를 화면에 싣지 않음 (가린 번호만, 폼으로 보내지도 않음)
+            <input className="input bg-bg text-sub" value={initial.phone} readOnly disabled aria-readonly />
+          )}
         </label>
       </div>
       <label className="block">

@@ -99,14 +99,14 @@ const noScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <
   ok('같은 사람이 또 신고: 이미 신고', (await reportPost(ap)).includes('이미 신고했어요'))
   ok('신고 1건만 기록', (await rest(`community_reports?target_id=eq.${postId}`)).length === 1)
 
-  // ── 4. 관리자: 읽기만 ──
+  // ── 4. 관리자: 글·댓글·좋아요도 씀 (글쓴이는 '회사명 관리자'로 보임 — batch73) ──
   const ad = await pg(A)
   await ad.goto(`${D}/community`)
-  ok('관리자: 읽기만 안내, 글쓰기 버튼 없음', (await see(ad, '읽기만 할 수 있어요')) && (await ad.locator('[data-write]').count()) === 0)
+  ok('관리자: 글쓰기 버튼 있음 · 읽기 전용 안내 없음', (await ad.locator('[data-write]').count()) >= 1 && (await ad.locator('[data-readonly]').count()) === 0)
   await ad.goto(postUrl)
-  ok('관리자: 댓글 칸 없음, 좋아요 못 누름', (await ad.locator('[data-comment-form]').count()) === 0 && (await ad.locator('[data-like]').isDisabled()))
+  ok('관리자: 댓글 칸 있음 · 좋아요 누를 수 있음', (await ad.locator('[data-comment-form]').count()) === 1 && !(await ad.locator('[data-like]').isDisabled()))
   await ad.goto(`${D}/community/new`)
-  ok('관리자: 글쓰기 화면도 읽기만 안내', (await see(ad, '읽기만 할 수 있어요')) && (await ad.locator('[data-post-form]').count()) === 0)
+  ok('관리자: 글쓰기 화면에 글 칸', (await ad.locator('[data-post-form]').count()) === 1)
 
   // ── 5. 신고 3번이면 자동으로 가림 → 최고 관리자가 다시 보이기 ──
   await rest('community_reports', 'POST', { target_type: 'post', target_id: postId, reporter_id: '44444444-0000-4000-8000-000000000044', reason: '광고·도배', resolved_at: null })

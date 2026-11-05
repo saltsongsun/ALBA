@@ -7,7 +7,7 @@ import { CommentForm, DoubleTapLike, LikeButton, ReplyButton, ReportButton } fro
 import { ConfirmSubmit, ShareButton } from '@/components/ui'
 import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
-import { ago, canWrite, categoryOf, getPost, readAllowed, relatedPosts } from '@/lib/community'
+import { ago, canPost, canWrite, categoryOf, getPost, readAllowed, relatedPosts } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 import { linkedAmong } from '@/lib/coworkers'
@@ -43,7 +43,8 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
   const { post, comments } = got
   const cat = categoryOf(post.category)
   const mine = post.author_id === user.id
-  const writer = canWrite(user)
+  const writer = canWrite(user) // 동료 표시 등 근무자끼리 기능
+  const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
   const [related, pals] = await Promise.all([
     post.hidden_at ? [] : relatedPosts(post, user.id),
     writer ? linkedAmong(user.id, [post.author_id, ...comments.map((c) => c.author_id)]) : new Set<string>(),
@@ -77,7 +78,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
           {Date.parse(post.updated_at) - Date.parse(post.created_at) > 60_000 && <span data-edited> · 수정됨</span>}
         </p>
         {/* 내용을 두 번 톡 누르면 좋아요 */}
-        <DoubleTapLike enabled={writer}>
+        <DoubleTapLike enabled={poster}>
           {(() => {
             // 맨 끝 이모티콘 줄은 그림으로 (글쓰기의 '이모티콘 넣기')
             const { text, sticker } = splitPostBody(post.body)
@@ -94,10 +95,10 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
           })()}
         </DoubleTapLike>
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-          <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!writer} />
+          <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!poster} />
           <div className="flex items-center gap-3">
             {!post.hidden_at && <ShareButton title={post.title} text={`해피워크 커뮤니티: ${post.title}`} path={`/community/${post.id}`} className="text-xs font-semibold text-mute hover:text-brand-600" />}
-            {mine && writer && !post.hidden_at && (
+            {mine && poster && !post.hidden_at && (
               <Link href={`/community/${post.id}/edit`} className="text-xs font-semibold text-mute hover:text-brand-600" data-edit-link>
                 ✏️ 고치기
               </Link>
@@ -150,7 +151,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
                 </p>
                 )}
                 <div className="mt-1.5 flex items-center justify-end gap-3">
-                  {writer && !post.hidden_at && !c.mine && <ReplyButton nick={c.nick} />}
+                  {poster && !post.hidden_at && !c.mine && <ReplyButton nick={c.nick} />}
                   {(c.mine || user.isSuper) && (
                     <form action={deleteComment.bind(null, c.id, post.id)}>
                       <ConfirmSubmit className="text-xs font-semibold text-mute hover:text-rose-600" confirmText="한 번 더 누르면 지워져요">
@@ -164,12 +165,12 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
             ))}
           </ul>
         )}
-        {writer && !post.hidden_at ? (
+        {poster && !post.hidden_at ? (
           <div className="card">
             <CommentForm postId={post.id} />
           </div>
         ) : (
-          !writer && <p className="text-sm text-mute">읽기만 할 수 있는 계정이에요.</p>
+          !poster && <p className="text-sm text-mute">읽기만 할 수 있는 계정이에요.</p>
         )}
       </section>
 

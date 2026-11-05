@@ -64,3 +64,24 @@ export function wonKorean(n: number): string {
   }
   return out
 }
+
+/** 가린 휴대폰 번호: 010-****-4444 */
+export function maskPhone(p: string | null | undefined): string {
+  const d = (p ?? '').replace(/\D/g, '')
+  if (d.length < 8) return d ? '***' : ''
+  return `${d.slice(0, 3)}-****-${d.slice(-4)}`
+}
+
+/** 가린 주소: 앞의 두 단어(시·도 시·군·구)만 */
+export function maskAddress(a: string | null | undefined): string {
+  const w = (a ?? '').trim().split(/\s+/).filter(Boolean)
+  return w.length ? `${w.slice(0, 2).join(' ')} ···` : ''
+}
+
+/** 가린 이름: 김*아 */
+export function maskName(n: string | null | undefined): string {
+  const s = [...(n ?? '').trim()]
+  if (s.length <= 1) return s.join('')
+  if (s.length === 2) return `${s[0]}*`
+  return `${s[0]}${'*'.repeat(s.length - 2)}${s[s.length - 1]}`
+}

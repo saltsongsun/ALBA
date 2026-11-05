@@ -6,6 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
+import { phoneFmt } from '@/lib/format'
 import { audit, ensurePendingDocs, getJob, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
@@ -1393,6 +1394,37 @@ export async function revealRrn(userId: string, _: FormState): Promise<FormState
   return { ok: formatRrn(rrn) }
 }
 
+/** 전체 보기로 볼 수 있는 근무자 정보 (주민번호는 revealRrn) */
+export type RevealField = 'phone' | 'address' | 'account' | 'emergency'
+const REVEAL_LABEL: Record<RevealField, string> = { phone: '휴대폰 번호', address: '주소', account: '계좌', emergency: '비상연락처' }
+
+/**
+ * 보안: 근무자 상세의 휴대폰·주소·계좌·비상연락처는 가려 두고, '전체 보기'를 눌렀을 때만 보여 주며 누가 언제 봤는지 기록.
+ * 명단 잠금을 푼 관리자만 · 주소·계좌·비상연락처는 이 회사에 지원한 근무자만 (휴대폰은 확인된 회사면 회원 누구나) · 열람 횟수 제한
+ */
+export async function revealWorkerField(userId: string, field: RevealField): Promise<{ ok?: string; error?: string }> {
+  const admin = await requireAdmin()
+  if (!isUuid(userId) || !(field in REVEAL_LABEL)) return { error: '잘못된 요청입니다.' }
+  if (!(await rosterUnlockedFor(admin.id))) return { error: '근무자 명단 잠금이 풀려 있지 않아요. 근무자 화면에서 비밀번호를 넣어 주세요.' }
+  const related = await workerInCompany(admin.companyId, userId)
+  if (field === 'phone' ? !related && !admin.companyVerified : !related) return { error: '이 회사에 지원한 근무자만 볼 수 있어요.' }
+  if (await overLimit(`contact-view:${admin.id}`, 120, 3600)) return { error: '열람이 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
+  const { data } = await db().from('users').select('name, phone, address, bank_name, bank_account_enc, account_holder, emergency_phone').eq('id', userId).maybeSingle()
+  const u = data as { name: string; phone: string; address: string | null; bank_name: string | null; bank_account_enc: string | null; account_holder: string | null; emergency_phone: string | null } | null
+  if (!u) return { error: '근무자를 찾을 수 없어요.' }
+  let value: string | null = null
+  if (field === 'phone') value = phoneFmt(u.phone)
+  else if (field === 'address') value = u.address
+  else if (field === 'emergency') value = u.emergency_phone ? phoneFmt(u.emergency_phone) : null
+  else {
+    const acc = decrypt(u.bank_account_enc)
+    value = acc ? `${u.bank_name ?? ''} ${acc} (예금주 ${u.account_holder ?? u.name})`.trim() : null
+  }
+  if (!value) return { error: `등록된 ${REVEAL_LABEL[field]}가 없어요.` }
+  await audit(admin.id, `${field}.view`, userId, `관리자 화면 열람 · ${REVEAL_LABEL[field]}`, admin.companyId)
+  return { ok: value }
+}
+
 export async function resetPin(userId: string, _: FormState): Promise<FormState> {
   const admin = await requireAdmin()
   // 계정 가로채기 막기: 확인된 회사만, 이 회사에 확정됐거나 일한 '근무자' 계정만 (관리자·최고 관리자 계정은 최고 관리자만)
@@ -1427,14 +1459,16 @@ export async function updateWorker(userId: string, _: FormState, form: FormData)
   const admin = await requireAdmin()
   if (!(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 지원한 근무자가 아닙니다.' }
   const name = line(form, 'name', 30)
-  const phone = normalizePhone(str(form, 'phone'))
+  const { data: cur } = await db().from('users').select('role, active, is_super, name, phone, session_version').eq('id', userId).maybeSingle()
+  if (!cur) return { error: '근무자를 찾을 수 없습니다.' }
+  // 휴대폰 칸은 최고 관리자에게만 보냄 (다른 관리자 화면에는 가린 번호만) → 칸이 없으면 지금 번호 그대로
+  const phoneIn = form.has('phone') ? str(form, 'phone') : null
+  const phone = phoneIn === null ? cur.phone : normalizePhone(phoneIn)
   if (name.length < 2 || !phone) return { error: '이름과 휴대폰 번호를 확인해 주세요.' }
   const { data: dup } = await db().from('users').select('id').eq('phone', phone).neq('id', userId).maybeSingle()
   if (dup) return { error: '다른 계정이 쓰는 휴대폰 번호입니다.' }
   const makeAdmin = str(form, 'role') === 'admin'
   if (userId === admin.id && !makeAdmin) return { error: '자기 자신의 관리자 권한은 해제할 수 없습니다.' }
-  const { data: cur } = await db().from('users').select('role, active, is_super, name, phone, session_version').eq('id', userId).maybeSingle()
-  if (!cur) return { error: '근무자를 찾을 수 없습니다.' }
   if (cur.is_super && !makeAdmin) return { error: '최고 관리자의 관리자 권한은 해제할 수 없습니다.' }
   // 계정은 모든 회사 공용: 최고 관리자가 아니면 관리자·최고 관리자 계정은 못 고치고, 로그인 번호(휴대폰)는 바꿀 수 없음
   if (!admin.isSuper) {

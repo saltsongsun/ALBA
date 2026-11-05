@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { after } from 'next/server'
-import { AUTO_HIDE_REPORTS, canWrite, ensureNickname, isCategory, nicknameError, workedJob } from '@/lib/community'
+import { AUTO_HIDE_REPORTS, canPost, ensureNickname, isCategory, nicknameError, workedJob } from '@/lib/community'
 import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { sendPush, superAdminIds } from '@/lib/push'
@@ -25,7 +25,7 @@ const NEW_ACCOUNT_MIN = 10
 
 async function writer(next: string, form?: FormData) {
   const user = await requireUser(next)
-  if (!canWrite(user)) return { user, error: '회사 관리자·외주 업체 계정은 커뮤니티를 읽기만 할 수 있어요.' }
+  if (!canPost(user)) return { user, error: '외주 업체 계정은 커뮤니티를 읽기만 할 수 있어요.' }
   // 사람에게는 안 보이는 칸을 채웠으면 자동 입력 봇
   if (form && caughtByHoneypot(form)) return { user, error: '잠시 뒤에 다시 시도해 주세요.' }
   const { data } = await db().from('users').select('created_at').eq('id', user.id).maybeSingle()
@@ -166,7 +166,7 @@ export async function deleteComment(commentId: string, postId: string) {
 /** 좋아요 누르기·취소 */
 export async function toggleLike(postId: string): Promise<{ liked: boolean; likes: number } | { error: string }> {
   const user = await requireUser(`/community/${postId}`)
-  if (!canWrite(user)) return { error: '읽기만 할 수 있는 계정이에요.' }
+  if (!canPost(user)) return { error: '읽기만 할 수 있는 계정이에요.' }
   if (!isUuid(postId)) return { error: '글을 찾을 수 없어요.' }
   if (await overLimit(`community-like:${user.id}`, 120, 3600)) return { error: '잠시 뒤에 다시 눌러 주세요.' }
   const { data: had } = await db().from('community_likes').select('post_id').eq('post_id', postId).eq('user_id', user.id).maybeSingle()

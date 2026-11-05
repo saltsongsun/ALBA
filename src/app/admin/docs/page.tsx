@@ -72,6 +72,8 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
   const groups = new Map<string, DocRow[]>()
   for (const d of rows) groups.set(d.job_id, [...(groups.get(d.job_id) ?? []), d])
   const filtered = !!(f.q || f.job || f.status || f.kind)
+  // 공고 묶음은 처음엔 접어 둠 (공고가 하나뿐이거나 이름·공고로 찾는 중이면 펼침)
+  const openAll = groups.size <= 1 || !!(f.q || f.job)
   const total = (f.status ? base.filter((d) => d.status === f.status) : base.filter((d) => d.status !== 'void')).length
 
   return (
@@ -153,20 +155,34 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
             {[...groups.entries()].map(([jobId, list]) => {
               const job = list[0].job
               return (
-                <section key={jobId} className="card overflow-hidden p-0" data-docs-job={jobId}>
-                  <div className="flex items-center gap-2 border-b border-line px-4 py-3">
+                <details key={jobId} open={openAll} className="group card overflow-hidden p-0" data-docs-job={jobId}>
+                  {/* 공고(프로젝트)마다 접고 펴기: 접으면 공고 이름·건수·PDF만 */}
+                  <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 before:hidden group-open:border-b group-open:border-line [&::-webkit-details-marker]:hidden">
+                    <svg viewBox="0 0 24 24" className="size-4 shrink-0 -rotate-90 text-mute transition group-open:rotate-0" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-bold">{job?.title ?? '(지운 공고)'}</p>
-                      <p className="text-xs text-sub">
+                      <p className="text-xs text-sub tabular-nums">
                         {job ? fmtDateRange(job.start_date, job.end_date) : ''} · {list.length}건
+                        {(() => {
+                          const signed = list.filter((d) => d.status === 'signed').length
+                          const waiting = list.filter((d) => d.status === 'pending').length
+                          return (
+                            <>
+                              {signed > 0 && <span className="text-emerald-700"> · 서명 {signed}</span>}
+                              {waiting > 0 && <span className="font-semibold text-amber-700"> · 대기 {waiting}</span>}
+                            </>
+                          )
+                        })()}
                       </p>
                     </div>
                     {list.length > 1 && (
                       <a href={`/admin/docs/pdf${filterQuery({ ...f, job: jobId })}`} download className="chip h-8 shrink-0 px-3 text-xs" data-docs-job-pdf>
-                        <Icon name="printer" /> 이 공고 PDF
+                        <Icon name="printer" /> PDF
                       </a>
                     )}
-                  </div>
+                  </summary>
                   <ul className="divide-y divide-line">
                     {list.map((d) => (
                       <li key={d.id} className="flex items-center gap-2 px-4 py-3" data-doc-row={d.id}>
@@ -194,7 +210,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                       </li>
                     ))}
                   </ul>
-                </section>
+                </details>
               )
             })}
           </div>

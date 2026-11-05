@@ -10,6 +10,7 @@ import './globals.css'
 import { APP_DESCRIPTION, APP_NAME, BRAND_COLOR } from '@/lib/brand'
 import { SPLASH } from '@/lib/splash'
 import KeyboardWatch from '@/components/KeyboardWatch'
+import UsageTracker from '@/components/UsageTracker'
 
 // 모든 화면이 로그인 상태·DB를 읽으므로 빌드 시 미리 만들지 않습니다.
 export const dynamic = 'force-dynamic'
@@ -65,6 +66,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <KeyboardWatch />
         {/* 뒤에서 난 오류도 바로 복사해 보낼 수 있게 */}
         <ErrorToast />
+        {/* 화면 이동 기록 (자체 분석 · 개인정보 없이) */}
+        <UsageTracker />
       </body>
     </html>
   )

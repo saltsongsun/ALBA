@@ -56,7 +56,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok("보낸 뒤: '요청함' + '다시 요청'", (await a.locator('[data-account-asked]').innerText().catch(() => '')).includes('요청함') && (await ask.locator('button', { hasText: '다시 요청' }).count()) === 1)
 
   // ── 2. 연락 버튼 한 줄 · 근무 이력 목록 ──
-  const tops = await a.locator('[data-worker-contact] a').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
+  // 전화·문자는 누르면 열람을 기록하고 거는 버튼 (번호를 화면 코드에 싣지 않음) · 앱 메시지는 링크
+  const tops = await a.locator('[data-worker-contact] [data-contact-group] > *').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
   ok('전화·문자·앱 메시지가 한 줄', tops.length === 3 && new Set(tops).size === 1, JSON.stringify(tops))
   const hist = a.locator('[data-work-history]')
   ok("근무 이력: 표 대신 목록 · 오늘 근무 중이면 '근무 중'(0원·명세서 없음)", (await hist.count()) === 1 && (await a.locator('[data-work-history] ~ table, table').count()) === 0 && (await hist.locator('[data-live]').count()) === 1 && (await hist.locator('a[href*="/print/payslip/"]').count()) === 0)

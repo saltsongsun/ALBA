@@ -46,6 +46,7 @@ const MORE: { href: string; label: string; icon: IconName }[] = [
 ]
 const SUPER: { href: string; label: string; icon: IconName }[] = [
   { href: '/admin/companies', label: '회사 관리', icon: 'building' },
+  { href: '/admin/insights', label: '인사이트', icon: 'eye' },
   { href: '/admin/community', label: '커뮤니티 관리', icon: 'shield' },
 ]
 

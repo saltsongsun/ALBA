@@ -4,8 +4,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { assignWorkerToJob, deleteRating, requestAccount } from '@/app/actions/admin'
-import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
-import { ContactButtons } from '@/components/Contact'
+import { RatingForm, ResetPin, RevealInfo, RevealRrn, WorkerEditForm } from '@/components/admin'
 import Fold, { ShowMore } from '@/components/Fold'
 import PhotoUpload from '@/components/PhotoUpload'
 import Avatar from '@/components/Avatar'
@@ -14,7 +13,7 @@ import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
-import { phoneFmt, won } from '@/lib/format'
+import { maskAccount, maskAddress, maskName, maskPhone, won } from '@/lib/format'
 import { calcDay, settle, workingToday } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
@@ -144,8 +143,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       <Link href="/admin/workers" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 근무자 목록
       </Link>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <section className="card space-y-3">
+      <div className="grid items-start gap-4 lg:grid-cols-2">
+        <section className="card space-y-3.5">
           {/* 우리 회사에 지원한 사람만 관리자가 사진을 바꿀 수 있음 (지원 전 회원은 보기만) */}
           <Head userId={u.id} name={u.name} photoAt={u.photo_at} editable={related}>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -161,10 +160,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               {!u.active && <span className="badge bg-gray-100 text-mute">정지</span>}
             </div>
             {/* 지난 근무 성실도 (출퇴근 기록 기준) */}
-            <p className="mt-1 text-sm text-sub">
-              근무 {rel.days}일 · 지각 {rel.late}회 ·{' '}
-              <span className={rel.noShow ? 'font-bold text-rose-600' : ''}>노쇼 {rel.noShow}회</span>
-              {rel.dismissed > 0 && <b className="text-rose-600"> · 귀가 조치 {rel.dismissed}회</b>}
+            <p className="mt-1.5 flex flex-wrap gap-1 text-xs font-semibold tabular-nums" data-worker-rel>
+              <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-emerald-700">근무 {rel.days}일</span>
+              <span className={`rounded-lg px-2 py-0.5 ${rel.late ? 'bg-amber-50 text-amber-700' : 'bg-bg text-sub'}`}>지각 {rel.late}회</span>
+              <span className={`rounded-lg px-2 py-0.5 ${rel.noShow ? 'bg-rose-50 text-rose-600' : 'bg-bg text-sub'}`}>노쇼 {rel.noShow}회</span>
+              {rel.dismissed > 0 && <span className="rounded-lg bg-rose-50 px-2 py-0.5 text-rose-600">귀가 조치 {rel.dismissed}회</span>}
             </p>
             {/* 전문가: 분야·소개·포트폴리오 */}
             {(u.specialty || u.intro || u.portfolio_url) && (
@@ -178,25 +178,30 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                 )}
               </div>
             )}
-            {!!u.careers?.length && (
-              <ul className="mt-2 space-y-0.5 text-sm">
+          </Head>
+          {/* 경력 (본인이 적은 행사 경험) */}
+          {!!u.careers?.length && (
+            <div className="rounded-xl bg-bg px-3.5 py-2.5" data-worker-careers>
+              <p className="mb-1 text-xs font-bold text-mute">경력 {u.careers.length}</p>
+              <ul className="space-y-1 text-sm">
                 {u.careers.map((c, i) => (
-                  <li key={i} className="text-sub">
-                    🎪 {careerText(c)}
+                  <li key={i} className="flex gap-2 leading-snug text-sub">
+                    <span aria-hidden className="mt-[7px] size-1.5 shrink-0 rounded-full bg-brand-500" />
+                    <span className="min-w-0">{careerText(c)}</span>
                   </li>
                 ))}
               </ul>
-            )}
-          </Head>
-          <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
+            </div>
+          )}
+          <dl className="grid grid-cols-[96px_1fr] items-baseline gap-y-2.5 text-sm">
+            {/* 보안: 휴대폰·주소·계좌·비상연락처는 가려 두고 '전체 보기'(기록됨) · 전화·문자도 누르면 기록하고 바로 걸기 */}
             <dt className="text-mute">휴대폰</dt>
-            <dd className="tabular-nums">{phoneFmt(u.phone)}</dd>
-            {/* 연락 버튼은 한 줄로 (휴대폰에서 세 줄로 갈라지지 않게 칸 전체 너비) */}
-            <dd className="col-span-2 -mt-0.5 flex flex-wrap items-center gap-1.5" data-worker-contact>
-              <ContactButtons phone={u.phone} name={u.name} showNumber={false} />
-              <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
-                앱 메시지
-              </Link>
+            <dd className="flex flex-wrap items-center gap-1.5 tabular-nums" data-worker-contact>
+              <RevealInfo userId={u.id} field="phone" masked={maskPhone(u.phone)} call>
+                <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
+                  앱 메시지
+                </Link>
+              </RevealInfo>
             </dd>
             <dt className="text-mute">생년월일</dt>
             <dd>{u.birth_date ? fmtDateLong(u.birth_date) : '-'}</dd>
@@ -207,11 +212,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               <RevealRrn userId={u.id} masked={u.rrn_masked} />
             </dd>
             <dt className="text-mute">주소</dt>
-            <dd>{u.address ?? '-'}</dd>
+            <dd>{u.address ? <RevealInfo userId={u.id} field="address" masked={maskAddress(u.address)} /> : '-'}</dd>
             <dt className="text-mute">계좌</dt>
             <dd>
               {account ? (
-                `${u.bank_name ?? ''} ${account} (예금주 ${u.account_holder ?? u.name})`
+                <RevealInfo userId={u.id} field="account" masked={`${u.bank_name ?? ''} ${maskAccount(account)} (예금주 ${maskName(u.account_holder ?? u.name)})`.trim()} />
               ) : (
                 // 계좌가 없으면 이 화면에서 바로 요청 (앱 문의함 + 휴대폰 알림 → 계좌번호 칸으로)
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1" data-account-ask>
@@ -239,7 +244,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               )}
             </dd>
             <dt className="text-mute">비상연락처</dt>
-            <dd>{u.emergency_phone ? <ContactButtons phone={u.emergency_phone} name={`${u.name} 비상연락처`} /> : '-'}</dd>
+            <dd>{u.emergency_phone ? <RevealInfo userId={u.id} field="emergency" masked={maskPhone(u.emergency_phone)} call /> : '-'}</dd>
               </>
             )}
             <dt className="text-mute">가입</dt>
@@ -248,54 +253,58 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               <span className="block text-xs text-mute">개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}</span>
             </dd>
           </dl>
-          {/* 모집 중인 공고에 바로 확정 (예전에 잘한 사람 다시 부르기) */}
-          {u.active && assignable.length > 0 && (
-            <form action={assignWorkerToJob.bind(null, u.id)} className="flex flex-wrap items-center gap-2 border-t border-line pt-3">
-              <select name="job_id" className="input min-w-0 flex-1 py-2 text-sm" required defaultValue="">
-                <option value="" disabled>
-                  공고 골라 바로 확정
-                </option>
-                {assignable.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {fmtDateRange(j.start_date, j.end_date)} · {j.title}
-                  </option>
-                ))}
-              </select>
-              <ConfirmSubmit className="btn-primary btn-sm" confirmText="한 번 더 누르면 확정돼요">
-                확정으로 추가
-              </ConfirmSubmit>
-            </form>
-          )}
-          {related ? (
-            // 비밀번호 초기화: 근무자 계정만 (관리자 계정은 최고 관리자만)
-            (u.role === 'worker' || admin.isSuper) && u.id !== admin.id && (
-              <div className="border-t border-line pt-3">
-                <ResetPin userId={u.id} />
-              </div>
-            )
-          ) : (
+          {!related && (
             <p className="rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub">
               아직 우리 회사에 지원한 적 없는 회원이에요. 공고에 확정하거나 이 사람이 지원하면 주민번호·계좌·주소를 볼 수 있어요.
             </p>
           )}
         </section>
+        {/* 오른쪽(넓은 화면): 바로 확정 · 정보 수정 · 평가 · 근무 이력 · 지원 내역 · 서류 — 휴대폰은 아래로 차례대로 */}
+        <div className="space-y-3" data-worker-side>
+          {/* 모집 중인 공고에 바로 확정 (예전에 잘한 사람 다시 부르기) */}
+          {u.active && assignable.length > 0 && (
+            <section className="card space-y-2.5 p-4" data-worker-assign>
+              <div>
+                <h2 className="font-bold">공고에 바로 확정</h2>
+                <p className="text-xs text-mute">지원 없이 이 사람을 모집 중인 공고에 확정해요</p>
+              </div>
+              <form action={assignWorkerToJob.bind(null, u.id)} className="flex flex-wrap items-center gap-2">
+                <select name="job_id" className="input min-w-0 flex-1 py-2 text-sm" required defaultValue="">
+                  <option value="" disabled>
+                    공고 골라 바로 확정
+                  </option>
+                  {assignable.map((j) => (
+                    <option key={j.id} value={j.id}>
+                      {fmtDateRange(j.start_date, j.end_date)} · {j.title}
+                    </option>
+                  ))}
+                </select>
+                <ConfirmSubmit className="btn-primary btn-sm" confirmText="한 번 더 누르면 확정돼요">
+                  확정으로 추가
+                </ConfirmSubmit>
+              </form>
+            </section>
+          )}
         {related && (
-        <div className="self-start">
           <Fold
             title="정보 수정"
             summary={[u.role === 'admin' ? '관리자' : '근무자', u.active ? '사용 중' : '정지', u.admin_memo && `메모: ${u.admin_memo}`].filter(Boolean).join(' · ')}
           >
             <WorkerEditForm
               userId={u.id}
-              initial={{ name: u.name, phone: u.phone, role: u.role, active: u.active, admin_memo: u.admin_memo ?? '' }}
+              initial={{ name: u.name, phone: admin.isSuper ? u.phone : maskPhone(u.phone), role: u.role, active: u.active, admin_memo: u.admin_memo ?? '' }}
               canSuspend={admin.isSuper}
               canEditIdentity={admin.isSuper}
               canGrant={admin.isSuper || (admin.companyVerified && admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner')}
             />
+            {/* 비밀번호 초기화: 근무자 계정만 (관리자 계정은 최고 관리자만) */}
+            {(u.role === 'worker' || admin.isSuper) && u.id !== admin.id && (
+              <div className="mt-3 border-t border-line pt-3">
+                <ResetPin userId={u.id} />
+              </div>
+            )}
           </Fold>
-        </div>
         )}
-      </div>
 
       <Fold
         title="관리자 평가"
@@ -383,7 +392,6 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         )}
       </Fold>
 
-      <div className="grid items-start gap-3 lg:grid-cols-2">
         <Fold
           title="지원 내역"
           className="divide-y divide-line"
@@ -415,6 +423,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             </Link>
           ))}
         </Fold>
+        </div>
       </div>
     </div>
   )
