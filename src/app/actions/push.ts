@@ -33,3 +33,20 @@ export async function removePushSubscription(endpoint: string) {
   const user = await requireUser()
   await db().from('push_subscriptions').delete().eq('endpoint', String(endpoint).slice(0, 1000)).eq('user_id', user.id)
 }
+
+/** 알림 단계: 'all' 전체 알림 듣기 / 'min' 최소 알림 듣기 (나를 직접 부른 알림·중요 시스템 알림만) */
+export async function setPushLevel(level: string): Promise<{ ok?: string; error?: string }> {
+  const user = await requireUser()
+  if (level !== 'all' && level !== 'min') return { error: '잘못된 요청입니다.' }
+  const { error } = await db().from('users').update({ push_level: level }).eq('id', user.id)
+  if (error) return { error: '저장하지 못했어요. 잠시 뒤에 다시 시도해 주세요.' }
+  return { ok: level === 'min' ? '최소 알림만 받아요' : '모든 알림을 받아요' }
+}
+
+/** 내 알림 단계 (칸이 아직 없으면 전체) */
+export async function myPushLevel(): Promise<'all' | 'min'> {
+  const user = await requireUser()
+  const { data, error } = await db().from('users').select('push_level').eq('id', user.id).maybeSingle()
+  if (error) return 'all'
+  return (data as { push_level?: string | null } | null)?.push_level === 'min' ? 'min' : 'all'
+}

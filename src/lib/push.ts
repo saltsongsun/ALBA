@@ -30,11 +30,31 @@ export function pushPublicKey(): string | null {
 
 export type PushMessage = { title: string; body: string; url: string; tag?: string }
 
-/** 여러 사람에게 알림. 실패해도 오류를 내지 않음 (알림은 덤). 없어진 기기 등록은 지움 */
-export async function sendPush(userIds: string[], msg: PushMessage): Promise<void> {
+/**
+ * '최소 알림 듣기'를 고른 사람은 빼고 (전체 알림만 받는 사람만).
+ * 알림 단계 칸을 못 읽으면(예: DB 적용 전) 아무도 빼지 않음 — 알림이 엉뚱하게 끊기지 않게
+ */
+async function allLevelOnly(ids: string[]): Promise<string[]> {
+  const minimal = new Set<string>()
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await db().from('users').select('id, push_level').in('id', ids.slice(i, i + 100))
+    if (error) return ids
+    for (const r of (data ?? []) as { id: string; push_level?: string | null }[]) if (r.push_level === 'min') minimal.add(r.id)
+  }
+  return ids.filter((id) => !minimal.has(id))
+}
+
+/**
+ * 여러 사람에게 알림. 실패해도 오류를 내지 않음 (알림은 덤). 없어진 기기 등록은 지움.
+ * optional: 꼭 받을 필요는 없는 알림 (단체방 일반 메시지·커뮤니티·새 모집·단체 공지·새 지원자 등) → '최소 알림' 고른 사람에게는 안 보냄.
+ * 나를 직접 부른 알림(@언급·1:1 답장·내 지원 결과·서명할 서류·근무 변경 등)과 중요 시스템 알림은 optional 없이 보냄
+ */
+export async function sendPush(userIds: string[], msg: PushMessage, opts: { optional?: boolean } = {}): Promise<void> {
   try {
-    const ids = [...new Set(userIds)].filter(Boolean)
+    let ids = [...new Set(userIds)].filter(Boolean)
     if (!ids.length || !vapidKeys()) return
+    if (opts.optional) ids = await allLevelOnly(ids)
+    if (!ids.length) return
     const subs = must(await db().from('push_subscriptions').select('id, endpoint, p256dh, auth').in('user_id', ids)) as {
       id: string
       endpoint: string

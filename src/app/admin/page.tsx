@@ -1,3 +1,5 @@
+import PushLevel from '@/components/PushLevel'
+import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
@@ -793,8 +795,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </Link>
       )}
       {/* 휴대폰 알림 켜기·상태 (맨 아래) */}
-      <div className="card p-4">
+      <div className="card space-y-4 p-4" data-push-settings>
         <PushToggle publicKey={pushPublicKey()} admin />
+        <PushLevel initial={await myPushLevel()} admin />
       </div>
     </div>
   )

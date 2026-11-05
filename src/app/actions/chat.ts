@@ -128,7 +128,7 @@ export async function announceToJob(jobId: string, _: FormState, form: FormData)
   await audit(admin.id, 'job.announce', null, `${jobId} ${target} ${to.length}명`, admin.companyId)
   after(async () => {
     const job = await getJob(jobId)
-    await sendPush(to, { title: `📢 공지${job ? ` · ${job.title}` : ''}`, body, url: '/me', tag: `notice-${jobId}` })
+    await sendPush(to, { title: `📢 공지${job ? ` · ${job.title}` : ''}`, body, url: '/me', tag: `notice-${jobId}` }, { optional: true })
   })
   revalidatePath('/admin/chat')
   return { ok: `${to.length}명에게 앱으로 보냈어요` }
@@ -158,7 +158,7 @@ export async function inviteToJob(jobId: string, _: FormState, form: FormData): 
   ].join('\n')
   must(await db().from('messages').insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, company_id: admin.companyId, job_id: job.id, body }))))
   await audit(admin.id, 'job.invite', null, `${jobId} ${to.length}명`, admin.companyId)
-  after(() => sendPush(to, { title: '📣 새 모집', body: `${job.title} · ${scheduleSummary(job)}`, url: `/jobs/${job.id}`, tag: `invite-${job.id}` }))
+  after(() => sendPush(to, { title: '📣 새 모집', body: `${job.title} · ${scheduleSummary(job)}`, url: `/jobs/${job.id}`, tag: `invite-${job.id}` }, { optional: true }))
   revalidatePath('/admin/chat')
   return { ok: `${to.length}명에게 앱으로 알렸어요${applied.size ? ` (이미 지원한 ${applied.size}명 제외)` : ''}` }
 }

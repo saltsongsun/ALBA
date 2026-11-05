@@ -135,7 +135,7 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
   must(await db().from('community_comments').insert({ post_id: postId, author_id: user.id, body: maskPhones(body) }))
   // 글쓴이에게 알림 (내 글에 내가 단 댓글은 빼고, 글마다 10분에 한 번)
   if (p.author_id !== user.id && !(await overLimit(`community-notify:${postId}`, 1, 600))) {
-    after(() => sendPush([p.author_id], { title: `💬 ${nick}님이 댓글을 달았어요`, body: `${p.title}: ${plainBody(body).slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
+    after(() => sendPush([p.author_id], { title: `💬 ${nick}님이 댓글을 달았어요`, body: `${p.title}: ${plainBody(body).slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }, { optional: true }))
   }
   // 답글('@별명 ...')이면 그 댓글을 단 사람에게도 알림 (이 글에 댓글을 단 사람만, 10분에 한 번)
   const tag = body.match(/^@(\S{2,12})\s/)?.[1]
@@ -145,7 +145,7 @@ export async function addComment(postId: string, _: State, form: FormData): Prom
     if (target && target.id !== user.id && target.id !== p.author_id) {
       const { count: commented } = await db().from('community_comments').select('id', { count: 'exact', head: true }).eq('post_id', postId).eq('author_id', target.id)
       if (commented && !(await overLimit(`community-reply:${postId}:${target.id}`, 1, 600))) {
-        after(() => sendPush([target.id], { title: `↩ ${nick}님이 답글을 달았어요`, body: `${p.title}: ${plainBody(body).slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }))
+        after(() => sendPush([target.id], { title: `↩ ${nick}님이 답글을 달았어요`, body: `${p.title}: ${plainBody(body).slice(0, 60)}`, url: `/community/${postId}`, tag: `community-${postId}` }, { optional: true }))
       }
     }
   }

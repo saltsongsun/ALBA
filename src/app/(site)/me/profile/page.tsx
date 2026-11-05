@@ -1,3 +1,5 @@
+import PushLevel from '@/components/PushLevel'
+import { myPushLevel } from '@/app/actions/push'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import CareerForm from '@/components/CareerForm'
@@ -200,8 +202,9 @@ export default async function ProfilePage() {
           <CareerForm initial={(me.careers as Career[] | null) ?? []} />
         </div>
       )}
-      <div className="card p-4">
+      <div className="card space-y-4 p-4" data-push-settings>
         <PushToggle publicKey={pushPublicKey()} />
+        <PushLevel initial={await myPushLevel()} />
       </div>
       <div className="card divide-y divide-line p-0 [&>*]:p-4">
         <TextSizeToggle />

@@ -87,7 +87,7 @@ export async function applyJob(jobId: string, form: FormData) {
       body: `${user.name} · ${job.title}`,
       url: `/admin/jobs/${jobId}?tab=apps`,
       tag: `apply-${jobId}`,
-    }),
+    }, { optional: true }),
   )
   revalidatePath('/me')
   // 전문가 의뢰는 전문가 화면의 '내 일' 탭으로 안내

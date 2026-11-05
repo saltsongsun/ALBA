@@ -30,7 +30,7 @@ export async function linkCoworker(targetId: string) {
       body: now ? '같은 공고에 지원하면 서로 보여요.' : '함께 일했던 사람이에요. 수락하면 같은 공고에 지원했을 때 서로 보여요.',
       url: PAGE,
       tag: `coworker-${user.id}`,
-    }),
+    }, { optional: true }),
   )
   revalidatePath(PAGE)
 }

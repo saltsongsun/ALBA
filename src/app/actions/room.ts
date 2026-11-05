@@ -65,8 +65,8 @@ export async function sendRoom(jobId: string, _: FormState, form: FormData): Pro
     const plain = (list: { id: string }[]) => list.map((p) => p.id).filter((id) => id !== user.id && !called.has(id))
     const mention = { title: `👥 ${title} · ${user.name}님이 나를 언급했어요`, body: plainBody(body) }
     await Promise.all([
-      sendPush(plain(workers), { title: `👥 ${title}`, body: text, url: `/me/chat/room/${jobId}`, tag }),
-      sendPush(plain(admins), { title: `👥 ${title}`, body: text, url: `/admin/chat/room/${jobId}`, tag }),
+      sendPush(plain(workers), { title: `👥 ${title}`, body: text, url: `/me/chat/room/${jobId}`, tag }, { optional: true }),
+      sendPush(plain(admins), { title: `👥 ${title}`, body: text, url: `/admin/chat/room/${jobId}`, tag }, { optional: true }),
       sendPush(workers.filter((w) => called.has(w.id)).map((w) => w.id), { ...mention, url: `/me/chat/room/${jobId}`, tag: `${tag}-at` }),
       sendPush(admins.filter((a) => called.has(a.id)).map((a) => a.id), { ...mention, url: `/admin/chat/room/${jobId}`, tag: `${tag}-at` }),
     ])
