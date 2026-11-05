@@ -932,6 +932,104 @@ export async function bulkClockOut(jobId: string, date: string) {
   back(`/admin/jobs/${jobId}?tab=att&date=${date}`, `${open.length}명을 근무 종료 처리했습니다.`)
 }
 
+/** 출석 체크로 고른 사람 (form의 user_ids · 중복·이상한 값 빼고 최대 500명) */
+const pickedIds = (form: FormData) => [...new Set(form.getAll('user_ids').map(String).filter(isUuid))].slice(0, 500)
+
+/**
+ * 출석 체크 → 고른 사람들 한 번에 근무 시작 (오늘만).
+ * 이 공고에 확정되고 그날 근무하는 사람만 · 이미 기록이 있으면 건너뜀 · 시각은 지금 또는 (이미 지났으면) 그 사람의 근무 시작 시각.
+ * 근무자 문의함·휴대폰으로 '출근 처리됐어요' 알림 (일이 끝나면 근무자가 직접 종료하거나 관리자가 일괄 종료)
+ */
+export async function bulkClockIn(jobId: string, date: string, form: FormData) {
+  const admin = await requireAdmin()
+  const job = isDate(date) ? await companyJob(admin, jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=att&date=${date}&view=check`
+  if (date !== kstDate()) back(path, '출석 체크로 근무 시작은 오늘만 할 수 있어요. 다른 날은 기록 추가로 넣어 주세요.')
+  if (job.status === 'cancelled' || job.status === 'draft') back(path, '취소됐거나 임시 저장인 공고예요.')
+  const ids = pickedIds(form)
+  if (!ids.length) back(path, '근무를 시작할 사람을 골라 주세요.')
+  const [apps, have] = await Promise.all([
+    db().from('applications').select('user_id, available_dates').eq('job_id', jobId).eq('status', 'approved').in('user_id', ids).then((r) => must(r) as { user_id: string; available_dates: string[] | null }[]),
+    db().from('attendance').select('user_id').eq('job_id', jobId).eq('work_date', date).in('user_id', ids).then((r) => new Set((must(r) as { user_id: string }[]).map((a) => a.user_id))),
+  ])
+  // 이 공고 확정자 중 그날 근무하는 사람만 (아무 회원 id로 기록을 만들지 못하게)
+  const todo = apps.filter((a) => (!a.available_dates || a.available_dates.includes(date)) && !have.has(a.user_id)).map((a) => a.user_id)
+  if (!todo.length) back(path, have.size ? '고른 사람은 이미 근무를 시작했어요.' : '이날 근무하는 확정자를 골라 주세요.')
+  const now = new Date()
+  const atStart = form.get('at') === 'start'
+  const rows = await Promise.all(
+    todo.map(async (uid) => {
+      const sched = await agreedShiftFor(jobId, uid, date)
+      const start = kstAt(date, sched.sched_start ?? job.start_time)
+      const at = atStart && start < now ? start : now
+      return { job_id: jobId, user_id: uid, work_date: date, clock_in: at.toISOString(), source: 'admin', note: '관리자 출석 체크', ...sched }
+    }),
+  )
+  // 한 번에 넣고, 그사이 누가 직접 시작해 겹치면 한 명씩 (겹친 사람만 건너뜀)
+  let done = rows
+  const { error } = await db().from('attendance').insert(rows)
+  if (error) {
+    const ok = await Promise.all(rows.map(async (r) => !(await db().from('attendance').insert(r)).error))
+    done = rows.filter((_, i) => ok[i])
+  }
+  if (!done.length) back(path, '근무 시작으로 기록하지 못했어요. 잠시 뒤에 다시 해 주세요.')
+  const atOf = new Map(done.map((r) => [r.user_id, kstTime(r.clock_in)]))
+  await audit(admin.id, 'attendance.bulk_in', null, `${date} ${done.length}명${atStart ? ' (근무 시작 시각으로)' : ''}`, admin.companyId)
+  await tellWorkers([...atOf.keys()], {
+    senderId: admin.id,
+    companyId: admin.companyId,
+    jobId,
+    title: '✅ 출근 처리됐어요',
+    text: (uid) => `${job.title} · 담당자가 출석을 확인하고 ${atOf.get(uid)} 근무 시작으로 기록했어요. 일이 끝나면 앱에서 '근무 종료'를 눌러 주세요.`,
+    tag: `clockin-${jobId}`,
+  })
+  revalidatePath(`/admin/jobs/${jobId}`)
+  const skipped = ids.length - done.length
+  back(path, `${done.length}명 근무 시작으로 기록했어요.${skipped ? ` (이미 시작했거나 이날 근무가 아닌 ${skipped}명은 건너뜀)` : ''}`)
+}
+
+/**
+ * 출석 체크에서 고른 '근무 중'인 사람들만 한 번에 근무 종료.
+ * 시각은 미종료 일괄 종료와 같게: 그 사람의 종료 시각(연장에 동의했으면 그 시각)이 지났으면 그 시각, 아니면 지금. 근무자에게 알림
+ */
+export async function bulkClockOutPicked(jobId: string, date: string, form: FormData) {
+  const admin = await requireAdmin()
+  const job = isDate(date) ? await companyJob(admin, jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=att&date=${date}&view=check`
+  if (date > kstDate()) back(path, '아직 오지 않은 날이에요.')
+  const ids = pickedIds(form)
+  if (!ids.length) back(path, '근무를 종료할 사람을 골라 주세요.')
+  const open = must(
+    await db().from('attendance').select('id, user_id, clock_in, sched_start, sched_end, note').eq('job_id', jobId).eq('work_date', date).is('clock_out', null).in('user_id', ids),
+  ) as { id: string; user_id: string; clock_in: string; sched_start: string | null; sched_end: string | null; note: string | null }[]
+  if (!open.length) back(path, '고른 사람 중 근무 중인 사람이 없어요.')
+  const now = new Date()
+  const outOf = new Map<string, string>()
+  await Promise.all(
+    open.map(async (a) => {
+      const end = scheduledEnd(shiftOf(job, a), date)
+      const out = end < now ? end : now
+      const t = new Date(a.clock_in) < out ? out : now
+      const note = [a.note, '관리자 일괄 종료'].filter(Boolean).join(' · ').slice(0, 300)
+      const { error } = await db().from('attendance').update({ clock_out: t.toISOString(), note }).eq('id', a.id).is('clock_out', null)
+      if (!error) outOf.set(a.user_id, kstTime(t))
+    }),
+  )
+  await audit(admin.id, 'attendance.bulk_out', null, `${date} ${outOf.size}명`, admin.companyId)
+  await tellWorkers([...outOf.keys()], {
+    senderId: admin.id,
+    companyId: admin.companyId,
+    jobId,
+    title: '🏁 근무 종료로 기록했어요',
+    text: (uid) => `${job.title} · 담당자가 ${outOf.get(uid)} 근무 종료로 기록했어요. 시각이 다르면 앱에서 기록 정정을 요청해 주세요.`,
+    tag: `clockout-${jobId}`,
+  })
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back(path, `${outOf.size}명 근무 종료로 기록했어요.`)
+}
+
 export async function confirmDay(jobId: string, date: string) {
   const admin = await requireAdmin()
   if (!isDate(date) || !(await companyJob(admin, jobId))) return

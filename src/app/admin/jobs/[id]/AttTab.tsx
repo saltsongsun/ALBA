@@ -1,12 +1,13 @@
 import Icon from '@/components/Icon'
 import Link from 'next/link'
-import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockIn, bulkClockOut, bulkClockOutPicked, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
+import RollCall from '@/components/RollCall'
 import ShiftChange from '@/components/ShiftChange'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
@@ -31,6 +32,7 @@ export default async function AttTab({
   pos,
   openShift = false,
   faces = false,
+  check = false,
   fix = null,
 }: {
   job: Job
@@ -48,6 +50,8 @@ export default async function AttTab({
   openShift?: boolean
   /** 얼굴 명단으로 보기 (현장 입구에서 얼굴 확인용) */
   faces?: boolean
+  /** 출석 체크 (얼굴 보며 체크 → 한 번에 근무 시작·종료, 오늘만) */
+  check?: boolean
   /** 정산 탭 '출퇴근에서 고치기'로 온 사람 (그 줄로 가서 잠깐 반짝) */
   fix?: string | null
 }) {
@@ -142,9 +146,12 @@ export default async function AttTab({
   const positions = [...new Set(apps.map((a) => a.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, 'ko'))
   const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
   const shown = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
+  // 출석 체크는 오늘(진행 중인 공고)만
+  const canCheck = date === today && !['cancelled', 'draft'].includes(job.status)
+  const view: 'list' | 'faces' | 'check' = check && canCheck ? 'check' : faces ? 'faces' : 'list'
   const posHref = (p: string | null) =>
-    `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}${faces ? '&view=faces' : ''}`
-  const viewHref = (f: boolean) => `/admin/jobs/${job.id}?tab=att&date=${date}${pos === null ? '' : `&pos=${encodeURIComponent(pos)}`}${f ? '&view=faces' : ''}`
+    `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}${view === 'list' ? '' : `&view=${view}`}`
+  const viewHref = (v: 'list' | 'faces' | 'check') => `/admin/jobs/${job.id}?tab=att&date=${date}${pos === null ? '' : `&pos=${encodeURIComponent(pos)}`}${v === 'list' ? '' : `&view=${v}`}`
 
   return (
     <div className="space-y-4">
@@ -339,27 +346,50 @@ export default async function AttTab({
         ))}
       </datalist>
 
-      {/* 보기: 자세한 목록 / 얼굴 명단 (입구에서 얼굴로 확인) */}
+      {/* 보기: 자세한 목록 / 얼굴 명단 (입구에서 얼굴로 확인) / 출석 체크 (오늘: 체크 → 한 번에 시작·종료) */}
       {roster.length > 0 && (
-        <div className="flex gap-1 rounded-xl bg-white p-1 text-sm font-semibold ring-1 ring-line">
+        <div className="flex gap-1 rounded-xl bg-white p-1 text-sm font-semibold ring-1 ring-line" data-att-views>
           {(
             [
-              [false, '자세히'],
-              [true, '👤 얼굴 명단'],
+              ['list', '자세히', null],
+              ['faces', '얼굴 명단', 'users'],
+              ...(canCheck ? ([['check', '출석 체크', 'check']] as const) : []),
             ] as const
-          ).map(([f, label]) => (
+          ).map(([v, label, icon]) => (
             <Link
-              key={label}
-              href={viewHref(f)}
+              key={v}
+              href={viewHref(v)}
               scroll={false}
-              className={`flex-1 rounded-lg py-1.5 text-center transition ${faces === f ? 'bg-ink text-white' : 'text-mute'}`}
+              data-view={v}
+              className={`flex flex-1 items-center justify-center gap-1 rounded-lg py-1.5 whitespace-nowrap transition ${view === v ? 'bg-ink text-white' : 'text-mute'}`}
             >
+              {icon && <Icon name={icon} />}
               {label}
             </Link>
           ))}
         </div>
       )}
-      {faces && (
+      {view === 'check' && (
+        <RollCall
+          people={shown.map((uid) => {
+            const a = byUser.get(uid)
+            const late = lateOf.get(uid)
+            return {
+              id: uid,
+              name: users.get(uid)?.name ?? '알 수 없음',
+              photoAt: users.get(uid)?.photo_at ?? null,
+              pos: posOf(uid),
+              state: !a ? 'absent' : !a.clock_out ? 'working' : 'done',
+              hint: a ? undefined : arriveOf.has(uid) ? '출근 요청' : late ? `${late.minutes}분 늦음` : undefined,
+            }
+          })}
+          start={bulkClockIn.bind(null, job.id, date)}
+          end={bulkClockOutPicked.bind(null, job.id, date)}
+          startTime={hhmm(dayShift.start)}
+          startPassed={Date.now() >= kstAt(date, dayShift.start).getTime()}
+        />
+      )}
+      {view === 'faces' && (
         <div className="stagger grid grid-cols-2 gap-2 sm:grid-cols-4">
           {shown.map((uid) => {
             const u = users.get(uid)
@@ -386,7 +416,7 @@ export default async function AttTab({
         </div>
       )}
 
-      <div className={`stagger space-y-2 ${faces ? 'hidden' : ''}`}>
+      <div className={`stagger space-y-2 ${view !== 'list' ? 'hidden' : ''}`}>
         {roster.length === 0 && <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>}
         {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">이 배치에 해당하는 사람이 없습니다.</div>}
         {shown.map((uid) => {
