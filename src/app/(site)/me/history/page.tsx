@@ -227,12 +227,17 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Link href={`/print/payslip/${job.id}/${user.id}`} className="btn-soft btn-sm">
-                        {job.tax_type === 'business' ? '지급명세서' : '임금명세서'}
-                      </Link>
-                      <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
-                        근무확인서
-                      </Link>
+                      {/* 첫 근무가 아직 진행 중이면 명세서·확인서·후기는 끝난 뒤에 (0원 명세서·일하기 전 후기 막기) */}
+                      {!(live > 0 && s.days === 0) && (
+                        <>
+                          <Link href={`/print/payslip/${job.id}/${user.id}`} className="btn-soft btn-sm">
+                            {job.tax_type === 'business' ? '지급명세서' : '임금명세서'}
+                          </Link>
+                          <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
+                            근무확인서
+                          </Link>
+                        </>
+                      )}
                       {docOpen(job.id)
                         ? docs
                             .filter((d) => d.job_id === job.id)
@@ -247,7 +252,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                             </Link>
                           )}
                       {/* 회사·행사 후기: 실제로 일한 공고만, 별명으로 */}
-                      {reviewer && worked && (
+                      {reviewer && worked && !(live > 0 && s.days === 0) && (
                         <Link href={`/me/review/${job.id}`} className={`btn-sm ${reviewed.has(job.id) ? 'btn-gray' : 'btn-soft'}`} data-review-link>
                           {reviewed.has(job.id) ? '⭐ 내 후기' : '⭐ 후기 쓰기'}
                         </Link>

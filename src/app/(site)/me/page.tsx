@@ -799,12 +799,17 @@ export default async function MePage(props: PageProps<'/me'>) {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Link href={`/print/payslip/${job.id}/${user.id}`} className="btn-soft btn-sm">
-                    {job.tax_type === 'business' ? '지급명세서' : '임금명세서'}
-                  </Link>
-                  <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
-                    근무확인서
-                  </Link>
+                  {/* 첫 근무가 아직 진행 중이면 명세서·확인서는 끝난 뒤에 (0원 명세서 막기) */}
+                  {!(live > 0 && s.days === 0) && (
+                    <>
+                      <Link href={`/print/payslip/${job.id}/${user.id}`} className="btn-soft btn-sm">
+                        {job.tax_type === 'business' ? '지급명세서' : '임금명세서'}
+                      </Link>
+                      <Link href={`/print/cert/${job.id}/${user.id}`} className="btn-gray btn-sm">
+                        근무확인서
+                      </Link>
+                    </>
+                  )}
                   {docOpen(job.id)
                     ? docs
                         .filter((d) => d.job_id === job.id && d.status === 'signed')

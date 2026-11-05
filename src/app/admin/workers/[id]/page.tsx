@@ -3,7 +3,7 @@ import { ROSTER_MINUTES, rosterUnlockedFor, rosterViewAllowed } from '@/lib/rost
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { assignWorkerToJob, deleteRating } from '@/app/actions/admin'
+import { assignWorkerToJob, deleteRating, requestAccount } from '@/app/actions/admin'
 import { RatingForm, ResetPin, RevealRrn, WorkerEditForm } from '@/components/admin'
 import { ContactButtons } from '@/components/Contact'
 import Fold, { ShowMore } from '@/components/Fold'
@@ -14,8 +14,8 @@ import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
-import { won } from '@/lib/format'
-import { calcDay, settle } from '@/lib/pay'
+import { phoneFmt, won } from '@/lib/format'
+import { calcDay, settle, workingToday } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
@@ -24,6 +24,7 @@ import { ageOn, fmtDate, fmtDateLong, fmtDateRange, kstDate, kstDateTime } from 
 import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import { careerText } from '@/lib/careers'
+import { signalOf } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
@@ -56,6 +57,18 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const related = await workerInCompany(admin.companyId, id)
   const sp = await props.searchParams
   const today = kstDate()
+  // 이 회사가 보낸 마지막 '계좌 등록 요청' (같은 요청을 거듭 보내지 않게 표시)
+  const askedP = related
+    ? db()
+        .from('messages')
+        .select('body, created_at')
+        .eq('company_id', admin.companyId)
+        .eq('thread_user_id', id)
+        .eq('from_admin', true)
+        .order('created_at', { ascending: false })
+        .limit(50)
+        .then((r) => (must(r) as { body: string; created_at: string }[]).find((m) => signalOf(m.body) === 'account')?.created_at ?? null)
+    : Promise.resolve(null)
   const [{ data }, apps, atts, docs, ratings, relMap, openJobs, { data: note }, { data: member }] = await Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
     db()
@@ -116,10 +129,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       const job = jobs.get(jid)
       if (!job) return null
       const rows = atts.filter((a) => a.job_id === jid)
-      return { job, s: settle(job, rows.map((r) => calcDay(job, r))) }
+      return { job, s: settle(job, rows.map((r) => calcDay(job, r))), live: workingToday(rows, today) }
     })
     .filter((x) => x !== null)
     .sort((a, b) => b.job.start_date.localeCompare(a.job.start_date))
+  const askedAt = await askedP
   const recentBankChange = u.bank_changed_at && Date.now() - new Date(u.bank_changed_at).getTime() < 14 * 86_400_000
 
   const assignable = openJobs.filter((j) => !apps.some((a) => a.job_id === j.id && a.status === 'approved'))
@@ -176,8 +190,10 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           </Head>
           <dl className="grid grid-cols-[96px_1fr] gap-y-2 text-sm">
             <dt className="text-mute">휴대폰</dt>
-            <dd className="flex flex-wrap items-center gap-1.5">
-              <ContactButtons phone={u.phone} name={u.name} />
+            <dd className="tabular-nums">{phoneFmt(u.phone)}</dd>
+            {/* 연락 버튼은 한 줄로 (휴대폰에서 세 줄로 갈라지지 않게 칸 전체 너비) */}
+            <dd className="col-span-2 -mt-0.5 flex flex-wrap items-center gap-1.5" data-worker-contact>
+              <ContactButtons phone={u.phone} name={u.name} showNumber={false} />
               <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
                 앱 메시지
               </Link>
@@ -194,7 +210,29 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             <dd>{u.address ?? '-'}</dd>
             <dt className="text-mute">계좌</dt>
             <dd>
-              {account ? `${u.bank_name ?? ''} ${account} (예금주 ${u.account_holder ?? u.name})` : <span className="text-rose-500">미등록</span>}
+              {account ? (
+                `${u.bank_name ?? ''} ${account} (예금주 ${u.account_holder ?? u.name})`
+              ) : (
+                // 계좌가 없으면 이 화면에서 바로 요청 (앱 문의함 + 휴대폰 알림 → 계좌번호 칸으로)
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1" data-account-ask>
+                  <span className="text-rose-500">미등록</span>
+                  {askedAt && (
+                    <span className="text-xs text-mute" data-account-asked>
+                      {fmtDate(kstDate(askedAt))} 요청함
+                    </span>
+                  )}
+                  {u.active && (
+                    <form action={requestAccount.bind(null, u.id)}>
+                      <ConfirmSubmit
+                        className={`contact-btn ${askedAt ? 'bg-bg text-sub hover:bg-line' : 'bg-brand-50 text-brand-700 hover:bg-brand-100'}`}
+                        confirmText="한 번 더 누르면 보내요"
+                      >
+                        {askedAt ? '다시 요청' : '계좌 등록 요청'}
+                      </ConfirmSubmit>
+                    </form>
+                  )}
+                </span>
+              )}
               {recentBankChange && <span className="badge ml-1 bg-amber-50 text-amber-700">최근 변경 {fmtDate(kstDate(u.bank_changed_at!))}</span>}
               {account && u.account_holder && u.account_holder.replace(/\s/g, '') !== u.name.replace(/\s/g, '') && (
                 <span className="badge ml-1 bg-rose-50 text-rose-600">예금주 다름</span>
@@ -206,7 +244,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             )}
             <dt className="text-mute">가입</dt>
             <dd>
-              {kstDateTime(u.created_at)} · 개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}
+              {kstDateTime(u.created_at)}
+              <span className="block text-xs text-mute">개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}</span>
             </dd>
           </dl>
           {/* 모집 중인 공고에 바로 확정 (예전에 잘한 사람 다시 부르기) */}
@@ -302,40 +341,45 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         {perJob.length === 0 ? (
           <p className="text-center text-sm text-mute">근무 기록이 없습니다.</p>
         ) : (
-          <div className="-mx-5 overflow-x-auto">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>공고</th>
-                  <th>일정</th>
-                  <th>일수</th>
-                  <th className="text-right">지급총액</th>
-                  <th className="text-right">실지급액</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {perJob.map(({ job, s }) => (
-                  <tr key={job.id}>
-                    <td className="min-w-48">
-                      <Link href={`/admin/jobs/${job.id}?tab=pay`} className="font-semibold">
-                        {job.title}
-                      </Link>
-                    </td>
-                    <td className="whitespace-nowrap">{fmtDateRange(job.start_date, job.end_date)}</td>
-                    <td>{s.days}</td>
-                    <td className="text-right">{won(s.gross)}</td>
-                    <td className="text-right font-semibold">{won(s.net)}</td>
-                    <td className="whitespace-nowrap">
-                      <Link href={`/print/payslip/${job.id}/${u.id}`} className="text-xs font-semibold text-brand-600">
-                        명세서
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          // 휴대폰에서 옆으로 밀지 않게 행사마다 한 줄 (공고 · 일정·일수·지급총액 / 실지급·명세서)
+          <ul className="-my-2 divide-y divide-line" data-work-history>
+            {perJob.map(({ job, s, live }) => (
+              <li key={job.id} className="flex items-start gap-3 py-3">
+                <div className="min-w-0 flex-1">
+                  <Link href={`/admin/jobs/${job.id}?tab=pay`} className="line-clamp-2 font-semibold">
+                    {job.title}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-sub">
+                    <span className="whitespace-nowrap">{fmtDateRange(job.start_date, job.end_date)}</span>
+                    {live > 0 && s.days === 0 ? (
+                      <span className="font-semibold text-emerald-600"> · 오늘 근무 중</span>
+                    ) : (
+                      <>
+                        {' '}
+                        · {s.days}일 · <span className="whitespace-nowrap">지급 {won(s.gross)}</span>
+                      </>
+                    )}
+                  </p>
+                </div>
+                {/* 첫 근무가 아직 진행 중이면 금액·명세서는 끝난 뒤에 */}
+                {live > 0 && s.days === 0 ? (
+                  <p className="shrink-0 text-sm font-bold text-emerald-600" data-live>
+                    근무 중
+                  </p>
+                ) : (
+                  <div className="shrink-0 text-right">
+                    <p className="text-[11px] text-mute">실지급</p>
+                    <p className="font-bold tabular-nums" data-net>
+                      {won(s.net)}
+                    </p>
+                    <Link href={`/print/payslip/${job.id}/${u.id}`} className="text-xs font-semibold text-brand-600">
+                      명세서
+                    </Link>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
         )}
       </Fold>
 

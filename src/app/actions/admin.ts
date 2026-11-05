@@ -1112,6 +1112,33 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
 }
 
 /**
+ * 근무자 화면에서 한 사람에게 계좌 등록 요청 (앱 문의함 + 휴대폰 알림 · 누르면 계좌번호 칸으로).
+ * 우리 회사에 지원한 사람에게만 (정산 탭의 '계좌 등록 요청'과 같은 문구)
+ */
+export async function requestAccount(userId: string) {
+  const admin = await requireAdmin()
+  if (!isUuid(userId) || !(await workerInCompany(admin.companyId, userId))) return
+  const back = `/admin/workers/${userId}`
+  const u = must(await db().from('users').select('id, bank_account_enc').eq('id', userId).maybeSingle()) as {
+    id: string
+    bank_account_enc: string | null
+  } | null
+  if (!u) return
+  if (u.bank_account_enc) redirect(`${back}?m=${encodeURIComponent('이미 계좌가 등록돼 있어요.')}`)
+  if (await overLimit(`account-ask:${admin.id}`, 60, 3600)) redirect(`${back}?m=${encodeURIComponent('요청을 너무 자주 보냈어요. 잠시 뒤에 다시 보내 주세요.')}`)
+  const text = `급여를 보내 드리려면 계좌가 필요해요. 앱 '내 정보'에서 은행·계좌번호·예금주를 등록해 주세요.`
+  must(
+    await db()
+      .from('messages')
+      .insert({ thread_user_id: userId, sender_id: admin.id, from_admin: true, company_id: admin.companyId, job_id: null, body: `${SIGNAL.account}\n${text}` }),
+  )
+  await audit(admin.id, 'nudge.account', userId, '1명', admin.companyId)
+  after(() => sendPush([userId], { title: SIGNAL.account, body: text, url: '/me/profile#bank_account', tag: `account-${userId}` }))
+  revalidatePath('/admin/chat')
+  redirect(`${back}?m=${encodeURIComponent('계좌 등록 요청을 보냈어요.')}`)
+}
+
+/**
  * 은행 앱으로 이체할 목록 (미지급 근무자의 은행·계좌·예금주·실지급액). 화면에는 계좌를 가려 두고,
  * 누를 때만 서버에서 꺼내 복사하며 기록을 남김
  */
