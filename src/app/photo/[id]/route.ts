@@ -1,3 +1,4 @@
+import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { getUser } from '@/lib/session'
 import { adminSeesWorker } from '@/lib/company'
@@ -10,11 +11,42 @@ import { isUuid } from '@/lib/validate'
  * - 주소의 ?v=(올린 시각)가 바뀔 때만 새 사진 → 휴대폰은 하루 동안 다시 받지 않음(immutable), 그 뒤엔 ETag로 '그대로예요'(304)만
  * - 서버 칸(인스턴스) 안에 사진 데이터와 '이 관리자가 이 사람 사진을 볼 수 있음'을 잠깐 기억 → 같은 사진을 또 부를 때 DB에 가지 않음
  *   (권한은 1분, 사진은 10분만 기억 · 권한이 없다는 결과는 기억하지 않음 · 버전이 바뀌면 다른 열쇠)
+ * - 사람이 몰리면 서버 칸이 여러 개로 늘어나 칸마다 DB에 다시 감 → 사진 데이터는 칸끼리 함께 쓰는 서버 보관함(Vercel 데이터 캐시)에도 10분
+ *   (권한 확인은 그대로 요청마다 먼저 · 같은 사진을 동시에 여러 번 부르면 DB에는 한 번만)
  */
 const PHOTO_TTL = 10 * 60_000
 const SEES_TTL = 60_000
 const photos = new Map<string, { bytes: Uint8Array; until: number }>()
 const sees = new Map<string, number>()
+const loading = new Map<string, Promise<string | null>>()
+
+/** 버전이 붙은 사진은 서버 칸끼리 함께 쓰는 보관함에 (없으면 던져서 '없음'은 보관하지 않음 — 올리는 중일 수 있어서) */
+const shared = (id: string, v: string) =>
+  unstable_cache(
+    async () => {
+      const { data } = await db().from('user_photos').select('data').eq('user_id', id).maybeSingle()
+      const b64 = (data as { data: string } | null)?.data
+      if (!b64) throw new Error('no photo')
+      return b64
+    },
+    ['photo', id, v],
+    { revalidate: PHOTO_TTL / 1000 },
+  )()
+
+async function photoData(id: string, v: string | null): Promise<string | null> {
+  if (!v) {
+    const { data } = await db().from('user_photos').select('data').eq('user_id', id).maybeSingle()
+    return (data as { data: string } | null)?.data ?? null
+  }
+  const key = `${id}:${v}`
+  let p = loading.get(key)
+  if (!p) {
+    p = shared(id, v).catch(() => null)
+    loading.set(key, p)
+    p.finally(() => loading.delete(key))
+  }
+  return p
+}
 const trim = <K, V>(m: Map<K, V>, max: number) => {
   while (m.size > max) m.delete(m.keys().next().value as K)
 }
@@ -48,9 +80,9 @@ export async function GET(req: Request, ctx: RouteContext<'/photo/[id]'>) {
   const hit = photos.get(key)
   let bytes = hit && hit.until > now ? hit.bytes : null
   if (!bytes) {
-    const { data } = await db().from('user_photos').select('data').eq('user_id', id).maybeSingle()
-    if (!data) return new Response(null, { status: 404 })
-    bytes = new Uint8Array(Buffer.from((data as { data: string }).data, 'base64'))
+    const b64 = await photoData(id, versioned ? v : null)
+    if (!b64) return new Response(null, { status: 404 })
+    bytes = new Uint8Array(Buffer.from(b64, 'base64'))
     if (versioned) {
       photos.delete(key)
       photos.set(key, { bytes, until: now + PHOTO_TTL })

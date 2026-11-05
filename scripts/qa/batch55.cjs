@@ -2,6 +2,7 @@
 //          · pulse 권한: 로그인 필요 · 근무자는 남의 단체방·관리자 문의를 못 봄 · 내용 없이 값만
 //          · 아무 일 없으면 화면 다시 그리기(RSC) 요청이 없음 · 관리자가 보낸 새 메시지는 몇 초 안에 보임
 //          · 얼굴 사진: 버전 주소는 하루 캐시(immutable) + ETag → 다시 물으면 304 · 권한 없는 사람은 404
+//          · 같은 사진을 동시에 여러 번 불러도 DB에서는 한 번만 읽음 (서버 칸끼리 함께 쓰는 보관함)
 // node scripts/qa/batch55.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -76,5 +77,13 @@ const get = (path, uid, headers = {}) => fetch(`${D}${path}`, { headers: { ...(u
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
+
+  // ── 4. 사람이 몰릴 때: 같은 사진을 동시에 10번 불러도 DB에서 사진을 읽는 건 한 번 (나머지는 로그인 확인뿐) ──
+  const at2 = new Date(Date.now() + 1000).toISOString()
+  await rest(`users?id=eq.${W}`, 'PATCH', { photo_at: at2 })
+  await fetch(`${MD}/__stats`)
+  const many = await Promise.all(Array.from({ length: 10 }, () => get(`/photo/${W}?v=${Date.parse(at2)}`, A)))
+  const st = await (await fetch(`${MD}/__stats`)).json()
+  ok('동시에 10번: 모두 사진 + DB 사진 읽기는 한 번', many.every((r) => r.status === 200) && st.reqs <= 12, `DB 요청 ${st.reqs}번 (로그인 확인 10 + 사진 1)`)
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED'); process.exit(fails ? 1 : 0)
 })().catch((e) => { console.error(e); process.exit(1) })
