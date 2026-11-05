@@ -63,6 +63,8 @@ const errs = []
   ok('전문가 화면 강조색 보라', (await brandOf(ex.locator('nav[data-bottom-nav] [data-tab-indicator]'))) === 'rgb(244, 240, 255)')
 
   // ── 3. 지원은 유형이 맞아야 ──
+  // (저녁 6시가 지나면 하루짜리 공고는 '오늘 근무 종료'로 지원 칸이 닫혀서 이틀짜리로)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: day(1) })
   await wk.goto(`${D}/jobs/${JX}`)
   ok('알바 회원이 전문가 의뢰 열면 안내', await see(wk, '전문가 회원만 지원할 수 있는 의뢰예요'))
   ok('전문가 의뢰: 3.3% 떼고 금액 안내', await see(wk, /사업소득 3\.3% 떼고 약/))
