@@ -1,4 +1,4 @@
-// 근무자 명단: 최근 7일 안에 가입한 회원에 '🆕 새 가입' 표시 · '🆕 새로 가입'으로 모아 보기
+// 근무자 명단: 최근 2일 안에 가입한 회원에 '🆕 새 가입' 표시 · '🆕 새로 가입'으로 모아 보기
 // node scripts/qa/workers-new.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -16,6 +16,8 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   // 어제 가입한 회원 (기존 회원은 10/1 가입)
   const [w] = await rest(`users?id=eq.${W}`)
   await rest('users', 'POST', { ...w, id: NEW, name: '새친구', phone: '01066665555', created_at: new Date(Date.now() - 86400e3).toISOString(), attendance: [], ratings: [] })
+  // 사흘 전 가입: 2일이 지나 '새 가입' 표시 없음
+  await rest('users', 'POST', { ...w, id: NEW.replace(/.$/, 'f'), name: '사흘전', phone: '01066665566', created_at: new Date(Date.now() - 3 * 86400e3).toISOString(), attendance: [], ratings: [] })
 
   const b = await chromium.launch()
   const ctx = await b.newContext({ ...devices['Galaxy S9+'], locale: 'ko-KR' })
@@ -29,6 +31,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   await p.waitForLoadState('networkidle')
   ok('새 회원 카드에 새 가입 (반짝임 아이콘)', (await card('새친구').getByText('새 가입', { exact: true }).count()) === 1)
   ok('예전 회원에는 표시 없음', (await card('김지원').getByText('새 가입', { exact: true }).count()) === 0)
+  ok('사흘 전 가입: 2일이 지나 표시 없음', (await card('사흘전').count()) === 1 && (await card('사흘전').getByText('새 가입', { exact: true }).count()) === 0)
 
   await p.getByRole('link', { name: '새로 가입' }).click()
   await p.waitForURL(/f=new/, { timeout: 10000 }).catch(() => {})

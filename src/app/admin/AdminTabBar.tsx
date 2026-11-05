@@ -41,7 +41,7 @@ const MAIN: Item[] = [
 const MORE: { href: string; label: string; icon: IconName }[] = [
   { href: '/admin/reports', label: '정산 · 신고자료', icon: 'receipt' },
   { href: '/admin/vendors', label: '외주', icon: 'building' },
-  { href: '/admin/docs', label: '서류 서식', icon: 'file' },
+  { href: '/admin/docs', label: '서류', icon: 'file' },
   { href: '/admin/settings', label: '회사 설정', icon: 'gear' },
 ]
 const SUPER: { href: string; label: string; icon: IconName }[] = [

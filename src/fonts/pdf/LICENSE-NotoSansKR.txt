@@ -1,0 +1,8 @@
+Noto Sans KR
+Copyright 2014-2021 Adobe (http://www.adobe.com/), with Reserved Font Name 'Source'.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+The license text is available at https://openfontlicense.org (OFL-1.1).
+
+이 폴더의 글꼴은 서류 PDF를 만들 때만 쓰는 부분 글꼴(subset)입니다.
+원본(Noto Sans KR Regular/Bold)에서 한글 음절·자모, 영문·숫자, 문장 부호, 자주 쓰는 기호만 남겼습니다 (한자 제외).

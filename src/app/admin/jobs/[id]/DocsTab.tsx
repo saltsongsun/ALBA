@@ -126,6 +126,12 @@ export default function DocsTab({
               </ConfirmSubmit>
             </form>
           )}
+          {/* 이 공고의 서명 완료 서류를 한 PDF로 (인쇄·보관) · 전체 목록은 '서류' 메뉴 */}
+          {signedCount > 0 && (
+            <a href={`/admin/docs/pdf?job=${job.id}&status=signed`} download className="btn-gray btn-sm" data-job-docs-pdf>
+              서명 완료 {signedCount}건 PDF
+            </a>
+          )}
           <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-gray btn-sm">
             필요 서류 바꾸기
           </Link>

@@ -1356,7 +1356,7 @@ export async function restoreDefaultTemplates() {
   const missing = DEFAULT_TEMPLATES.filter((t) => !titles.has(t.title))
   if (missing.length) must(await db().from('doc_templates').insert(missing.map((t) => ({ ...t, company_id: admin.companyId }))))
   revalidatePath('/admin/docs')
-  back('/admin/docs', missing.length ? `기본 서식 ${missing.length}개를 추가했습니다.` : '기본 서식이 이미 모두 있습니다.')
+  back('/admin/docs?tab=tpl', missing.length ? `기본 서식 ${missing.length}개를 추가했습니다.` : '기본 서식이 이미 모두 있습니다.')
 }
 
 // ───────────── 근무자 ─────────────

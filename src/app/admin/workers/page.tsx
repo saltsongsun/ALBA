@@ -50,8 +50,9 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
   // 근무일수·평가는 이 회사 기록만, 주민번호·계좌 같은 민감 정보는 이 회사에 지원한 사람만 (근무자 화면에서)
   const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'mine' || sp.f === 'new' ? sp.f : null
-  // 최근 7일 안에 가입한 회원 (단체로 가입했을 때 사진·계좌 확인하고 공고에 확정하기 쉽게)
-  const newSince = new Date(Date.now() - 7 * 86_400_000).toISOString()
+  // 최근 2일 안에 가입한 회원 (단체로 가입했을 때 사진·계좌 확인하고 공고에 확정하기 쉽게 · 오래 남으면 눈에 안 띄어서 2일만)
+  const NEW_DAYS = 2
+  const newSince = new Date(Date.now() - NEW_DAYS * 86_400_000).toISOString()
   const isNew = (u: { created_at: string }) => u.created_at >= newSince
   // 가입 유형으로 거르기: 아르바이트 / 전문가
   const t = isMemberType(sp.t) ? sp.t : null

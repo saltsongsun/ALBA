@@ -72,7 +72,7 @@ export default async function PaperContractPage(props: PageProps<'/print/contrac
       {!tpl ? (
         <div className="card py-10 text-center text-mute">
           근로계약서 서식이 없어요.{' '}
-          <Link href="/admin/docs" className="font-semibold text-brand-600">
+          <Link href="/admin/docs?tab=tpl" className="font-semibold text-brand-600">
             서류 서식
           </Link>
           에서 만들어 주세요.

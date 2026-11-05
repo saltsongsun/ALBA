@@ -110,7 +110,15 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           ← 돌아가기
         </Link>
         {doc.status === 'signed' ? (
-          <PrintButton />
+          <span className="flex items-center gap-2">
+            {/* 관리자: PDF 파일로 내려받기 (인쇄·보관) */}
+            {admin && (
+              <a href={`/admin/docs/pdf?id=${doc.id}`} download className="btn-gray" data-doc-pdf>
+                PDF 받기
+              </a>
+            )}
+            <PrintButton />
+          </span>
         ) : (
           <span className="badge bg-amber-50 text-amber-700">
             서명 대기{queue.length > 1 && pos >= 0 ? ` · ${pos + 1}/${queue.length}` : ''}

@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
     '/opengraph-image': ['./src/fonts/og/*.otf'],
     '/jobs/[id]/opengraph-image': ['./src/fonts/og/*.otf'],
     '/og/company/[id]': ['./src/fonts/og/*.otf'],
+    // 서류 PDF에 넣는 한글 글꼴 (부분 글꼴 TTF)
+    '/admin/docs/pdf': ['./src/fonts/pdf/*.ttf'],
   },
   experimental: {
     // 한 번 연 화면은 30초 동안 휴대폰에 두었다가 다시 열 때 바로 보여 줌 (탭을 오갈 때 기다림 없음).

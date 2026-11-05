@@ -60,7 +60,7 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   const sheet = m.locator('[role=dialog][aria-label=더보기]')
   await sheet.waitFor({ timeout: 3000 }).catch(() => {})
   const items = await sheet.locator('a').allInnerTexts()
-  ok('더보기: 정산·외주·서식·설정 + 최고 관리자 메뉴 + 근무자 화면', ['정산', '외주', '서류 서식', '회사 설정', '회사 관리', '커뮤니티 관리', '근무자 화면'].every((k) => items.some((t) => t.includes(k))), items.join(' / '))
+  ok('더보기: 정산·외주·서식·설정 + 최고 관리자 메뉴 + 근무자 화면', ['정산', '외주', '서류', '회사 설정', '회사 관리', '커뮤니티 관리', '근무자 화면'].every((k) => items.some((t) => t.includes(k))), items.join(' / '))
   await m.keyboard.press('Escape')
   ok('Esc로 닫힘', await sheet.waitFor({ state: 'detached', timeout: 2000 }).then(() => true, () => false))
   await m.locator('[data-admin-tabbar] button', { hasText: '더보기' }).click()
