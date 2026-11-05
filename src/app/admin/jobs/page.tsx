@@ -1,3 +1,4 @@
+import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -153,14 +154,13 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     {fmtDateRange(j.start_date, j.end_date)} {scheduleText(j)}
                   </p>
                   <div className="mt-2 flex items-center gap-2 text-xs text-mute">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-bg">
-                      <div className="h-full origin-left animate-grow rounded-full bg-brand-500" style={{ width: `${Math.min(100, Math.round((approved / Math.max(j.headcount, 1)) * 100))}%` }} />
-                    </div>
+                    <SlotBar value={approved} max={j.headcount} height="h-1.5" className="min-w-0 flex-1" />
                     <span className="shrink-0 tabular-nums">
                       확정 <b className="text-ink">{approved}</b>/{j.headcount}명
                     </span>
-                    <span className="inline-flex shrink-0 items-center gap-1 tabular-nums" title="공고를 확인한 인원" data-views>
+                    <span className="inline-flex shrink-0 items-center gap-1 tabular-nums" title="공고를 확인한 인원 (가입자 + 로그인 안 한 사람)" data-views>
                       <Icon name="eye" className="text-mute" /> {views[j.id]?.total ?? 0}
+                      {(views[j.id]?.total ?? 0) > 0 && <span className="text-mute">(가입 {views[j.id]?.members ?? 0})</span>}
                       {(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
                     </span>
                   </div>
@@ -199,8 +199,15 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                       <b>{counts[j.id] ?? 0}</b>/{j.headcount}
                     </td>
                     <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
-                    <td className="whitespace-nowrap tabular-nums">
+                    <td className="whitespace-nowrap tabular-nums" data-views-cell>
                       {views[j.id]?.total ?? 0}명{(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
+                      {/* 확인 = 가입자 + 로그인 안 하고 본 사람 (카톡 링크로 보고 가입은 안 한 사람 등) */}
+                      {(views[j.id]?.total ?? 0) > 0 && (
+                        <div className="text-xs text-mute">
+                          가입자 {views[j.id].members}
+                          {views[j.id].total > views[j.id].members && ` · 비회원 ${views[j.id].total - views[j.id].members}`}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>

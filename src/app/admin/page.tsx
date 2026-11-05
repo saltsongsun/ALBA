@@ -1,3 +1,4 @@
+import SlotBar from '@/components/SlotBar'
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import { decideApplication, setJobStatus } from '@/app/actions/admin'
@@ -44,16 +45,6 @@ function Stat({ label, value, href, icon, tone }: { label: string; value: number
         </span>
       </div>
     </Link>
-  )
-}
-
-/** 비율 막대 (자동 갱신으로 값이 바뀌면 부드럽게 늘고 줄어듦) */
-function Bar({ value, max, color }: { value: number; max: number; color: string }) {
-  const pct = Math.min(100, Math.round((value / Math.max(max, 1)) * 100))
-  return (
-    <div className="mt-2 h-2 overflow-hidden rounded-full bg-bg">
-      <div className={`h-full origin-left animate-grow rounded-full transition-[width] duration-500 ${color}`} style={{ width: `${pct}%` }} />
-    </div>
   )
 }
 
@@ -592,7 +583,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     확정 {counts[j.id] ?? 0}명 · 모집 {j.headcount}명
                   </span>
                 </p>
-                <Bar value={workingBy[j.id] ?? 0} max={counts[j.id] ?? 0} color="bg-emerald-500" />
+                <SlotBar value={workingBy[j.id] ?? 0} max={counts[j.id] ?? 0} color="bg-emerald-500" className="mt-2" />
               </Link>
             ))}
           </div>
@@ -744,7 +735,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 확정 <b>{counts[j.id] ?? 0}</b>/{j.headcount}명
                 {j.status === 'closed' && <span className="badge ml-2 bg-gray-100 text-mute">모집마감</span>}
               </p>
-              <Bar value={counts[j.id] ?? 0} max={j.headcount} color="bg-brand-500" />
+              <SlotBar value={counts[j.id] ?? 0} max={j.headcount} className="mt-2" />
             </Link>
           ))}
         </div>

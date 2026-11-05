@@ -6,7 +6,7 @@ import LiveNumber from './LiveNumber'
 
 type Stats = { total: number; members: number; live: number }
 
-/** 관리자만: 공고를 확인한 인원과 지금 보고 있는 인원 (15초마다 새로) */
+/** 관리자만: 공고를 확인한 인원(가입자 · 비회원)과 지금 보고 있는 인원 (15초마다 새로) */
 export default function JobViewStats({ jobId, initial }: { jobId: string; initial: Stats }) {
   const [s, setS] = useState(initial)
   useEffect(() => {
@@ -23,7 +23,11 @@ export default function JobViewStats({ jobId, initial }: { jobId: string; initia
     <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
       <span>
         <Icon name="eye" className="text-mute" /> 확인 <b className="tabular-nums">{<LiveNumber value={s.total} />}</b>명
-        <span className="text-mute"> (가입자 {s.members}명)</span>
+        {/* 확인 = 가입자 + 로그인 안 하고 본 사람(비회원) — 두 수를 나눠 보여 줘 '확인'이 가입자 수로 오해되지 않게 */}
+        <span className="text-mute">
+          {' '}
+          (가입자 {s.members}명{s.total > s.members && ` · 비회원 ${s.total - s.members}명`})
+        </span>
       </span>
       <span className={`inline-flex items-center gap-1.5 font-semibold ${s.live ? 'text-emerald-600' : 'text-mute'}`}>
         <span className="relative flex size-2">

@@ -68,7 +68,7 @@ const errs = []
   const views = await rest(MD, `job_views?job_id=eq.${J}`)
   ok('조회 기록: 비회원 1 + 근무자 1 (관리자 제외)', views.length === 2 && views.some((v) => v.viewer === `u:${WK}`) && !views.some((v) => v.viewer === `u:${A}`), views.map((v) => v.viewer.slice(0, 2)).join(','))
   await ad.goto(`${D}/admin/jobs/${J}`)
-  ok('관리자: 확인 2명 · 가입자 1명', (await see(ad, /확인\s*2\s*명/)) && (await see(ad, '(가입자 1명)')))
+  ok('관리자: 확인 2명 · 가입자 1명', (await see(ad, /확인\s*2\s*명/)) && (await see(ad, '(가입자 1명 · 비회원 1명)')))
   ok('관리자: 지금 보는 중', await see(ad, /지금 보는 중\s*2\s*명/))
   await ad.getByText(/본 가입자 1명/).click()
   ok('본 가입자 목록 (근무자 · 지원함)', await see(ad, '지원함'))

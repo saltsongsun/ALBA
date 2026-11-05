@@ -1,3 +1,4 @@
+import SlotBar from '@/components/SlotBar'
 import Link from 'next/link'
 import { NewBadge } from './NewJobs'
 import { scheduleText } from '@/lib/docs'
@@ -53,7 +54,6 @@ export default function JobCard({
   const when = dday(job, kstDate())
   // 오늘이 마지막 날이고 근무 시간까지 끝났으면 '오늘 근무 종료' (지원 버튼이 없는 공고)
   const over = job.status === 'open' && job.end_date === kstDate() && workOver(job, job.end_date)
-  const filled = Math.min(100, Math.round((approved / Math.max(job.headcount, 1)) * 100))
   const showCount = shows(job, 'headcount')
   return (
     <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']}>
@@ -132,11 +132,9 @@ export default function JobCard({
             </span>
           ))}
       </div>
-      {/* 모집 인원이 얼마나 찼는지 (처음 보일 때 왼쪽에서 차오름) */}
+      {/* 모집 인원이 얼마나 찼는지: 모집 인원만큼 칸을 나눠 (처음 보일 때 왼쪽 칸부터 차오름) */}
       {showCount && (
-        <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg">
-          <div className={`h-full origin-left animate-grow rounded-full ${full ? 'bg-mute' : 'bg-brand-500'}`} style={{ width: `${filled}%` }} />
-        </div>
+        <SlotBar value={approved} max={job.headcount} color={full ? 'bg-mute' : 'bg-brand-500'} height="h-1.5" className="mt-2" overflow={false} />
       )}
     </Link>
   )
