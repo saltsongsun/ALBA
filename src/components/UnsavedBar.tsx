@@ -18,19 +18,25 @@ function snap(form: HTMLFormElement): string {
  * - 값이 처음과 달라지면 아래 탭 위에 '저장하지 않은 변경이 있어요 · 저장' 바가 올라옴 (원래대로 되돌리면 사라짐)
  * - 그 상태에서 다른 화면으로 가는 링크를 누르면 한 번은 멈추고 '한 번 더 누르면 저장 없이 나가요' (두 번 누르면 나감)
  * - 저장이 끝나면(오류가 아니면) 지금 값을 새 기준으로
+ * - 바에서 저장하면 같은 자리에 '✓ 저장했어요'가 잠깐 (위쪽을 보고 있어도 저장된 걸 알게)
  * state: 폼의 useActionState 결과 (바뀔 때마다 저장 결과로 봄)
+ * bar=false: 저장 버튼이 이미 늘 보이는 폼(공고 등록·수정)은 바 없이 '나가기 전 한 번 멈춤'만
  */
-export default function UnsavedBar({ formId, state }: { formId: string; state: { error?: string } | null }) {
+export default function UnsavedBar({ formId, state, bar = true }: { formId: string; state: { error?: string } | null; bar?: boolean }) {
   const base = useRef<string | null>(null)
+  const savingRef = useRef(false)
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [warn, setWarn] = useState(false)
+  const [done, setDone] = useState(false)
   const [mounted, setMounted] = useState(false)
 
   // 처음 열었을 때와 저장이 끝났을 때 기준을 다시 잡음 (오류면 그대로 두어 계속 안내)
   useEffect(() => {
     setMounted(true)
     const form = document.getElementById(formId) as HTMLFormElement | null
+    const wasSaving = savingRef.current
+    savingRef.current = false
     setSaving(false)
     if (!form) return
     if (!state?.error) {
@@ -39,9 +45,18 @@ export default function UnsavedBar({ formId, state }: { formId: string; state: {
         base.current = snap(form)
         setDirty(false)
       }, 0)
-      return () => window.clearTimeout(t)
+      // 저장이 끝났으면 잠깐 '✓ 저장했어요'
+      let t2 = 0
+      if (wasSaving && state && bar) {
+        setDone(true)
+        t2 = window.setTimeout(() => setDone(false), 1800)
+      }
+      return () => {
+        window.clearTimeout(t)
+        window.clearTimeout(t2)
+      }
     }
-  }, [formId, state])
+  }, [formId, state, bar])
 
   useEffect(() => {
     const form = document.getElementById(formId) as HTMLFormElement | null
@@ -49,7 +64,11 @@ export default function UnsavedBar({ formId, state }: { formId: string; state: {
     const check = () => {
       if (base.current !== null) setDirty(snap(form) !== base.current)
     }
-    const onSubmit = () => setSaving(true)
+    const onSubmit = () => {
+      savingRef.current = true
+      setSaving(true)
+      setDone(false)
+    }
     form.addEventListener('input', check)
     form.addEventListener('change', check)
     form.addEventListener('submit', onSubmit)
@@ -91,7 +110,29 @@ export default function UnsavedBar({ formId, state }: { formId: string; state: {
     }
   }, [dirty])
 
-  if (!mounted || !dirty) return null
+  if (!mounted) return null
+  // 저장 끝: 같은 자리에 잠깐 체크
+  if (done && !dirty)
+    return createPortal(
+      <div data-vv="pin" data-saved-toast role="status" className="no-print pointer-events-none fixed inset-x-0 bottom-[calc(var(--tabbar-space)+8px)] z-30 px-3 sm:bottom-4">
+        <div className="glass mx-auto flex w-fit animate-slide-up items-center gap-2 rounded-full py-2.5 pr-4 pl-3 text-sm font-semibold text-emerald-700">
+          <svg viewBox="0 0 24 24" className="size-5" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+          </svg>
+          저장했어요
+        </div>
+      </div>,
+      document.body,
+    )
+  if (!dirty || (!bar && !warn)) return null
+  // 저장 버튼이 따로 늘 보이는 폼: 나가려 할 때만 짧은 안내
+  if (!bar)
+    return createPortal(
+      <div data-vv="pin" data-unsaved="warn" role="status" className="no-print pointer-events-none fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top)+10px)] z-30 px-3">
+        <p className="glass mx-auto w-fit animate-shake rounded-full px-4 py-2.5 text-[13px] font-semibold text-amber-700">저장하지 않았어요 · 한 번 더 누르면 나가요</p>
+      </div>,
+      document.body,
+    )
   return createPortal(
     <div
       data-vv="pin"
