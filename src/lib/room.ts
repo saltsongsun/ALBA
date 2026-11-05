@@ -72,13 +72,13 @@ export async function roomMessages(jobId: string, limit = 300): Promise<(RoomMes
  * 화면을 다시 그릴 때마다 쓰면 '바뀐 게 있나요?'(pulse) 값이 계속 바뀌어, 방을 열어 둔 사람끼리 서로 몇 초마다 다시 그리게 됨
  */
 export async function markRoomRead(jobId: string, userId: string) {
-  const [{ data: mine }, { data: last }] = await Promise.all([
-    db().from('job_chat_reads').select('read_at').eq('job_id', jobId).eq('user_id', userId).maybeSingle(),
-    db().from('job_chat').select('created_at').eq('job_id', jobId).order('created_at', { ascending: false }).limit(1),
-  ])
+  const { data: mine } = await db().from('job_chat_reads').select('read_at').eq('job_id', jobId).eq('user_id', userId).maybeSingle()
   const at = (mine as { read_at: string } | null)?.read_at
-  const lastAt = ((last ?? []) as { created_at: string }[])[0]?.created_at
-  if (at && (!lastAt || lastAt <= at)) return
+  if (at) {
+    // 내가 읽은 뒤에 온 메시지가 있을 때만 (고정 공지도 새 메시지로 오므로 함께 걸림)
+    const { data: newer } = await db().from('job_chat').select('created_at').eq('job_id', jobId).gt('created_at', at).limit(20)
+    if (!((newer ?? []) as { created_at: string }[]).some((m) => m.created_at > at)) return
+  }
   await db().from('job_chat_reads').upsert({ job_id: jobId, user_id: userId, read_at: new Date().toISOString() }, { onConflict: 'job_id,user_id' })
 }
 

@@ -100,7 +100,7 @@ export default function RollCall({
       </div>
       {finished.length > 0 && (
         <details className="group rounded-2xl bg-white ring-1 ring-line" data-roll-done>
-          <summary className="flex cursor-pointer items-center justify-between px-4 py-2.5 text-sm font-semibold text-sub">
+          <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-2.5 text-sm font-semibold text-sub before:hidden [&::-webkit-details-marker]:hidden">
             종료 {finished.length}명
             <span className="text-xs text-mute group-open:hidden">펼치기</span>
             <span className="hidden text-xs text-mute group-open:inline">접기</span>

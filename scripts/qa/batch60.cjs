@@ -24,7 +24,11 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }, { name: 'alba_roster', value: roster(A), url: D }])
   const ad = await ctx.newPage()
   ad.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
-  const att = (q = '') => ad.goto(`${D}/admin/jobs/${J}?tab=att${q}`)
+  // 화면이 스트리밍으로 다 들어와 보일 때까지 기다림 (그 전에는 숨은 상태라 크기가 0)
+  const att = async (q = '', ready = '[data-att-row]') => {
+    await ad.goto(`${D}/admin/jobs/${J}?tab=att${q}`)
+    await ad.locator(ready).first().waitFor({ state: 'visible', timeout: 15000 }).catch(() => {})
+  }
 
   // ── 1. 사람이 적으면(2명) 예전처럼 모두 펼침 ──
   await att()
@@ -52,28 +56,31 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const askOpen = await ad.locator(`[data-att-row="${ASK}"] [data-att-fold]`).evaluate((d) => d.open)
   const otherOpen = await ad.locator(`[data-att-row="${ids[0]}"] [data-att-fold]`).evaluate((d) => d.open)
   ok('처리할 일(출근 확인 요청)이 있는 사람은 펼쳐 둠 · 나머지는 접힘', askOpen && !otherOpen)
-  ok('펼쳐 둔 사람: 출근 처리 버튼이 보임', await ad.locator(`[data-att-row="${ASK}"]`).getByText('출근 처리').first().isVisible().catch(() => false))
-  const line = await ad.locator(`[data-att-row="${DONE}"] summary`).innerText()
+  ok('펼쳐 둔 사람: 출근 처리 버튼이 보임', await ad.locator(`[data-att-row="${ASK}"] button`, { hasText: '출근 처리' }).first().isVisible().catch(() => false), await ad.locator(`[data-att-row="${ASK}"]`).innerText().then((t) => t.replace(/\n/g, ' ').slice(0, 200)))
+  const line = await ad.locator(`[data-att-row="${DONE}"] [data-att-fold] > summary`).innerText()
   ok('접힌 줄: 이름 · 배치 · 시간 · 상태', line.includes('근무자05') && line.includes('A게이트') && /\d{2}:\d{2}~\d{2}:\d{2}/.test(line) && line.includes('종료'), line.replace(/\n/g, ' '))
-  await ad.locator(`[data-att-row="${ids[0]}"] summary`).click()
+  await ad.locator(`[data-att-row="${ids[0]}"] [data-att-fold] > summary`).click()
+  await ad.locator(`[data-att-row="${ids[0]}"]`).getByText('수기로 출퇴근 등록').waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
   ok('누르면 펼침: 연락·평가·기록 등록이 보임', await ad.locator(`[data-att-row="${ids[0]}"]`).getByText('수기로 출퇴근 등록').isVisible())
   ok('펼쳐도 이름·사진을 두 번 보여 주지 않음', (await ad.locator(`[data-att-row="${ids[0]}"] a[href="/admin/workers/${ids[0]}"]`).allInnerTexts()).every((t) => t.trim() === '근무자 정보'))
   const pageH = await ad.evaluate(() => document.scrollingElement.scrollHeight)
   ok('360px: 옆으로 안 밀림', await ad.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 3. 출석 체크: 한 줄에 3명 · 종료한 사람은 접음 ──
-  await att('&view=check')
+  await att('&view=check', '[data-roll-grid] [data-roll]')
   const tops = await ad.locator('[data-roll-grid] [data-roll]').evaluateAll((l) => l.slice(0, 4).map((e) => Math.round(e.getBoundingClientRect().top)))
-  ok('출석 체크: 한 줄에 3명', tops[0] === tops[1] && tops[1] === tops[2] && tops[3] > tops[0], tops.join(','))
+  ok('출석 체크: 한 줄에 3명', Math.abs(tops[0] - tops[1]) <= 8 && Math.abs(tops[1] - tops[2]) <= 8 && tops[3] > tops[0] + 40, tops.join(','))
   const cardH = await ad.locator('[data-roll-grid] [data-roll]').first().evaluate((e) => e.getBoundingClientRect().height)
   ok('출석 체크 카드 높이 작게 (140px 이하)', cardH <= 140, `${Math.round(cardH)}px`)
   ok("종료한 사람은 '종료 1명'으로 접힘", (await ad.locator('[data-roll-done] summary').innerText()).includes('종료 1명') && !(await ad.locator(`[data-roll="${DONE}"]`).isVisible()))
   ok('출석 체크: 옆으로 안 밀림', await ad.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 4. 얼굴 명단: 한 줄에 3명 ──
-  await att('&view=faces')
-  const ftops = await ad.locator('div.grid > div.card').evaluateAll((l) => l.slice(0, 4).map((e) => Math.round(e.getBoundingClientRect().top)))
-  ok('얼굴 명단: 한 줄에 3명', ftops[0] === ftops[1] && ftops[1] === ftops[2] && ftops[3] > ftops[0], ftops.join(','))
+  await att('&view=faces', '[data-faces-grid] > div.card')
+  const ftops = await ad.locator('[data-faces-grid] > div.card').evaluateAll((l) => l.slice(0, 4).map((e) => Math.round(e.getBoundingClientRect().top)))
+  // (카드가 살짝 올라오며 나타나서 몇 px 차이는 같은 줄)
+  const near = (a, b) => Math.abs(a - b) <= 8
+  ok('얼굴 명단: 한 줄에 3명', near(ftops[0], ftops[1]) && near(ftops[1], ftops[2]) && ftops[3] > ftops[0] + 40, ftops.join(','))
   ok('얼굴 명단: 옆으로 안 밀림', await ad.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   console.log(`(참고) 12명 자세히 화면 전체 높이 ${pageH}px`)

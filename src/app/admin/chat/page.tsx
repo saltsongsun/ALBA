@@ -89,7 +89,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
             {live.map(card)}
             {past.length > 0 && (
               <details className="group" data-rooms-ended>
-                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl before:hidden bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line [&::-webkit-details-marker]:hidden">
                   <Icon name="clock" className="text-mute" />
                   종료된 행사 단체방 {past.length}
                   {pastUnread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">{pastUnread}</span>}

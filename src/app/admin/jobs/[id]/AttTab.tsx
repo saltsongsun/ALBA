@@ -392,7 +392,7 @@ export default async function AttTab({
         />
       )}
       {view === 'faces' && (
-        <div className="stagger grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-6">
+        <div className="stagger grid grid-cols-3 gap-1.5 sm:grid-cols-5 lg:grid-cols-6" data-faces-grid>
           {shown.map((uid) => {
             const u = users.get(uid)
             const a = byUser.get(uid)
@@ -448,7 +448,7 @@ export default async function AttTab({
               key={uid}
               id={`att-${uid}`}
               data-att-row={uid}
-              className={`card scroll-mt-24 p-4 ${fix === uid ? 'animate-pop ring-2 ring-amber-300' : ''}`}
+              className={`card scroll-mt-24 ${compact ? 'p-3' : 'p-4'} ${fix === uid ? 'animate-pop ring-2 ring-amber-300' : ''}`}
             >
               {(() => {
                 const head = (
@@ -767,7 +767,7 @@ export default async function AttTab({
                   (!!a && !!pay && pay.afterMin >= OT_ASK_MIN && !a.paid && a.ot_status !== 'agreed' && a.ot_status !== 'rejected')
                 return (
                   <details open={needs} className="group" data-att-fold>
-                    <summary className="flex cursor-pointer list-none items-center gap-2.5 [&::-webkit-details-marker]:hidden">
+                    <summary className="flex cursor-pointer list-none items-center gap-2.5 before:hidden [&::-webkit-details-marker]:hidden">
                       <Avatar id={uid} name={u?.name ?? '?'} photoAt={u?.photo_at} size="md" zoom={false} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-[15px] font-bold">{u?.name ?? '알 수 없음'}</span>

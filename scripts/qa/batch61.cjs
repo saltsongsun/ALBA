@@ -1,6 +1,6 @@
 // 묶음 61: 종료된 행사 단체방은 따로 (대화 목록 위아래 줄이기)
 // · 근무자 문의 목록: 진행 중인 대화(회사 문의·진행 중 단체방)가 위 · 끝난 행사 단체방은 '종료된 행사 단체방 N'으로 접어 둠
-//   (안 읽은 수는 접힌 줄에 함께) · 끝난 방만 있으면 펼쳐 둠
+//   (안 읽은 수는 접힌 줄에 함께) · 행사가 끝나면 그 방도 아래로 옮겨 감
 // · 관리자 문의: 단체방 칸도 진행 중 / 종료된 행사(접힘)로 나눔
 // node scripts/qa/batch61.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
@@ -48,7 +48,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('처음엔 접혀 있음', !(await wk.locator('[data-chat-ended]').evaluate((d) => d.open)) && !(await wk.locator(`a[href="/me/chat/room/${J2}"]`).isVisible()))
   await sum.click()
   ok('누르면 끝난 방 2개가 보임 (최근 대화 순)', (await wk.locator('[data-chat-list-ended] a[data-chat-row=room]').count()) === 2 && (await wk.locator('[data-chat-list-ended] a').first().getAttribute('href')) === `/me/chat/room/${J2}`)
-  ok('끝난 방도 들어가 읽을 수 있음', await wk.locator(`a[href="/me/chat/room/${J2}"]`).isVisible())
+  ok('끝난 방도 들어가 읽을 수 있음', await wk.locator(`[data-chat-list-ended] a[href="/me/chat/room/${J2}"]`).waitFor({ state: 'visible', timeout: 8000 }).then(() => true, () => false))
   ok('360px: 옆으로 안 밀림', await wk.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 2. 관리자 문의: 단체방도 진행 중 / 종료된 행사 ──
@@ -59,11 +59,11 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('관리자: 끝난 방은 접힌 칸 안에', (await ad.locator(`[data-rooms-ended] a[href="/admin/chat/room/${J2}"]`).count()) === 1 && !(await ad.locator(`[data-rooms-ended] a[href="/admin/chat/room/${J2}"]`).isVisible()))
   ok("관리자: '종료된 행사 단체방 2'", (await ad.locator('[data-rooms-ended] summary').innerText()).includes('종료된 행사 단체방 2'))
 
-  // ── 3. 끝난 방만 남으면 펼쳐 둠 ──
+  // ── 3. 행사가 끝나면 그 방도 '종료된 행사'로 옮겨 감 (회사 1:1 문의는 위에 그대로) ──
   await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: yesterday, start_date: yesterday })
   await wk.goto(`${D}/me/chat`)
   await wk.locator('[data-chat-ended]').waitFor({ timeout: 10000 }).catch(() => {})
-  ok('끝난 방만 있으면 접지 않고 보여 줌', await wk.locator('[data-chat-ended]').evaluate((d) => d.open).catch(() => false))
+  ok("끝난 방은 '종료된 행사 단체방 3'으로 · 회사 문의는 위에", (await wk.locator('[data-chat-ended] summary').innerText()).includes('종료된 행사 단체방 3') && (await wk.locator('[data-chat-list] a[data-chat-row=company]').count()) >= 1 && (await wk.locator('[data-chat-list] a[data-chat-row=room]').count()) === 0)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

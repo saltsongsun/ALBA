@@ -75,18 +75,23 @@ const t = (min) => new Date(Date.now() - min * 60e3).toISOString()
 
   // ── 2. 방을 열어 두기만 하면 조용 (읽음 기록을 되풀이해 쓰지 않음) ──
   let rsc = 0
-  wk.on('request', (r) => { if (!r.url().includes('/api/pulse') && (r.headers()['rsc'] === '1' || r.url().includes('_rsc='))) rsc++ })
+  // (화면을 다시 그리는 요청만 셈 — 링크 미리 받기(prefetch)는 빼고)
+  const rscLog = []
+  wk.on('request', (r) => { const h = r.headers(); if (!r.url().includes('/api/pulse') && !h['next-router-prefetch'] && (h['rsc'] === '1' || r.url().includes('_rsc='))) { rsc++; rscLog.push(`${r.method()} ${r.url().replace(D, '')} ${Object.keys(h).filter((k) => k.startsWith('next')).join(',')}`) } })
+  await wk.waitForTimeout(2000) // 바로 앞의 조작된 요청이 끝나고 화면이 가라앉을 때까지
+  const pv = () => wk.evaluate(async (u) => (await (await fetch(u)).json()).v, `/api/pulse?s=room&id=${J}`)
+  const pv0 = await pv()
   const readBefore = (await rest('job_chat_reads')).find((r) => r.user_id === W && r.job_id === J)?.read_at
   await wk.waitForTimeout(12000)
   const readAfter = (await rest('job_chat_reads')).find((r) => r.user_id === W && r.job_id === J)?.read_at
-  ok('열어 둔 12초 동안 다시 그리지 않음 · 읽음 시각도 그대로', rsc === 0 && readBefore === readAfter, `rsc=${rsc}`)
+  ok('열어 둔 12초 동안 다시 그리지 않음 · 읽음 시각도 그대로', rsc === 0 && readBefore === readAfter, `rsc=${rsc} ${rscLog.join(' | ')} read ${readBefore}→${readAfter} pulse ${pv0} → ${await pv()}`)
 
   // ── 3. 담당자: 안 읽은 사람 이름 + 다시 알림 ──
   const ad = await pg(A, true)
   await ad.goto(`${D}/admin/chat/room/${J}`)
   await ad.locator('main ol').waitFor({ timeout: 8000 }).catch(() => {})
   ok('담당자 화면: M2 안 읽은 2명 (W는 방금 읽음)', (await countOf(ad, '2시까지 A게이트')) === 2)
-  ok('담당자 화면: M1은 모두 읽음 → 숫자 없음', (await countOf(ad, '저 지금 도착했어요')) === 0)
+  ok('담당자 화면: M1은 삼동료만 안 읽음 → 1', (await countOf(ad, '저 지금 도착했어요')) === 1)
   await ad.locator('main ol [data-msg-menu]', { hasText: '2시까지 A게이트' }).click({ button: 'right' })
   await menu(ad).waitFor({ timeout: 3000 }).catch(() => {})
   ok("담당자 메뉴: '안 읽은 사람 2명'", (await menu(ad).locator('[data-unread-item]').innerText()).includes('안 읽은 사람 2명'))

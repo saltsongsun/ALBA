@@ -86,7 +86,13 @@ export async function GET(req: Request) {
     const [last, pinned, read, gone] = await Promise.all([
       latest(db().from('job_chat').select('created_at').eq('job_id', id).order('created_at', { ascending: false }).limit(1), 'created_at'),
       latest(db().from('job_chat').select('pinned_at').eq('job_id', id).not('pinned_at', 'is', null).order('pinned_at', { ascending: false }).limit(1), 'pinned_at'),
-      latest(db().from('job_chat_reads').select('read_at').eq('job_id', id).order('read_at', { ascending: false }).limit(1), 'read_at'),
+      // 누가 읽으면 바뀜 (방 사람 수만큼만 읽어 가장 늦은 시각)
+      db()
+        .from('job_chat_reads')
+        .select('read_at, job_id')
+        .eq('job_id', id)
+        .limit(1000)
+        .then((r) => ((r.data ?? []) as { read_at: string; job_id: string }[]).filter((x) => x.job_id === id).reduce((m, x) => (x.read_at > m ? x.read_at : m), '')),
       db().from('job_chat').select('id', { count: 'exact', head: true }).eq('job_id', id).in('body', DELETED_BODIES),
     ])
     return ok(`${last}|${pinned}|${read}|${gone.count ?? 0}`)
