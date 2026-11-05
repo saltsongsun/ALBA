@@ -116,7 +116,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
       ) : (
         <>
           {companies.length > 1 && (
-            <nav aria-label="회사별 보기" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-history-companies>
+            <nav aria-label="회사별 보기" className="fade-x -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-history-companies>
               {[{ id: '', name: '전체', n: all.length }, ...companies].map((c) => {
                 const on = c.id === pick
                 return (

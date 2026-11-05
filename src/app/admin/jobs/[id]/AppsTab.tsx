@@ -341,7 +341,7 @@ export default async function AppsTab({
       {/* 여러 날 행사: 날짜별 확정 인원 (모자란 날은 빨갛게) · 누르면 그날 가능한 사람만 */}
       {multi && (
         <div className="space-y-2">
-          <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
             {dates.map((d) => {
               const short = d >= today && byDay[d] < job.headcount
               const on = shownDay === d
@@ -376,7 +376,7 @@ export default async function AppsTab({
         </div>
       )}
       {apps.length > 1 && (
-        <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
           {(
             [
               ['time', '지원순'],

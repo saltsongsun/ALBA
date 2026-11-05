@@ -134,6 +134,8 @@ const said = (r, msg) => r.text.includes(msg) || r.redirect.includes(msg)
   ok('지원자는 평가됨 (확인용)', ratings.some((x) => x.user_id === AP && x.score === 5))
 
   // ── 6. 관리자 계정으로 지원 막힘 ──
+  // (공고를 이틀짜리로: 저녁에 돌려도 '오늘 근무 종료'가 아닌 지원받는 공고로 확인)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: new Date(Date.now() + 33 * 3600e3).toISOString().slice(0, 10) })
   r = await call(a, 'worker', 'applyJob', [J], { agree: 'on' })
   ok('관리자 계정은 지원 못 함', said(r, '관리자 계정으로는 지원할 수 없어요'), r.redirect)
   ok('관리자 지원 기록 없음', (await rest('applications')).every((x) => x.user_id !== A))

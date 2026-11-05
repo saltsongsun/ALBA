@@ -7,7 +7,7 @@ import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
 import { approvedCounts, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
-import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf } from '@/lib/pay'
+import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
 import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
@@ -42,6 +42,8 @@ export async function applyJob(jobId: string, form: FormData) {
   if (!canApplyTo(user.memberType, job.audience)) {
     back(path, job.audience === 'expert' ? '전문가 회원만 지원할 수 있는 의뢰예요.' : '아르바이트 회원만 지원할 수 있는 공고예요.')
   }
+  // 오늘이 마지막 날이고 근무 시간까지 끝났으면 받지 않음 (화면을 열어 둔 사이 끝난 경우)
+  if (workOver(job, job.end_date)) back(path, `오늘 ${job.audience === 'expert' ? '일정이' : '근무가'} ${hhmm(job.end_time)}에 끝났어요. 다른 공고를 찾아 주세요.`)
   // 얼굴 사진이 있어야 지원 (현장 담당자가 알아볼 수 있게. 가입 때 사진을 안 올린 예전 회원 포함)
   const { data: me } = await db().from('users').select('photo_at').eq('id', user.id).maybeSingle()
   if (!(me as { photo_at: string | null } | null)?.photo_at) back(path, '얼굴 사진을 먼저 올려 주세요. 현장에서 담당자가 알아볼 수 있게 필요해요.')

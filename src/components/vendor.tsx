@@ -187,7 +187,7 @@ export function QuoteRequestForm({ vendors, jobs, jobId = '' }: { vendors: (Opt 
         ) : (
           <>
             {cats.length > 1 && (
-              <div className="mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
+              <div className="fade-x mb-2 flex gap-1.5 overflow-x-auto pb-0.5">
                 {['', ...cats].map((c) => (
                   <button
                     key={c || 'all'}

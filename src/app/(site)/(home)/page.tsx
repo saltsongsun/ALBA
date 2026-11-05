@@ -10,6 +10,7 @@ import { getUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { isPro } from '@/lib/members'
 import { kstDate } from '@/lib/time'
+import { workOver } from '@/lib/pay'
 import { isUuid } from '@/lib/validate'
 import { overlapDay } from '@/lib/overlap'
 import { NewJobsChip } from '@/components/NewJobs'
@@ -87,7 +88,7 @@ export default async function HomePage(props: PageProps<'/'>) {
     if (when === 'soon' && !overlaps(j, today, plus(1))) return false
     if (when === 'weekend' && !overlaps(j, dow === 0 ? today : sat, sun)) return false
     if (when === 'week' && !overlaps(j, today, plus(7))) return false
-    if (avail && (j.status !== 'open' || (counts[j.id] ?? 0) >= j.headcount || (mine[j.id] && mine[j.id] !== 'cancelled'))) return false
+    if (avail && (j.status !== 'open' || (counts[j.id] ?? 0) >= j.headcount || (mine[j.id] && mine[j.id] !== 'cancelled') || (j.end_date === today && workOver(j, j.end_date)))) return false
     if (good && !((ratings[j.company_id]?.avg ?? 0) >= 4)) return false
     return true
   })

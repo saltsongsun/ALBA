@@ -3,6 +3,7 @@ import { NewBadge } from './NewJobs'
 import { scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
+import { workOver } from '@/lib/pay'
 import { fmtDateRange, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
 
@@ -50,6 +51,8 @@ export default function JobCard({
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
+  // 오늘이 마지막 날이고 근무 시간까지 끝났으면 '오늘 근무 종료' (지원 버튼이 없는 공고)
+  const over = job.status === 'open' && job.end_date === kstDate() && workOver(job, job.end_date)
   const filled = Math.min(100, Math.round((approved / Math.max(job.headcount, 1)) * 100))
   const showCount = shows(job, 'headcount')
   return (
@@ -64,6 +67,10 @@ export default function JobCard({
           <span className="badge bg-rose-50 text-rose-600">행사 취소</span>
         ) : job.status !== 'open' ? (
           <span className="badge bg-gray-100 text-mute">마감</span>
+        ) : over ? (
+          <span className="badge bg-gray-100 text-mute" data-over-today>
+            오늘 {job.audience === 'expert' ? '일정' : '근무'} 종료
+          </span>
         ) : full ? (
           <span className="badge bg-gray-100 text-sub">정원 마감 · 대기 접수</span>
         ) : (
@@ -110,8 +117,8 @@ export default function JobCard({
           )}
         </p>
         {showCount &&
-          (job.status === 'open' && !full ? (
-            // 남은 자리: 2자리 이하면 마감 임박으로 눈에 띄게
+          (job.status === 'open' && !full && !over ? (
+            // 남은 자리: 2자리 이하면 마감 임박으로 눈에 띄게 (오늘 끝난 근무는 'n/n명 확정'으로)
             job.headcount - approved <= 2 ? (
               <span className="mb-0.5 shrink-0 animate-pop rounded-full bg-rose-50 px-2 py-0.5 text-xs font-bold text-rose-600 tabular-nums">
                 마감 임박 · {job.headcount - approved}자리

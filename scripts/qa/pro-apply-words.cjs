@@ -50,7 +50,8 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('전문가 빈 화면 문구', await see(ex, '오늘 예정된 일이 없어요'))
   ok('전문가: 의뢰 목록으로 가는 링크', (await ex.getByRole('link', { name: '모집 중인 의뢰 보기 →' }).getAttribute('href')) === '/pro')
 
-  // 아르바이트: 그대로
+  // 아르바이트: 그대로 (공고를 이틀짜리로: 저녁에 돌려도 '오늘 근무 종료'가 아닌 지원받는 공고로 확인)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: day(1) })
   const ap = await pg(NW)
   await ap.goto(`${D}/jobs/${J}`)
   await ap.waitForLoadState('networkidle')

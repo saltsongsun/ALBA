@@ -60,7 +60,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
       )}
 
       {/* 말머리: 가로로 밀어서 고름 */}
-      <nav aria-label="말머리" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-community-tabs>
+      <nav aria-label="말머리" className="fade-x -mx-4 flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]" data-community-tabs>
         {tabs.map((t) => {
           const on = t.id === c || (!t.id && !category && !reviewTab && !mine && !hot)
           return (

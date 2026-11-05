@@ -14,11 +14,11 @@ import { approvedCounts, countApps, getJob, getSettings, JOB_WITH_APP_STATUS, ty
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
-import { won } from '@/lib/format'
+import { phoneFmt, won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
-import { breakDescription, estimateDay, TAX_LABEL } from '@/lib/pay'
+import { breakDescription, estimateDay, TAX_LABEL, workOver } from '@/lib/pay'
 import { getUser } from '@/lib/session'
-import { dateList, fmtDate, fmtDateRange, hhmm, kstDate, minutesText } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, minutesText } from '@/lib/time'
 import type { Application, Job } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import JobViewBeacon from '@/components/JobViewBeacon'
@@ -158,7 +158,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const est = estimateDay(job)
   const dates = dateList(job.start_date, job.end_date)
   const ended = job.end_date < kstDate()
-  const canApply = job.status === 'open' && !ended
+  // 마지막 날 근무 시간까지 끝났으면 (오늘 끝난 근무) 더 지원받지 않음 — 끝난 근무에 지원하는 실수 막기
+  const overToday = !ended && job.status === 'open' && workOver(job, job.end_date)
+  const canApply = job.status === 'open' && !ended && !overToday
+  // 하루짜리 근무가 이미 시작했으면 지원 칸에 한 줄 안내 (지원은 받음: 급히 사람을 구하는 경우)
+  const startedToday = canApply && job.start_date === job.end_date && job.start_date === kstDate() && Date.now() >= kstAt(job.start_date, job.start_time).getTime()
   const path = `/jobs/${job.id}`
   // 전문가 의뢰는 전문가 화면(보라)·말투로, 지원도 가입 유형이 맞아야 (알바 공고는 알바, 전문가 의뢰는 전문가)
   const expert = job.audience === 'expert'
@@ -205,6 +209,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {expert && <span className="badge bg-ink text-white">🎛️ 전문가 의뢰</span>}
           {canApply ? (
             <span className="badge bg-brand-50 text-brand-700">{expert ? '지원 받는 중' : '모집중'}</span>
+          ) : overToday ? (
+            <span className="badge bg-gray-100 text-mute" data-over-today>
+              오늘 {expert ? '일정' : '근무'} 종료
+            </span>
           ) : job.status === 'cancelled' ? (
             <span className="badge bg-rose-50 text-rose-600">행사 취소</span>
           ) : (
@@ -320,21 +328,31 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               {job.manager_name}
               {/* 담당자 휴대폰은 로그인한 회원에게만 (검색에 노출되거나 누구나 모아 가지 못하게) */}
               {job.manager_phone && user && (
-                <div className="mt-1">
-                  <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} />
+                // 번호는 한 줄, 전화·문자는 그 아래 한 줄 (좁은 칸에서 '문자'만 따로 떨어지지 않게)
+                <div className="mt-0.5 space-y-1.5" data-manager-contact>
+                  <span className="block tabular-nums">{phoneFmt(job.manager_phone)}</span>
+                  <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} showNumber={false} />
                 </div>
               )}
             </Row>
           )}
           {(docs.length > 0 || job.contract_method !== 'app') && shows(job, 'docs') && (
             <Row k="서류">
-              {[
-                job.contract_method === 'paper' && `${contractNameOf(job.audience)} (현장에서 종이로 작성)`,
-                job.contract_method === 'external' && `${contractNameOf(job.audience)} (모두싸인 등 전자계약)`,
-                docs.length > 0 && `${docs.map((d) => d.title).join(', ')} (확정 후 앱에서 전자서명)`,
-              ]
-                .filter(Boolean)
-                .join('\n')}
+              {/* 서류 이름 아래 작은 글씨로 받는 방법 (괄호가 줄 중간에서 끊기지 않게) */}
+              <span className="block space-y-1.5" data-doc-lines>
+                {(
+                  [
+                    job.contract_method === 'paper' && [contractNameOf(job.audience), '현장에서 종이로 작성'],
+                    job.contract_method === 'external' && [contractNameOf(job.audience), '모두싸인 등 전자계약'],
+                    docs.length > 0 && [docs.map((d) => d.title).join(', '), '확정 후 앱에서 전자서명'],
+                  ].filter(Boolean) as [string, string][]
+                ).map(([name, how]) => (
+                  <span key={name} className="block">
+                    {name}
+                    <span className="block text-xs text-sub">{how}</span>
+                  </span>
+                ))}
+              </span>
             </Row>
           )}
         </dl>
@@ -374,6 +392,18 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               ))}
             </ul>
             <p className="mt-1.5 text-amber-800">겹치는 날은 근무할 수 없어요. 여러 날 행사라면 가능한 날짜만 골라 지원해 주세요.</p>
+          </div>
+        )}
+        {/* 오늘 끝난 근무: 지원 칸 대신 안내 + 다른 공고로 */}
+        {overToday && (!app || app.status === 'cancelled') && (
+          <div className="card space-y-2 text-center" data-over-today-note>
+            <p className="font-bold">
+              오늘 {expert ? '일정이' : '근무가'} {hhmm(job.end_time)}에 끝났어요
+            </p>
+            <p className="text-sm text-sub">이 공고는 더 지원할 수 없어요.</p>
+            <Link href={expert ? '/pro' : '/'} className="btn-primary w-full">
+              {expert ? '모집 중인 다른 의뢰 보기' : '모집 중인 다른 알바 보기'}
+            </Link>
           </div>
         )}
         {!user ? (
@@ -555,6 +585,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         ) : (
           canApply && (
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
+              {startedToday && (
+                <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-started-note>
+                  {hhmm(job.start_time)}에 이미 시작한 {expert ? '일정이에요' : '근무예요'}. 지원하면 담당자가 확인한 뒤 알려 드려요.
+                </p>
+              )}
               {dates.length > 1 && (
                 <ApplyDays
                   days={dates.map((d) => ({ value: d, label: fmtDate(d), past: d < kstDate() }))}

@@ -141,7 +141,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
           🔒 지금은 <b>우리 회사에 지원한 회원</b>만 보여요. 해피워크 전체 회원 명단은 회사 확인을 마친 뒤에 열려요. 그동안은 공고 링크를 보내 지원을 받아 주세요.
         </p>
       )}
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className="fade-x flex gap-1.5 overflow-x-auto pb-1" data-filter-row>
         {(
           [
             [null, null, '전체'],

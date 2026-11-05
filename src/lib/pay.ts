@@ -102,6 +102,11 @@ export function scheduledEnd(rule: Pick<Job, 'start_time' | 'end_time'>, workDat
   return end <= start ? new Date(end.getTime() + 86_400_000) : end
 }
 
+/** 마지막 날 근무 시간까지 지났는지 (오늘 끝난 근무엔 더 지원받지 않게 · 밤샘 근무는 다음 날 끝나는 시각 기준) */
+export function workOver(rule: Pick<Job, 'start_time' | 'end_time'>, lastDate: string, now = Date.now()): boolean {
+  return now >= scheduledEnd(rule, lastDate).getTime()
+}
+
 export function effectiveTimes(a: Pick<Attendance, 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out'>) {
   const end = a.adj_out ?? a.clock_out
   return { start: new Date(a.adj_in ?? a.clock_in), end: end ? new Date(end) : null }
