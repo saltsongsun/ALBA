@@ -19,7 +19,7 @@ function vapidKeys() {
   const ecdh = createECDH('prime256v1')
   ecdh.setPrivateKey(priv)
   keys = { publicKey: ecdh.getPublicKey().toString('base64url'), privateKey: priv.toString('base64url') }
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'https://socketalba.vercel.app', keys.publicKey, keys.privateKey)
+  webpush.setVapidDetails(process.env.VAPID_SUBJECT || `https://${process.env.CANONICAL_HOST || process.env.VERCEL_PROJECT_PRODUCTION_URL || 'socketalba.vercel.app'}`, keys.publicKey, keys.privateKey)
   return keys
 }
 

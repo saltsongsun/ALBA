@@ -17,7 +17,27 @@ function blocked(msg: string) {
   return new NextResponse(msg, { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } })
 }
 
+/**
+ * 대표 주소로 모으기: Vercel 환경 변수 CANONICAL_HOST(예: happywork.co.kr)를 정하면, 운영 배포의 예전 주소(*.vercel.app)로
+ * 들어온 화면 열기(GET·HEAD)를 그 도메인의 같은 주소로 영구 이동(308). 로그인 쿠키·앱 설치·알림이 주소마다 따로라서 한곳으로 모음.
+ * 미리보기 배포·예약 작업(/api/cron)·서버 함수(POST)는 그대로 · 값이 없으면 아무것도 안 함
+ */
+const CANONICAL = (process.env.CANONICAL_HOST ?? '').trim().toLowerCase()
+const CANONICAL_OK = /^[a-z0-9.-]+\.[a-z]{2,}$/.test(CANONICAL)
+
+function toCanonical(request: NextRequest): NextResponse | null {
+  if (!CANONICAL_OK || process.env.VERCEL_ENV !== 'production') return null
+  if (request.method !== 'GET' && request.method !== 'HEAD') return null
+  const host = (request.headers.get('host') ?? '').toLowerCase()
+  if (!host.endsWith('.vercel.app') || host === CANONICAL) return null
+  if (request.nextUrl.pathname.startsWith('/api/cron/')) return null
+  const url = new URL(request.nextUrl.pathname + request.nextUrl.search, `https://${CANONICAL}`)
+  return NextResponse.redirect(url, 308)
+}
+
 export function proxy(request: NextRequest) {
+  const moved = toCanonical(request)
+  if (moved) return moved
   const ua = request.headers.get('user-agent') ?? ''
   const path = request.nextUrl.pathname
   if (path !== '/robots.txt' && AI_BOTS.test(ua)) return blocked('AI 수집 로봇의 접근은 허용되지 않아요.')

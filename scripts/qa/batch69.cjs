@@ -109,6 +109,7 @@ const pdfText = (buf) => {
   ok('내려받기 기록 (doc.pdf) 남김', logs.length >= 2, String(logs.length))
 
   // ── 7. 메뉴 이름 '서류' ──
+  await ad.goto(`${D}/admin/jobs`)
   ok("관리자 메뉴 이름 '서류'", (await ad.locator('a[href="/admin/docs"]', { hasText: /^서류$/ }).count()) >= 1)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

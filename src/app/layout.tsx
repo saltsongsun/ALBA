@@ -15,7 +15,10 @@ import KeyboardWatch from '@/components/KeyboardWatch'
 export const dynamic = 'force-dynamic'
 
 // 공유 미리보기(og:image)가 전체 주소로 나가도록 (카카오톡은 전체 주소만 읽음)
-const SITE = process.env.VERCEL_PROJECT_PRODUCTION_URL
+// 대표 도메인(CANONICAL_HOST)을 정했으면 그 주소로
+const SITE = process.env.CANONICAL_HOST
+  ? `https://${process.env.CANONICAL_HOST}`
+  : process.env.VERCEL_PROJECT_PRODUCTION_URL
   ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
   : process.env.VERCEL_URL
     ? `https://${process.env.VERCEL_URL}`
