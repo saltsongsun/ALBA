@@ -5,8 +5,8 @@ import { setPushLevel } from '@/app/actions/push'
 import { haptic } from './ui'
 
 const OPTIONS = [
-  { id: 'all', label: '전체 알림 듣기', hint: '단체방·커뮤니티·새 모집까지 모두' },
-  { id: 'min', label: '최소 알림 듣기', hint: '나를 부른 알림과 중요한 알림만' },
+  { id: 'all', label: '전체 알림 듣기', hint: '단체방·새 모집까지' },
+  { id: 'min', label: '최소 알림 듣기', hint: '나를 부른 알림만' },
 ] as const
 
 /**
@@ -42,10 +42,10 @@ export default function PushLevel({ initial, admin = false }: { initial: 'all' |
             aria-checked={level === o.id}
             onClick={() => pick(o.id)}
             data-level={o.id}
-            className={`rounded-xl px-3 py-2.5 text-left ring-1 transition active:scale-[0.98] ${level === o.id ? 'bg-brand-50 ring-brand-500' : 'bg-white ring-line'}`}
+            className={`rounded-xl px-3 py-2 text-left ring-1 transition active:scale-[0.98] ${level === o.id ? 'bg-brand-50 ring-brand-500' : 'bg-white ring-line'}`}
           >
             <span className={`block text-sm font-bold ${level === o.id ? 'text-brand-700' : 'text-ink'}`}>{o.label}</span>
-            <span className="block text-xs text-sub">{o.id === 'all' && admin ? '단체방·새 지원자까지 모두' : o.hint}</span>
+            <span className="block truncate text-xs text-sub">{o.id === 'all' && admin ? '새 지원자까지 모두' : o.hint}</span>
           </button>
         ))}
       </div>
