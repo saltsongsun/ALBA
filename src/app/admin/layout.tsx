@@ -74,7 +74,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <AdminNav unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
         <AppBadge count={unread + roomUnread} />
       </header>
-      <main className="mx-auto max-w-6xl px-4 pt-5 pb-28 sm:pb-20">{children}</main>
+      {/* 아래 여백 = 아래 탭 높이 + 16px (키보드가 올라와 탭이 숨으면 함께 줄어 입력칸이 키보드 바로 위에) */}
+      <main className="mx-auto max-w-6xl px-4 pt-5 pb-[calc(var(--tabbar-space)+16px)] sm:pb-20">{children}</main>
       <AdminTabBar unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
     </>
   )
