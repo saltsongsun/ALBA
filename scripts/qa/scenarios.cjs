@@ -105,7 +105,8 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   await shot(wd, '5-worker-change', 'text=🔔 일정 변경')
 
   // S4 겹치는 근무
-  await rest(MD, 'jobs', 'POST', { ...job, id: J2, title: '같은 날 다른 행사 스태프', status: 'open' })
+  // (저녁 6시가 지나면 오늘 하루짜리 공고는 '오늘 근무 종료'로 지원 칸이 닫혀서 내일까지로 — 오늘은 그대로 겹침)
+  await rest(MD, 'jobs', 'POST', { ...job, id: J2, title: '같은 날 다른 행사 스태프', status: 'open', end_date: new Date(Date.now() + 33 * 3600e3).toISOString().slice(0, 10) })
   await wd.goto(`${D}/jobs/${J2}`)
   ok('S4 근무자: 같은 시간에 잡힌 근무 경고', await see(wd, '⚠️ 같은 시간에 잡힌 근무가 있어요'))
   await shot(wd, '4-overlap', 'text=같은 시간에 잡힌 근무가 있어요')
