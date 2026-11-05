@@ -31,10 +31,10 @@ const ICONS = {
 function Stat({ label, value, href, icon, tone }: { label: string; value: number; href: string; icon: keyof typeof ICONS; tone: string }) {
   return (
     // 이름은 한 줄 (휴대폰 두 칸에서도 꺾이지 않게 그림은 숫자 옆으로)
-    <Link href={href} className="card-link block px-4 py-4 sm:px-5">
+    <Link href={href} className="card-link block px-4 py-3 sm:px-5 sm:py-4">
       <p className="truncate text-sm font-semibold whitespace-nowrap text-mute">{label}</p>
       <div className="mt-1 flex items-center justify-between gap-2">
-        <p className="text-3xl font-extrabold">
+        <p className="text-[26px] leading-tight font-extrabold sm:text-3xl">
           <LiveNumber value={value} countUp />
         </p>
         <span className={`grid size-8 shrink-0 place-items-center rounded-full ${tone}`}>
@@ -387,7 +387,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const startDone = startSteps.filter((st) => st.done).length
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Flash m={sp.m} />
       {/* 직접 가입해 확인 전인 회사: 무엇이 되고 무엇이 확인 뒤에 열리는지 */}
       {!admin.companyVerified && (

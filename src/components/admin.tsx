@@ -240,8 +240,9 @@ export function SettingsForm({ s }: { s: Settings }) {
             이미 서명된 서류는 서명할 때의 회사 정보 그대로 보관돼요.
           </p>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label>
+        {/* 짧은 칸은 휴대폰에서도 두 칸씩 (위아래로 덜 길게) */}
+        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <label className="col-span-2 sm:col-span-1">
             <span className="label">상호 *</span>
             <input name="company_name" className="input" defaultValue={s.company_name} required />
           </label>
@@ -249,17 +250,17 @@ export function SettingsForm({ s }: { s: Settings }) {
             <span className="label">대표자</span>
             <input name="ceo_name" className="input" defaultValue={s.ceo_name ?? ''} />
           </label>
-          <div>
+          <label>
+            <span className="label">회사 전화</span>
+            <input name="company_phone" className="input" inputMode="tel" defaultValue={s.company_phone ?? ''} />
+          </label>
+          <div className="col-span-2 sm:col-span-1">
             <label className="label" htmlFor="business_no">
               사업자등록번호
             </label>
             <BizNoField defaultValue={s.business_no ?? ''} placeholder="000-00-00000" />
           </div>
-          <label>
-            <span className="label">회사 전화</span>
-            <input name="company_phone" className="input" defaultValue={s.company_phone ?? ''} />
-          </label>
-          <label className="sm:col-span-2">
+          <label className="col-span-2">
             <span className="label">회사 주소</span>
             <input name="company_address" className="input" defaultValue={s.company_address ?? ''} />
           </label>
@@ -276,7 +277,7 @@ export function SettingsForm({ s }: { s: Settings }) {
       </section>
       <section className="card space-y-4">
         <h2 className="font-bold">운영 기본값</h2>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           <label>
             <span className="label">문의 담당자</span>
             <input name="contact_name" className="input" defaultValue={s.contact_name ?? ''} />

@@ -438,8 +438,9 @@
   }
 }
 
+/* 카드 안쪽 여백: 휴대폰은 16px (위아래로 덜 길게), 넓은 화면은 20px */
 @utility card {
-  @apply rounded-[22px] bg-white p-5 shadow-card ring-1 ring-black/[0.03];
+  @apply rounded-[22px] bg-white p-4 shadow-card ring-1 ring-black/[0.03] sm:p-5;
 }
 @utility btn {
   @apply inline-flex items-center justify-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[15px] font-semibold transition duration-150 outline-none select-none focus-visible:ring-4 focus-visible:ring-brand-500/25 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;

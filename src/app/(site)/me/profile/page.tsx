@@ -80,17 +80,18 @@ export default async function ProfilePage() {
               <span key={c.key} className={`h-1.5 flex-1 rounded-full ${i < doneN ? 'bg-brand-600' : 'bg-bg'}`} />
             ))}
           </div>
-          <ul className="space-y-1.5">
+          {/* 빈 항목은 두 칸씩 (위아래로 덜 길게) — 누르면 그 칸으로 */}
+          <ul className="grid grid-cols-2 gap-1.5">
             {checks
               .filter((c) => !c.done)
               .map((c) => (
                 <li key={c.key}>
-                  <a href={c.href} className="flex items-center justify-between gap-3 rounded-xl bg-bg px-3.5 py-2.5 text-sm transition active:scale-[0.99]">
-                    <span className="min-w-0">
-                      <b className="block">{c.label}</b>
-                      <span className="block text-xs text-sub">{c.why}</span>
+                  <a href={c.href} className="flex h-full items-center gap-1.5 rounded-xl bg-bg px-3 py-2 text-sm transition active:scale-[0.98]">
+                    <span className="min-w-0 flex-1">
+                      <b className="block truncate">{c.label}</b>
+                      <span className="block truncate text-xs text-sub">{c.why}</span>
                     </span>
-                    <span className="shrink-0 font-semibold whitespace-nowrap text-brand-600">채우기 →</span>
+                    <span aria-hidden className="shrink-0 text-base font-bold text-brand-600">›</span>
                   </a>
                 </li>
               ))}

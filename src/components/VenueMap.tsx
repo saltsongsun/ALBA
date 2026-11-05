@@ -12,7 +12,7 @@ export default function VenueMap(place: Place) {
         src={links.embed}
         loading="lazy"
         referrerPolicy="no-referrer-when-downgrade"
-        className="block h-52 w-full bg-bg"
+        className="block h-40 w-full bg-bg sm:h-52"
       />
       <div className="flex flex-wrap gap-1.5 p-2.5">
         {links.route && (

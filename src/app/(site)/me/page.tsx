@@ -226,41 +226,34 @@ export default async function MePage(props: PageProps<'/me'>) {
     })
     .filter((x) => x !== null)
 
-  // 계좌·사진 등록 안내 (근무 날에는 오늘의 근무 아래에)
-  const profileNags = (
-    <>
-      {/* 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음) */}
-      {!hasAccount && (approved.length > 0 || atts.length > 0) && (
-        <Link href="/me/profile#bank_account" className="card-link flex items-center gap-3 p-4 ring-rose-200/70">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-2xl bg-rose-50 text-xl text-rose-600">
-            <Icon name="card" />
+  // 계좌·사진 등록 안내 (근무 날에는 오늘의 근무 아래에) — 둘 다면 한 카드에 두 줄로 (위아래로 덜 길게)
+  const nags = [
+    // 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음)
+    !hasAccount && (approved.length > 0 || atts.length > 0)
+      ? { key: 'account', href: '/me/profile#bank_account', icon: 'card' as const, tone: 'bg-rose-50 text-rose-600', title: '급여 계좌를 등록해 주세요', sub: '급여를 받으려면 꼭 필요해요', go: '등록' }
+      : null,
+    !photoAt ? { key: 'photo', href: '/me/profile#photo', icon: 'camera' as const, tone: 'bg-brand-50 text-brand-600', title: '얼굴 사진을 올려 주세요', sub: '현장 담당자가 알아보기 쉬워요', go: '올리기' } : null,
+  ].filter((n) => n !== null)
+  const profileNags = nags.length ? (
+    <div className={`card divide-y divide-line overflow-hidden p-0 ${nags[0].key === 'account' ? 'ring-rose-200/70' : ''}`} data-profile-nags>
+      {nags.map((n) => (
+        <Link key={n.key} href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors active:bg-bg">
+          <span aria-hidden className={`grid size-9 shrink-0 place-items-center rounded-xl text-lg ${n.tone}`}>
+            <Icon name={n.icon} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block font-bold">급여 계좌를 등록해 주세요</span>
-            <span className="block text-sm text-sub">급여를 받으려면 꼭 필요해요</span>
+            <span className="block truncate font-bold">{n.title}</span>
+            <span className="block truncate text-[13px] text-sub">{n.sub}</span>
           </span>
-          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">등록 →</span>
+          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">{n.go} →</span>
         </Link>
-      )}
-
-      {!photoAt && (
-        <Link href="/me/profile#photo" className="card-link flex items-center gap-3 p-4">
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-xl text-brand-600">
-            <Icon name="camera" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-bold">얼굴 사진을 올려 주세요</span>
-            <span className="block text-sm text-sub">현장 담당자가 알아보기 쉬워요</span>
-          </span>
-          <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">올리기 →</span>
-        </Link>
-      )}
-    </>
-  )
+      ))}
+    </div>
+  ) : null
 
   const [nudge, newComments] = await Promise.all([nudgeP, newCommentsP])
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <Flash m={sp.m} />
       {/* 근무 날·답을 기다리는 일이 있으면: 담당자의 출근 처리·시간 변경·정정 결과가 새로 고치지 않아도 보이게 */}
       {(todayApps.length > 0 || pendingShifts.length > 0) && <AutoRefresh seconds={60} quiet />}

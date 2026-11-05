@@ -808,7 +808,7 @@ export function ProfileForm({
     else el.setAttribute('data-missing', '')
   }
   return (
-    <form id="profile-form" ref={ref} action={action} onReset={keepInputs} onInput={onInput} className="card space-y-4">
+    <form id="profile-form" ref={ref} action={action} onReset={keepInputs} onInput={onInput} className="card space-y-3">
       {/* 계좌·주소를 고친 뒤 '저장'을 잊고 나가지 않게: 아래 탭 위에 저장 바 */}
       <UnsavedBar formId="profile-form" state={state} />
       <h2 className="font-bold">급여 계좌 · 연락 정보</h2>
@@ -843,31 +843,35 @@ export function ProfileForm({
       <div className="-mt-2">
         <AccountDigits value={acct} fallback="계좌번호는 숫자 10~16자리 · 본인 명의 계좌가 가장 빨라요" />
       </div>
-      <div>
-        <label className="label" htmlFor="account_holder">
-          예금주
-        </label>
-        <input id="account_holder" name="account_holder" className="input" placeholder="비우면 본인 이름" defaultValue={initial.account_holder} />
+      {/* 예금주·비상연락처는 두 칸으로 (위아래로 덜 길게) */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="min-w-0">
+          <label className="label" htmlFor="account_holder">
+            예금주
+          </label>
+          <input id="account_holder" name="account_holder" className="input" placeholder="비우면 본인 이름" defaultValue={initial.account_holder} />
+        </div>
+        <div className="min-w-0">
+          <label className="label whitespace-nowrap" htmlFor="emergency_phone">
+            비상연락처 <span className="font-normal text-mute">(선택)</span>
+          </label>
+          <input
+            id="emergency_phone"
+            name="emergency_phone"
+            className="input"
+            inputMode="tel"
+            placeholder="가족 번호"
+            title="현장에서 연락이 안 될 때 담당자가 걸어요"
+            defaultValue={initial.emergency_phone}
+            data-missing={missing('emergency_phone', initial.emergency_phone)}
+          />
+        </div>
       </div>
       <div>
         <label className="label" htmlFor="address">
           주소
         </label>
         <input id="address" name="address" className="input" placeholder="예) 진주시 남강로 123" defaultValue={initial.address} data-missing={missing('address', initial.address)} />
-      </div>
-      <div>
-        <label className="label" htmlFor="emergency_phone">
-          비상연락처 <span className="font-normal text-mute">(선택)</span>
-        </label>
-        <input
-          id="emergency_phone"
-          name="emergency_phone"
-          className="input"
-          inputMode="tel"
-          placeholder="가족 등 (현장에서 연락이 안 될 때)"
-          defaultValue={initial.emergency_phone}
-          data-missing={missing('emergency_phone', initial.emergency_phone)}
-        />
       </div>
       <FormMessage state={state} />
       <SubmitButton>저장</SubmitButton>

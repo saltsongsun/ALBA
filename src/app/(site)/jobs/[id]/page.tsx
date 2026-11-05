@@ -55,9 +55,9 @@ const CANCEL_REASONS = ['일정이 생겼어요', '몸이 아파요', '교통·�
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-3 py-2.5">
-      <dt className="w-16 shrink-0 text-sm font-semibold text-mute">{k}</dt>
-      <dd className="min-w-0 flex-1 text-[15px] whitespace-pre-wrap">{children}</dd>
+    <div className="flex gap-3 py-2">
+      <dt className="w-16 shrink-0 text-sm leading-snug font-semibold text-mute">{k}</dt>
+      <dd className="min-w-0 flex-1 text-[15px] leading-snug whitespace-pre-wrap">{children}</dd>
     </div>
   )
 }
