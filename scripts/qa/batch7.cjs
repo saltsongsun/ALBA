@@ -67,7 +67,8 @@ const ago = (h) => new Date(Date.now() - h * 3_600_000).toISOString()
   const ad = await pg(A)
   await ad.goto(`${D}/community/${hot.id}`)
   await ad.locator('[data-comments]').waitFor({ timeout: 10000 }).catch(() => {})
-  ok('관리자(읽기만): 답글 버튼 없음', (await ad.locator('[data-reply]').count()) === 0)
+  // 관리자도 커뮤니티에 댓글·답글을 씀 (batch73) → 남의 댓글에 답글 버튼이 있음
+  ok('관리자: 답글 버튼 있음', (await ad.locator('[data-reply]').count()) >= 1)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
