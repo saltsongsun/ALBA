@@ -75,8 +75,10 @@ export function RoomMessages({
                       <p
                         data-mentions-me={callsMe ? '' : undefined}
                         className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
-                          mine ? 'rounded-br-md bg-brand-600 text-white' : m.from_admin ? 'rounded-bl-md bg-brand-50 text-ink ring-1 ring-brand-100' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                        } ${callsMe ? 'ring-2 ring-amber-300' : ''}`}
+                          mine
+                            ? 'rounded-br-md bg-brand-600 text-white'
+                            : `rounded-bl-md text-ink ${m.from_admin ? 'bg-brand-50' : 'bg-white shadow-[0_1px_2px_rgba(0,0,0,0.05)]'} ${callsMe ? 'ring-2 ring-amber-400' : m.from_admin ? 'ring-1 ring-brand-100' : ''}`
+                        }`}
                       >
                         {m.pinned_at && <span className="mr-1">📌</span>}
                         {withMentions(m.body, everyone, mine)}
