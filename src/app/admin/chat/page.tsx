@@ -31,6 +31,11 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const sp = await props.searchParams
   const onlyUnread = sp.unread === '1'
   const rooms = await adminRooms(admin.companyId, admin.id)
+  // 단체방 마지막 말을 쓴 사람 이름 (나는 '나')
+  const lastSenders = [...new Set(rooms.map((r) => r.last?.sender_id).filter((id): id is string => !!id && id !== admin.id))]
+  const senderName = new Map(
+    lastSenders.length ? (((await db().from('users').select('id, name').in('id', lastSenders)).data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]) : [],
+  )
   // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
   const rows = must(
     await db()
@@ -116,10 +121,20 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
               👥
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-bold">{r.title}</span>
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="truncate font-bold">{r.title}</span>
+                {r.last && <span className="shrink-0 text-xs text-mute">{kstDate(r.last.created_at) === today ? kstTime(r.last.created_at) : fmtDate(kstDate(r.last.created_at))}</span>}
+              </span>
               <span className="block truncate text-xs text-sub">
                 {fmtDateRange(r.start_date, r.end_date)} · 확정 {r.members}명{!r.joined && ' · 참여 안 함'}
               </span>
+              {/* 마지막 말 미리보기: 방에 들어가지 않고도 무슨 얘기가 오갔는지 */}
+              {r.last && (
+                <span className={`mt-0.5 block truncate text-[13px] ${r.unread ? 'font-semibold text-ink' : 'text-sub'}`} data-room-last>
+                  <span className="text-mute">{r.last.sender_id === admin.id ? '나' : (senderName.get(r.last.sender_id ?? '') ?? (r.last.from_admin ? '담당자' : '근무자'))}: </span>
+                  {plainBody(r.last.body)}
+                </span>
+              )}
             </span>
             {r.unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{r.unread}</span>}
           </Link>

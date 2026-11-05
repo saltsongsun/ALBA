@@ -285,7 +285,7 @@ export function SettingsForm({ s }: { s: Settings }) {
           <label>
             <span className="label">문의 연락처</span>
             <input name="contact_phone" className="input" defaultValue={s.contact_phone ?? ''} />
-            <span className="hint">로그인 화면 &lsquo;비밀번호 분실&rsquo; 안내에 표시</span>
+            <span className="hint">비밀번호 분실 안내에 보여요</span>
           </label>
           <label>
             <span className="label">기본 시급(원)</span>

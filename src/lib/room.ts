@@ -186,9 +186,9 @@ async function joinedRoomIds(userId: string, jobs: Pick<RoomJob, 'id' | 'created
 
 /**
  * 관리자의 단체방 목록: 이 회사 공고 중 확정자가 있고 끝난 지 30일 안 된 것.
- * joined = 내가 참여한 방 (올린 공고·들어온 방) — 안 읽은 수는 참여한 방만 셈
+ * joined = 내가 참여한 방 (올린 공고·들어온 방) — 안 읽은 수는 참여한 방만 셈 · last = 마지막 말 (문의 목록 미리보기)
  */
-export async function adminRooms(companyId: string, userId: string): Promise<(RoomJob & { unread: number; members: number; joined: boolean })[]> {
+export async function adminRooms(companyId: string, userId: string): Promise<(RoomJob & { unread: number; members: number; joined: boolean; last: RoomLast | null })[]> {
   const since = kstDate(new Date(Date.now() - 30 * 86_400_000))
   const { data } = await db().from('jobs').select(JOB_COLS).eq('company_id', companyId).gte('end_date', since).neq('status', 'draft')
   const jobs = ((data ?? []) as RoomJob[]).filter((j) => j.status !== 'draft' && j.end_date >= since)
@@ -197,9 +197,9 @@ export async function adminRooms(companyId: string, userId: string): Promise<(Ro
   const members: Record<string, number> = {}
   for (const a of (apps ?? []) as { job_id: string }[]) members[a.job_id] = (members[a.job_id] ?? 0) + 1
   const withPeople = jobs.filter((j) => members[j.id]).sort((a, b) => a.start_date.localeCompare(b.start_date))
-  const joined = await joinedRoomIds(userId, withPeople)
-  const unread = await roomUnread(userId, withPeople.filter((j) => joined.has(j.id)).map((j) => j.id))
-  return withPeople.map((j) => ({ ...j, unread: joined.has(j.id) ? (unread[j.id] ?? 0) : 0, members: members[j.id] ?? 0, joined: joined.has(j.id) }))
+  // 안 읽은 수와 마지막 말을 한 번에 (마지막 말은 참여 안 한 방도 보여 줘서 들어갈지 고르기 쉽게)
+  const [joined, { unread, last }] = await Promise.all([joinedRoomIds(userId, withPeople), roomStats(userId, withPeople.map((j) => j.id))])
+  return withPeople.map((j) => ({ ...j, unread: joined.has(j.id) ? (unread[j.id] ?? 0) : 0, members: members[j.id] ?? 0, joined: joined.has(j.id), last: last[j.id] ?? null }))
 }
 
 /** 고정된 공지 (가장 최근 것 하나) + 보낸 사람 이름 */

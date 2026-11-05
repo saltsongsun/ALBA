@@ -1,3 +1,4 @@
+import SlotBar from '@/components/SlotBar'
 import { deleteRoomMessage, nudgeRoomUnread, unpinRoom } from '@/app/actions/room'
 import { isDeleted } from '@/lib/deleted'
 import { mentionedIn, unreadFor, type RoomMessage } from '@/lib/room'
@@ -123,9 +124,7 @@ export function RoomPinned({ msg, jobId, canUnpin, reads }: { msg: Msg; jobId: s
         <details className="mt-2.5 rounded-xl bg-white/70 p-2.5" data-pinned-reads>
           <summary className="flex cursor-pointer items-center gap-2 font-semibold text-amber-900 before:hidden">
             <span className="shrink-0">👀 확인</span>
-            <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-amber-100">
-              <span className="block h-full origin-left animate-grow rounded-full bg-amber-500" style={{ width: `${(reads.seen.length / total) * 100}%` }} />
-            </span>
+            <SlotBar value={reads.seen.length} max={total} color="bg-amber-500" track="bg-amber-100" height="h-1.5" className="min-w-0 flex-1" />
             <span className="shrink-0 tabular-nums" data-pinned-count>
               {reads.seen.length}/{total}명
             </span>

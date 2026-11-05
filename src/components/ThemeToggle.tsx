@@ -27,7 +27,7 @@ export default function ThemeToggle() {
         <span className="block font-bold">
           어두운 화면 <span className="badge bg-brand-50 align-middle text-brand-700">베타</span>
         </span>
-        <span className="block text-sm text-sub">밤에 눈이 덜 부셔요 (이 휴대폰에만)</span>
+        <span className="block text-sm text-sub">밤에 눈이 덜 부셔요 <span className="whitespace-nowrap">(이 휴대폰에만)</span></span>
       </span>
       <span className={`relative h-7 w-12 shrink-0 rounded-full transition ${dark ? 'bg-brand-600' : 'bg-line'}`}>
         <span className={`absolute top-0.5 size-6 rounded-full bg-[#fff] shadow transition-all ${dark ? 'left-[22px]' : 'left-0.5'}`} />
