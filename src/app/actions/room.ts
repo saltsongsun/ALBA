@@ -2,6 +2,7 @@
 
 import { after } from 'next/server'
 import { revalidatePath } from 'next/cache'
+import { redirect } from 'next/navigation'
 import { audit } from '@/lib/data'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
@@ -122,6 +123,29 @@ export async function nudgeRoomUnread(jobId: string, id: number | string): Promi
   )
   await audit(admin.id, 'room.unread_nudge', null, `${job.title} · ${unread.length}명`, job.company_id)
   return { ok: `안 읽은 ${unread.length}명에게 알림을 보냈어요.` }
+}
+
+/** 관리자: 이 단체방에 참여 (알림·안 읽은 수·@부르기 대상이 됨) — 읽음 표시를 남기는 것으로 참여를 기록 */
+export async function joinRoom(jobId: string) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? await companyJob(admin, jobId) : null
+  if (!job) return
+  await db().from('job_chat_reads').upsert({ job_id: jobId, user_id: admin.id, read_at: new Date().toISOString() }, { onConflict: 'job_id,user_id' })
+  roomPaths(jobId)
+  revalidatePath('/admin/chat')
+  redirect(`/admin/chat/room/${jobId}?m=${encodeURIComponent('단체방에 참여했어요. 이제 새 메시지 알림을 받아요.')}`)
+}
+
+/** 관리자: 단체방 나가기 (공고를 올린 관리자는 늘 참여) */
+export async function leaveRoom(jobId: string) {
+  const admin = await requireAdmin()
+  const job = isUuid(jobId) ? ((await companyJob(admin, jobId)) as (RoomJob & { created_by?: string | null }) | null) : null
+  if (!job) return
+  if (job.created_by === admin.id) redirect(`/admin/chat/room/${jobId}?m=${encodeURIComponent('공고를 올린 관리자는 단체방에서 나갈 수 없어요.')}`)
+  await db().from('job_chat_reads').delete().eq('job_id', jobId).eq('user_id', admin.id)
+  roomPaths(jobId)
+  revalidatePath('/admin/chat')
+  redirect(`/admin/chat?m=${encodeURIComponent(`‘${job.title}’ 단체방에서 나왔어요. 알림이 오지 않아요.`)}`)
 }
 
 /** 고정된 공지 내리기 (관리자) */

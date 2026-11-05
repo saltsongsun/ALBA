@@ -85,7 +85,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
           ⬇️ 모든 대화 저장
         </a>
       </div>
-      {/* 같은 근무 단체방: 공고마다 확정자 + 담당자 · 행사가 끝난 방은 아래 '종료된 행사'로 접어 둠 */}
+      {/* 같은 근무 단체방: 공고마다 확정자 + 참여한 담당자 · 참여 안 한 방·끝난 방은 아래에 접어 둠 */}
       {/* 검색 (공고 화면과 같은 모양): 이름·번호·메시지 내용 · 단체방 이름 */}
       <form className="flex gap-1.5" role="search" data-chat-search>
         {onlyUnread && <input type="hidden" name="unread" value="1" />}
@@ -104,23 +104,39 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       )}
       {(() => {
         // 검색 중에는 찾은 방만, 접지 않고 모두 보여 줌
+        // 평소: 내가 참여한 진행 중 방은 위 · 참여 안 한 진행 중 방은 '참여 안 한 단체방'으로 · 끝난 방은 '종료된 행사'로 접어 둠
         const shown = roomHits
-        const live = term ? shown : shown.filter((r) => !roomEnded(r))
+        const live = term ? shown : shown.filter((r) => !roomEnded(r) && r.joined)
+        const others = term ? [] : shown.filter((r) => !roomEnded(r) && !r.joined)
         const past = term ? [] : shown.filter((r) => roomEnded(r))
         const pastUnread = past.reduce((n, r) => n + r.unread, 0)
         const card = (r: (typeof rooms)[number]) => (
-          <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5" data-room-row>
+          <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5" data-room-row data-joined={r.joined ? '1' : '0'}>
             <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
               👥
             </span>
             <span className="min-w-0 flex-1">
               <span className="block truncate font-bold">{r.title}</span>
               <span className="block truncate text-xs text-sub">
-                {fmtDateRange(r.start_date, r.end_date)} · 확정 {r.members}명
+                {fmtDateRange(r.start_date, r.end_date)} · 확정 {r.members}명{!r.joined && ' · 참여 안 함'}
               </span>
             </span>
             {r.unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{r.unread}</span>}
           </Link>
+        )
+        const fold = (key: string, icon: 'clock' | 'users', label: string, list: typeof rooms, unread: number, hint?: string) => (
+          <details className="group" {...{ [key]: '' }}>
+            <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl before:hidden bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line [&::-webkit-details-marker]:hidden">
+              <Icon name={icon} className="text-mute" />
+              {label} {list.length}
+              {unread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">{unread}</span>}
+              <svg viewBox="0 0 24 24" className="ml-auto size-4 text-mute transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </summary>
+            {hint && <p className="mt-2 px-1 text-[13px] text-mute">{hint}</p>}
+            <div className="mt-2 space-y-2 opacity-90">{list.map(card)}</div>
+          </details>
         )
         if (!shown.length) return null
         return (
@@ -128,21 +144,10 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
             <h2 className="flex items-center gap-1.5 text-sm font-bold text-sub">
               <Icon name="users" /> 단체방
             </h2>
-            {live.length === 0 && !term && <p className="text-sm text-mute">진행 중인 행사 단체방이 없어요.</p>}
+            {live.length === 0 && !term && <p className="text-sm text-mute">{others.length ? '내가 참여한 진행 중 단체방이 없어요.' : '진행 중인 행사 단체방이 없어요.'}</p>}
             {live.map(card)}
-            {past.length > 0 && (
-              <details className="group" data-rooms-ended>
-                <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl before:hidden bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line [&::-webkit-details-marker]:hidden">
-                  <Icon name="clock" className="text-mute" />
-                  종료된 행사 단체방 {past.length}
-                  {pastUnread > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">{pastUnread}</span>}
-                  <svg viewBox="0 0 24 24" className="ml-auto size-4 text-mute transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
-                    <path d="M6 9l6 6 6-6" />
-                  </svg>
-                </summary>
-                <div className="mt-2 space-y-2 opacity-90">{past.map(card)}</div>
-              </details>
-            )}
+            {others.length > 0 && fold('data-rooms-others', 'users', '참여 안 한 단체방', others, 0, '다른 관리자가 올린 공고의 방이에요. 들어가서 ‘참여하기’를 누르면 알림을 받아요.')}
+            {past.length > 0 && fold('data-rooms-ended', 'clock', '종료된 행사 단체방', past, pastUnread)}
           </section>
         )
       })()}

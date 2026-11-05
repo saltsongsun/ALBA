@@ -104,6 +104,8 @@ export type Job = {
   conditions: JobCondition[]
   /** 공고 화면에서 숨길 기본 항목 (lib/jobFields.ts) */
   hidden_fields: string[]
+  /** 공고를 올린 관리자 (단체방에 자동 참여) */
+  created_by?: string | null
   created_at: string
 }
 

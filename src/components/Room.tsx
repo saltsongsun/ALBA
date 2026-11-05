@@ -158,7 +158,7 @@ export function RoomPinned({ msg, jobId, canUnpin, reads }: { msg: Msg; jobId: s
 /** 참여자 (근무자끼리는 이름만, 번호 없음) */
 export function RoomMembersInfo({ workers, admins, worker }: { workers: { id: string; name: string }[]; admins: { id: string; name: string }[]; worker: boolean }) {
   return (
-    <details className="card p-3.5 text-sm">
+    <details className="card p-3.5 text-sm" data-room-members>
       <summary className="cursor-pointer font-semibold text-sub">
         👥 참여 {workers.length + admins.length}명 <span className="font-normal text-mute">(근무자 {workers.length} · 담당자 {admins.length})</span>
       </summary>

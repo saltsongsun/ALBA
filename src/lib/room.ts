@@ -10,10 +10,10 @@ import type { Job } from './types'
  */
 export const ROOM_OPEN_DAYS = 7
 
-export type RoomJob = Pick<Job, 'id' | 'title' | 'company_id' | 'start_date' | 'end_date' | 'status'>
+export type RoomJob = Pick<Job, 'id' | 'title' | 'company_id' | 'start_date' | 'end_date' | 'status' | 'created_by'>
 export type RoomMessage = { id: number | string; job_id: string; sender_id: string | null; from_admin: boolean; body: string; pinned_at: string | null; created_at: string }
 
-const JOB_COLS = 'id, title, company_id, start_date, end_date, status'
+const JOB_COLS = 'id, title, company_id, start_date, end_date, status, created_by'
 
 /** 아직 글을 쓸 수 있는 방인지 (행사 끝나고 7일까지) */
 export function roomOpen(job: Pick<RoomJob, 'end_date'>): boolean {
@@ -37,14 +37,21 @@ export async function workerRoom(userId: string, jobId: string): Promise<RoomJob
   return job && job.status !== 'draft' && count ? job : null
 }
 
-/** 참여자: 확정된 근무자(이름만)와 이 회사 관리자 */
-export async function roomMembers(job: Pick<RoomJob, 'id' | 'company_id'>): Promise<{ workers: { id: string; name: string }[]; admins: { id: string; name: string }[] }> {
-  const [{ data: apps }, { data: mem }] = await Promise.all([
+/**
+ * 참여자: 확정된 근무자(이름만)와 이 방에 참여한 관리자.
+ * 관리자는 모두가 아니라 '공고를 올린 관리자 + 방에 들어온(참여하기·글 쓰기) 관리자'만 — 알림·안 읽은 수·@부르기 대상도 이 사람들
+ */
+export async function roomMembers(job: Pick<RoomJob, 'id' | 'company_id'> & { created_by?: string | null }): Promise<{ workers: { id: string; name: string }[]; admins: { id: string; name: string }[] }> {
+  const [{ data: apps }, { data: mem }, { data: reads }, createdBy] = await Promise.all([
     db().from('applications').select('user_id').eq('job_id', job.id).eq('status', 'approved'),
     db().from('company_members').select('user_id').eq('company_id', job.company_id),
+    db().from('job_chat_reads').select('user_id, job_id').eq('job_id', job.id).limit(2000),
+    job.created_by !== undefined ? Promise.resolve(job.created_by) : jobCreator(job.id),
   ])
+  const joined = new Set(((reads ?? []) as { user_id: string; job_id: string }[]).filter((r) => r.job_id === job.id).map((r) => r.user_id))
+  if (createdBy) joined.add(createdBy)
   const wIds = [...new Set(((apps ?? []) as { user_id: string }[]).map((a) => a.user_id))]
-  const aIds = [...new Set(((mem ?? []) as { user_id: string }[]).map((m) => m.user_id))].filter((id) => !wIds.includes(id))
+  const aIds = [...new Set(((mem ?? []) as { user_id: string }[]).map((m) => m.user_id))].filter((id) => !wIds.includes(id) && joined.has(id))
   const ids = [...wIds, ...aIds]
   const { data: users } = ids.length ? await db().from('users').select('id, name').in('id', ids) : { data: [] }
   const name = new Map(((users ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]))
@@ -155,8 +162,33 @@ export async function workerRooms(userId: string): Promise<(RoomJob & { unread: 
   return jobs.map((j) => ({ ...j, unread: unread[j.id] ?? 0, last: last[j.id] ?? null }))
 }
 
-/** 관리자의 단체방 목록: 이 회사 공고 중 확정자가 있고 끝난 지 30일 안 된 것 */
-export async function adminRooms(companyId: string, userId: string): Promise<(RoomJob & { unread: number; members: number })[]> {
+/** 공고를 올린 관리자 (단체방에 자동 참여) */
+async function jobCreator(jobId: string): Promise<string | null> {
+  const { data } = await db().from('jobs').select('created_by').eq('id', jobId).maybeSingle()
+  return (data as { created_by: string | null } | null)?.created_by ?? null
+}
+
+/** 이 관리자가 방에 참여했는지: 공고를 올렸거나 방에 들어온(참여하기·글 쓰기) 기록이 있으면 */
+export async function adminJoined(job: Pick<RoomJob, 'id'> & { created_by?: string | null }, userId: string): Promise<boolean> {
+  if (job.created_by === userId) return true
+  const { data } = await db().from('job_chat_reads').select('user_id').eq('job_id', job.id).eq('user_id', userId).maybeSingle()
+  return !!data
+}
+
+/** 관리자가 참여한 방 id (올린 공고 + 들어온 방) */
+async function joinedRoomIds(userId: string, jobs: Pick<RoomJob, 'id' | 'created_by'>[]): Promise<Set<string>> {
+  if (!jobs.length) return new Set()
+  const { data } = await db().from('job_chat_reads').select('job_id, user_id').eq('user_id', userId).in('job_id', jobs.map((j) => j.id))
+  const ids = new Set(((data ?? []) as { job_id: string; user_id: string }[]).filter((r) => r.user_id === userId).map((r) => r.job_id))
+  for (const j of jobs) if (j.created_by === userId) ids.add(j.id)
+  return ids
+}
+
+/**
+ * 관리자의 단체방 목록: 이 회사 공고 중 확정자가 있고 끝난 지 30일 안 된 것.
+ * joined = 내가 참여한 방 (올린 공고·들어온 방) — 안 읽은 수는 참여한 방만 셈
+ */
+export async function adminRooms(companyId: string, userId: string): Promise<(RoomJob & { unread: number; members: number; joined: boolean })[]> {
   const since = kstDate(new Date(Date.now() - 30 * 86_400_000))
   const { data } = await db().from('jobs').select(JOB_COLS).eq('company_id', companyId).gte('end_date', since).neq('status', 'draft')
   const jobs = ((data ?? []) as RoomJob[]).filter((j) => j.status !== 'draft' && j.end_date >= since)
@@ -165,8 +197,9 @@ export async function adminRooms(companyId: string, userId: string): Promise<(Ro
   const members: Record<string, number> = {}
   for (const a of (apps ?? []) as { job_id: string }[]) members[a.job_id] = (members[a.job_id] ?? 0) + 1
   const withPeople = jobs.filter((j) => members[j.id]).sort((a, b) => a.start_date.localeCompare(b.start_date))
-  const unread = await roomUnread(userId, withPeople.map((j) => j.id))
-  return withPeople.map((j) => ({ ...j, unread: unread[j.id] ?? 0, members: members[j.id] ?? 0 }))
+  const joined = await joinedRoomIds(userId, withPeople)
+  const unread = await roomUnread(userId, withPeople.filter((j) => joined.has(j.id)).map((j) => j.id))
+  return withPeople.map((j) => ({ ...j, unread: joined.has(j.id) ? (unread[j.id] ?? 0) : 0, members: members[j.id] ?? 0, joined: joined.has(j.id) }))
 }
 
 /** 고정된 공지 (가장 최근 것 하나) + 보낸 사람 이름 */
@@ -192,11 +225,13 @@ export async function workerRoomUnreadTotal(userId: string): Promise<number> {
   return Object.values(await roomUnread(userId, ids)).reduce((n, x) => n + x, 0)
 }
 
-/** 관리자 단체방 안 읽은 수 합계 (이 회사 공고, 끝난 지 30일 안) */
+/** 관리자 단체방 안 읽은 수 합계 (이 회사 공고, 끝난 지 30일 안 · 내가 참여한 방만) */
 export async function adminRoomUnreadTotal(companyId: string, userId: string): Promise<number> {
   const since = kstDate(new Date(Date.now() - 30 * 86_400_000))
-  const { data } = await db().from('jobs').select('id').eq('company_id', companyId).gte('end_date', since)
-  const ids = ((data ?? []) as { id: string }[]).map((j) => j.id)
+  const { data } = await db().from('jobs').select('id, created_by').eq('company_id', companyId).gte('end_date', since)
+  const jobs = (data ?? []) as Pick<RoomJob, 'id' | 'created_by'>[]
+  if (!jobs.length) return 0
+  const ids = [...(await joinedRoomIds(userId, jobs))]
   if (!ids.length) return 0
   return Object.values(await roomUnread(userId, ids)).reduce((n, x) => n + x, 0)
 }
