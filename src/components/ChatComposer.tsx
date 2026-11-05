@@ -30,6 +30,7 @@ function SendButton() {
 /**
  * 문의 입력칸. 쓰는 만큼 늘어나고(최대 5줄), 보내기에 성공하면 비워지고 맨 아래로 내려감.
  * 오류가 나면 쓴 내용은 그대로 둠.
+ * Enter = 보내기 · Shift+Enter = 줄바꿈 (한글을 조합하는 중에 누른 Enter는 글자만 확정 — 두 번 보내지 않게)
  */
 export default function ChatComposer({
   action,
@@ -60,6 +61,31 @@ export default function ChatComposer({
     stickerSent.current = true
     setPicker(false)
     startTransition(() => formAction(fd))
+  }
+
+  // Shift를 누른 채 Enter인지 (휴대폰 자판은 keydown 없이 '줄바꿈 넣기'만 오기도 해서 따로 기억)
+  const shiftHeld = useRef(false)
+  const send = () => {
+    const form = formRef.current
+    const el = textRef.current
+    if (!form || !el || !el.value.trim()) return
+    // 보내는 중이면 또 보내지 않음
+    if (form.querySelector<HTMLButtonElement>('button[type=submit]')?.disabled) return
+    form.requestSubmit()
+  }
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    shiftHeld.current = e.shiftKey
+    if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return
+    if (e.nativeEvent.isComposing || e.keyCode === 229) return
+    e.preventDefault()
+    send()
+  }
+  const onBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const ne = e.nativeEvent as InputEvent
+    if ((ne.inputType === 'insertLineBreak' || ne.inputType === 'insertParagraph') && !shiftHeld.current && !ne.isComposing) {
+      e.preventDefault()
+      send()
+    }
   }
 
   const fit = () => {
@@ -128,6 +154,11 @@ export default function ChatComposer({
           maxLength={2000}
           required
           placeholder={placeholder}
+          enterKeyHint="send"
+          aria-keyshortcuts="Enter"
+          onKeyDown={onKeyDown}
+          onKeyUp={(e) => (shiftHeld.current = e.shiftKey)}
+          onBeforeInput={onBeforeInput}
           onInput={fit}
           className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-mute"
         />

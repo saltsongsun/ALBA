@@ -1,15 +1,21 @@
-import { unpinRoom } from '@/app/actions/room'
+import { deleteRoomMessage, unpinRoom } from '@/app/actions/room'
+import { isDeleted } from '@/lib/deleted'
 import type { RoomMessage } from '@/lib/room'
 import { stickerOf } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
+import { DeletedBubble } from './Chat'
+import MessageMenu from './MessageMenu'
 import PinnedNudge from './PinnedNudge'
 import Sticker from './Sticker'
 import { ConfirmSubmit } from './ui'
 
 type Msg = RoomMessage & { name: string }
 
-/** 단체방 말풍선: 내가 보낸 건 오른쪽, 다른 사람 건 왼쪽에 이름(담당자는 표시)과 함께 */
-export function RoomMessages({ messages, viewerId }: { messages: Msg[]; viewerId: string }) {
+/**
+ * 단체방 말풍선: 내가 보낸 건 오른쪽, 다른 사람 건 왼쪽에 이름(담당자는 표시)과 함께.
+ * 꾹 누르면(PC는 오른쪽 클릭) 복사 · 내가 쓴 건 삭제 (담당자는 방 정리를 위해 누구 글이든 삭제)
+ */
+export function RoomMessages({ messages, viewerId, jobId, moderator = false }: { messages: Msg[]; viewerId: string; jobId: string; moderator?: boolean }) {
   let lastDay = ''
   return (
     <ol className="space-y-2">
@@ -32,17 +38,23 @@ export function RoomMessages({ messages, viewerId }: { messages: Msg[]; viewerId
                 </span>
               )}
               <div className={`flex items-end gap-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
-                {st ? (
-                  <Sticker id={st.id} size={120} />
+                {isDeleted(m.body) ? (
+                  <DeletedBubble body={m.body} mine={mine} />
                 ) : (
-                  <p
-                    className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
-                      mine ? 'rounded-br-md bg-brand-600 text-white' : m.from_admin ? 'rounded-bl-md bg-brand-50 text-ink ring-1 ring-brand-100' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                    }`}
-                  >
-                    {m.pinned_at && <span className="mr-1">📌</span>}
-                    {m.body}
-                  </p>
+                  <MessageMenu mine={mine} copy={st ? null : m.body} remove={mine || moderator ? deleteRoomMessage.bind(null, jobId, m.id) : undefined}>
+                    {st ? (
+                      <Sticker id={st.id} size={120} />
+                    ) : (
+                      <p
+                        className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
+                          mine ? 'rounded-br-md bg-brand-600 text-white' : m.from_admin ? 'rounded-bl-md bg-brand-50 text-ink ring-1 ring-brand-100' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
+                        }`}
+                      >
+                        {m.pinned_at && <span className="mr-1">📌</span>}
+                        {m.body}
+                      </p>
+                    )}
+                  </MessageMenu>
                 )}
                 <span className="mb-0.5 shrink-0 text-[11px] text-mute tabular-nums">{kstTime(m.created_at)}</span>
               </div>

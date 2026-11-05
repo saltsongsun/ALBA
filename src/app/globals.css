@@ -835,3 +835,12 @@ html[data-text='lg'] {
     max-width: none !important;
   }
 }
+
+/* 대화 말풍선: 휴대폰에서 꾹 누르면 우리 메뉴(복사·삭제)가 뜨도록 기본 글자 고르기·말풍선 메뉴는 끔 (PC는 글자를 그대로 고를 수 있음) */
+@media (pointer: coarse) {
+  [data-msg-menu] {
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+}

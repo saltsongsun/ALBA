@@ -53,7 +53,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
           집합 장소·복장 같은 안내를 올리고 &lsquo;공지로 고정&rsquo;해 보세요
         </Empty>
       ) : (
-        <RoomMessages messages={messages} viewerId={admin.id} />
+        <RoomMessages messages={messages} viewerId={admin.id} jobId={job.id} moderator />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         {open ? (

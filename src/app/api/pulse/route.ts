@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { db } from '@/lib/db'
 import { companyJob } from '@/lib/company'
+import { DELETED_BODIES } from '@/lib/deleted'
 import { workerRoom } from '@/lib/room'
 import { adminCompanies, COMPANY_COOKIE, getUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
@@ -9,6 +10,7 @@ import { isUuid } from '@/lib/validate'
  * '새로 바뀐 게 있나요?'만 가볍게 알려 주는 값 (문의·단체방 화면이 몇 초마다 물어봄).
  * 예전에는 몇 초마다 화면 전체를 서버에서 다시 그렸는데(조회 10번 넘게), 이제 이 값이 바뀔 때만 다시 그림.
  * 내용은 주지 않고 '마지막으로 바뀐 시각·개수'만 — 권한 확인은 화면과 같게 (본인 문의 · 우리 회사 · 확정된 단체방)
+ * 지운 메시지 수도 넣어서, 상대가 메시지를 지우면 몇 초 안에 '삭제된 메시지예요'로 바뀜
  * s=me-chat (근무자 문의) · s=admin-chat (관리자 문의, 지금 고른 회사) · s=room&id=공고 (단체방)
  */
 export async function GET(req: Request) {
@@ -42,9 +44,10 @@ export async function GET(req: Request) {
 
   if (s === 'me-chat') {
     if (user.role === 'admin') return no()
-    const [last, reads, rooms] = await Promise.all([
+    const [last, reads, gone, rooms] = await Promise.all([
       latest(db().from('messages').select('created_at').eq('thread_user_id', user.id).order('created_at', { ascending: false }).limit(1), 'created_at'),
       db().from('messages').select('id', { count: 'exact', head: true }).eq('thread_user_id', user.id).not('read_at', 'is', null),
+      db().from('messages').select('id', { count: 'exact', head: true }).eq('thread_user_id', user.id).in('body', DELETED_BODIES),
       db()
         .from('applications')
         .select('job_id')
@@ -53,15 +56,16 @@ export async function GET(req: Request) {
         .limit(100)
         .then((r) => roomsLast(((r.data ?? []) as { job_id: string }[]).map((a) => a.job_id))),
     ])
-    return ok(`${last}|${reads.count ?? 0}|${rooms}`)
+    return ok(`${last}|${reads.count ?? 0}|${gone.count ?? 0}|${rooms}`)
   }
 
   if (s === 'admin-chat') {
     const companyId = await adminCompanyId()
     if (!companyId) return no()
-    const [last, reads, rooms] = await Promise.all([
+    const [last, reads, gone, rooms] = await Promise.all([
       latest(db().from('messages').select('created_at').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1), 'created_at'),
       db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).not('read_at', 'is', null),
+      db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).in('body', DELETED_BODIES),
       db()
         .from('jobs')
         .select('id')
@@ -70,7 +74,7 @@ export async function GET(req: Request) {
         .limit(200)
         .then((r) => roomsLast(((r.data ?? []) as { id: string }[]).map((j) => j.id))),
     ])
-    return ok(`${last}|${reads.count ?? 0}|${rooms}`)
+    return ok(`${last}|${reads.count ?? 0}|${gone.count ?? 0}|${rooms}`)
   }
 
   if (s === 'room') {
@@ -79,12 +83,13 @@ export async function GET(req: Request) {
       const companyId = await adminCompanyId()
       if (!companyId || !(await companyJob({ companyId }, id))) return no()
     } else if (!(await workerRoom(user.id, id))) return no()
-    const [last, pinned, read] = await Promise.all([
+    const [last, pinned, read, gone] = await Promise.all([
       latest(db().from('job_chat').select('created_at').eq('job_id', id).order('created_at', { ascending: false }).limit(1), 'created_at'),
       latest(db().from('job_chat').select('pinned_at').eq('job_id', id).not('pinned_at', 'is', null).order('pinned_at', { ascending: false }).limit(1), 'pinned_at'),
       latest(db().from('job_chat_reads').select('read_at').eq('job_id', id).order('read_at', { ascending: false }).limit(1), 'read_at'),
+      db().from('job_chat').select('id', { count: 'exact', head: true }).eq('job_id', id).in('body', DELETED_BODIES),
     ])
-    return ok(`${last}|${pinned}|${read}`)
+    return ok(`${last}|${pinned}|${read}|${gone.count ?? 0}`)
   }
   return no()
 }

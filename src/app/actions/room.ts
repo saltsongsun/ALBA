@@ -10,6 +10,7 @@ import { markRoomRead, pinnedReads, roomMembers, roomOpen, roomPinned, workerRoo
 import { requireAdmin, requireUser } from '@/lib/session'
 import { overLimit } from '@/lib/ratelimit'
 import { badSticker, plainBody } from '@/lib/stickers'
+import { DELETED, DELETED_BY_ADMIN, isDeleted, validMessageId } from '@/lib/deleted'
 import { isUuid, str } from '@/lib/validate'
 import type { FormState } from './auth'
 
@@ -40,6 +41,7 @@ export async function sendRoom(jobId: string, _: FormState, form: FormData): Pro
   const body = str(form, 'body', 2000)
   if (!body) return { error: '내용을 입력해 주세요.' }
   if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
+  if (isDeleted(body)) return { error: '보낼 수 없는 내용이에요.' }
   const since = new Date(Date.now() - 10 * 60_000).toISOString()
   const { count } = await db().from('job_chat').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('sender_id', user.id).gte('created_at', since)
   if ((count ?? 0) >= BURST_LIMIT) return { error: '메시지를 너무 많이 보냈어요. 잠시 후 다시 보내 주세요.' }
@@ -64,6 +66,29 @@ export async function sendRoom(jobId: string, _: FormState, form: FormData): Pro
   })
   roomPaths(jobId)
   return { ok: pin ? '공지로 고정했어요' : '보냈어요' }
+}
+
+/**
+ * 단체방 메시지 지우기: 근무자는 내가 쓴 것만, 담당자(이 공고 회사의 관리자)는 방 정리를 위해 누구 글이든.
+ * 내용은 남기지 않고 '삭제된 메시지예요'(남의 글을 담당자가 지우면 '담당자가 삭제한 메시지예요')로 보임.
+ * 고정된 공지였으면 고정도 풂
+ */
+export async function deleteRoomMessage(jobId: string, id: number | string): Promise<FormState> {
+  const user = await requireUser(`/me/chat/room/${jobId}`)
+  if (!isUuid(jobId) || !validMessageId(id)) return { error: '잘못된 요청입니다.' }
+  const asAdmin = user.role === 'admin'
+  const job = asAdmin ? await companyJob(await requireAdmin(), jobId) : await workerRoom(user.id, jobId)
+  if (!job) return { error: '이 단체방에 들어갈 수 없어요.' }
+  const { data } = await db().from('job_chat').select('id, sender_id, body, pinned_at').eq('id', id).eq('job_id', jobId).maybeSingle()
+  const m = data as { sender_id: string | null; body: string; pinned_at: string | null } | null
+  if (!m) return { error: '메시지를 찾을 수 없어요.' }
+  const mine = m.sender_id === user.id
+  if (!mine && !asAdmin) return { error: '내가 보낸 메시지만 지울 수 있어요.' }
+  if (isDeleted(m.body)) return { ok: '지웠어요' }
+  must(await db().from('job_chat').update({ body: mine ? DELETED : DELETED_BY_ADMIN, pinned_at: null }).eq('id', id).eq('job_id', jobId))
+  await audit(user.id, mine ? 'room.delete' : 'room.delete_other', mine ? null : m.sender_id, job.title, job.company_id)
+  roomPaths(jobId)
+  return { ok: '지웠어요' }
 }
 
 /** 고정된 공지 내리기 (관리자) */

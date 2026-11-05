@@ -47,7 +47,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
           같이 일할 분들께 먼저 인사해 보세요
         </Empty>
       ) : (
-        <RoomMessages messages={messages} viewerId={user.id} />
+        <RoomMessages messages={messages} viewerId={user.id} jobId={job.id} />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         {open ? (

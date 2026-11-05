@@ -1,15 +1,19 @@
 import Link from 'next/link'
-import { SIGNAL } from '@/lib/signals'
+import { deleteMessage } from '@/app/actions/chat'
+import { deletedText, isDeleted } from '@/lib/deleted'
+import { SIGNAL, signalOf } from '@/lib/signals'
 import { stickerOf } from '@/lib/stickers'
+import MessageMenu from './MessageMenu'
 import Sticker from './Sticker'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 
 /** 대화 화면에서 메시지를 읽을 때의 select (공고 제목·보낸 사람 이름 포함) */
-export const CHAT_MESSAGE_COLS = 'id, from_admin, body, created_at, read_at, job:jobs(id, title), sender:users!messages_sender_id_fkey(name)'
+export const CHAT_MESSAGE_COLS = 'id, from_admin, sender_id, body, created_at, read_at, job:jobs(id, title), sender:users!messages_sender_id_fkey(name)'
 
 export type ChatMessage = {
   id: number
   from_admin: boolean
+  sender_id: string | null
   body: string
   created_at: string
   read_at: string | null
@@ -49,8 +53,9 @@ export function adminActionFor(m: Pick<ChatMessage, 'from_admin' | 'body' | 'cre
 /**
  * 문의 대화 말풍선. 보는 사람(근무자/관리자)이 보낸 건 오른쪽 파란색, 받은 건 왼쪽 흰색.
  * 날짜가 바뀌면 구분선, 상대가 아직 안 읽은 내 메시지에는 '1'.
+ * 말풍선을 꾹 누르면(PC는 오른쪽 클릭) 복사 · 내가 쓴 건 삭제 (앱이 보낸 현장 알림·요청은 기록이라 삭제 없음)
  */
-export function ChatMessages({ messages, viewer }: { messages: ChatMessage[]; viewer: 'worker' | 'admin' }) {
+export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMessage[]; viewer: 'worker' | 'admin'; viewerId: string }) {
   let lastDay = ''
   return (
     <ol className="space-y-2">
@@ -77,17 +82,27 @@ export function ChatMessages({ messages, viewer }: { messages: ChatMessage[]; vi
                 </Link>
               )}
               <div className={`flex items-end gap-1.5 ${mine ? 'flex-row-reverse' : ''}`}>
-                {stickerOf(m.body) ? (
-                  // 이모티콘은 말풍선 없이 그림으로
-                  <Sticker id={stickerOf(m.body)!.id} size={120} />
+                {isDeleted(m.body) ? (
+                  <DeletedBubble body={m.body} mine={mine} />
                 ) : (
-                  <p
-                    className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
-                      mine ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                    }`}
+                  <MessageMenu
+                    mine={mine}
+                    copy={stickerOf(m.body) ? null : m.body}
+                    remove={m.sender_id === viewerId && !signalOf(m.body) ? deleteMessage.bind(null, m.id) : undefined}
                   >
-                    {m.body}
-                  </p>
+                    {stickerOf(m.body) ? (
+                      // 이모티콘은 말풍선 없이 그림으로
+                      <Sticker id={stickerOf(m.body)!.id} size={120} />
+                    ) : (
+                      <p
+                        className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
+                          mine ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
+                        }`}
+                      >
+                        {m.body}
+                      </p>
+                    )}
+                  </MessageMenu>
                 )}
                 <span className="mb-0.5 shrink-0 text-[11px] text-mute tabular-nums">
                   {mine && !m.read_at && <b className="mr-1 text-brand-600">1</b>}
@@ -109,5 +124,18 @@ export function ChatMessages({ messages, viewer }: { messages: ChatMessage[]; vi
         )
       })}
     </ol>
+  )
+}
+
+/** 지운 메시지 자리 (대화 흐름은 그대로 두고 글은 보이지 않음) */
+export function DeletedBubble({ body, mine }: { body: string; mine: boolean }) {
+  return (
+    <p data-deleted-msg className={`flex items-center gap-1.5 rounded-2xl bg-white/70 px-3.5 py-2.5 text-[14px] text-mute ring-1 ring-line ${mine ? 'rounded-br-md' : 'rounded-bl-md'}`}>
+      <svg viewBox="0 0 24 24" className="size-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round" aria-hidden>
+        <circle cx="12" cy="12" r="8.5" />
+        <path d="M6 18L18 6" />
+      </svg>
+      {deletedText(body)}
+    </p>
   )
 }

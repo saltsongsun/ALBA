@@ -122,7 +122,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           아래 칸에 궁금한 점을 적어 보내 주세요.
         </Empty>
       ) : (
-        <ChatMessages messages={messages} viewer="worker" />
+        <ChatMessages messages={messages} viewer="worker" viewerId={user.id} />
       )}
 
       {/* 휴대폰은 아래 탭 위에, 넓은 화면은 화면 아래에 붙어 있음 */}

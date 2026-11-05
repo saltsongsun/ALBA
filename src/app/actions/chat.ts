@@ -12,6 +12,7 @@ import { isDate, isUuid, str } from '@/lib/validate'
 import { signalOf } from '@/lib/signals'
 import { badSticker, plainBody } from '@/lib/stickers'
 import { companyJob, companyWorkerIds, workerInCompany } from '@/lib/company'
+import { DELETED, isDeleted, validMessageId } from '@/lib/deleted'
 import type { FormState } from './auth'
 
 const MAX_BODY = 2000
@@ -28,6 +29,7 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   // 앱이 보내는 알림 문구(출근 확인 요청·기록 정정 요청 등)인 척하는 메시지는 막음 (담당자 화면이 진짜 요청으로 처리하지 않게)
   if (signalOf(body)) return { error: '이 문구로 시작하는 메시지는 보낼 수 없어요. 앱의 버튼(늦어요·출근 확인 요청·기록 정정)을 써 주세요.' }
   if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
+  if (isDeleted(body)) return { error: '보낼 수 없는 내용이에요.' }
   const since = new Date(Date.now() - 10 * 60_000).toISOString()
   const [{ count }, job, { data: company }] = await Promise.all([
     db()
@@ -58,12 +60,39 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   const { count: asked } = await db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('thread_user_id', userId)
   if (!asked && !(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 문의하거나 지원한 근무자가 아닙니다.' }
   if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
+  if (isDeleted(body)) return { error: '보낼 수 없는 내용이에요.' }
   must(await db().from('messages').insert({ thread_user_id: userId, sender_id: admin.id, from_admin: true, company_id: admin.companyId, body }))
   const from = (await isSupportThread(admin.companyId, userId)) ? SUPPORT_NAME : admin.companyName
   after(() => sendPush([userId], { title: `💬 ${from} 답장`, body: plainBody(body), url: `/me/chat?co=${admin.companyId}`, tag: `chat-${admin.companyId}` }))
   revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/admin/chat')
   return { ok: '보냈어요' }
+}
+
+/**
+ * 문의 메시지 지우기: 내가 보낸 것만 (관리자는 지금 고른 회사에서 내가 쓴 답장만).
+ * 지우면 내용은 남기지 않고 양쪽 화면에 '삭제된 메시지예요'로 보임 (대화 흐름은 그대로).
+ * 앱이 남긴 현장 알림·요청(늦어요·출근 확인·기록 정정 등)은 처리 기록이라 지우지 않음
+ */
+export async function deleteMessage(id: number | string): Promise<FormState> {
+  const user = await requireUser('/me/chat')
+  if (!validMessageId(id)) return { error: '잘못된 요청입니다.' }
+  const { data } = await db().from('messages').select('id, thread_user_id, sender_id, from_admin, company_id, body').eq('id', id).maybeSingle()
+  const m = data as { thread_user_id: string; sender_id: string | null; from_admin: boolean; company_id: string; body: string } | null
+  const notMine = { error: '내가 보낸 메시지만 지울 수 있어요.' }
+  if (!m || m.sender_id !== user.id) return notMine
+  if (user.role === 'admin') {
+    const admin = await requireAdmin()
+    if (!m.from_admin || m.company_id !== admin.companyId) return notMine
+  } else if (m.from_admin || m.thread_user_id !== user.id) return notMine
+  if (isDeleted(m.body)) return { ok: '지웠어요' }
+  if (signalOf(m.body)) return { error: '앱이 보낸 현장 알림·요청은 처리 기록이라 지울 수 없어요.' }
+  must(await db().from('messages').update({ body: DELETED }).eq('id', id).eq('sender_id', user.id))
+  await audit(user.id, 'chat.delete', m.thread_user_id, null, m.company_id)
+  revalidatePath('/me/chat')
+  revalidatePath(`/admin/chat/${m.thread_user_id}`)
+  revalidatePath('/admin/chat')
+  return { ok: '지웠어요' }
 }
 
 /**

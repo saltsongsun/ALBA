@@ -79,7 +79,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           아래에 쓰면 {worker.name}님 앱의 &lsquo;문의&rsquo;에 바로 보여요.
         </Empty>
       ) : (
-        <ChatMessages messages={messages} viewer="admin" />
+        <ChatMessages messages={messages} viewer="admin" viewerId={admin.id} />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         <ChatComposer action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...repliesFor(messages.filter((m) => !m.from_admin).at(-1)), ...QUICK_REPLIES])]}

@@ -150,6 +150,13 @@ const PATHS = {
       <path d="M9 12.2l2 2 4-4" />
     </>
   ),
+  copy: (
+    <>
+      <rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2.5" />
+      <path d="M15.5 8.5V6.5A2.5 2.5 0 0 0 13 4H6.5A2.5 2.5 0 0 0 4 6.5V13a2.5 2.5 0 0 0 2.5 2.5h2" />
+    </>
+  ),
+  trash: <path d="M4.5 7h15M10 11v6M14 11v6M6 7l1 11.5a2 2 0 0 0 2 1.5h6a2 2 0 0 0 2-1.5L18 7M9.5 7V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v2" />,
 } as const
 
 export type IconName = keyof typeof PATHS

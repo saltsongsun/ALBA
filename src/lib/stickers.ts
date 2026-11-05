@@ -1,4 +1,5 @@
 import mousePack from '../../public/stickers/working-mouse-21/pack.json'
+import { deletedText, isDeleted } from './deleted'
 
 /**
  * 해피워크 이모티콘 (대화·커뮤니티에서 쓰는 그림. 메뉴·시스템 아이콘은 components/Icon.tsx 선 아이콘).
@@ -110,6 +111,7 @@ export const badSticker = (body: string) => body.trim().startsWith('::s:') && !s
 
 /** 알림·목록 미리보기·내려받기용 글자 (글 안의 이모티콘 줄도 '[이모티콘] 문구'로) */
 export function plainBody(body: string): string {
+  if (isDeleted(body)) return `(${deletedText(body)})`
   const s = stickerOf(body)
   if (s) return `[이모티콘] ${s.label}`
   return body.replace(TOKEN_LINE, (line) => {
