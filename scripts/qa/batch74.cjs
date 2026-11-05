@@ -74,7 +74,11 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('다른 사이트에서 보낸 기록은 버림', forged.status === 204 && !(await rest('usage_events')).some((e) => e.path === '/evil'))
 
   // ── 3. 인사이트 ──
+  const adminRows = async () => (await rest('usage_events')).filter((e) => e.role === 'admin').length
+  const before = await adminRows()
   const su = await pg(A, true)
+  await su.goto(`${D}/admin`)
+  await su.waitForTimeout(600)
   await su.goto(`${D}/admin/insights`)
   await su.locator('[data-insight-segs]').waitFor({ timeout: 10000 }).catch(() => {})
   ok('인사이트: 그룹 요약에 근로자', (await su.locator('[data-insight-segs]').innerText()).includes('근로자'))
@@ -83,6 +87,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await su.getByRole('link', { name: '남자 · 여자' }).click()
   await su.waitForURL(/dim=gender/, { timeout: 8000 }).catch(() => {})
   ok("'남자 · 여자'로 바꾸면 여자 그룹", (await su.locator('[data-insight-segs]').innerText()).includes('여자'))
+  await su.waitForTimeout(500)
+  ok('최고 관리자(운영자)의 이동은 기록하지 않음', (await adminRows()) === before, `${before} → ${await adminRows()}`)
   await ad.goto(`${D}/admin/insights`)
   await ad.waitForTimeout(500)
   ok('최고 관리자가 아니면 인사이트 못 봄 (화면 없음)', (await ad.locator('[data-insight-dims]').count()) === 0 && (await ad.locator('[data-insight-funnel]').count()) === 0)

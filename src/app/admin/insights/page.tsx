@@ -304,7 +304,7 @@ export default async function InsightsPage(props: { searchParams: Promise<Record
         )}
       </section>
       <p className="text-xs text-mute">
-        기록에는 이름·연락처·회원 번호가 없고, 탭마다 바뀌는 무작위 값과 회원 유형·성별·나이대만 남아요. 180일이 지나면 자동으로 지워져요.
+        기록에는 이름·연락처·회원 번호가 없고, 탭마다 바뀌는 무작위 값과 회원 유형·성별·나이대만 남아요. 최고 관리자(운영자)의 이동은 기록하지 않아요. 180일이 지나면 자동으로 지워져요.
       </p>
     </div>
   )

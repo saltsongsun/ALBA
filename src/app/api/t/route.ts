@@ -28,6 +28,8 @@ export async function POST(req: Request) {
     const ms = kind === 'leave' && typeof body.ms === 'number' && Number.isFinite(body.ms) ? Math.round(Math.min(Math.max(body.ms, 0), 30 * 60_000)) : null
     if (kind === 'leave' && (ms === null || ms < 300)) return OK()
     const user = await getUser().catch(() => null)
+    // 최고 관리자(운영자)는 기록하지 않음 — 운영자가 둘러보는 화면이 인사이트를 흐리지 않게
+    if (user?.isSuper) return OK()
     let role = 'guest'
     let gender: string | null = null
     let age: string | null = null
