@@ -168,7 +168,7 @@ export default function MessageMenu({
         aria-haspopup="menu"
         aria-expanded={!!pos}
         aria-label="메시지 메뉴 열기 (복사·삭제)"
-        className="min-w-0 rounded-2xl outline-none transition focus-visible:ring-2 focus-visible:ring-brand-500 data-[open]:scale-[0.98] data-[open]:ring-4 data-[open]:ring-brand-100"
+        className="group/msg relative min-w-0 rounded-2xl outline-none transition focus-visible:ring-2 focus-visible:ring-brand-500 data-[open]:scale-[0.98] data-[open]:ring-4 data-[open]:ring-brand-100"
         onContextMenu={(e) => {
           e.preventDefault()
           cancelHold()
@@ -197,6 +197,25 @@ export default function MessageMenu({
         }}
       >
         {children}
+        {/* PC(마우스): 말풍선에 올리면 '오른쪽 클릭으로 메뉴'를 알려 주는 작은 표시 · 눌러도 메뉴가 열림 (휴대폰은 꾹 누르기) */}
+        {items > 0 && !pos && (
+          <span
+            aria-hidden
+            data-msg-hint
+            title="오른쪽 클릭으로도 열 수 있어요"
+            onClick={(e) => {
+              e.stopPropagation()
+              show()
+            }}
+            className={`absolute -top-3 z-10 hidden cursor-pointer items-center gap-1 rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap text-sub shadow-sm ring-1 ring-line [@media(hover:hover)_and_(pointer:fine)]:group-hover/msg:flex ${mine ? 'left-2' : 'right-2'}`}
+          >
+            <svg viewBox="0 0 24 24" className="size-3" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <rect x="6" y="3" width="12" height="18" rx="6" />
+              <path d="M12 3v6M12 9h6" />
+            </svg>
+            오른쪽 클릭 · {[copy && '복사', remove && '삭제', unread && '안 읽은 사람'].filter(Boolean).join('·')}
+          </span>
+        )}
       </div>
       {pos &&
         createPortal(

@@ -1,3 +1,4 @@
+import { pushEnabledIds } from '@/lib/push'
 import Icon from '@/components/Icon'
 import RosterLock, { RosterOpenBar, RosterTooMany } from '@/components/RosterLock'
 import { ROSTER_MINUTES, rosterUnlockedFor, rosterViewAllowed } from '@/lib/rosterLock'
@@ -49,7 +50,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
   // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
   // 근무일수·평가는 이 회사 기록만, 주민번호·계좌 같은 민감 정보는 이 회사에 지원한 사람만 (근무자 화면에서)
-  const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'mine' || sp.f === 'new' ? sp.f : null
+  const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'nopush' || sp.f === 'mine' || sp.f === 'new' ? sp.f : null
   // 최근 2일 안에 가입한 회원 (단체로 가입했을 때 사진·계좌 확인하고 공고에 확정하기 쉽게 · 오래 남으면 눈에 안 띄어서 2일만)
   const NEW_DAYS = 2
   const newSince = new Date(Date.now() - NEW_DAYS * 86_400_000).toISOString()
@@ -75,7 +76,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const [workerIds, rowsRes] = await Promise.all([companyWorkerIds(admin.companyId), query])
   const applied = new Set(workerIds)
   const memberIds = new Set(members.map((m) => m.user_id))
-  const users = (must(rowsRes) as Row[])
+  const listed = (must(rowsRes) as Row[])
     // 관리자(우리 회사·다른 회사 모두)·외주 업체 계정은 근무자 목록에서 뺌 — 우리 회사 관리자는 '관리자 명부'에서
     .filter((u) => u.role !== 'admin' && !memberIds.has(u.id) && u.member_type !== 'vendor')
     // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 (전체 회원 명단은 확인 뒤)
@@ -86,6 +87,10 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
       f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) : f === 'new' ? isNew(u) : true,
     )
     .filter((u) => !t || (u.member_type ?? 'worker') === t)
+  // 휴대폰 알림을 켰는지 (확정·전날 안내·단체방 알림을 받는지) → 꺼진 사람 표시 · '알림 꺼짐'으로 모아 보기
+  const pushOn = await pushEnabledIds(listed.map((u) => u.id))
+  const users = listed
+    .filter((u) => f !== 'nopush' || !pushOn.has(u.id))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 300)
   const stat: Record<string, { days: number; last: string }> = {}
@@ -116,6 +121,12 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         </span>
       )}
       <StarAvg scores={(u.ratings ?? []).map((r) => r.score)} />
+      {/* 알림을 안 켠 사람: 확정·전날 안내가 휴대폰으로 안 가서 문자·전화로 챙겨야 함 */}
+      {!pushOn.has(u.id) && (
+        <span className="badge bg-gray-100 text-mute" title="휴대폰 알림을 켜지 않았어요 (확정·전날 안내는 문자로 챙겨 주세요)" data-push-off>
+          <Icon name="bell" /> 알림 꺼짐
+        </span>
+      )}
       {u.member_type && u.member_type !== 'worker' && (
         <span className={`badge ${MEMBER_TYPES[u.member_type].badge}`}>
           {MEMBER_TYPES[u.member_type].emoji} {MEMBER_TYPES[u.member_type].short}
@@ -158,6 +169,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
             ['expert', null, '전문가'],
             [null, 'nophoto', '사진 없음'],
             [null, 'noaccount', '계좌 없음'],
+            [null, 'nopush', '알림 꺼짐'],
           ] as const
         ).map(([tk, fk, label]) => (
           <Link

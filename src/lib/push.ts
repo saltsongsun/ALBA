@@ -73,3 +73,12 @@ export async function superAdminIds(): Promise<string[]> {
   const { data } = await db().from('users').select('id').eq('role', 'admin').eq('is_super', true).eq('active', true)
   return ((data ?? []) as { id: string }[]).map((u) => u.id)
 }
+
+/** 알림을 켠(이 앱 알림이 등록된 기기가 하나라도 있는) 사람 · 주소가 너무 길어지지 않게 100명씩 나눠 읽음 */
+export async function pushEnabledIds(userIds: string[]): Promise<Set<string>> {
+  const ids = [...new Set(userIds)].filter(Boolean)
+  const chunks: string[][] = []
+  for (let i = 0; i < ids.length; i += 100) chunks.push(ids.slice(i, i + 100))
+  const rows = await Promise.all(chunks.map((c) => db().from('push_subscriptions').select('user_id').in('user_id', c).then((r) => (r.data ?? []) as { user_id: string }[])))
+  return new Set(rows.flat().map((r) => r.user_id).filter((id) => ids.includes(id)))
+}
