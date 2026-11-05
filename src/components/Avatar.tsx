@@ -79,7 +79,7 @@ export default function Avatar({
         className="m-auto w-[min(20rem,86vw)] animate-pop overflow-hidden rounded-3xl bg-white p-0 shadow-2xl backdrop:bg-black/60"
         onClick={(e) => e.target === e.currentTarget && dialog.current?.close()}
       >
-        <img src={url} alt={`${name} 사진`} className="block aspect-square w-full bg-bg object-cover" />
+        <img src={url} alt={`${name} 사진`} className="block aspect-square w-full bg-bg object-cover" loading="lazy" decoding="async" />
         <div className="flex items-center justify-between gap-2 px-4 py-3">
           <p className="font-bold">{name}</p>
           <button type="button" className="btn-gray btn-sm" onClick={() => dialog.current?.close()}>
