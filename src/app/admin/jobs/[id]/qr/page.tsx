@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -70,7 +71,9 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
         ← 출퇴근으로
       </Link>
       <div className="print-sheet card mx-auto max-w-md space-y-4 text-center">
-        <p className="text-sm font-bold text-rose-600">🚨 긴급 투입</p>
+        <p className="flex items-center justify-center gap-1 text-sm font-bold text-rose-600">
+          <Icon name="qr" /> 긴급 투입
+        </p>
         <h1 className="text-xl font-extrabold">{job.title}</h1>
         <p className="text-sm text-sub">
           {fmtDate(today)} {scheduleText(job)}

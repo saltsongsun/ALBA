@@ -8,9 +8,10 @@ import { db, must } from './db'
  * 신고가 3번 쌓이면 자동으로 가려지고, 최고 관리자가 확인해 다시 보이거나 그대로 둠
  */
 export const CATEGORIES = [
-  { id: 'free', label: '자유', icon: '💬' },
-  { id: 'tip', label: '꿀팁', icon: '🍯' },
-  { id: 'question', label: '질문', icon: '🙋' },
+  // icon: components/Icon 선 아이콘 이름 (이모지 대신)
+  { id: 'free', label: '자유', icon: 'chat' },
+  { id: 'tip', label: '꿀팁', icon: 'bulb' },
+  { id: 'question', label: '질문', icon: 'help' },
 ] as const
 export type Category = (typeof CATEGORIES)[number]['id']
 export const isCategory = (v: unknown): v is Category => CATEGORIES.some((c) => c.id === v)

@@ -1,3 +1,4 @@
+import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import { decideApplication, setJobStatus } from '@/app/actions/admin'
 import { contractNameOf } from '@/lib/members'
@@ -268,7 +269,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
     .map((g) => pendingFix(g, today))
     .filter((m) => m !== null)
-  type Todo = { key: string; icon: string; text: string; n: number; href: string; tone: string; unit?: string }
+  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
   const [reviews, otherUnread] = await Promise.all([reviewsP, othersP])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
@@ -277,13 +278,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const paidNoInvoice = vpays.filter((p) => p.paid_at && !p.invoice_at)
   const quoteDue = vreqs.filter((r) => r.due_date && r.due_date <= today && vquotes.some((q) => q.request_id === r.id && q.amount != null))
   const vendorTodos: Todo[] = ([
-    joinWait > 0 && { key: 'join', icon: '🧑‍💼', text: '관리자 가입 신청 · 승인해 주세요', n: joinWait, href: '/admin/settings#admins', tone: 'text-amber-700' },
-    payOverdue.length > 0 && { key: 'vpay-overdue', icon: '💸', text: '외주 대금 지급일 지남', n: payOverdue.length, href: '/admin/vendors?tab=pay', tone: 'text-rose-600', unit: '건' },
-    paySoon.length > 0 && { key: 'vpay-soon', icon: '💸', text: '외주 대금 3일 안 지급', n: paySoon.length, href: '/admin/vendors?tab=pay', tone: 'text-amber-700', unit: '건' },
-    paidNoInvoice.length > 0 && { key: 'vpay-invoice', icon: '🧾', text: '지급했는데 세금계산서 안 받음', n: paidNoInvoice.length, href: '/admin/vendors?tab=pay&show=paid', tone: 'text-amber-700', unit: '건' },
+    joinWait > 0 && { key: 'join', icon: 'users' as const, text: '관리자 가입 신청 · 승인해 주세요', n: joinWait, href: '/admin/settings#admins', tone: 'text-amber-700' },
+    payOverdue.length > 0 && { key: 'vpay-overdue', icon: 'card' as const, text: '외주 대금 지급일 지남', n: payOverdue.length, href: '/admin/vendors?tab=pay', tone: 'text-rose-600', unit: '건' },
+    paySoon.length > 0 && { key: 'vpay-soon', icon: 'card' as const, text: '외주 대금 3일 안 지급', n: paySoon.length, href: '/admin/vendors?tab=pay', tone: 'text-amber-700', unit: '건' },
+    paidNoInvoice.length > 0 && { key: 'vpay-invoice', icon: 'receipt' as const, text: '지급했는데 세금계산서 안 받음', n: paidNoInvoice.length, href: '/admin/vendors?tab=pay&show=paid', tone: 'text-amber-700', unit: '건' },
     quoteDue.length > 0 && {
       key: 'quote-due',
-      icon: '📄',
+      icon: 'file' as const,
       text: quoteDue.length === 1 ? `견적 마감 · 비교하고 선정 · ${quoteDue[0].title}` : '견적 마감 · 비교하고 선정',
       n: quoteDue.length,
       href: quoteDue.length === 1 ? `/admin/vendors/requests/${quoteDue[0].id}` : '/admin/vendors?tab=quotes',
@@ -294,10 +295,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const group = group0
   const todos: Todo[] = [
     // 새 문의 (따로 띄우던 띠를 할 일 맨 위로)
-    ...(unreadChats > 0 ? [{ key: 'chat', icon: '💬', text: '새 문의 · 답장해 주세요', n: unreadChats, unit: '건', href: '/admin/chat', tone: 'text-rose-600' }] : []),
+    ...(unreadChats > 0 ? [{ key: 'chat', icon: 'chat' as const, text: '새 문의 · 답장해 주세요', n: unreadChats, unit: '건', href: '/admin/chat', tone: 'text-rose-600' }] : []),
     ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
       key: `arrive-${g[0].job_id}`,
-      icon: '📍',
+      icon: 'pin' as const,
       text: `출근 확인 요청 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: new Set(g.map((m) => m.thread_user_id)).size,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
@@ -305,7 +306,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...group(fixWait, (m) => m.job_id).map((g) => ({
       key: `fix-${g[0].job_id}`,
-      icon: '✏️',
+      icon: 'pen' as const,
       text: `기록 정정 요청 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
@@ -313,7 +314,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...group(unsignedTomorrow, (a) => a.job_id).map((g) => ({
       key: `unsigned-${g[0].job_id}`,
-      icon: '✍️',
+      icon: 'pen' as const,
       text: `내일 근무 · 서명 안 함 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=docs`,
@@ -321,7 +322,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...group(otAsk, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
       key: `ot-${g[0].job_id}-${g[0].work_date}`,
-      icon: '⏱',
+      icon: 'clock' as const,
       text: `연장 근무 확인 요청 · ${g[0].job?.title ?? titleOf.get(g[0].job_id) ?? '공고'} ${fmtDate(g[0].work_date)}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${g[0].work_date}`,
@@ -329,7 +330,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...group(openOld, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
       key: `open-${g[0].job_id}-${g[0].work_date}`,
-      icon: '🏁',
+      icon: 'flag' as const,
       text: `근무 종료 안 누름 · ${g[0].job?.title ?? titleOf.get(g[0].job_id) ?? '공고'} ${fmtDate(g[0].work_date)}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${g[0].work_date}`,
@@ -339,7 +340,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       const date = g.find((c) => c.work_date)?.work_date
       return {
         key: `shift-${g[0].job_id}`,
-        icon: '🕒',
+        icon: 'clock' as const,
         text: `근무시간 변경 답 기다림 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
         n: g.length,
         href: `/admin/jobs/${g[0].job_id}?tab=att${date ? `&date=${date}` : ''}`,
@@ -348,7 +349,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     }),
     ...group(outsideApps, (a) => a.job_id).map((g) => ({
       key: `contract-${g[0].job_id}`,
-      icon: '📝',
+      icon: 'file' as const,
       text: `${contractNameOf(activeJobs.find((j) => j.id === g[0].job_id)?.audience)} 미수령 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=docs`,
@@ -356,7 +357,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...Object.entries(unpaid).map(([id, u]) => ({
       key: `unpaid-${id}`,
-      icon: '💰',
+      icon: 'card' as const,
       text: `급여 지급 전 · ${u.title}`,
       n: u.n,
       href: `/admin/jobs/${id}?tab=pay`,
@@ -408,7 +409,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       </div>
       {otherUnread.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
-          <span className="font-semibold text-brand-700">🏢 다른 회사에 새 문의</span>
+          <span className="font-semibold text-brand-700">
+            <Icon name="building" /> 다른 회사에 새 문의
+          </span>
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany}>
               <input type="hidden" name="company" value={c.id} />
@@ -423,15 +426,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {todos.length > 0 && (
         <section className="card animate-pop space-y-2 p-4">
           <h2 className="flex items-center gap-2 font-bold">
-            ✅ 확인할 일
+            <Icon name="check" className="text-brand-600" />
+            확인할 일
             <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">{todos.reduce((t, x) => t + x.n, 0)}</span>
           </h2>
           <ul className="divide-y divide-line">
             {todos.map((t) => (
               <li key={t.key}>
                 <Link href={t.href} className="flex items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
-                  <span aria-hidden className="text-lg">
-                    {t.icon}
+                  <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-bg text-[17px] text-sub">
+                    <Icon name={t.icon} />
                   </span>
                   <span className="min-w-0 flex-1 truncate">{t.text}</span>
                   <b className={`shrink-0 ${t.tone}`}>
@@ -450,7 +454,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {short.length > 0 && (
         <section className="card animate-pop space-y-3 bg-rose-50/40 ring-rose-200/70">
           <div>
-            <h2 className="font-bold">🚨 곧 시작하는데 인원이 모자라요</h2>
+            <h2 className="flex items-center gap-1.5 font-bold">
+              <Icon name="alert" className="text-rose-600" /> 곧 시작하는데 인원이 모자라요
+            </h2>
             <p className="text-sm text-sub">
               {appsEver === 0
                 ? '아직 지원자가 없어요. 공고 모음 링크를 단톡방에 올리거나 QR을 붙여 모집을 알려 보세요.'
@@ -617,8 +623,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                       <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
                     </div>
                   </div>
-                  <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block text-sm font-semibold text-sub">
-                    📌 {p.job.title}
+                  <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block truncate text-sm font-semibold text-sub">
+                    <Icon name="pin" className="text-mute" /> {p.job.title}
                   </Link>
                   {(p.available_dates || p.message) && (
                     <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">

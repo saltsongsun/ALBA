@@ -49,7 +49,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await notice.getByRole('button', { name: /새내기행사/ }).click()
   await ad.waitForFunction((c2) => document.querySelector('header select[name=company]')?.value === c2, C2, { timeout: 10000 }).catch(() => {})
   ok('누르면 그 회사 화면으로', (await ad.locator('header select[name=company]').inputValue()) === C2)
-  ok('그 회사 확인할 일에 새 문의 2건', /새 문의[\s\S]*2건/.test(await ad.locator('section', { hasText: '✅ 확인할 일' }).innerText().catch(() => '')))
+  ok('그 회사 확인할 일에 새 문의 2건', /새 문의[\s\S]*2건/.test(await ad.locator('section', { hasText: '확인할 일' }).innerText().catch(() => '')))
   // 기본 회사에도 안 읽은 근무자 문의가 1건 있으므로, 이제는 기본 회사가 '다른 회사'로
   ok("이번엔 기본 회사가 '다른 회사 새 문의'에", /주식회사 테스트\s*1/.test(await ad.locator('[data-other-companies]').innerText().catch(() => '')))
 

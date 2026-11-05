@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
@@ -158,8 +159,8 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     <span className="shrink-0 tabular-nums">
                       확정 <b className="text-ink">{approved}</b>/{j.headcount}명
                     </span>
-                    <span className="shrink-0 tabular-nums" title="공고를 확인한 인원">
-                      👀 {views[j.id]?.total ?? 0}
+                    <span className="inline-flex shrink-0 items-center gap-1 tabular-nums" title="공고를 확인한 인원" data-views>
+                      <Icon name="eye" className="text-mute" /> {views[j.id]?.total ?? 0}
                       {(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
                     </span>
                   </div>

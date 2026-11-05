@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import Link from 'next/link'
 import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockOut, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
@@ -430,7 +431,9 @@ export default async function AttTab({
                     {u?.name ?? '알 수 없음'}
                   </Link>
                   {appOf.get(uid) && <PositionInput appId={appOf.get(uid)!.id} value={appOf.get(uid)!.position} listId={`pos-${job.id}`} />}
-                  {appOf.get(uid)?.admin_memo === EMERGENCY_MEMO && <span className="badge mt-1 mr-1 bg-rose-600 text-white">🚨 긴급 투입</span>}
+                  {appOf.get(uid)?.admin_memo === EMERGENCY_MEMO && <span className="badge mt-1 mr-1 bg-rose-600 text-white">
+                      <Icon name="qr" /> 긴급 투입
+                    </span>}
                   {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
                     <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge mt-1 bg-rose-50 text-rose-600">
                       📝 계약서 미수령

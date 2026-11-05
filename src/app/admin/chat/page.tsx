@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -62,7 +63,9 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       {/* 같은 근무 단체방: 공고마다 확정자 + 담당자 */}
       {rooms.length > 0 && (
         <section className="space-y-2" aria-label="단체방">
-          <h2 className="text-sm font-bold text-sub">👥 단체방</h2>
+          <h2 className="flex items-center gap-1.5 text-sm font-bold text-sub">
+            <Icon name="users" /> 단체방
+          </h2>
           {rooms.map((r) => (
             <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5">
               <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">

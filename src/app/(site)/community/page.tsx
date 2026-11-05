@@ -1,3 +1,4 @@
+import Icon, { type IconName } from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
@@ -30,7 +31,13 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   const writer = canWrite(user)
   // 서로 동료 맺은 사람이 쓴 글에는 '🤝 동료'
   const [pals, requests] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), pendingRequests(user.id)]) : [new Set<string>(), 0]
-  const tabs = [{ id: '', label: '전체', icon: '' }, { id: 'hot', label: '인기', icon: '🔥' }, ...CATEGORIES, { id: 'review', label: '회사 후기', icon: '⭐' }, ...(writer ? [{ id: 'mine', label: '내 글', icon: '✍️' }] : [])]
+  const tabs: { id: string; label: string; icon: IconName | '' }[] = [
+    { id: '', label: '전체', icon: '' },
+    { id: 'hot', label: '인기', icon: 'flame' },
+    ...CATEGORIES,
+    { id: 'review', label: '회사 후기', icon: 'star' },
+    ...(writer ? [{ id: 'mine', label: '내 글', icon: 'pen' as const }] : []),
+  ]
 
   return (
     <div className="space-y-4">
@@ -43,7 +50,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         </div>
         {writer && !reviewTab && (
           <Link href={`/community/new${category ? `?c=${category}` : ''}`} className="btn-primary btn-sm shrink-0" data-write>
-            ✏️ 글쓰기
+            <Icon name="pen" /> 글쓰기
           </Link>
         )}
       </div>
@@ -53,7 +60,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         <form action="/community" role="search" className="relative" data-community-search>
           {c && <input type="hidden" name="c" value={c} />}
           <span aria-hidden className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mute">
-            🔍
+            <Icon name="search" />
           </span>
           <input name="q" type="search" defaultValue={q} maxLength={40} enterKeyHint="search" placeholder="주차, 복장, 식사처럼 찾고 싶은 말" aria-label="글 검색" className="input pl-10" />
         </form>
@@ -68,10 +75,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
               key={t.id || 'all'}
               href={t.id ? `/community?c=${t.id}` : '/community'}
               aria-current={on ? 'page' : undefined}
-              className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-bold whitespace-nowrap ring-1 transition active:scale-95 ${on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'}`}
+              className={`shrink-0 rounded-full px-3.5 py-2 text-sm font-bold whitespace-nowrap ring-1 transition active:scale-95 ${on ? 'bg-ink text-white ring-ink' : 'bg-white text-sub ring-line'}`}
             >
-              {t.icon && <span aria-hidden>{t.icon} </span>}
-              {t.label}
+              {t.icon && <Icon name={t.icon} className={on ? '' : 'text-mute'} />} {t.label}
             </Link>
           )
         })}
@@ -80,7 +86,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
       {writer && !reviewTab && (
         <Link href="/community/coworkers" className="card-link flex items-center gap-3 p-3.5" data-coworkers-link>
           <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
-            🤝
+            <Icon name="users" />
           </span>
           <span className="min-w-0 flex-1">
             <b className="block text-[15px]">함께 일한 사람</b>
@@ -142,14 +148,14 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
       ) : posts.length === 0 && mine ? (
         <Empty icon="✍️" sticker="hi" title="아직 쓴 글이 없어요">
           <Link href="/community/new" className="font-semibold text-brand-600">
-            ✏️ 첫 글 쓰기 →
+            <Icon name="pen" /> 첫 글 쓰기 →
           </Link>
         </Empty>
       ) : posts.length === 0 ? (
         <Empty icon="💬" sticker="hi" title={category ? `${categoryOf(category).label} 글이 아직 없어요` : '첫 글을 남겨 주세요'}>
           {writer ? (
             <Link href="/community/new" className="font-semibold text-brand-600">
-              ✏️ 첫 글 쓰기 →
+              <Icon name="pen" /> 첫 글 쓰기 →
             </Link>
           ) : (
             '근무자들이 글을 올리면 여기에 보여요.'
@@ -173,7 +179,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                 <Link href={`/community/${p.id}`} className="card-link block space-y-1.5 p-4" data-post transitionTypes={['nav-forward']}>
                   <div className="flex items-center gap-2 text-xs font-bold">
                     <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">
-                      {cat.icon} {cat.label}
+                      <Icon name={cat.icon} /> {cat.label}
                     </span>
                     {hot && i < 3 && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-600">🔥 {i + 1}위</span>}
                     {p.author_id === user.id && <span className="text-mute">내 글</span>}
@@ -193,7 +199,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                       {p.nick}
                       {pals.has(p.author_id) && (
                         <span className="ml-1 font-semibold text-brand-600" data-pal-badge>
-                          🤝 동료
+                          <Icon name="users" /> 동료
                         </span>
                       )}{' '}
                       · {ago(p.created_at)}

@@ -21,10 +21,10 @@ function Honeypot() {
 }
 
 const CATS = [
-  { id: 'free', label: '💬 자유' },
-  { id: 'tip', label: '🍯 꿀팁' },
-  { id: 'question', label: '🙋 질문' },
-]
+  { id: 'free', label: '자유', icon: 'chat' },
+  { id: 'tip', label: '꿀팁', icon: 'bulb' },
+  { id: 'question', label: '질문', icon: 'help' },
+] as const
 
 /** 글쓰기 */
 const DRAFT_KEY = 'community-draft'
@@ -101,8 +101,8 @@ export function PostForm({ defaultCategory, post }: { defaultCategory: string; p
           {CATS.map((c) => (
             <label key={c.id} className="flex-1">
               <input type="radio" name="category" value={c.id} defaultChecked={c.id === defaultCategory} className="peer sr-only" />
-              <span className="block cursor-pointer rounded-xl bg-white py-2.5 text-center text-sm font-bold text-sub ring-1 ring-line transition peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600 active:scale-95">
-                {c.label}
+              <span className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-bold text-sub ring-1 ring-line transition peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600 active:scale-95">
+                <Icon name={c.icon} /> {c.label}
               </span>
             </label>
           ))}

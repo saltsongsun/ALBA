@@ -1,5 +1,6 @@
 'use client'
 
+import Icon from '@/components/Icon'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { announceToJob } from '@/app/actions/chat'
 import Fold from './Fold'
@@ -44,7 +45,13 @@ export default function Announce({
   }, [state])
 
   return (
-    <Fold title="📢 확정자에게 공지" summary={`확정 ${recipients.length}명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요`}>
+    <Fold
+      title={
+        <span className="inline-flex items-center gap-1.5">
+          <Icon name="megaphone" className="text-brand-600" /> 확정자에게 공지
+        </span>
+      }
+      summary={`확정 ${recipients.length}명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요`}>
       <form
         action={action}
         onReset={keepInputs}

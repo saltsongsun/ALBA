@@ -1,5 +1,6 @@
 'use client'
 
+import Icon from '@/components/Icon'
 import { usePush } from './usePush'
 
 /**
@@ -46,7 +47,9 @@ export default function PushToggle({
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
       <span className="min-w-0 text-sm">
-        <span className="font-semibold">🔔 휴대폰 알림</span>{' '}
+        <span className="font-semibold">
+          <Icon name="bell" className="text-mute" /> 휴대폰 알림
+        </span>{' '}
         <span className="text-sub">
           {state === 'on'
             ? `켜짐 · ${what}`

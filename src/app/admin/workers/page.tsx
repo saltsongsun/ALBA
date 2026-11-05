@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import RosterLock, { RosterOpenBar, RosterTooMany } from '@/components/RosterLock'
 import { ROSTER_MINUTES, rosterUnlockedFor, rosterViewAllowed } from '@/lib/rosterLock'
 import type { Metadata } from 'next'
@@ -108,7 +109,11 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   }
   const roleBadges = (u: Row) => (
     <>
-      {isNew(u) && <span className="badge bg-emerald-50 text-emerald-700">🆕 새 가입</span>}
+      {isNew(u) && (
+        <span className="badge bg-emerald-50 text-emerald-700">
+          <Icon name="sparkle" /> 새 가입
+        </span>
+      )}
       <StarAvg scores={(u.ratings ?? []).map((r) => r.score)} />
       {u.member_type && u.member_type !== 'worker' && (
         <span className={`badge ${MEMBER_TYPES[u.member_type].badge}`}>
@@ -146,10 +151,10 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         {(
           [
             [null, null, '전체'],
-            [null, 'new', '🆕 새로 가입'],
+            [null, 'new', '새로 가입'],
             [null, 'mine', '우리 회사 지원자'],
-            ['worker', null, '🙋 알바'],
-            ['expert', null, '🎛️ 전문가'],
+            ['worker', null, '알바'],
+            ['expert', null, '전문가'],
             [null, 'nophoto', '사진 없음'],
             [null, 'noaccount', '계좌 없음'],
           ] as const

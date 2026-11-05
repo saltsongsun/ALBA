@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import Link from 'next/link'
 import { nudgeWorkers, setAllPaid, setPaid } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
@@ -135,7 +136,7 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
           {/* 일한 사람 모두의 임금명세서를 한 사람에 한 장씩 */}
           {rows.length > 0 && (
             <Link href={`/print/payslip/${job.id}`} className="btn-gray btn-sm">
-              🖨 명세서 한 번에 인쇄
+              <Icon name="printer" /> 명세서 한 번에 인쇄
             </Link>
           )}
         </div>
@@ -272,7 +273,9 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
         return (
           <section className="card space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="font-bold">🧾 행사 비용 합계</h3>
+              <h3 className="flex items-center gap-1.5 font-bold">
+                <Icon name="receipt" className="text-sub" /> 행사 비용 합계
+              </h3>
               <div className="flex flex-wrap gap-1.5">
                 <Link href={`/admin/vendors?tab=quotes&job=${job.id}`} className="chip h-8 px-3 text-xs">
                   외주 견적 요청

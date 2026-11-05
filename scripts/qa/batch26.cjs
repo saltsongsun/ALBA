@@ -27,7 +27,7 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   await m.locator('[data-admin-tabbar]').waitFor({ timeout: 10000 }).catch(() => {})
   const head = await m.locator('header').boundingBox()
   ok('머리글 한 줄 (높이 64px 이하)', !!head && head.height <= 64, JSON.stringify(head))
-  ok('머리글에 회사 이름', (await m.locator('header').innerText()).includes('🏢 주식회사 테스트'))
+  ok('머리글에 회사 이름', (await m.locator('header').innerText()).includes('주식회사 테스트'))
   ok('위쪽 메뉴 줄은 휴대폰에서 숨김', !(await m.locator('header nav[aria-label="관리자 메뉴"]').isVisible()))
   const tabs = m.locator('[data-admin-tabbar] a, [data-admin-tabbar] button')
   ok('아래 탭 5개: 홈·공고·근무자·문의·더보기', (await tabs.allInnerTexts()).map((t) => t.replace(/\d+/g, '').trim()).join(',') === '홈,공고,근무자,문의,더보기', (await tabs.allInnerTexts()).join(','))
@@ -40,18 +40,18 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   // 대시보드 순서: 현황 제목 → 확인할 일(새 문의 포함), 따로 뜨던 '새 문의' 띠 없음
   // (스트리밍으로 그려진 내용이 드러난 뒤에 위치를 잼)
   await m.locator('main h1', { hasText: '현황' }).first().waitFor({ timeout: 10000 }).catch(() => {})
-  await m.locator('main section', { hasText: '✅ 확인할 일' }).first().waitFor({ timeout: 10000 }).catch(() => {})
+  await m.locator('main section', { hasText: '확인할 일' }).first().waitFor({ timeout: 10000 }).catch(() => {})
   const order = await m.evaluate(() => {
     const y = (el) => (el ? el.getBoundingClientRect().top + scrollY : -1)
     const h1 = [...document.querySelectorAll('main h1')].find((h) => h.textContent.includes('현황'))
-    const todo = [...document.querySelectorAll('main section')].find((s) => s.textContent.includes('✅ 확인할 일'))
+    const todo = [...document.querySelectorAll('main section')].find((s) => s.textContent.includes('확인할 일'))
     const push = [...document.querySelectorAll('main .card')].find((c) => c.textContent.includes('휴대폰 알림'))
     const jobs = [...document.querySelectorAll('main h2')].find((h) => h.textContent.includes('진행·예정 공고'))
     return { h1: y(h1), todo: y(todo), push: y(push), jobs: y(jobs) }
   })
   ok('현황 제목이 맨 위, 그 아래 확인할 일', order.h1 >= 0 && order.todo > order.h1, JSON.stringify(order))
   ok('휴대폰 알림 칸은 맨 아래', order.push > order.jobs, JSON.stringify(order))
-  const todo = m.locator('section', { hasText: '✅ 확인할 일' })
+  const todo = m.locator('section', { hasText: '확인할 일' })
   ok('새 문의는 확인할 일 안에 (누르면 문의)', (await todo.locator('a[href="/admin/chat"]', { hasText: '새 문의' }).count()) === 1)
   ok("따로 뜨던 '새 문의 N건이 있어요' 띠 없음", (await m.getByText(/새 문의 \d+건이 있어요/).count()) === 0)
 

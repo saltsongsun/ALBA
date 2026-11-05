@@ -131,7 +131,7 @@ const download = (p, url) =>
   // ── 4. 관리자: 목록·공지 고정 ──
   const ad = await pg(A)
   await ad.goto(`${D}/admin/chat`)
-  ok('관리자: 문의에 단체방 목록', (await see(ad, '👥 단체방')) && (await ad.locator(`a[href="/admin/chat/room/${J}"]`).count()) === 1)
+  ok('관리자: 문의에 단체방 목록', (await see(ad, '단체방')) && (await ad.locator(`a[href="/admin/chat/room/${J}"]`).count()) === 1)
   await ad.goto(`${D}/admin/jobs/${J}`)
   ok('관리자: 공고 화면에 단체방 버튼', await ad.locator(`a[href="/admin/chat/room/${J}"]`).first().waitFor({ state: 'attached', timeout: 10000 }).then(() => true, () => false), ad.url() + ' ' + (await ad.locator('main').innerText().catch(() => '')).slice(0, 300).replace(/\n/g, ' | '))
   await ad.goto(`${D}/admin/chat/room/${J}`)

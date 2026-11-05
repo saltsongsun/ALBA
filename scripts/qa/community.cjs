@@ -57,7 +57,7 @@ const noScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <
   const postUrl = w.url().split('?')[0]
   const postId = postUrl.split('/').pop()
   ok('올리면 글 화면으로', /^[0-9a-f-]{36}$/.test(postId), postUrl)
-  ok('말머리 꿀팁', await see(w, '🍯 꿀팁'))
+  ok('말머리 꿀팁', (await w.locator('[data-post-detail]').innerText().catch(() => '')).includes('꿀팁'))
   const detail = await w.locator('[data-post-detail]').innerText()
   ok('휴대폰 번호 가운데 가림', detail.includes('010-****-5678') && !detail.includes('1234-5678'))
   const nick = (await rest(`users?id=eq.${W}&select=nickname`))[0]?.nickname

@@ -1,5 +1,6 @@
 'use client'
 
+import Icon from '@/components/Icon'
 import { useEffect, useState } from 'react'
 import LiveNumber from './LiveNumber'
 
@@ -21,7 +22,7 @@ export default function JobViewStats({ jobId, initial }: { jobId: string; initia
   return (
     <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
       <span>
-        👀 확인 <b className="tabular-nums">{<LiveNumber value={s.total} />}</b>명
+        <Icon name="eye" className="text-mute" /> 확인 <b className="tabular-nums">{<LiveNumber value={s.total} />}</b>명
         <span className="text-mute"> (가입자 {s.members}명)</span>
       </span>
       <span className={`inline-flex items-center gap-1.5 font-semibold ${s.live ? 'text-emerald-600' : 'text-mute'}`}>

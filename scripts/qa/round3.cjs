@@ -73,7 +73,7 @@ const errs = []
   await ad.getByText(/본 가입자 1명/).click()
   ok('본 가입자 목록 (근무자 · 지원함)', await see(ad, '지원함'))
   await ad.goto(`${D}/admin/jobs`)
-  ok('공고 목록: 확인 인원', await see(ad, /👀 2/))
+  ok('공고 목록: 확인 인원', /^\s*2\b/.test(await ad.locator('[data-views]').first().innerText().catch(() => '')))
   const w403 = await fetch(`${D}/api/jobs/${J}/viewers`)
   ok('조회 현황 숫자는 관리자만', w403.status === 403)
 
@@ -123,7 +123,7 @@ const errs = []
   ok('QR 화면: 합류자 진행 상태 (서명 대기/출근 전)', await see(af, /서명 대기 \d+건|출근 전/))
   ok('QR 화면: 10초마다 자동 갱신', await see(af, '10초마다 자동 갱신'))
   await af.goto(`${F}/admin/jobs/${J}?tab=att`)
-  ok('출퇴근 탭: 긴급 투입 배지', await see(af, '🚨 긴급 투입'))
+  ok('출퇴근 탭: 긴급 투입 배지', await see(af, '긴급 투입'))
   const anonJoin = await pg(F)
   await anonJoin.goto(`${F}/join/${J}?c=${code}`)
   ok('비회원: 가입 후 바로 합류 안내', (await see(anonJoin, '1분 가입')) && (await anonJoin.getByRole('link', { name: '1분 가입' }).getAttribute('href')).includes(encodeURIComponent(`/join/${J}`)))

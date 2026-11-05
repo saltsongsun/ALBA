@@ -54,11 +54,11 @@ const stats = () => fetch(`${D}/api/jobs/${J}/viewers`, { headers: { cookie: `al
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
   await p.goto(`${D}/admin/jobs/${J}`)
-  const line = await p.getByText(/👀 확인/).first().innerText().catch(() => '')
+  const line = await p.getByText(/확인\s*\d+\s*명/).first().innerText().catch(() => '')
   ok("관리자 공고 화면: '확인 2명 (가입자 2명)'", /확인\s*2\s*명/.test(line) && line.includes('가입자 2명'), line)
   await p.goto(`${D}/admin/jobs`)
   const card = await p.locator(`a[href="/admin/jobs/${J}"]`).first().innerText().catch(() => '')
-  ok('공고 목록: 👀 2', /👀\s*2/.test(card), card.replace(/\n/g, ' | '))
+  ok('공고 목록: 확인 2 (눈 아이콘)', /^\s*2\b/.test(await p.locator(`a[href="/admin/jobs/${J}"] [data-views]`).first().innerText().catch(() => '')), card.replace(/\n/g, ' | '))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

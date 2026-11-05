@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -212,18 +213,18 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {/* 확정자 + 담당자 단체방 */}
             {job.status !== 'draft' && (
               <Link href={`/admin/chat/room/${job.id}`} className="btn-soft btn-sm">
-                👥 단체방
+                <Icon name="users" /> 단체방
               </Link>
             )}
             {!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && (
               <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}&shift=1#shift`} className="btn-soft btn-sm">
-                🕒 근무시간 변경
+                <Icon name="clock" /> 근무시간 변경
               </Link>
             )}
             {/* 행사 당일: 새 인력이 QR만 찍으면 가입·로그인 후 바로 확정 */}
             {['open', 'closed'].includes(job.status) && dates.includes(today) && (
               <Link href={`/admin/jobs/${job.id}/qr`} className="btn-sm btn bg-rose-50 text-rose-600">
-                🚨 긴급 투입 QR
+                <Icon name="qr" /> 긴급 투입 QR
               </Link>
             )}
             {/* 자주 안 쓰는 것은 접어 둠 (복사·모집 열기/마감·행사 종료·삭제) */}

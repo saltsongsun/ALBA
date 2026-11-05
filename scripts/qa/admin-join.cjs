@@ -129,7 +129,7 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
   ok('신입: 승인됐어요 안내', await see(nu, '관리자로 승인됐어요'))
   await nu.getByText('관리자 화면 →').click()
   await nu.waitForURL(/\/admin/, { timeout: 10000 }).catch(() => {})
-  ok('신입: 관리자 화면 · 회사2', path0(nu) === '/admin' && (await see(nu, '🏢 두번째컴퍼니')), nu.url())
+  ok('신입: 관리자 화면 · 회사2', path0(nu) === '/admin' && (await see(nu, '두번째컴퍼니')), nu.url())
   ok('신입: 일반 관리자라 코드 안 보임', (await nu.goto(`${D}/admin/settings`), (await see(nu, '관리자 초대·승인은 대표 관리자')) && (await nu.locator('[data-join-code]').count()) === 0))
 
   // ── 4. 근무자 계정으로 신청 → 거절 → 다시 신청 → 승인 (다시 로그인) ──
@@ -160,7 +160,7 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
   ok('예전 로그인은 끊김 → 로그인 화면', path0(wk) === '/login', wk.url())
   const wk2 = await pg(W, 2)
   await wk2.goto(`${D}/admin`)
-  ok('다시 로그인하면 관리자 화면', path0(wk2) === '/admin' && (await see(wk2, '🏢 두번째컴퍼니')), wk2.url())
+  ok('다시 로그인하면 관리자 화면', path0(wk2) === '/admin' && (await see(wk2, '두번째컴퍼니')), wk2.url())
 
   // ── 5. 대표: 관리자 빼기 ──
   await own.goto(`${D}/admin/settings`)

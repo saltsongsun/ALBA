@@ -126,9 +126,9 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                     replace
                     scroll={false}
                     aria-current={on ? 'page' : undefined}
-                    className={`flex max-w-[60vw] shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-sm font-bold whitespace-nowrap ring-1 transition active:scale-95 ${on ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'}`}
+                    className={`flex max-w-[60vw] shrink-0 items-center gap-1 rounded-full px-3.5 py-2 text-sm font-bold whitespace-nowrap ring-1 transition active:scale-95 ${on ? 'bg-ink text-white ring-ink' : 'bg-white text-sub ring-line'}`}
                   >
-                    <span className="min-w-0 truncate">{c.id ? `🏢 ${c.name}` : c.name}</span>
+                    <span className="min-w-0 truncate">{c.name}</span>
                     <span className={`tabular-nums ${on ? 'text-white/80' : 'text-mute'}`}>{c.n}</span>
                   </Link>
                 )

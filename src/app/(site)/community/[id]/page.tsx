@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -68,7 +69,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
           </p>
         )}
         <span className="badge bg-brand-50 text-brand-700">
-          {cat.icon} {cat.label}
+          <Icon name={cat.icon} /> {cat.label}
         </span>
         <h1 className="text-xl leading-snug font-extrabold break-words">{post.title}</h1>
         <p className="text-sm text-mute">
@@ -176,7 +177,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
       {related.length > 0 && (
         <section className="space-y-2" data-related>
           <h2 className="font-bold">
-            {cat.icon} 다른 {cat.label} 글
+            <Icon name={cat.icon} /> 다른 {cat.label} 글
           </h2>
           <ul className="space-y-2">
             {related.map((r) => (

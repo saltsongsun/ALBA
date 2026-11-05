@@ -1,3 +1,4 @@
+import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import LogoutButton from '@/components/LogoutButton'
@@ -55,7 +56,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             {admin.companies.length > 1 ? (
               <CompanySwitcher companies={admin.companies} current={admin.companyId} unread={Object.fromEntries(others.map((o) => [o.id, o.n]))} />
             ) : (
-              <p className="min-w-0 truncate text-[15px] font-bold">🏢 {admin.companyName}</p>
+              <p className="min-w-0 truncate text-[15px] font-bold">
+                <Icon name="building" className="text-mute" /> {admin.companyName}
+              </p>
             )}
           </div>
           <div className="flex shrink-0 items-center gap-0.5 text-sm whitespace-nowrap">

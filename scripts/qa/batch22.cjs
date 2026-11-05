@@ -56,7 +56,7 @@ const settled = (p) => p.waitForTimeout(900).then(() => p.waitForFunction(() => 
   const chips = w.locator('[data-history-companies] a')
   await chips.first().waitFor({ timeout: 10000 }).catch(() => {})
   const chipTxt = await chips.allInnerTexts()
-  ok('회사 칩: 전체 2 · 두 회사', chipTxt.length === 3 && /전체\s*2/.test(chipTxt[0]) && chipTxt.some((t) => t.includes('🏢 새내기행사')) && chipTxt.some((t) => t.includes('🏢 주식회사 테스트')), chipTxt.join(' / '))
+  ok('회사 칩: 전체 2 · 두 회사', chipTxt.length === 3 && /전체\s*2/.test(chipTxt[0]) && chipTxt.some((t) => t.includes('새내기행사')) && chipTxt.some((t) => t.includes('주식회사 테스트')), chipTxt.join(' / '))
   ok('처음엔 전체 켜짐', (await w.locator('[data-history-companies] a[aria-current=page]').innerText()).includes('전체'))
   ok('360px: 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   const pastBar = w.locator(`[data-month-bar="${past.slice(0, 7)}"]`)

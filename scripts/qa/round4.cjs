@@ -98,7 +98,7 @@ const errs = []
   // ── 6. 임금명세서 한 번에 인쇄 ──
   await rest(MD, `attendance?job_id=eq.${J}`, 'PATCH', { clock_out: new Date().toISOString() })
   await a.goto(`${D}/admin/jobs/${J}?tab=pay`)
-  ok('6. 정산 탭에 한 번에 인쇄', await see(a, '🖨 명세서 한 번에 인쇄'))
+  ok('6. 정산 탭에 한 번에 인쇄', await see(a, '명세서 한 번에 인쇄'))
   await a.goto(`${D}/print/payslip/${J}`)
   ok('6. 일한 사람 모두 · 한 사람에 한 장', (await see(a, '1명 · 한 사람에 한 장')) && (await a.locator('article', { hasText: '임금명세서' }).count()) === 1)
   await a.goto(`${D}/print/payslip/${J}/${WK}`)

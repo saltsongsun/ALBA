@@ -1,5 +1,6 @@
 'use client'
 
+import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -37,15 +38,15 @@ const MAIN: Item[] = [
 ]
 
 /** '더보기'에 모은 덜 자주 쓰는 메뉴 */
-const MORE = [
-  { href: '/admin/reports', label: '정산 · 신고자료', emoji: '💰' },
-  { href: '/admin/vendors', label: '외주', emoji: '🤝' },
-  { href: '/admin/docs', label: '서류 서식', emoji: '📄' },
-  { href: '/admin/settings', label: '회사 설정', emoji: '⚙️' },
+const MORE: { href: string; label: string; icon: IconName }[] = [
+  { href: '/admin/reports', label: '정산 · 신고자료', icon: 'receipt' },
+  { href: '/admin/vendors', label: '외주', icon: 'building' },
+  { href: '/admin/docs', label: '서류 서식', icon: 'file' },
+  { href: '/admin/settings', label: '회사 설정', icon: 'gear' },
 ]
-const SUPER = [
-  { href: '/admin/companies', label: '회사 관리', emoji: '🏢' },
-  { href: '/admin/community', label: '커뮤니티 관리', emoji: '🛡️' },
+const SUPER: { href: string; label: string; icon: IconName }[] = [
+  { href: '/admin/companies', label: '회사 관리', icon: 'building' },
+  { href: '/admin/community', label: '커뮤니티 관리', icon: 'shield' },
 ]
 
 /**
@@ -90,8 +91,8 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
                       aria-current={on ? 'page' : undefined}
                       className={`flex items-center gap-2 rounded-[18px] px-3 py-3 text-sm font-semibold transition active:scale-95 ${on ? 'bg-brand-50 text-brand-700' : 'bg-white/70 text-ink'}`}
                     >
-                      <span aria-hidden className="text-lg">
-                        {m.emoji}
+                      <span aria-hidden className={`text-lg ${on ? '' : 'text-sub'}`}>
+                        <Icon name={m.icon} />
                       </span>
                       <span className="min-w-0 flex-1 truncate">{m.label}</span>
                       {n > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{n > 99 ? '99+' : n}</span>}

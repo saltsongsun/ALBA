@@ -49,7 +49,7 @@ const errs = []
 
   // ── 1. 다른 회사 관리자는 기본 회사 자료를 못 봄 ──
   await a2.goto(`${D}/admin`)
-  ok('회사2 관리자: 화면 위 회사 이름', await see(a2, `🏢 ${C2_NAME}`))
+  ok('회사2 관리자: 화면 위 회사 이름', await see(a2, C2_NAME))
   ok('회사2 대시보드: 회사1 공고 안 보임', !(await see(a2, J_TITLE, 1500)))
   ok('회사2 대시보드: 회사2 공고 보임', await see(a2, J2_TITLE))
   await a2.goto(`${D}/admin/jobs`)
@@ -167,7 +167,7 @@ const errs = []
   await n.locator('input[name=pin]').fill(pin || '')
   await n.getByRole('button', { name: /로그인/ }).click()
   await n.waitForURL(/\/admin/, { timeout: 10000 }).catch(() => {})
-  ok('새 관리자 로그인 → 세번째 회사', await see(n, '🏢 세번째컴퍼니'))
+  ok('새 관리자 로그인 → 세번째 회사', await see(n, '세번째컴퍼니'))
   ok('새 관리자: 다른 회사 공고 안 보임', !(await see(n, J_TITLE, 1000)) && !(await see(n, J2_TITLE, 1000)))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

@@ -115,7 +115,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
 
   // S10 인원 부족 알림
   await ad.goto(`${D}/admin`)
-  ok('S10 대시보드: 곧 시작하는데 인원이 모자라요', await see(ad, '🚨 곧 시작하는데 인원이 모자라요'))
+  ok('S10 대시보드: 곧 시작하는데 인원이 모자라요', await see(ad, '곧 시작하는데 인원이 모자라요'))
   await shot(ad, '10-shortage', 'text=곧 시작하는데 인원이 모자라요')
   ok('S10 부족 인원·대기자 바로가기', (await see(ad, '4명 부족')) && (await see(ad, '대기 1명 확정하러 가기')))
 
