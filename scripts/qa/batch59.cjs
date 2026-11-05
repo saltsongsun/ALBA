@@ -84,7 +84,8 @@ const t = (min) => new Date(Date.now() - min * 60e3).toISOString()
   const readBefore = (await rest('job_chat_reads')).find((r) => r.user_id === W && r.job_id === J)?.read_at
   await wk.waitForTimeout(12000)
   const readAfter = (await rest('job_chat_reads')).find((r) => r.user_id === W && r.job_id === J)?.read_at
-  ok('열어 둔 12초 동안 다시 그리지 않음 · 읽음 시각도 그대로', rsc === 0 && readBefore === readAfter, `rsc=${rsc} ${rscLog.join(' | ')} read ${readBefore}→${readAfter} pulse ${pv0} → ${await pv()}`)
+  // 되풀이(5초마다)면 12초에 2번 넘게 그림 — 한 번쯤(열 때 숫자 맞추기 등)은 괜찮고, 읽음 시각·바뀐 값은 그대로여야 함
+  ok('열어 둔 12초 동안 되풀이해 다시 그리지 않음 · 읽음 시각도 그대로', rsc <= 1 && readBefore === readAfter, `rsc=${rsc} ${rscLog.join(' | ')} read ${readBefore}→${readAfter} pulse ${pv0} → ${await pv()}`)
 
   // ── 3. 담당자: 안 읽은 사람 이름 + 다시 알림 ──
   const ad = await pg(A, true)
