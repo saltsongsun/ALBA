@@ -7,7 +7,8 @@ import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { getSettings } from '@/lib/data'
+import { getSettings, wageTotal } from '@/lib/data'
+import { won } from '@/lib/format'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
@@ -135,6 +136,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
+  // 공고 지급총액 (세전 · 정산 탭과 같은 계산)
+  const wage = wageTotal(job, atts)
   const link = `${origin}/jobs/${job.id}`
   const text = recruitText(job, link, settings.company_name)
 
@@ -170,6 +173,17 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {job.gps_required && <span className="badge ml-2 bg-emerald-50 text-emerald-700">현장 위치 확인</span>}
             {job.auto_approve && <span className="badge ml-1 bg-brand-50 text-brand-700">자동 확정</span>}
           </p>
+          {/* 지급총액 (세전, 정산 탭과 같은 계산) → 정산 탭으로 */}
+          {wage.gross > 0 && (
+            <Link href={`/admin/jobs/${job.id}?tab=pay`} className="mt-1.5 inline-flex flex-wrap items-center gap-x-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900 tabular-nums" data-job-wage>
+              <span>
+                지급총액 <b>{won(wage.gross)}</b>
+              </span>
+              <span className="text-xs text-emerald-700">
+                세전 · {wage.people}명{wage.net > 0 && wage.paidNet >= wage.net ? ' · 지급 완료' : ''}
+              </span>
+            </Link>
+          )}
           <JobViewStats jobId={job.id} initial={vstats[job.id]} />
           {mviewers.length > 0 && (
             <ViewerInvite

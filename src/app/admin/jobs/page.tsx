@@ -5,7 +5,8 @@ import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import { ShareButton } from '@/components/ui'
-import { countApps, JOB_WITH_APP_STATUS, unpaidByJob, type JobWithAppStatus } from '@/lib/data'
+import { countApps, JOB_WITH_APP_STATUS, unpaidByJob, wageTotals, type JobWithAppStatus } from '@/lib/data'
+import { won } from '@/lib/format'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
@@ -40,7 +41,9 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
     : all
   const counts = countApps(jobs, 'approved')
   // 지난 공고: 근무는 끝났는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (급여 지급을 빠뜨리지 않게)
-  const [views, unpaid] = await Promise.all([viewStats(jobs.map((j) => j.id)), tab === 'past' ? unpaidByJob(admin.companyId, today) : {}])
+  // 공고마다 지급총액(세전, 정산 탭과 같은 계산): 출퇴근 기록이 있는 공고만
+  const [views, unpaid, wages] = await Promise.all([viewStats(jobs.map((j) => j.id)), tab === 'past' ? unpaidByJob(admin.companyId, today) : {}, wageTotals(admin.companyId, jobs)])
+  const grossOf = (id: string) => wages[id]?.gross ?? 0
   const waitingBy = countApps(jobs, 'applied')
   const unpaidOf = (id: string) => (unpaid as Record<string, { n: number }>)[id]?.n ?? 0
 
@@ -153,6 +156,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                   <p className="mt-0.5 text-sm text-sub">
                     {fmtDateRange(j.start_date, j.end_date)} {scheduleText(j)}
                   </p>
+                  {grossOf(j.id) > 0 && (
+                    <p className="mt-0.5 text-sm text-sub tabular-nums" data-job-wage>
+                      지급총액 <b className="text-ink">{won(grossOf(j.id))}</b>
+                      <span className="text-xs text-mute"> (세전 · {wages[j.id].people}명)</span>
+                    </p>
+                  )}
                   <div className="mt-2 flex items-center gap-2 text-xs text-mute">
                     <SlotBar value={approved} max={j.headcount} height="h-1.5" className="min-w-0 flex-1" />
                     <span className="shrink-0 tabular-nums">
@@ -178,6 +187,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                   <th>확정/모집</th>
                   <th>대기</th>
                   <th>확인</th>
+                  <th className="text-right">지급총액</th>
                   <th>상태</th>
                 </tr>
               </thead>
@@ -207,6 +217,16 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                           가입자 {views[j.id].members}
                           {views[j.id].total > views[j.id].members && ` · 비회원 ${views[j.id].total - views[j.id].members}`}
                         </div>
+                      )}
+                    </td>
+                    <td className="text-right whitespace-nowrap tabular-nums" data-job-wage-cell>
+                      {grossOf(j.id) > 0 ? (
+                        <>
+                          <b>{won(grossOf(j.id))}</b>
+                          <div className="text-xs text-mute">세전 · {wages[j.id].people}명</div>
+                        </>
+                      ) : (
+                        <span className="text-mute">-</span>
                       )}
                     </td>
                     <td>

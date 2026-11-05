@@ -4,7 +4,8 @@ import { db, must } from './db'
 import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
 import { clientInfo } from './session'
-import type { Application, CompanySettings, Job, Settings } from './types'
+import { calcDay, settle } from './pay'
+import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
 
 const COMPANY_COLS =
   'company_name, ceo_name, business_no, company_address, company_phone, contact_name, contact_phone, default_hourly_wage, workplace_5plus'
@@ -205,4 +206,32 @@ export async function unpaidByJob(companyId: string, today: string): Promise<Rec
   const users: Record<string, Set<string>> = {}
   for (const r of rows) if (ended.has(r.job_id)) (users[r.job_id] ??= new Set()).add(r.user_id)
   return Object.fromEntries(Object.entries(users).map(([id, s]) => [id, { title: ended.get(id)!, n: s.size }]))
+}
+
+export type JobWage = { gross: number; net: number; paidNet: number; people: number; incomplete: number }
+
+/** 출퇴근 기록으로 사람별 정산 → 공고 합계 (정산 탭과 같은 계산 · 규칙은 lib/pay 그대로) */
+export function wageTotal(job: Job, atts: Attendance[]): JobWage {
+  const byUser = new Map<string, Attendance[]>()
+  for (const a of atts) if (a.job_id === job.id) byUser.set(a.user_id, [...(byUser.get(a.user_id) ?? []), a])
+  const out: JobWage = { gross: 0, net: 0, paidNet: 0, people: 0, incomplete: 0 }
+  for (const mine of byUser.values()) {
+    const s = settle(job, mine.map((a) => calcDay(job, a)))
+    const done = mine.filter((a) => a.clock_out)
+    out.gross += s.gross
+    out.net += s.net
+    out.incomplete += s.incomplete
+    if (s.gross > 0) out.people++
+    if (done.length > 0 && done.every((a) => a.paid)) out.paidNet += s.net
+  }
+  return out
+}
+
+/** 공고 목록용: 이 회사 공고들의 지급총액 (세전) · 실수령 · 지급 완료 금액 */
+export async function wageTotals(companyId: string, jobs: Job[]): Promise<Record<string, JobWage>> {
+  if (!jobs.length) return {}
+  const atts = must(
+    await db().from('attendance').select('*').eq('company_id', companyId).in('job_id', jobs.map((j) => j.id)).limit(20000),
+  ) as Attendance[]
+  return Object.fromEntries(jobs.map((j) => [j.id, wageTotal(j, atts)]))
 }
