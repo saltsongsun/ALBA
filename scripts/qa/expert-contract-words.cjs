@@ -42,7 +42,10 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('전문가 내 일: 근로계약서라는 말 없음', !(await see(e, '근로계약서', 800)))
   await e.goto(`${D}/jobs/${JX}`)
   await e.waitForLoadState('networkidle')
-  ok('의뢰 화면 서류: 용역계약서 (현장에서 종이로 작성)', await see(e, '용역계약서 (현장에서 종이로 작성)'))
+  // 서류 줄: 이름 아래 작은 글씨로 받는 방법
+  await e.locator('[data-doc-lines]').waitFor({ timeout: 8000 }).catch(() => {})
+  const docLine = (await e.locator('[data-doc-lines]').innerText().catch(() => '')).replace(/\s+/g, ' ').trim()
+  ok('의뢰 화면 서류: 용역계약서 · 현장에서 종이로 작성', docLine.startsWith('용역계약서') && docLine.includes('현장에서 종이로 작성'), docLine)
 
   // 관리자 화면
   const a = await pg(A)
