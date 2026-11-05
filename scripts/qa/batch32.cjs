@@ -78,8 +78,10 @@ const natural = (loc) => loc.evaluate((i) => (i.complete && i.naturalWidth > 0 ?
   // 키보드: 처음엔 쥐돌이 탭에 초점 → → 병아리 → ← 쥐돌이 · Esc 닫기 → 이모티콘 버튼으로
   ok('열면 지금 팩 탭에 초점', await w.evaluate(() => document.activeElement?.getAttribute('data-pack') === 'working-mouse-21'))
   await w.keyboard.press('ArrowRight')
+  await picker(w).locator('[data-sticker-grid=chick] button').nth(21).waitFor({ timeout: 5000 }).catch(() => {})
   ok('→ 병아리 탭 (22종)', (await picker(w).locator('[data-sticker-grid=chick] button').count()) === 22 && (await w.evaluate(() => document.activeElement?.getAttribute('data-pack'))) === 'chick')
   await w.keyboard.press('ArrowLeft')
+  await picker(w).locator('[data-sticker-grid=working-mouse-21]').waitFor({ timeout: 5000 }).catch(() => {})
   ok('← 다시 쥐돌이', (await picker(w).locator('[data-sticker-grid=working-mouse-21]').count()) === 1)
   await w.keyboard.press('Escape')
   ok('Esc: 닫히고 이모티콘 버튼으로', (await picker(w).count()) === 0 && (await w.evaluate(() => document.activeElement?.hasAttribute('data-sticker-toggle'))))
