@@ -52,7 +52,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <AutoRefresh seconds={5} quiet />
+      <AutoRefresh seconds={5} quiet pulse="/api/pulse?s=admin-chat" />
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`chat-${worker.id}`} />
       <div className="flex items-center justify-between gap-2">

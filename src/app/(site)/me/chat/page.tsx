@@ -88,7 +88,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
 
   return (
     <div className="space-y-4">
-      <AutoRefresh seconds={5} quiet />
+      <AutoRefresh seconds={5} quiet pulse="/api/pulse?s=me-chat" />
       <ScrollToEnd count={messages.length} />
       {/* 열자마자 위·아래 문의 숫자를 맞추고 이 대화의 알림도 지움 */}
       {companyId && <ReadSync tag={`chat-${companyId}`} />}
@@ -213,7 +213,7 @@ async function ChatList({
 
   return (
     <div className="space-y-4">
-      <AutoRefresh seconds={10} quiet />
+      <AutoRefresh seconds={10} quiet pulse="/api/pulse?s=me-chat" />
       <div>
         <h1 className="text-2xl font-extrabold">문의</h1>
         <p className="mt-1 text-sm text-sub">

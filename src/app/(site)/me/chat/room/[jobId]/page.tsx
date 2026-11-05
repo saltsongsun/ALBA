@@ -25,7 +25,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
 
   return (
     <div className="space-y-4">
-      <AutoRefresh seconds={5} quiet />
+      <AutoRefresh seconds={5} quiet pulse={`/api/pulse?s=room&id=${job.id}`} />
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`room-${job.id}`} />
       <div className="flex items-center justify-between gap-2">

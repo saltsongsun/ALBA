@@ -22,13 +22,13 @@ const errs = []
   // (새 문의도 할 일에 들어가므로, 처음 들어 있는 근무자 문의를 읽은 것으로)
   await send(MD, 'messages?from_admin=eq.false', 'PATCH', { read_at: new Date().toISOString() })
   await a.goto(`${D}/admin`)
-  ok('할 일이 없으면 카드 없음', (await a.getByText('✅ 확인할 일').count()) === 0)
+  ok('할 일이 없으면 카드 없음', (await a.getByText('확인할 일').count()) === 0)
   // 어제 근무인데 종료 안 누름 + 연장 확인 요청 + 시간 변경 답 대기 + 종이 계약서 미수령
   await send(MD, `attendance?job_id=eq.${J}`, 'PATCH', { work_date: yesterday, ot_status: 'pending', ot_by: 'worker', ot_minutes: 30 })
   await send(MD, 'shift_changes', 'POST', { job_id: J, user_id: W, work_date: null, start_time: '10:00', end_time: '19:00', prev_start: '09:00', prev_end: '18:00', status: 'pending' })
   await send(MD, `jobs?id=eq.${J}`, 'PATCH', { contract_method: 'paper' })
   await a.reload()
-  const card = a.locator('section', { hasText: '✅ 확인할 일' })
+  const card = a.locator('section', { hasText: '확인할 일' })
   const text = (await card.innerText().catch(() => '')) || ''
   ok('근무 종료 안 누름', /근무 종료 안 누름/.test(text))
   ok('연장 근무 확인 요청', /연장 근무 확인 요청/.test(text))

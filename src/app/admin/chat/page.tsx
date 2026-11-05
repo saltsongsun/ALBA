@@ -54,7 +54,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <h1 className="text-2xl font-extrabold">문의</h1>
-          <AutoRefresh seconds={15} />
+          <AutoRefresh seconds={15} pulse="/api/pulse?s=admin-chat" />
         </div>
         <a href="/admin/chat/export" download className="chip h-8 shrink-0 px-3 text-xs">
           ⬇️ 모든 대화 저장
