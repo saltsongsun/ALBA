@@ -360,6 +360,99 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
   const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
   const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
+  // 확정 대기 지원자: 5명까지 바로, 나머지는 '더보기'
+  const PENDING_SHOW = 5
+  const pendingFirst = pendingApps.slice(0, PENDING_SHOW)
+  const pendingRest = pendingApps.slice(PENDING_SHOW)
+  const pendingCard = (p: (typeof pendingApps)[number]) => (
+    <div key={p.id} className="card space-y-2.5 p-4">
+      <div className="flex items-center gap-3">
+        <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="lg" />
+        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-1.5">
+          <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
+            {p.user.name}
+          </Link>
+          {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+          <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+        </div>
+      </div>
+      <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block truncate text-sm font-semibold text-sub">
+        <Icon name="pin" className="text-mute" /> {p.job.title}
+      </Link>
+      {(p.available_dates || p.message) && (
+        <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
+          {p.available_dates && <p>가능일 {p.available_dates.map(fmtDate).join(', ')}</p>}
+          {p.message && <p>“{p.message}”</p>}
+        </div>
+      )}
+      <ContactButtons phone={p.user.phone} name={p.user.name} />
+      <div className="grid grid-cols-2 gap-2">
+        <form action={decideApplication.bind(null, p.id, 'approved')}>
+          {isFull(p.job.id) ? (
+            <ConfirmSubmit className="btn-primary w-full" confirmText="인원 다 찼어요 · 확정?">
+              확정
+            </ConfirmSubmit>
+          ) : (
+            <SubmitButton className="btn-primary w-full" pendingText="확정 중…">
+              확정
+            </SubmitButton>
+          )}
+        </form>
+        <form action={decideApplication.bind(null, p.id, 'rejected')}>
+          {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
+          <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림 보낼까요?">
+            미선발
+          </ConfirmSubmit>
+        </form>
+      </div>
+    </div>
+  )
+  const pendingRow = (p: (typeof pendingApps)[number]) => (
+    <tr key={p.id}>
+      <td className="whitespace-nowrap">
+        <span className="mr-2 inline-block align-middle">
+          <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="sm" />
+        </span>
+        <Link href={`/admin/workers/${p.user.id}`} className="font-semibold">
+          {p.user.name}
+        </Link>
+        {p.user.birth_date && <span className="ml-1 text-xs text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+        <div className="mt-1">
+          <ContactButtons phone={p.user.phone} name={p.user.name} />
+        </div>
+      </td>
+      <td>
+        <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
+          {p.job.title}
+        </Link>
+      </td>
+      <td className="max-w-xs text-xs text-sub">
+        {p.available_dates?.map(fmtDate).join(', ')}
+        {p.message && <div>“{p.message}”</div>}
+      </td>
+      <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(p.created_at)}</td>
+      <td className="whitespace-nowrap">
+        <div className="flex gap-1">
+          <form action={decideApplication.bind(null, p.id, 'approved')}>
+            {isFull(p.job.id) ? (
+              <ConfirmSubmit className="btn-primary btn-sm" confirmText="인원 다 찼어요 · 확정?">
+                확정
+              </ConfirmSubmit>
+            ) : (
+              <SubmitButton className="btn-primary btn-sm" pendingText="…">
+                확정
+              </SubmitButton>
+            )}
+          </form>
+          <form action={decideApplication.bind(null, p.id, 'rejected')}>
+            <ConfirmSubmit className="btn-gray btn-sm" confirmText="미선발 알림 보낼까요?">
+              미선발
+            </ConfirmSubmit>
+          </form>
+        </div>
+      </td>
+    </tr>
+  )
   // 계약서에 들어가는 회사 정보 (회사 설정 맨 위 체크 목록과 같은 4가지)
   const firstEmpty = missingSetup(settings, sealSet)[0]
   // 회사 설정의 첫 빈 칸으로 바로 (커서까지). 빈 칸이 있으면 '시작하기'의 '회사 정보 채우기'가 남아 있음
@@ -591,7 +684,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       </section>
 
       <section id="pending">
-        <h2 className="section-title">확정 대기 지원자</h2>
+        <h2 className="section-title">
+          확정 대기 지원자{pendingApps.length > 0 && <span className="ml-1.5 text-brand-600 tabular-nums">{pendingApps.length}</span>}
+        </h2>
         {pendingApps.length === 0 ? (
           <Empty icon="📭" title="확정을 기다리는 지원자가 없어요">
             <Link href="/admin/jobs" className="font-semibold text-brand-600">
@@ -601,51 +696,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         ) : (
           <>
             {/* 휴대폰: 카드 (확정·미선발 버튼까지 옆으로 밀지 않고 바로) */}
-            <div className="stagger space-y-2 sm:hidden">
-              {pendingApps.map((p) => (
-                <div key={p.id} className="card space-y-2.5 p-4">
-                  <div className="flex items-center gap-3">
-                    <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="lg" />
-                    <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-1.5">
-                      <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
-                        {p.user.name}
-                      </Link>
-                      {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-                      <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
-                    </div>
-                  </div>
-                  <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block truncate text-sm font-semibold text-sub">
-                    <Icon name="pin" className="text-mute" /> {p.job.title}
-                  </Link>
-                  {(p.available_dates || p.message) && (
-                    <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
-                      {p.available_dates && <p>가능일 {p.available_dates.map(fmtDate).join(', ')}</p>}
-                      {p.message && <p>“{p.message}”</p>}
-                    </div>
-                  )}
-                  <ContactButtons phone={p.user.phone} name={p.user.name} />
-                  <div className="grid grid-cols-2 gap-2">
-                    <form action={decideApplication.bind(null, p.id, 'approved')}>
-                      {isFull(p.job.id) ? (
-                        <ConfirmSubmit className="btn-primary w-full" confirmText="인원 다 찼어요 · 확정?">
-                          확정
-                        </ConfirmSubmit>
-                      ) : (
-                        <SubmitButton className="btn-primary w-full" pendingText="확정 중…">
-                          확정
-                        </SubmitButton>
-                      )}
-                    </form>
-                    <form action={decideApplication.bind(null, p.id, 'rejected')}>
-                      {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
-                      <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림 보낼까요?">
-                        미선발
-                      </ConfirmSubmit>
-                    </form>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <div className="stagger space-y-2 sm:hidden">{pendingFirst.map(pendingCard)}</div>
 
             <div className="card hidden overflow-x-auto p-0 sm:block">
               <table className="table">
@@ -658,56 +709,27 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     <th />
                   </tr>
                 </thead>
-                <tbody>
-                  {pendingApps.map((p) => (
-                    <tr key={p.id}>
-                      <td className="whitespace-nowrap">
-                        <span className="mr-2 inline-block align-middle">
-                          <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="sm" />
-                        </span>
-                        <Link href={`/admin/workers/${p.user.id}`} className="font-semibold">
-                          {p.user.name}
-                        </Link>
-                        {p.user.birth_date && <span className="ml-1 text-xs text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-                        <div className="mt-1">
-                          <ContactButtons phone={p.user.phone} name={p.user.name} />
-                        </div>
-                      </td>
-                      <td>
-                        <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
-                          {p.job.title}
-                        </Link>
-                      </td>
-                      <td className="max-w-xs text-xs text-sub">
-                        {p.available_dates?.map(fmtDate).join(', ')}
-                        {p.message && <div>“{p.message}”</div>}
-                      </td>
-                      <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(p.created_at)}</td>
-                      <td className="whitespace-nowrap">
-                        <div className="flex gap-1">
-                          <form action={decideApplication.bind(null, p.id, 'approved')}>
-                            {isFull(p.job.id) ? (
-                              <ConfirmSubmit className="btn-primary btn-sm" confirmText="인원 다 찼어요 · 확정?">
-                                확정
-                              </ConfirmSubmit>
-                            ) : (
-                              <SubmitButton className="btn-primary btn-sm" pendingText="…">
-                                확정
-                              </SubmitButton>
-                            )}
-                          </form>
-                          <form action={decideApplication.bind(null, p.id, 'rejected')}>
-                            <ConfirmSubmit className="btn-gray btn-sm" confirmText="미선발 알림 보낼까요?">
-                              미선발
-                            </ConfirmSubmit>
-                          </form>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
+                <tbody>{pendingFirst.map(pendingRow)}</tbody>
               </table>
             </div>
+            {/* 5명이 넘으면 나머지는 접어 둠 (대시보드가 길어지지 않게) */}
+            {pendingRest.length > 0 && (
+              <details className="group mt-2" data-pending-more>
+                <summary className="flex cursor-pointer list-none items-center justify-center gap-1.5 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line before:hidden [&::-webkit-details-marker]:hidden">
+                  <span className="group-open:hidden">나머지 {pendingRest.length}명 더보기</span>
+                  <span className="hidden group-open:inline">접기</span>
+                  <svg viewBox="0 0 24 24" className="size-4 text-mute transition group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </summary>
+                <div className="mt-2 space-y-2 sm:hidden">{pendingRest.map(pendingCard)}</div>
+                <div className="card mt-2 hidden overflow-x-auto p-0 sm:block">
+                  <table className="table">
+                    <tbody>{pendingRest.map(pendingRow)}</tbody>
+                  </table>
+                </div>
+              </details>
+            )}
           </>
         )}
       </section>
