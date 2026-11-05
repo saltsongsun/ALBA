@@ -149,6 +149,8 @@ const noScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <
   ok('글에 새 별명', (await ap.locator('[data-post-detail]').innerText()).includes('주차왕'))
 
   // ── 7. 후기: 일한 공고만 → 별점 평균이 공고·회사 화면에 ──
+  // (근무 중인 첫 근무엔 후기 쓰기가 없음 — 끝난 근무로 만들고 시작)
+  for (const r of await rest(`attendance?user_id=eq.${W}&job_id=eq.${J}`)) if (!r.clock_out) await rest(`attendance?id=eq.${r.id}`, 'PATCH', { clock_out: new Date().toISOString() })
   await w.goto(`${D}/me/history`)
   const rl = w.locator('[data-review-link]').first()
   ok('지난 근무: 후기 쓰기 버튼', (await rl.innerText()).includes('후기 쓰기'))
