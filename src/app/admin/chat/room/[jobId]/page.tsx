@@ -39,16 +39,8 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
         <Link href="/admin/chat" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 문의 목록
         </Link>
-        <a href={`/admin/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs">
-          ⬇️ 대화 저장
-        </a>
-      </div>
-      <div className="flex items-end justify-between gap-2">
-        <div className="min-w-0">
-          <h1 className="truncate text-xl font-extrabold">👥 {job.title}</h1>
-          <p className="text-sm text-sub">{fmtDateRange(job.start_date, job.end_date)} · 확정자 단체방</p>
-        </div>
-        <span className="flex shrink-0 items-center gap-2">
+        <span className="flex shrink-0 items-center gap-1.5">
+          {/* 나가기는 위 줄에 (제목 줄이 두 줄로 밀리지 않게) · 공고를 올린 관리자는 늘 참여 */}
           {joined && !creator && (
             <form action={leaveRoom.bind(null, job.id)} data-room-leave>
               <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="한 번 더 누르면 나가요">
@@ -56,10 +48,19 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
               </ConfirmSubmit>
             </form>
           )}
-          <Link href={`/admin/jobs/${job.id}`} className="text-sm font-semibold text-brand-600">
-            공고 관리 →
-          </Link>
+          <a href={`/admin/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs">
+            ⬇️ 대화 저장
+          </a>
         </span>
+      </div>
+      <div className="flex items-end justify-between gap-2">
+        <div className="min-w-0">
+          <h1 className="truncate text-xl font-extrabold">👥 {job.title}</h1>
+          <p className="text-sm text-sub">{fmtDateRange(job.start_date, job.end_date)} · 확정자 단체방</p>
+        </div>
+        <Link href={`/admin/jobs/${job.id}`} className="shrink-0 text-sm font-semibold text-brand-600">
+          공고 관리 →
+        </Link>
       </div>
       {/* 참여 전: 읽기만 · 참여하면 알림·안 읽은 수·@부르기 대상 */}
       {!joined && (
@@ -88,7 +89,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
         {open ? (
           <ChatComposer
             action={sendRoom.bind(null, job.id)}
-            placeholder="확정자 모두에게 보낼 메시지 (@이름으로 부르기)"
+            placeholder="모두에게 보낼 메시지"
             mentions={[...members.workers, ...members.admins.filter((p) => p.id !== admin.id).map((p) => ({ ...p, admin: true }))]}
             extra={
               <label className="flex items-center gap-2 px-2 text-sm text-sub">

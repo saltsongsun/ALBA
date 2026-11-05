@@ -53,7 +53,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
         {open ? (
           <ChatComposer
             action={sendRoom.bind(null, job.id)}
-            placeholder="모두에게 보낼 메시지 (@이름으로 부르기)"
+            placeholder="모두에게 보낼 메시지"
             mentions={[...members.workers.filter((w) => w.id !== user.id), ...members.admins.map((a) => ({ ...a, admin: true }))]}
           />
         ) : (

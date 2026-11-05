@@ -133,7 +133,7 @@ export async function joinRoom(jobId: string) {
   await db().from('job_chat_reads').upsert({ job_id: jobId, user_id: admin.id, read_at: new Date().toISOString() }, { onConflict: 'job_id,user_id' })
   roomPaths(jobId)
   revalidatePath('/admin/chat')
-  redirect(`/admin/chat/room/${jobId}?m=${encodeURIComponent('단체방에 참여했어요. 이제 새 메시지 알림을 받아요.')}`)
+  redirect(`/admin/chat/room/${jobId}?m=${encodeURIComponent('단체방에 참여했어요. 알림을 받아요.')}`)
 }
 
 /** 관리자: 단체방 나가기 (공고를 올린 관리자는 늘 참여) */
@@ -145,7 +145,7 @@ export async function leaveRoom(jobId: string) {
   await db().from('job_chat_reads').delete().eq('job_id', jobId).eq('user_id', admin.id)
   roomPaths(jobId)
   revalidatePath('/admin/chat')
-  redirect(`/admin/chat?m=${encodeURIComponent(`‘${job.title}’ 단체방에서 나왔어요. 알림이 오지 않아요.`)}`)
+  redirect(`/admin/chat?m=${encodeURIComponent('단체방에서 나왔어요. 알림이 오지 않아요.')}`)
 }
 
 /** 고정된 공지 내리기 (관리자) */
