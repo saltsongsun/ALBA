@@ -113,7 +113,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           <span className="flex items-center gap-2">
             {/* 관리자: PDF 파일로 내려받기 (인쇄·보관) */}
             {admin && (
-              <a href={`/admin/docs/pdf?id=${doc.id}`} download className="btn-gray" data-doc-pdf>
+              <a href={`/admin/docs/pdf?id=${doc.id}`} download className="btn-gray" data-doc-pdf data-track="서류 PDF (서류 화면)">
                 PDF 받기
               </a>
             )}

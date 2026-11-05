@@ -307,6 +307,8 @@ export function ClockPanel({
         type="button"
         onClick={press}
         disabled={pending}
+        data-track={!open ? '근무 시작' : '근무 종료'}
+        data-confirm={open && !confirmOut ? 'idle' : undefined}
         className={`w-full rounded-2xl py-5 text-xl font-extrabold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-60 ${
           !open
             ? 'bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600'

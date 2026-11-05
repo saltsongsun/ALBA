@@ -14,6 +14,7 @@ function SendButton() {
       type="submit"
       disabled={pending}
       aria-label="보내기"
+      data-track="메시지 보내기"
       className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-600 text-white shadow-md shadow-brand-600/30 transition active:scale-90 disabled:opacity-60"
     >
       {pending ? (

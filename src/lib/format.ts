@@ -85,3 +85,19 @@ export function maskName(n: string | null | undefined): string {
   if (s.length === 2) return `${s[0]}*`
   return `${s[0]}${'*'.repeat(s.length - 2)}${s[s.length - 1]}`
 }
+
+/** 마지막 접속 (최고 관리자만 봄): 5분 안이면 '접속 중', 아니면 'N분/시간/일 전' (30일 넘으면 null) */
+export const ONLINE_MS = 5 * 60_000
+export function seenText(iso: string | null | undefined, now = Date.now()): { online: boolean; text: string } | null {
+  if (!iso) return null
+  const ago = now - Date.parse(iso)
+  if (!Number.isFinite(ago)) return null
+  if (ago < ONLINE_MS) return { online: true, text: '접속 중' }
+  const m = Math.floor(ago / 60_000)
+  if (m < 60) return { online: false, text: `${m}분 전 접속` }
+  const h = Math.floor(m / 60)
+  if (h < 24) return { online: false, text: `${h}시간 전 접속` }
+  const d = Math.floor(h / 24)
+  if (d <= 30) return { online: false, text: `${d}일 전 접속` }
+  return null
+}

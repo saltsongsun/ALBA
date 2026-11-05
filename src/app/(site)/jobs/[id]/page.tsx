@@ -182,6 +182,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .filter((x): x is { m: (typeof mine)[number]; at: string } => !!x.at)
       : []
 
+  // 급여 자세히 (돈 칸 안에 접어 둠)
+  const payMore = (
+    [
+      shows(job, 'break') && ['휴게', breakDescription(job)],
+      job.allowance > 0 && ['수당', `${job.allowance_label || '수당'} 1일 ${won(job.allowance)}`],
+      job.premium_enabled && shows(job, 'premium') && ['가산', '8시간 초과·야간(22~06시) 근무 50% 가산'],
+      shows(job, 'tax') && ['공제', `${TAX_LABEL[job.tax_type]}${job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}`],
+      job.pay_day && shows(job, 'pay_day') && ['지급일', job.pay_day],
+    ] as (false | null | undefined | '' | [string, string])[]
+  ).filter((x): x is [string, string] => !!x)
+
   return (
     <div data-mode={expert ? 'pro' : undefined}>
       {expert && <ProMode />}
@@ -285,6 +296,23 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           ) : (
             <p className="text-2xl font-extrabold">{wageBadge(job)}</p>
           )}
+          {/* 급여 자세히: 휴게·수당·가산·공제·지급일은 접어 둠 (한눈에 보는 칸은 짧게) */}
+          {payMore.length > 0 && (
+            <details className="group mt-2 border-t border-brand-100/70 pt-2" data-pay-more>
+              <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-brand-700 [&::-webkit-details-marker]:hidden">
+                {payMore.map(([k]) => k).join(' · ')} 자세히
+                <span aria-hidden className="transition group-open:rotate-180">⌄</span>
+              </summary>
+              <dl className="mt-2 space-y-1 text-[13px] leading-snug">
+                {payMore.map(([k, v]) => (
+                  <div key={k} className="flex gap-2">
+                    <dt className="w-12 shrink-0 font-semibold text-mute">{k}</dt>
+                    <dd className="min-w-0 flex-1 text-sub">{v}</dd>
+                  </div>
+                ))}
+              </dl>
+            </details>
+          )}
         </div>
         <dl className="mt-3 divide-y divide-line">
           <Row k="일정">
@@ -295,9 +323,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {(job.location_name || job.address) && (
             <Row k="장소">
               {[job.location_name, job.address].filter(Boolean).join('\n')}
+              {/* 모이는 곳은 장소 아래 작은 글씨로 (따로 한 줄을 차지하지 않게) */}
+              {job.meeting_point && (
+                <span className="mt-1 block rounded-lg bg-bg px-2.5 py-1.5 text-[13px] text-sub" data-meeting-point>
+                  <b className="font-semibold text-ink">모이는 곳</b> · {job.meeting_point}
+                </span>
+              )}
             </Row>
           )}
-          {job.meeting_point && <Row k="집결">{job.meeting_point}</Row>}
+          {!(job.location_name || job.address) && job.meeting_point && <Row k="집결">{job.meeting_point}</Row>}
           {shows(job, 'headcount') && (
             <Row k="인원">
               {job.headcount}명 모집 · {approved}명 확정
@@ -306,20 +340,6 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </Row>
           )}
           {job.task && <Row k="업무">{job.task}</Row>}
-          {shows(job, 'break') && <Row k="휴게">{breakDescription(job)}</Row>}
-          {job.allowance > 0 && (
-            <Row k="수당">
-              {job.allowance_label || '수당'} 1일 {won(job.allowance)}
-            </Row>
-          )}
-          {job.premium_enabled && shows(job, 'premium') && <Row k="가산">8시간 초과·야간(22~06시) 근무 50% 가산</Row>}
-          {shows(job, 'tax') && (
-            <Row k="공제">
-              {TAX_LABEL[job.tax_type]}
-              {job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}
-            </Row>
-          )}
-          {job.pay_day && shows(job, 'pay_day') && <Row k="지급일">{job.pay_day}</Row>}
           {job.dress_code && <Row k="복장">{job.dress_code}</Row>}
           {job.supplies && <Row k="준비물">{job.supplies}</Row>}
           {job.conditions.map((c, i) => (
@@ -329,14 +349,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           ))}
           {job.manager_name && (
             <Row k="담당자">
-              {job.manager_name}
               {/* 담당자 휴대폰은 로그인한 회원에게만 (검색에 노출되거나 누구나 모아 가지 못하게) */}
-              {job.manager_phone && user && (
-                // 번호는 한 줄, 전화·문자는 그 아래 한 줄 (좁은 칸에서 '문자'만 따로 떨어지지 않게)
-                <div className="mt-0.5 space-y-1.5" data-manager-contact>
-                  <span className="block tabular-nums">{phoneFmt(job.manager_phone)}</span>
+              {job.manager_phone && user ? (
+                // 이름·번호 한 줄 + 전화·문자 (넓으면 옆에, 좁으면 아래 한 줄 — '문자'만 따로 떨어지지 않게)
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5" data-manager-contact>
+                  <span className="whitespace-nowrap">
+                    {job.manager_name} <span className="text-sub tabular-nums">{phoneFmt(job.manager_phone)}</span>
+                  </span>
                   <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} showNumber={false} />
                 </div>
+              ) : (
+                job.manager_name
               )}
             </Row>
           )}
@@ -621,7 +644,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <MessageChips target="message" pro={expert} />
               </div>
               {/* 실수로 눌러 지원되지 않게: 첫 번째 누름은 확인 문구만, 한 번 더 눌러야 지원 */}
-              <ConfirmSubmit className="btn-primary w-full py-3.5 text-base" confirmText={`한 번 더 누르면 ${expert ? '의뢰에 ' : ''}지원돼요`}>
+              <ConfirmSubmit className="btn-primary w-full py-3.5 text-base" track={expert ? '의뢰 지원하기' : '지원하기'} confirmText={`한 번 더 누르면 ${expert ? '의뢰에 ' : ''}지원돼요`}>
                 {expert ? `${user.name}님으로 의뢰 지원하기` : `${user.name}님으로 지원하기`}
               </ConfirmSubmit>
             </form>

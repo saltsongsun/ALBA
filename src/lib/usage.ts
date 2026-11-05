@@ -72,3 +72,15 @@ const SCREEN: Record<string, string> = {
   '/admin/insights': '인사이트',
 }
 export const screenName = (p: string) => SCREEN[p] ?? p
+
+/** 버튼 이름·오류 안내 등 행동 이름표 다듬기 (서버에서 한 번 더): 숫자는 #, 한 줄, 40자까지 */
+export function cleanEventLabel(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null
+  const s = raw
+    .replace(/\s+/g, ' ')
+    .replace(/\d/g, '#')
+    .replace(/[^\p{L}\p{N}#\s·:/()'?!.,~\[\]_-]/gu, '')
+    .trim()
+    .slice(0, 40)
+  return s || null
+}

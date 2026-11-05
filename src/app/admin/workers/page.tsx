@@ -14,7 +14,8 @@ import { isMemberType, MEMBER_TYPES } from '@/lib/members'
 import type { MemberType } from '@/lib/types'
 import { ageOn, fmtDate, kstDate } from '@/lib/time'
 import Flash from '@/components/Flash'
-import { phoneFmt } from '@/lib/format'
+import { ONLINE_MS, phoneFmt } from '@/lib/format'
+import Presence from '@/components/Presence'
 
 export const metadata: Metadata = { title: '근무자' }
 
@@ -31,6 +32,7 @@ type Row = {
   created_at: string
   attendance: { work_date: string }[] | null
   ratings: { score: number }[] | null
+  last_seen_at?: string | null
 }
 
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
@@ -50,7 +52,9 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
   // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
   // 근무일수·평가는 이 회사 기록만, 주민번호·계좌 같은 민감 정보는 이 회사에 지원한 사람만 (근무자 화면에서)
-  const f = sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'nopush' || sp.f === 'mine' || sp.f === 'new' ? sp.f : null
+  // '접속 중'(최근 5분 안에 앱을 보고 있던 사람)은 최고 관리자만 거르고 봄
+  const f =
+    sp.f === 'nophoto' || sp.f === 'noaccount' || sp.f === 'nopush' || sp.f === 'mine' || sp.f === 'new' || (sp.f === 'online' && admin.isSuper) ? sp.f : null
   // 최근 2일 안에 가입한 회원 (단체로 가입했을 때 사진·계좌 확인하고 공고에 확정하기 쉽게 · 오래 남으면 눈에 안 띄어서 2일만)
   const NEW_DAYS = 2
   const newSince = new Date(Date.now() - NEW_DAYS * 86_400_000).toISOString()
@@ -59,7 +63,9 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const t = isMemberType(sp.t) ? sp.t : null
   let query = db()
     .from('users')
-    .select('id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)')
+    .select(
+      `id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)${admin.isSuper ? ', last_seen_at' : ''}`,
+    )
     .eq('attendance.company_id', admin.companyId)
     .eq('ratings.company_id', admin.companyId)
     .order('created_at', { ascending: false })
@@ -72,11 +78,13 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   // 빠른 거르기: 사진 없음 · 계좌 없음
   if (f === 'nophoto') query = query.is('photo_at', null)
   if (f === 'noaccount') query = query.is('bank_account_enc', null)
+  const onlineSince = new Date(Date.now() - ONLINE_MS).toISOString()
+  if (f === 'online') query = query.gte('last_seen_at', onlineSince)
   // 명단·우리 회사 지원자·관리자 목록을 한꺼번에 읽음 (차례로 기다리지 않게)
   const [workerIds, rowsRes] = await Promise.all([companyWorkerIds(admin.companyId), query])
   const applied = new Set(workerIds)
   const memberIds = new Set(members.map((m) => m.user_id))
-  const listed = (must(rowsRes) as Row[])
+  const listed = (must(rowsRes) as unknown as Row[])
     // 관리자(우리 회사·다른 회사 모두)·외주 업체 계정은 근무자 목록에서 뺌 — 우리 회사 관리자는 '관리자 명부'에서
     .filter((u) => u.role !== 'admin' && !memberIds.has(u.id) && u.member_type !== 'vendor')
     // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 (전체 회원 명단은 확인 뒤)
@@ -84,7 +92,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     // 탈퇴·정지한 회원은 우리 회사와 관계있을 때만 (기록 보관 의무는 함께 일한 회사에만)
     .filter((u) => u.active || applied.has(u.id))
     .filter((u) =>
-      f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) : f === 'new' ? isNew(u) : true,
+      f === 'nophoto' ? !u.photo_at : f === 'noaccount' ? !u.bank_account_enc : f === 'mine' ? applied.has(u.id) : f === 'new' ? isNew(u) : f === 'online' ? !!u.last_seen_at && u.last_seen_at >= onlineSince : true,
     )
     .filter((u) => !t || (u.member_type ?? 'worker') === t)
   // 휴대폰 알림을 켰는지 (확정·전날 안내·단체방 알림을 받는지) → 꺼진 사람 표시 · '알림 꺼짐'으로 모아 보기
@@ -115,6 +123,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   }
   const roleBadges = (u: Row) => (
     <>
+      {admin.isSuper && <Presence iso={u.last_seen_at} />}
       {isNew(u) && (
         <span className="badge bg-emerald-50 text-emerald-700">
           <Icon name="sparkle" /> 새 가입
@@ -170,6 +179,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
             [null, 'nophoto', '사진 없음'],
             [null, 'noaccount', '계좌 없음'],
             [null, 'nopush', '알림 꺼짐'],
+            ...(admin.isSuper ? ([[null, 'online', '접속 중']] as const) : []),
           ] as const
         ).map(([tk, fk, label]) => (
           <Link

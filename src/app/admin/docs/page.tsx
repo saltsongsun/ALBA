@@ -143,7 +143,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
               <span className="text-[13px] text-sub">한 파일로 받아 바로 인쇄해요</span>
             </p>
             {rows.length <= 300 ? (
-              <a href={`/admin/docs/pdf${filterQuery(f)}`} download className="btn-primary btn-sm shrink-0" data-docs-bulk-pdf>
+              <a href={`/admin/docs/pdf${filterQuery(f)}`} download className="btn-primary btn-sm shrink-0" data-docs-bulk-pdf data-track="서류 PDF 한꺼번에">
                 PDF 받기
               </a>
             ) : (
@@ -204,7 +204,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                         <Link href={`/docs/${d.id}`} className="chip h-8 shrink-0 px-3 text-xs">
                           보기
                         </Link>
-                        <a href={`/admin/docs/pdf?id=${d.id}`} download className="chip h-8 shrink-0 px-3 text-xs font-bold text-brand-700" data-doc-pdf>
+                        <a href={`/admin/docs/pdf?id=${d.id}`} download className="chip h-8 shrink-0 px-3 text-xs font-bold text-brand-700" data-doc-pdf data-track="서류 PDF 한 건">
                           PDF
                         </a>
                       </li>

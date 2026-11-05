@@ -1,5 +1,6 @@
 'use client'
 
+import { track } from '@/lib/track'
 import { useEffect, useRef, useState } from 'react'
 import { useFormStatus } from 'react-dom'
 
@@ -20,16 +21,19 @@ export function SubmitButton({
   pendingText = '처리 중…',
   name,
   value,
+  track: label = '',
 }: {
   children: React.ReactNode
   className?: string
   pendingText?: string
   name?: string
   value?: string
+  /** 행동 기록에 남길 버튼 이름 (비우면 버튼 글자). 이름·회사명이 들어가는 버튼은 꼭 지정 */
+  track?: string
 }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" className={className} disabled={pending} aria-busy={pending} name={name} value={value}>
+    <button type="submit" className={className} disabled={pending} aria-busy={pending} name={name} value={value} data-track={label}>
       {pending ? (
         <>
           <Spinner />
@@ -49,12 +53,15 @@ export function ConfirmSubmit({
   className = 'btn-danger',
   name,
   value,
+  track: label = '',
 }: {
   children: React.ReactNode
   confirmText?: string
   className?: string
   name?: string
   value?: string
+  /** 행동 기록에 남길 버튼 이름 (비우면 버튼 글자) */
+  track?: string
 }) {
   const [armed, setArmed] = useState(false)
   const { pending } = useFormStatus()
@@ -67,8 +74,12 @@ export function ConfirmSubmit({
       disabled={pending}
       name={name}
       value={value}
+      data-track={label}
+      // 행동 기록: 첫 누름(확인 문구 띄우기)은 세지 않고, 두 번째 누름을 원래 버튼 글자로 셈
+      data-confirm={armed ? 'armed' : 'idle'}
       onClick={(e) => {
         if (!armed) {
+          e.currentTarget.dataset.trackText = e.currentTarget.innerText
           e.preventDefault()
           haptic(10)
           setArmed(true)
@@ -171,6 +182,7 @@ export function FormMessage({ state }: { state?: { error?: string; ok?: string }
     void el.offsetWidth // 애니메이션 다시 시작
     el.classList.add(cls)
     haptic(state.error ? [18, 60, 18] : 15)
+    if (state.error) track('error', state.error)
   }, [state])
   if (!state?.error && !state?.ok) return null
   return (

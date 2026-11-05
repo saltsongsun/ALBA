@@ -501,7 +501,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany}>
               <input type="hidden" name="company" value={c.id} />
-              <SubmitButton className="chip max-w-[14rem]" pendingText="바꾸는 중…">
+              <SubmitButton className="chip max-w-[14rem]" pendingText="바꾸는 중…" track="다른 회사 문의로 바꾸기">
                 <span className="min-w-0 truncate">{c.name}</span>
                 <b className="text-rose-600">{c.n}</b>
               </SubmitButton>

@@ -32,6 +32,8 @@ export type UserRow = {
   admin_memo: string | null
   active: boolean
   privacy_agreed_at: string | null
+  /** 마지막으로 앱을 보고 있던 시각 (1분마다 갱신 · 최고 관리자만 봄) */
+  last_seen_at?: string | null
   failed_logins: number
   locked_until: string | null
   session_version: number

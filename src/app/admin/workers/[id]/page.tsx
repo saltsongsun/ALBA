@@ -2,6 +2,7 @@ import RosterLock, { RosterOpenBar, RosterTooMany } from '@/components/RosterLoc
 import { ROSTER_MINUTES, rosterUnlockedFor, rosterViewAllowed } from '@/lib/rosterLock'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Presence from '@/components/Presence'
 import { notFound } from 'next/navigation'
 import { assignWorkerToJob, deleteRating, requestAccount } from '@/app/actions/admin'
 import { RatingForm, ResetPin, RevealInfo, RevealRrn, WorkerEditForm } from '@/components/admin'
@@ -158,6 +159,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               {u.is_foreigner && <span className="badge bg-brand-50 text-brand-700">외국인</span>}
               {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자 (친권자 동의 필요)</span>}
               {!u.active && <span className="badge bg-gray-100 text-mute">정지</span>}
+              {/* 접속 여부: 최고 관리자만 */}
+              {admin.isSuper && <Presence iso={u.last_seen_at} />}
             </div>
             {/* 지난 근무 성실도 (출퇴근 기록 기준) */}
             <p className="mt-1.5 flex flex-wrap gap-1 text-xs font-semibold tabular-nums" data-worker-rel>
@@ -243,6 +246,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             </dd>
             <dt className="text-mute">비상연락처</dt>
             <dd>{u.emergency_phone ? <RevealInfo userId={u.id} field="emergency" masked={maskPhone(u.emergency_phone)} call /> : '-'}</dd>
+              </>
+            )}
+            {admin.isSuper && (
+              <>
+                <dt className="text-mute">마지막 접속</dt>
+                <dd data-worker-seen>{u.last_seen_at ? kstDateTime(u.last_seen_at) : '기록 없음'}</dd>
               </>
             )}
             <dt className="text-mute">가입</dt>
