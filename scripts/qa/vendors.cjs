@@ -141,7 +141,7 @@ const errs = []
 
   // ── 8. 행사 비용 합계 (정산 탭) ──
   await a.goto(`${D}/admin/jobs/${J}?tab=pay`)
-  ok('정산 탭: 행사 비용 합계', (await see(a, '🧾 행사 비용 합계')) && (await see(a, '1,500,000원')) && (await see(a, /외주 미지급 300,000원/)))
+  ok('정산 탭: 행사 비용 합계', (await see(a, '행사 비용 합계')) && (await see(a, '1,500,000원')) && (await see(a, /외주 미지급 300,000원/)))
 
   // ── 9. 지급한 견적은 선정 취소 못 함 · 업체 정보 ──
   await a.goto(`${D}/admin/vendors/requests/${req.id}`)

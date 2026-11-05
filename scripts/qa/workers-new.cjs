@@ -27,10 +27,10 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
 
   await p.goto(`${D}/admin/workers`)
   await p.waitForLoadState('networkidle')
-  ok('새 회원 카드에 🆕 새 가입', (await card('새친구').getByText('🆕 새 가입').count()) === 1)
-  ok('예전 회원에는 표시 없음', (await card('김지원').getByText('🆕 새 가입').count()) === 0)
+  ok('새 회원 카드에 새 가입 (반짝임 아이콘)', (await card('새친구').getByText('새 가입', { exact: true }).count()) === 1)
+  ok('예전 회원에는 표시 없음', (await card('김지원').getByText('새 가입', { exact: true }).count()) === 0)
 
-  await p.getByRole('link', { name: '🆕 새로 가입' }).click()
+  await p.getByRole('link', { name: '새로 가입' }).click()
   await p.waitForURL(/f=new/, { timeout: 10000 }).catch(() => {})
   await p.waitForLoadState('networkidle')
   ok('새로 가입: 새 회원만', (await card('새친구').count()) === 1 && (await card('김지원').count()) === 0, p.url())
