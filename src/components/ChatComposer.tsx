@@ -38,6 +38,7 @@ export default function ChatComposer({
   quickReplies = [],
   context,
   extra,
+  mentions,
 }: {
   action: (state: FormState, form: FormData) => Promise<FormState>
   placeholder: string
@@ -45,6 +46,8 @@ export default function ChatComposer({
   context?: React.ReactNode
   /** 입력칸 아래 추가 칸 (예: 공지로 고정) */
   extra?: React.ReactNode
+  /** 단체방: '@이름'으로 부를 수 있는 사람 (나는 빼고) — '@'를 치거나 @ 버튼을 누르면 고르는 줄이 뜸 */
+  mentions?: { id: string; name: string; admin?: boolean }[]
 }) {
   const [state, formAction] = useActionState(action, null)
   const textRef = useRef<HTMLTextAreaElement>(null)
@@ -63,6 +66,41 @@ export default function ChatComposer({
     startTransition(() => formAction(fd))
   }
 
+  // ── 사람 부르기(@이름): 커서 바로 앞이 '@글자'면 그 글자로 사람을 거름 ──
+  const [mq, setMq] = useState<string | null>(null)
+  const detect = () => {
+    const el = textRef.current
+    if (!el || !mentions?.length) return
+    const before = el.value.slice(0, el.selectionStart ?? el.value.length)
+    const m = before.match(/(^|\s)@([^\s@]{0,12})$/)
+    setMq(m ? m[2] : null)
+  }
+  const candidates = mq === null || !mentions ? [] : mentions.filter((p) => p.name.includes(mq)).slice(0, 12)
+  const pickMention = (name: string) => {
+    const el = textRef.current
+    if (!el) return
+    const pos = el.selectionStart ?? el.value.length
+    const head = el.value.slice(0, pos).replace(/@([^\s@]{0,12})$/, `@${name} `)
+    el.value = head + el.value.slice(pos).replace(/^ /, '')
+    el.focus()
+    el.setSelectionRange(head.length, head.length)
+    setMq(null)
+    haptic(8)
+    fit()
+  }
+  const startMention = () => {
+    const el = textRef.current
+    if (!el) return
+    const pos = el.selectionStart ?? el.value.length
+    const head = el.value.slice(0, pos)
+    const add = head && !/\s$/.test(head) ? ' @' : '@'
+    el.value = head + add + el.value.slice(pos)
+    el.focus()
+    el.setSelectionRange(pos + add.length, pos + add.length)
+    detect()
+    fit()
+  }
+
   // Shift를 누른 채 Enter인지 (휴대폰 자판은 keydown 없이 '줄바꿈 넣기'만 오기도 해서 따로 기억)
   const shiftHeld = useRef(false)
   const send = () => {
@@ -75,16 +113,24 @@ export default function ChatComposer({
   }
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     shiftHeld.current = e.shiftKey
+    if (e.key === 'Escape' && mq !== null) {
+      e.preventDefault()
+      setMq(null)
+      return
+    }
     if (e.key !== 'Enter' || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return
     if (e.nativeEvent.isComposing || e.keyCode === 229) return
     e.preventDefault()
-    send()
+    // 부를 사람을 고르는 중이면 Enter는 첫 번째 사람 넣기
+    if (candidates.length) pickMention(candidates[0].name)
+    else send()
   }
   const onBeforeInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
     const ne = e.nativeEvent as InputEvent
     if ((ne.inputType === 'insertLineBreak' || ne.inputType === 'insertParagraph') && !shiftHeld.current && !ne.isComposing) {
       e.preventDefault()
-      send()
+      if (candidates.length) pickMention(candidates[0].name)
+      else send()
     }
   }
 
@@ -106,6 +152,7 @@ export default function ChatComposer({
       return
     }
     textRef.current.value = ''
+    setMq(null)
     // 보낸 뒤에는 '공지로 고정' 같은 체크도 풀어 둠 (다음 글이 실수로 고정되지 않게)
     formRef.current?.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((c) => (c.checked = false))
     fit()
@@ -145,8 +192,40 @@ export default function ChatComposer({
           }}
         />
       )}
+      {/* '@'를 치면: 부를 사람 고르기 (이름으로 거름) */}
+      {candidates.length > 0 && (
+        <div className="animate-pop rounded-2xl bg-white p-2 shadow-[0_4px_20px_rgba(0,0,0,0.08)] ring-1 ring-line" data-mention-list>
+          <p className="px-1 pb-1.5 text-xs font-semibold text-mute">누구를 부를까요?</p>
+          <div className="fade-x flex gap-1.5 overflow-x-auto">
+            {candidates.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => pickMention(p.name)}
+                className="flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-3 py-1.5 text-[13px] font-semibold text-brand-700 ring-1 ring-brand-100 transition active:scale-95"
+              >
+                @{p.name}
+                {p.admin && <span className="rounded bg-white px-1 text-[10px] font-bold text-brand-700">담당자</span>}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex items-end gap-1.5 rounded-3xl bg-white p-1.5 pl-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.08)] ring-1 ring-line">
         <StickerToggle open={picker} onClick={() => setPicker((v) => !v)} />
+        {!!mentions?.length && (
+          <button
+            type="button"
+            aria-label="사람 부르기 (@)"
+            data-mention-toggle
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={startMention}
+            className="grid size-11 shrink-0 place-items-center rounded-full text-[19px] font-bold text-sub transition active:scale-90 active:bg-bg"
+          >
+            @
+          </button>
+        )}
         <textarea
           ref={textRef}
           name="body"
@@ -157,9 +236,16 @@ export default function ChatComposer({
           enterKeyHint="send"
           aria-keyshortcuts="Enter"
           onKeyDown={onKeyDown}
-          onKeyUp={(e) => (shiftHeld.current = e.shiftKey)}
+          onKeyUp={(e) => {
+            shiftHeld.current = e.shiftKey
+            if (e.key.startsWith('Arrow') || e.key === 'Home' || e.key === 'End') detect()
+          }}
+          onClick={detect}
           onBeforeInput={onBeforeInput}
-          onInput={fit}
+          onInput={() => {
+            fit()
+            detect()
+          }}
           className="max-h-32 min-w-0 flex-1 resize-none bg-transparent py-2.5 text-ink outline-none placeholder:text-mute"
         />
         <SendButton />

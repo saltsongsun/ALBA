@@ -59,7 +59,8 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
         {open ? (
           <ChatComposer
             action={sendRoom.bind(null, job.id)}
-            placeholder="확정자 모두에게 보낼 메시지"
+            placeholder="확정자 모두에게 보낼 메시지 (@이름으로 부르기)"
+            mentions={[...members.workers, ...members.admins.filter((p) => p.id !== admin.id).map((p) => ({ ...p, admin: true }))]}
             extra={
               <label className="flex items-center gap-2 px-2 text-sm text-sub">
                 <input type="checkbox" name="pin" className="size-4 accent-brand-600" />

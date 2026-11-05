@@ -6,7 +6,7 @@ import { audit } from '@/lib/data'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { sendPush } from '@/lib/push'
-import { markRoomRead, pinnedReads, roomMembers, roomOpen, roomPinned, roomReads, unreadFor, workerRoom, type RoomJob } from '@/lib/room'
+import { markRoomRead, mentionedIn, pinnedReads, roomMembers, roomOpen, roomPinned, roomReads, unreadFor, workerRoom, type RoomJob } from '@/lib/room'
 import { requireAdmin, requireUser } from '@/lib/session'
 import { overLimit } from '@/lib/ratelimit'
 import { badSticker, plainBody } from '@/lib/stickers'
@@ -59,9 +59,15 @@ export async function sendRoom(jobId: string, _: FormState, form: FormData): Pro
     const { workers, admins } = await roomMembers(job)
     const text = `${pin ? '📌 공지 · ' : ''}${user.name}: ${plainBody(body)}`
     const tag = `room-${jobId}`
+    // '@이름'으로 부른 사람에게는 '나를 언급했어요' 알림을 따로 (일반 알림 대신)
+    const called = new Set(mentionedIn(body, [...workers, ...admins]).map((p) => p.id).filter((id) => id !== user.id))
+    const plain = (list: { id: string }[]) => list.map((p) => p.id).filter((id) => id !== user.id && !called.has(id))
+    const mention = { title: `👥 ${title} · ${user.name}님이 나를 언급했어요`, body: plainBody(body) }
     await Promise.all([
-      sendPush(workers.map((w) => w.id).filter((id) => id !== user.id), { title: `👥 ${title}`, body: text, url: `/me/chat/room/${jobId}`, tag }),
-      sendPush(admins.map((a) => a.id).filter((id) => id !== user.id), { title: `👥 ${title}`, body: text, url: `/admin/chat/room/${jobId}`, tag }),
+      sendPush(plain(workers), { title: `👥 ${title}`, body: text, url: `/me/chat/room/${jobId}`, tag }),
+      sendPush(plain(admins), { title: `👥 ${title}`, body: text, url: `/admin/chat/room/${jobId}`, tag }),
+      sendPush(workers.filter((w) => called.has(w.id)).map((w) => w.id), { ...mention, url: `/me/chat/room/${jobId}`, tag: `${tag}-at` }),
+      sendPush(admins.filter((a) => called.has(a.id)).map((a) => a.id), { ...mention, url: `/admin/chat/room/${jobId}`, tag: `${tag}-at` }),
     ])
   })
   roomPaths(jobId)

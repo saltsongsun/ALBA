@@ -51,7 +51,11 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         {open ? (
-          <ChatComposer action={sendRoom.bind(null, job.id)} placeholder="모두에게 보낼 메시지" />
+          <ChatComposer
+            action={sendRoom.bind(null, job.id)}
+            placeholder="모두에게 보낼 메시지 (@이름으로 부르기)"
+            mentions={[...members.workers.filter((w) => w.id !== user.id), ...members.admins.map((a) => ({ ...a, admin: true }))]}
+          />
         ) : (
           <p className="card text-center text-sm text-sub">행사가 끝나 대화가 닫혔어요. 대화 저장은 할 수 있어요.</p>
         )}

@@ -209,3 +209,10 @@ export async function pinnedReads(jobId: string, pinnedAt: string, workers: { id
   const seenIt = (id: string) => (readAt.get(id) ?? '') >= pinnedAt
   return { seen: workers.filter((w) => seenIt(w.id)), unseen: workers.filter((w) => !seenIt(w.id)) }
 }
+
+/** 메시지에서 '@이름'으로 부른 사람 (이름 뒤는 끝·띄어쓰기·문장부호). 같은 이름이면 모두 */
+export function mentionedIn<T extends { name: string }>(body: string, people: T[]): T[] {
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  // 앞은 처음·띄어쓰기·여는 괄호 (메일 주소 속 @는 빼려고)
+  return people.filter((p) => p.name.trim() && new RegExp(`(^|[\\s(\\[])@${esc(p.name.trim())}(?=$|[\\s.,!?~)\\]])`).test(body))
+}

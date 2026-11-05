@@ -1,6 +1,6 @@
 import { deleteRoomMessage, nudgeRoomUnread, unpinRoom } from '@/app/actions/room'
 import { isDeleted } from '@/lib/deleted'
-import { unreadFor, type RoomMessage } from '@/lib/room'
+import { mentionedIn, unreadFor, type RoomMessage } from '@/lib/room'
 import { stickerOf } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import { DeletedBubble } from './Chat'
@@ -34,6 +34,8 @@ export function RoomMessages({
   reads: Record<string, string>
 }) {
   let lastDay = ''
+  const everyone = [...members.workers, ...members.admins]
+  const me = everyone.find((p) => p.id === viewerId)
   return (
     <ol className="space-y-2">
       {messages.map((m, i) => {
@@ -46,6 +48,7 @@ export function RoomMessages({
         const st = stickerOf(m.body)
         const gone = isDeleted(m.body)
         const unread = gone ? [] : unreadFor(m, members, reads, viewerId)
+        const callsMe = !gone && !mine && !!me && mentionedIn(m.body, [me]).length > 0
         return (
           <li key={m.id}>
             {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
@@ -70,12 +73,13 @@ export function RoomMessages({
                       <Sticker id={st.id} size={120} />
                     ) : (
                       <p
+                        data-mentions-me={callsMe ? '' : undefined}
                         className={`max-w-[78vw] rounded-2xl px-3.5 py-2.5 text-[15px] leading-relaxed whitespace-pre-wrap sm:max-w-md ${
                           mine ? 'rounded-br-md bg-brand-600 text-white' : m.from_admin ? 'rounded-bl-md bg-brand-50 text-ink ring-1 ring-brand-100' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
-                        }`}
+                        } ${callsMe ? 'ring-2 ring-amber-300' : ''}`}
                       >
                         {m.pinned_at && <span className="mr-1">📌</span>}
-                        {m.body}
+                        {withMentions(m.body, everyone, mine)}
                       </p>
                     )}
                   </MessageMenu>
@@ -171,4 +175,26 @@ export function RoomMembersInfo({ workers, admins, worker }: { workers: { id: st
       {worker && <p className="mt-2 text-xs text-mute">전화번호는 서로 보이지 않아요. 급한 일은 담당자에게 문의해 주세요.</p>}
     </details>
   )
+}
+
+/** 글 속 '@이름'(방 사람)을 굵게·색으로 (내 말풍선은 흰 글씨라 밑줄) */
+function withMentions(body: string, people: { name: string }[], mine: boolean): React.ReactNode {
+  const names = [...new Set(people.map((p) => p.name.trim()).filter(Boolean))].sort((a, b) => b.length - a.length)
+  if (!names.length || !body.includes('@')) return body
+  const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const re = new RegExp(`(^|[\\s(\\[])(@(?:${names.map(esc).join('|')}))(?=$|[\\s.,!?~)\\]])`, 'g')
+  const out: React.ReactNode[] = []
+  let last = 0
+  for (const m of body.matchAll(re)) {
+    const start = (m.index ?? 0) + m[1].length
+    out.push(body.slice(last, start))
+    out.push(
+      <b key={start} data-mention className={mine ? 'font-bold underline decoration-white/60 underline-offset-2' : 'font-bold text-brand-700'}>
+        {m[2]}
+      </b>,
+    )
+    last = start + m[2].length
+  }
+  out.push(body.slice(last))
+  return out
 }
