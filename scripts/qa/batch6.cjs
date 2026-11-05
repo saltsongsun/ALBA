@@ -67,7 +67,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await ad.waitForLoadState('networkidle').catch(() => {})
   await ad.locator('[data-double-tap]').dblclick()
   await ad.waitForTimeout(800)
-  ok('관리자(읽기만): 두 번 톡해도 좋아요 안 됨', (await ad.locator('[data-heart]').count()) === 0 && (await rest(`community_likes?post_id=eq.${post.id}`)).length === 1)
+  // 관리자도 커뮤니티에 좋아요를 누를 수 있음 (batch73) → 두 번 톡하면 좋아요가 하나 더
+  ok('관리자: 두 번 톡하면 좋아요', (await rest(`community_likes?post_id=eq.${post.id}`)).length === 2)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
