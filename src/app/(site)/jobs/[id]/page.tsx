@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -79,7 +80,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, myPending, company, me, coInfo, others] = await Promise.all([
+  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -108,16 +109,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               }[],
           )
       : [],
-    // 이 공고에서 아직 서명 안 한 내 서류 수 (진행 단계 표시용)
+    // 이 공고에서 아직 서명 안 한 내 서류 (진행 단계 표시 + '서류 서명하기' 버튼으로 첫 서류 바로 열기)
     user
       ? db()
           .from('signed_docs')
-          .select('id', { count: 'exact', head: true })
+          .select('id, created_at')
           .eq('job_id', job.id)
           .eq('user_id', user.id)
           .eq('status', 'pending')
-          .then((r) => r.count ?? 0)
-      : 0,
+          .limit(20)
+          .then((r) => ((r.data ?? []) as { id: string; created_at: string }[]).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((d) => d.id))
+      : ([] as string[]),
     // 공고를 낸 회사 (여러 회사가 함께 씀)
     getSettings(job.company_id),
     // 얼굴 사진 (없으면 지원 전에 올리게) · 급여 계좌가 있는지 (지원·확정 뒤 등록 안내)
@@ -154,7 +156,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   ])
   const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
-  const unsignedHere = myPending > 0
+  const unsignedHere = pendingIds.length > 0
   const est = estimateDay(job)
   const dates = dateList(job.start_date, job.end_date)
   const ended = job.end_date < kstDate()
@@ -299,6 +301,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {shows(job, 'headcount') && (
             <Row k="인원">
               {job.headcount}명 모집 · {approved}명 확정
+              {/* 모집 인원만큼 칸 (확정된 만큼 참) */}
+              <SlotBar value={approved} max={job.headcount} color={approved >= job.headcount ? 'bg-mute' : 'bg-brand-500'} height="h-1.5" className="mt-1.5 max-w-60" overflow={false} />
             </Row>
           )}
           {job.task && <Row k="업무">{job.task}</Row>}
@@ -465,6 +469,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 reason={app.status === 'approved' ? '전날 안내·시간 변경을 바로 알려 드려요' : '확정되면 바로 알려 드려요'}
               />
             )}
+            {/* 확정됐는데 서명 안 한 서류가 있으면: 서명이 먼저 (서명해야 근무 시작을 누를 수 있음) */}
+            {app.status === 'approved' && unsignedHere && !ended && (
+              <Link href={`/docs/${pendingIds[0]}`} className="btn-primary w-full" data-sign-cta>
+                <Icon name="file" /> 서류 서명하기{pendingIds.length > 1 ? ` (${pendingIds.length}건)` : ''}
+              </Link>
+            )}
             <div className="flex gap-2">
               {app.status === 'rejected' ? (
                 // 미선발: 다음으로 할 일은 다른 공고 찾기
@@ -472,7 +482,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   {expert ? '모집 중인 다른 의뢰 보기 →' : '모집 중인 다른 알바 보기 →'}
                 </Link>
               ) : (
-                <Link href="/me" className="btn-primary flex-1">
+                <Link href="/me" className={`${app.status === 'approved' && unsignedHere && !ended ? 'btn-gray' : 'btn-primary'} flex-1`}>
                   {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
                 </Link>
               )}
