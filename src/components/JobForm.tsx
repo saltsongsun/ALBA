@@ -215,10 +215,13 @@ export default function JobForm({
   job,
   templates,
   defaults,
+  approved = 0,
 }: {
   job: Job | null
   templates: Tpl[]
   defaults: { hourly_wage: number; premium: boolean }
+  /** 공고 수정: 지금 확정된 인원 (모집 인원을 그보다 줄이면 안내) */
+  approved?: number
 }) {
   const [state, action] = useActionState(saveJob.bind(null, job?.id ?? null), null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -226,6 +229,8 @@ export default function JobForm({
   const [payType, setPayType] = useState(job?.pay_type ?? 'hourly')
   const [breakMode, setBreakMode] = useState(job?.break_mode ?? 'auto')
   const [taxType, setTaxType] = useState(job?.tax_type ?? 'daily')
+  // 실수 막기: 모집 인원을 이미 확정한 인원보다 적게 고치면 바로 안내 (확정은 그대로라 인원이 넘침)
+  const [headcount, setHeadcount] = useState(job?.headcount ?? 10)
   // 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서, 화면 색도 보라로)
   const [audience, setAudience] = useState<'worker' | 'expert'>(job?.audience ?? 'worker')
   const [locMsg, setLocMsg] = useState('')
@@ -353,7 +358,28 @@ export default function JobForm({
             <input type="time" name="end_time" className="input" defaultValue={job?.end_time.slice(0, 5) ?? '18:00'} required />
           </Field>
           <Field label="모집 인원 *">
-            <input type="number" name="headcount" min={1} className="input" defaultValue={job?.headcount ?? 10} required />
+            <input
+              type="number"
+              name="headcount"
+              min={1}
+              className={`input ${approved > 0 && headcount > 0 && headcount < approved ? 'ring-2 ring-amber-300' : ''}`}
+              defaultValue={job?.headcount ?? 10}
+              onInput={(e) => setHeadcount(Number(e.currentTarget.value) || 0)}
+              aria-describedby={approved > 0 ? 'headcount-hint' : undefined}
+              required
+            />
+            {approved > 0 &&
+              (headcount > 0 && headcount < approved ? (
+                // 칸이 좁아 두 줄로 나눠 씀 (한 줄로 이으면 말 중간에 꺾임)
+                <p id="headcount-hint" className="mt-1 animate-pop text-xs text-amber-700" role="status" data-headcount-warn>
+                  <b className="block">확정 {approved}명보다 적어요</b>
+                  <span className="block">확정은 그대로예요</span>
+                </p>
+              ) : (
+                <p id="headcount-hint" className="hint" data-headcount-hint>
+                  지금 확정 {approved}명
+                </p>
+              ))}
           </Field>
         </div>
       </Fold>
