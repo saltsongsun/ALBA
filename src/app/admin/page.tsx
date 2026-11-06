@@ -24,6 +24,7 @@ import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
 import { ago, companyReviews } from '@/lib/community'
+import { companyWorkerIds } from '@/lib/company'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
@@ -123,7 +124,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     db().from('attendance').select('job_id').eq('company_id', admin.companyId).is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
     db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('status', 'pending'),
     // 가입한 근무자 수 (근무자 계정은 모든 회사 공용, 외주 업체 계정은 빼고)
-    db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true).neq('member_type', 'vendor'),
+    // 확인 전인 회사는 근무자 화면처럼 '우리 회사에 지원한 회원'만 셈 (눌러 들어간 명단과 숫자가 같게 · 전체 회원 수는 확인 뒤)
+    admin.companyVerified
+      ? db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true).neq('member_type', 'vendor').then((r) => ({ count: r.count }))
+      : companyWorkerIds(admin.companyId).then((ids) => ({ count: ids.length as number | null })),
     unreadForAdmins(admin.companyId),
   ])
   const counts = countApps(activeJobs, 'approved')
@@ -612,12 +616,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             <div className="h-full origin-left animate-grow rounded-full bg-brand-500" style={{ width: `${Math.round((startDone / startSteps.length) * 100)}%` }} />
           </div>
           <ol className="divide-y divide-line">
-            {startSteps.map((st, i) => (
+            {startSteps.map((st, i) => {
+              // 아직 안 한 첫 단계 = 지금 할 일 (연한 바탕 + 진한 번호로 어디부터 하면 되는지 바로 보이게)
+              const next = !st.done && startSteps.findIndex((x) => !x.done) === i
+              return (
               <li key={st.key}>
-                <Link href={st.href} className="flex items-center gap-3 py-2.5 transition active:scale-[0.99]" data-done={st.done ? '1' : undefined}>
+                <Link
+                  href={st.href}
+                  className={`flex items-center gap-3 py-2.5 transition active:scale-[0.99] ${next ? '-mx-2 my-1 rounded-xl bg-brand-50/70 px-2 ring-1 ring-brand-100' : ''}`}
+                  data-done={st.done ? '1' : undefined}
+                  data-next-step={next ? '' : undefined}
+                >
                   <span
                     aria-hidden
-                    className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${st.done ? 'bg-emerald-500 text-white' : 'bg-brand-50 text-brand-700'}`}
+                    className={`grid size-8 shrink-0 place-items-center rounded-full text-sm font-bold ${st.done ? 'bg-emerald-500 text-white' : next ? 'bg-brand-600 text-white' : 'bg-brand-50 text-brand-700'}`}
                   >
                     {st.done ? '✓' : i + 1}
                   </span>
@@ -625,14 +637,19 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     <span className={`block truncate text-sm font-bold ${st.done ? 'text-mute line-through' : ''}`}>{st.title}</span>
                     <span className="block truncate text-xs text-sub">{st.done ? '완료' : st.desc}</span>
                   </span>
-                  {!st.done && (
-                    <span aria-hidden className="shrink-0 text-mute">
-                      ›
-                    </span>
+                  {next ? (
+                    <span className="shrink-0 rounded-full bg-brand-600 px-2.5 py-1 text-xs font-bold text-white">지금 하기</span>
+                  ) : (
+                    !st.done && (
+                      <span aria-hidden className="shrink-0 text-mute">
+                        ›
+                      </span>
+                    )
                   )}
                 </Link>
               </li>
-            ))}
+              )
+            })}
           </ol>
           {shareNow && (
             <div className="space-y-2.5 rounded-2xl bg-brand-50 px-3.5 py-3" data-start-share>
@@ -656,7 +673,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <Stat label="지금 근무 중" value={working.length} href="/admin/jobs" icon="working" tone="bg-emerald-50 text-emerald-600" />
         <Stat label="확정 대기 지원" value={pendingApps.length} href="#pending" icon="pending" tone="bg-amber-50 text-amber-600" />
         <Stat label="서명 대기 서류" value={pendingDocs.count ?? 0} href="/admin/jobs" icon="docs" tone="bg-brand-50 text-brand-600" />
-        <Stat label="가입 근무자" value={workerCount.count ?? 0} href="/admin/workers" icon="people" tone="bg-gray-100 text-sub" />
+        <Stat label={admin.companyVerified ? '가입 근무자' : '우리 지원자'} value={workerCount.count ?? 0} href="/admin/workers" icon="people" tone="bg-gray-100 text-sub" />
       </div>
 
       <section>
