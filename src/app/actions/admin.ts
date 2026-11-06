@@ -366,13 +366,19 @@ export async function duplicateJob(jobId: string) {
 
 export async function deleteJob(jobId: string) {
   const admin = await requireAdmin()
-  if (!(await companyJob(admin, jobId))) return
-  const [{ count: atts }, { count: signed }] = await Promise.all([
+  const job = await companyJob(admin, jobId)
+  if (!job) return
+  const [{ count: atts }, { count: signed }, { count: approved }] = await Promise.all([
     db().from('attendance').select('id', { count: 'exact', head: true }).eq('job_id', jobId),
     db().from('signed_docs').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'signed'),
+    db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'approved'),
   ])
   if (atts || signed) {
     back(`/admin/jobs/${jobId}`, '근무 기록이나 서명된 서류가 있어 삭제할 수 없습니다. 상태를 "종료"로 바꿔 주세요.')
+  }
+  // 실수 막기: 아직 안 끝난 행사에 확정된 근무자가 있으면 지우지 않음 (지우면 근무자는 알림 없이 근무가 사라짐) → 행사 취소로 알리게
+  if (approved && job.status !== 'cancelled' && job.end_date >= kstDate()) {
+    back(`/admin/jobs/${jobId}`, `확정된 근무자 ${approved}명이 있어 삭제하지 않았어요. 지우면 근무자는 알림 없이 근무가 사라져요. 더보기의 '행사가 취소됐나요?'로 취소하면 근무자에게 알려져요.`)
   }
   must(await db().from('jobs').delete().eq('id', jobId))
   await audit(admin.id, 'job.delete', null, jobId, admin.companyId)

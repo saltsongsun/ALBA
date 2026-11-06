@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Icon, { type IconName } from './Icon'
 
 export type JobTool = { href: string; icon: IconName; label: string; tone?: 'rose' }
@@ -15,6 +15,11 @@ const TILE = 'flex min-w-0 flex-col items-center justify-center gap-1 rounded-xl
  */
 export default function JobTools({ tools, more }: { tools: JobTool[]; more: ReactNode }) {
   const [open, setOpen] = useState(false)
+  const panel = useRef<HTMLDivElement>(null)
+  // 펼친 목록이 화면 아래(탭 바 뒤)에 가려지지 않게 보이는 곳까지 부드럽게 올림 (움직임 줄이기 설정이면 바로)
+  useEffect(() => {
+    if (open) panel.current?.scrollIntoView({ block: 'nearest' })
+  }, [open])
   return (
     <div data-job-more data-open={open ? 'open' : undefined}>
       <div className="grid auto-cols-fr grid-flow-col gap-2" data-job-tools>
@@ -30,7 +35,7 @@ export default function JobTools({ tools, more }: { tools: JobTool[]; more: Reac
         </button>
       </div>
       {/* 접혀 있을 때는 자리도 차지하지 않게 (안의 버튼도 보이지 않음) */}
-      <div hidden={!open} className="mt-2 animate-pop" data-more-panel>
+      <div ref={panel} hidden={!open} className="mt-2 scroll-mb-28 animate-pop" data-more-panel>
         {more}
       </div>
     </div>

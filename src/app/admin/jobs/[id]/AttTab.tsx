@@ -554,8 +554,8 @@ export default async function AttTab({
                       )}
                       {(() => {
                         const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000
-                        if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {Math.round(diff)}분</span>
-                        if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {Math.round(-diff)}분{job.early_clamp ? '(미인정)' : ''}</span>
+                        if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {minutesText(Math.round(diff))}</span>
+                        if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {minutesText(Math.round(-diff))}{job.early_clamp ? '(미인정)' : ''}</span>
                         return null
                       })()}
                       {(a.adj_in || a.adj_out) && <span className="badge bg-amber-50 text-amber-700">보정</span>}

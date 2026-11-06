@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { bulkClockOut, duplicateJob, endEvent, setJobStatus } from '@/app/actions/admin'
+import StartsIn from '@/components/StartsIn'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { jobPhase } from '@/lib/jobPhase'
 import { shiftOf } from '@/lib/pay'
@@ -36,10 +37,13 @@ export default function JobActions({ job, today, working, finished = 0, absent =
   const base = `/admin/jobs/${job.id}`
   // 당일이라도 시작 시각 전에는 '미출근'·'대신 확정'·'일찍 끝내기'를 보이지 않음 (사용자 지적 2026-11-07: 19:30 행사인데 낮에 '미출근 13')
   const startText = hhmm(shiftOf(job).start_time)
-  const started = phase !== 'live' || today > job.end_date || working + finished > 0 || Date.now() >= kstAt(today, shiftOf(job).start_time).getTime()
+  const startAt = kstAt(today, shiftOf(job).start_time)
+  const serverNow = Date.now()
+  const started = phase !== 'live' || today > job.end_date || working + finished > 0 || serverNow >= startAt.getTime()
   const counts = !compact && (phase === 'live' || phase === 'dayOver' || phase === 'lastOver') && (!started ? (
     <p className="text-center text-sm font-semibold text-sub" data-job-counts data-before-start>
       오늘 {startText} 시작 · 아직 출근 전이에요
+      <StartsIn startAt={startAt.toISOString()} serverNow={serverNow} />
     </p>
   ) : (
     <p className="flex items-center justify-center gap-3 text-sm font-semibold tabular-nums" data-job-counts>

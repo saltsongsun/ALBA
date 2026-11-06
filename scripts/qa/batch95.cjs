@@ -56,6 +56,7 @@ const pad = (n) => String(n).padStart(2, '0')
     ok(`시작 전: '오늘 ${pad(hour + 1)}:00 시작 · 아직 출근 전이에요'`, (await a.locator('[data-before-start]').innerText().catch(() => '')).includes(`오늘 ${pad(hour + 1)}:00 시작 · 아직 출근 전이에요`))
     ok("시작 전: '미출근'·'대신 확정'·'행사 일찍 끝내기' 없음", !t.includes('미출근') && (await a.locator('[data-substitute]').count()) === 0 && (await acts.getByRole('button', { name: '행사 일찍 끝내기' }).count()) === 0, t.replace(/\n/g, ' | '))
     ok("큰 '출석 체크'는 그대로", (await acts.locator('a', { hasText: '출석 체크' }).count()) === 1)
+    ok("'시작까지 n시간 n분' (줄어드는 남은 시간)", /^시작까지 (\d+시간( \d+분)?|\d+분)$/.test(await a.locator('[data-starts-in]').innerText().catch(() => '')), await a.locator('[data-starts-in]').innerText().catch(() => ''))
   } else ok('(밤 10시 이후라 시작 전 확인은 건너뜀)', true)
 
   // ── 2. 맨 위 수정 · 도구 줄 ──
@@ -69,6 +70,10 @@ const pad = (n) => String(n).padStart(2, '0')
   await a.getByRole('button', { name: '복사해서 새 공고' }).waitFor({ state: 'visible', timeout: 3000 }).catch(() => {})
   ok('더보기: 복사 · 모집 열기 · 행사 취소 · 삭제', (await a.getByRole('button', { name: '복사해서 새 공고' }).isVisible()) && (await a.getByRole('button', { name: '모집 열기' }).isVisible()) && (await a.getByText(/행사가 취소됐나요/).isVisible()) && (await a.locator('[data-more-panel]').getByRole('button', { name: '삭제' }).isVisible()))
   ok("더보기 버튼 'aria-expanded=true'", (await a.locator('[data-more-toggle]').getAttribute('aria-expanded')) === 'true')
+  await a.waitForTimeout(800)
+  const tab = await a.locator('[data-admin-tabbar]').boundingBox()
+  const del = await a.locator('[data-more-panel]').getByRole('button', { name: '삭제' }).boundingBox()
+  ok('펼친 목록 끝(삭제)이 아래 탭 바에 가려지지 않게 올라옴', !!tab && !!del && del.y + del.height <= tab.y + 1, JSON.stringify({ del: del && Math.round(del.y + del.height), tab: tab && Math.round(tab.y) }))
 
   // ── 3. 전날 안내 확인 ──
   const rr = a.locator('[data-remind-read]')
