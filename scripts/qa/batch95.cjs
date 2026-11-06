@@ -77,6 +77,12 @@ const pad = (n) => String(n).padStart(2, '0')
   ok('안 읽은 사람 전화 버튼 (다음 줄)', (await rr.locator('[data-unread-person]').getAttribute('href')) === 'tel:01077770902' && (await rr.locator('[data-unread-person]').innerText()).includes('안읽은이'))
   ok('360px: 옆으로 안 밀림 (밝은 화면)', await wide(a))
 
+  // ── 3-1. 아주 좁은 휴대폰(320px)에서도 맨 위 칸이 화면을 넓히지 않음 (긴 행사 이름은 '…') ──
+  await a.setViewportSize({ width: 320, height: 658 })
+  await open(a)
+  ok('320px: 옆으로 안 밀림 · 행사 이름은 한 줄로 줄임', (await wide(a)) && (await a.locator('[data-job-edit]').evaluate((el) => el.getBoundingClientRect().right <= innerWidth)))
+  await a.setViewportSize({ width: 360, height: 740 })
+
   // ── 4. 어두운 화면 ──
   const dk = await pg('dark')
   await open(dk)

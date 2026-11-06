@@ -194,11 +194,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       </Link>
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
-        <div className="card">
+        {/* min-w-0: 긴 행사 이름이 칸을 넓혀 좁은 휴대폰(320px)에서 화면이 밀리지 않게 */}
+        <div className="card min-w-0">
           <div className="flex items-center gap-2">
             <span className={`badge shrink-0 ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{STATUS_LABEL[job.status]}</span>
-            {job.event_name && <span className="min-w-0 truncate text-sm font-semibold text-mute">{job.event_name}</span>}
-            <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm ml-auto shrink-0" data-job-edit>
+            {job.event_name && <span className="w-0 min-w-0 flex-1 truncate text-sm font-semibold text-mute">{job.event_name}</span>}
+            <Link href={`/admin/jobs/${job.id}/edit`} className={`btn-soft btn-sm shrink-0 ${job.event_name ? '' : 'ml-auto'}`} data-job-edit>
               <Icon name="pen" /> 수정
             </Link>
           </div>
@@ -363,7 +364,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           )}
         </div>
 
-        <div className="card space-y-2">
+        <div className="card min-w-0 space-y-2">
           <div className="flex items-center justify-between">
             <h2 className="font-bold">단톡방 모집 문구</h2>
             <div className="flex gap-1">
