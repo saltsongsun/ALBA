@@ -58,11 +58,11 @@ const NOTE = '🙏 이번엔 함께하지 못해요'
   await p.waitForLoadState('networkidle')
   const dash = () => p.locator('div.card', { hasText: '김지원' }).filter({ has: p.getByRole('button', { name: /미선발/ }) }).last()
   await dash().getByRole('button', { name: '미선발', exact: true }).click()
-  ok('대시보드: 첫 누름은 확인만', await see(p, '미선발 알림 보낼까요?'))
+  ok('대시보드: 첫 누름은 확인만', await see(p, '미선발 알림?'))
   await p.waitForTimeout(600)
   const apApp = (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`))[0]
   ok('대시보드: 첫 누름만으로는 그대로', apApp?.status === 'applied')
-  await dash().getByRole('button', { name: '미선발 알림 보낼까요?' }).click()
+  await dash().getByRole('button', { name: '미선발 알림?' }).click()
   await p.waitForTimeout(1500)
   ok('대시보드: 미선발 + 알림', (await statusOf(apApp.id)) === 'rejected' && (await notes(AP)).length === 1)
 

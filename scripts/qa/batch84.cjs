@@ -48,7 +48,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await p.goto(`${D}/admin`)
   await card(X.name).waitFor({ timeout: 10000 }).catch(() => {})
   await card(X.name).getByRole('button', { name: '미선발', exact: true }).click()
-  await card(X.name).getByRole('button', { name: '미선발 알림 보낼까요?' }).click()
+  await card(X.name).getByRole('button', { name: '미선발 알림?' }).click() // (대시보드는 확정·보류·미선발 세 칸이라 짧게)
   await p.locator('[role=status]', { hasText: '미선발 · 알림' }).waitFor({ timeout: 15000 }).catch(() => {})
   ok(`미선발 → '${X.name}님 미선발 · 알림을 보냈어요'`, (await p.locator('[role=status]', { hasText: '미선발 · 알림' }).innerText().catch(() => '')).includes(`${X.name}님 미선발 · 알림을 보냈어요`))
   ok('미선발 저장', (await rest(`applications?id=eq.${X.app}`))[0]?.status === 'rejected')
