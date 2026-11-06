@@ -152,7 +152,8 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   ok('S8 근무자에게 실지급액과 함께 💸 급여 지급', paid && /급여.*을 등록한 계좌로 보냈어요/.test(paid.body), paid && paid.body.split('\n')[1])
 
   // S7 전날 안내 (cron)
-  await rest(MW, `jobs?id=eq.${J}`, 'PATCH', { end_date: tomorrow })
+  // (S3에서 하루짜리 행사의 유일한 확정자가 퇴근해 '행사 종료'로 자동 전환됨 → 하루 늘리면서 다시 모집 중으로 — 관리자가 공고 수정에서 상태를 고르는 것과 같음)
+  await rest(MW, `jobs?id=eq.${J}`, 'PATCH', { end_date: tomorrow, status: 'open' })
   const unauth = await fetch(`${W_}/api/cron/remind`)
   ok('S7 비밀값 없이 부르면 거절', unauth.status === 401)
   const r1 = await (await fetch(`${W_}/api/cron/remind`, { headers: { authorization: 'Bearer test-cron' } })).json()
