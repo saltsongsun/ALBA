@@ -9,7 +9,7 @@ import { db } from './db'
  */
 export const FEATURES = {
   /** 함께 일한 사람 · 내 지원 보여 주기 (사용자 요청: 운영자가 전체로 · 처음엔 꺼짐) */
-  coworkers: { label: '함께 일한 사람 · 내 지원 보여 주기', defaultOn: false },
+  coworkers: { label: '함께 일한 사람', defaultOn: false },
   /** 근무자 화면의 공고에 회사 후기(별점·최근 후기) 보이기 (사용자 요청 2026-11-06 · 지금처럼 켜진 채로 시작) */
   job_reviews: { label: '공고에 회사 후기 보이기', defaultOn: true },
 } as const

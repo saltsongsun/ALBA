@@ -44,5 +44,5 @@ export async function setFeature(key: FeatureKey, on: boolean) {
   await audit(admin.id, `feature.${key}`, null, on ? 'on' : 'off', null)
   revalidatePath('/', 'layout')
   const name = FEATURES[key].label
-  redirect(`/admin/community?m=${encodeURIComponent(`'${name}'을 ${on ? '켰어요' : '껐어요'}`)}`)
+  redirect(`/admin/community?m=${encodeURIComponent(`'${name}' 기능을 ${on ? '켰어요' : '껐어요'}`)}`)
 }
