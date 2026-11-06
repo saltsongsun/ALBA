@@ -16,6 +16,8 @@ import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
+import { SIGNAL } from '@/lib/signals'
+import { phoneFmt } from '@/lib/format'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
 import AppsTab from './AppsTab'
@@ -150,6 +152,27 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     ['docs', `서류${pendingDocs ? ` (대기 ${pendingDocs})` : ''}`],
   ] as const
 
+  // 시나리오: 행사 전날 밤 '확정자가 진짜 올까?' → 전날 안내(⏰ 내일 근무 안내)를 읽었는지, 안 읽은 사람에게 바로 전화
+  const tomorrowKst = kstDate(new Date(Date.now() + 86_400_000))
+  const remindRead =
+    ['open', 'closed'].includes(job.status) && (job.start_date === today || job.start_date === tomorrowKst)
+      ? await db()
+          .from('messages')
+          .select('thread_user_id, read_at, body')
+          .eq('company_id', admin.companyId)
+          .eq('job_id', id)
+          .eq('from_admin', true)
+          .like('body', `${SIGNAL.remind}%`)
+          .then(
+            (r) => {
+              const rows = ((r.data ?? []) as { thread_user_id: string; read_at: string | null; body: string }[]).filter((m) => m.body.startsWith(SIGNAL.remind))
+              const by = new Map<string, boolean>()
+              for (const m of rows) by.set(m.thread_user_id, (by.get(m.thread_user_id) ?? false) || !!m.read_at)
+              return by.size ? { total: by.size, unread: [...by.entries()].filter(([, read]) => !read).map(([uid]) => uid) } : null
+            },
+            () => null,
+          )
+      : null
   // 지금 할 일 큰 버튼의 숫자: 오늘(행사가 지났으면 남은 기록 전체) 근무 중·퇴근·미출근
   const phase = jobPhase(job, today)
   const dayAtts = atts.filter((a) => a.work_date === today)
@@ -230,8 +253,30 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             </div>
           )}
           {/* 지금 할 일 하나를 크게 (근무자의 근무 시작·종료처럼) */}
+          {remindRead && (
+            <div className="mt-4 rounded-xl bg-bg px-3.5 py-2.5 text-sm" data-remind-read>
+              <p className="font-semibold">
+                ⏰ 전날 안내 확인 <b className={remindRead.unread.length ? 'text-amber-700' : 'text-emerald-700'}>{remindRead.total - remindRead.unread.length}</b>/{remindRead.total}명
+                {remindRead.unread.length === 0 && <span className="text-emerald-700"> · 모두 읽었어요</span>}
+              </p>
+              {remindRead.unread.length > 0 && (
+                <div className="mt-1.5 flex flex-wrap gap-1.5">
+                  <span className="text-xs text-sub">안 읽음 · 눌러서 전화</span>
+                  {remindRead.unread.map((uid) => {
+                    const u = users.get(uid)
+                    const tel = (u?.phone ?? '').replace(/\D/g, '')
+                    return tel ? (
+                      <a key={uid} href={`tel:${tel}`} className="contact-btn bg-white text-ink ring-1 ring-line" aria-label={`${u?.name} ${phoneFmt(u?.phone)} 전화`} data-unread-person>
+                        📞 {u?.name}
+                      </a>
+                    ) : null
+                  })}
+                </div>
+              )}
+            </div>
+          )}
           <div className="mt-4">
-            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} />
+            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} approved={approved.length} headcount={job.headcount} />
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm">

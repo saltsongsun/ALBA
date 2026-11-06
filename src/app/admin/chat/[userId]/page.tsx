@@ -12,7 +12,8 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { SIGNAL } from '@/lib/signals'
+import { parsePayday, SIGNAL } from '@/lib/signals'
+import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
 
 export const metadata: Metadata = { title: '문의 대화' }
@@ -50,6 +51,28 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   // 이 회사에 문의했거나 지원한 근무자만
   if (!worker || (!messages.length && !(await workerInCompany(admin.companyId, userId)))) notFound()
 
+  // 시나리오: '돈 언제 들어와요?' 문의 → 가장 최근 일한 공고의 정산 예정일로 답장 제안 (알린 날짜가 있으면 그것, 없으면 공고의 지급일)
+  const lastAsk = messages.filter((m) => !m.from_admin).at(-1)
+  let payReply: string | null = null
+  if (lastAsk && /정산|입금|급여|월급|돈|지급|언제 들어/.test(lastAsk.body)) {
+    const { data: worked } = await db()
+      .from('attendance')
+      .select('job_id, work_date, paid, job:jobs(title, pay_day, end_date)')
+      .eq('company_id', admin.companyId)
+      .eq('user_id', userId)
+      .order('work_date', { ascending: false })
+      .limit(10)
+    const rows = ((worked ?? []) as unknown as { job_id: string; work_date: string; paid: boolean; job: { title: string; pay_day: string | null; end_date: string } | null }[])
+      .filter((r) => r.job)
+      .sort((a, b) => b.work_date.localeCompare(a.work_date))
+    const last = rows.find((r) => !r.paid) ?? rows[0]
+    if (last?.job) {
+      const told = messages.filter((m) => m.from_admin && m.body.startsWith(SIGNAL.payday) && m.body.includes(last.job!.title)).at(-1)
+      const label = (told && parsePayday(told.body)) || paydayLabel(last.job.pay_day, last.job.end_date)
+      payReply = rows.filter((r) => r.job_id === last.job_id).every((r) => r.paid) ? '급여는 지급했어요. 통장을 확인해 주세요.' : label ? `정산 예정일은 ${label}이에요.` : null
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <AutoRefresh seconds={5} quiet pulse="/api/pulse?s=admin-chat" />
@@ -82,7 +105,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         <ChatMessages messages={messages} viewer="admin" viewerId={admin.id} />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
-        <ChatComposer action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...repliesFor(messages.filter((m) => !m.from_admin).at(-1)), ...QUICK_REPLIES])]}
+        <ChatComposer action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
         />
       </div>
     </div>

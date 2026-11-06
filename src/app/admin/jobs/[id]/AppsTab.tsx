@@ -118,7 +118,7 @@ export default async function AppsTab({
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
   const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
   // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
-  const [rel, ratings, others] = ids.length
+  const [rel, ratings, others, notes] = ids.length
     ? await Promise.all([
         reliabilityFor(job.company_id, ids, job.id),
         db()
@@ -141,8 +141,18 @@ export default async function AppsTab({
                 job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
               }[],
           ),
+        // 시나리오: 지난번에 문제가 있던 사람이 또 지원 → 우리 회사 메모를 지원 카드에 (근무자에게는 안 보임)
+        db()
+          .from('company_worker_notes')
+          .select('user_id, memo')
+          .eq('company_id', job.company_id)
+          .in('user_id', ids)
+          .then(
+            (r) => new Map(((r.data ?? []) as { user_id: string; memo: string | null }[]).filter((n) => n.memo?.trim()).map((n) => [n.user_id, n.memo!.trim()])),
+            () => new Map<string, string>(),
+          ),
       ])
-    : [{} as Record<string, Reliability>, [], []]
+    : [{} as Record<string, Reliability>, [], [], new Map<string, string>()]
   const today = kstDate()
   const clashOf = new Map<string, { id: string; title: string; at: string }>()
   for (const a of apps) {
@@ -155,6 +165,15 @@ export default async function AppsTab({
         break
       }
     }
+  }
+  const Memo = ({ uid }: { uid: string }) => {
+    const m = notes.get(uid)
+    if (!m) return null
+    return (
+      <Link href={`/admin/workers/${uid}`} className="mt-1 block truncate rounded-lg bg-amber-50 px-2 py-1 text-xs text-amber-900 ring-1 ring-amber-200" data-worker-memo>
+        📝 우리 메모 · {m}
+      </Link>
+    )
   }
   const Clash = ({ uid }: { uid: string }) => {
     const c = clashOf.get(uid)
@@ -266,6 +285,7 @@ export default async function AppsTab({
           {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
         </p>
         <Clash uid={a.user_id} />
+        <Memo uid={a.user_id} />
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
           {a.message && <p className="text-ink">“{a.message}”</p>}
@@ -481,6 +501,7 @@ export default async function AppsTab({
                         {relText(a.user_id)}
                         <div>
                           <Clash uid={a.user_id} />
+                          <Memo uid={a.user_id} />
                         </div>
                       </td>
                       <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>

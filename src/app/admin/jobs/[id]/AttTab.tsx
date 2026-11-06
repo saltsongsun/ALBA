@@ -303,6 +303,10 @@ export default async function AttTab({
             label="명단 복사"
             className="chip"
           />
+          {/* 현장 인터넷이 안 될 때: 종이 출석부 (이름·배치·연락처·출근·퇴근·서명) */}
+          <Link href={`/print/roster/${job.id}?date=${date}`} className="chip" data-roster-link>
+            출석부 인쇄
+          </Link>
           {working > 0 && (
             <form action={bulkClockOut.bind(null, job.id, date)} className="shrink-0">
               <ConfirmSubmit className="chip" confirmText={`${working}명 종료할까요?`}>
