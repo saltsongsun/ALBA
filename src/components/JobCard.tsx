@@ -36,6 +36,7 @@ export default function JobCard({
   showNew = false,
   rating,
   pals = 0,
+  track,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
@@ -49,6 +50,8 @@ export default function JobCard({
   rating?: { avg: number; count: number } | null
   /** 이 공고에 지원·확정된 내 동료 수 */
   pals?: number
+  /** 행동 기록에 남길 이름 (어느 화면의 공고 카드를 눌렀는지) */
+  track?: string
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -56,7 +59,7 @@ export default function JobCard({
   const over = job.status === 'open' && job.end_date === kstDate() && workOver(job, job.end_date)
   const showCount = shows(job, 'headcount')
   return (
-    <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']}>
+    <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']} data-track={track}>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {job.audience === 'expert' && <span className="badge bg-violet-50 text-violet-700">🎛️ 전문가 의뢰</span>}
         {when && <span className="badge bg-ink text-white">{when}</span>}

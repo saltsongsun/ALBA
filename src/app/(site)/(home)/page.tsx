@@ -4,7 +4,6 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import JobCard from '@/components/JobCard'
 import { countApps, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
-import { APP_NAME } from '@/lib/brand'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { getUser } from '@/lib/session'
@@ -209,38 +208,28 @@ export default async function HomePage(props: PageProps<'/'>) {
           <span className="shrink-0 text-sm font-bold text-brand-600">내 근무 →</span>
         </Link>
       ) : (
-        <section className="relative mb-6 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-6 text-white shadow-lg shadow-brand-600/20">
-          {/* 배경에 천천히 떠다니는 동그라미 */}
-          <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-44 animate-float rounded-full bg-white/10" />
-          <span aria-hidden className="pointer-events-none absolute right-14 -bottom-14 size-28 animate-float rounded-full bg-white/10 [animation-delay:1.4s]" />
+        // 로그인 전: 짧은 소개 (인사이트: 비회원은 거의 홈에서 바로 나감 → 공고가 첫 화면에 더 많이 보이게 줄임 · 가입 안내는 목록 끝에)
+        <section
+          data-home-intro
+          className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 px-5 py-4 text-white shadow-lg shadow-brand-600/20"
+        >
+          <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-36 animate-float rounded-full bg-white/10" />
           <div className="relative">
-            <p className="text-sm font-semibold opacity-80">{APP_NAME}</p>
-            <h1 className="mt-1 text-2xl leading-tight font-extrabold">
+            <h1 className="text-xl leading-snug font-extrabold text-balance">
               행사 단기 알바,
               <br />
               지원부터 정산까지 한&nbsp;번에
             </h1>
-            <p className="mt-2 text-sm opacity-90">한 번 가입하면 출퇴근 버튼만 누르면 돼요. 근로계약서와 급여명세서도 여기서 받아요.</p>
-            {!user && (
-              <div className="mt-4 flex gap-2">
-                <Link href="/signup?type=worker" className="btn bg-white text-brand-700">
-                  간편 가입
-                </Link>
-                <Link href="/login" className="btn bg-white/15 text-white">
-                  로그인
-                </Link>
-              </div>
-            )}
-            {!user && (
-              <Link href="/pro" className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-white/90 underline-offset-2 hover:underline">
-                🎛️ 음향·조명·영상 전문가나 외주 업체이신가요? →
+            <div className="mt-2.5 flex items-center gap-3">
+              {/* 두 줄로 딱 나눔 (좁은 화면에서 '계약서·'처럼 어색하게 끊기지 않게) */}
+              <p className="min-w-0 flex-1 text-[13px] leading-snug text-white/85">
+                <span className="block whitespace-nowrap">1분이면 가입 끝</span>
+                <span className="block whitespace-nowrap">출퇴근·급여도 앱 하나로</span>
+              </p>
+              <Link href="/signup?type=worker" className="btn btn-sm shrink-0 bg-white text-brand-700" data-track="홈 간편 가입(위)">
+                간편 가입
               </Link>
-            )}
-            {!user && (
-              <Link href="/start" className="mt-1.5 flex items-center gap-1 text-sm font-semibold text-white/90 underline-offset-2 hover:underline">
-                🏢 사람을 뽑는 회사인가요? 회사로 시작하기 →
-              </Link>
-            )}
+            </div>
           </div>
         </section>
       )}
@@ -262,6 +251,7 @@ export default async function HomePage(props: PageProps<'/'>) {
               key={label}
               href={filterHref(w, avail)}
               scroll={false}
+              data-track={`홈 거르기: ${label}`}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
                 when === w ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
               }`}
@@ -272,6 +262,7 @@ export default async function HomePage(props: PageProps<'/'>) {
           <Link
             href={filterHref(when, !avail)}
             scroll={false}
+            data-track="홈 거르기: 지원 가능만"
             className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
               avail ? 'bg-brand-600 text-white' : 'bg-white text-sub ring-1 ring-line'
             }`}
@@ -322,10 +313,62 @@ export default async function HomePage(props: PageProps<'/'>) {
           <NewJobsChip createdAts={jobs.filter((j) => j.status === 'open').map((j) => j.created_at)} />
           <div className="stagger space-y-3">
             {listed.map((j) => (
-              <JobCard key={j.id} job={j} approved={counts[j.id] ?? 0} myStatus={mine[j.id]} clash={clashes(j)} showNew rating={ratings[j.company_id]} pals={palCounts[j.id] ?? 0} />
+              <JobCard
+                key={j.id}
+                job={j}
+                approved={counts[j.id] ?? 0}
+                myStatus={mine[j.id]}
+                clash={clashes(j)}
+                showNew
+                rating={ratings[j.company_id]}
+                pals={palCounts[j.id] ?? 0}
+                track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
+              />
             ))}
           </div>
         </>
+      )}
+
+      {/* 로그인 전: 목록을 다 본 자리(비회원이 보통 여기까지 내려 보고 나감)에 가입 안내 · 전문가·회사 안내 */}
+      {!user && (
+        <section data-home-join className="mt-6 space-y-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-line">
+          <div>
+            <p className="font-bold">마음에 드는 공고가 있나요?</p>
+            <p className="mt-0.5 text-sm text-sub">가입은 1분이면 끝나요. 지원 뒤 확정되면 이렇게 진행돼요.</p>
+          </div>
+          <ol className="grid grid-cols-3 gap-1.5 text-center text-xs font-semibold text-sub" data-home-steps>
+            {['공고 보고 지원', '앱에서 계약서 서명', '출퇴근 누르면 급여 정산'].map((t, i) => (
+              <li key={t} className="flex flex-col items-center gap-1 rounded-2xl bg-bg px-1.5 py-2.5">
+                <span aria-hidden className="grid size-6 place-items-center rounded-full bg-brand-600 text-[11px] font-extrabold text-white tabular-nums">
+                  {i + 1}
+                </span>
+                <span className="leading-snug text-balance">{t}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="flex gap-2">
+            <Link
+              href={`/signup?type=worker${company ? `&next=${encodeURIComponent(`/?co=${company.id}`)}` : ''}`}
+              className="btn-primary flex-1"
+              data-track="홈 1분 가입하기(아래)"
+            >
+              1분 가입하기
+            </Link>
+            <Link href={`/login${company ? `?next=${encodeURIComponent(`/?co=${company.id}`)}` : ''}`} className="btn-gray shrink-0" data-track="홈 로그인(아래)">
+              로그인
+            </Link>
+          </div>
+          {!company && (
+            <div className="space-y-1 border-t border-line pt-3 text-sm font-semibold text-sub">
+              <Link href="/pro" className="flex items-center gap-1.5 hover:text-ink" data-track="홈 전문가 안내">
+                🎛️ 음향·조명·영상 전문가나 외주 업체이신가요? →
+              </Link>
+              <Link href="/start" className="flex items-center gap-1.5 hover:text-ink" data-track="홈 회사로 시작하기">
+                🏢 사람을 뽑는 회사인가요? 회사로 시작하기 →
+              </Link>
+            </div>
+          )}
+        </section>
       )}
     </>
   )
