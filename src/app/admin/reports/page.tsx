@@ -142,8 +142,9 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         {rows.length === 0 ? (
           <div className="card py-10 text-center text-mute">이 달의 근무 기록이 없어요.</div>
         ) : (
-          <div className="card overflow-x-auto p-0">
-            <table className="table text-[13px]">
+          <div className="card overflow-x-auto p-0" data-report-table>
+            {/* 옆으로 밀어도 성명 칸은 왼쪽에 남게 */}
+            <table className="table table-pin text-[13px]">
               <thead>
                 <tr>
                   <th>성명</th>

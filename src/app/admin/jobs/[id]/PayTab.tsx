@@ -185,8 +185,13 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
       {rows.length === 0 ? (
         <div className="card py-10 text-center text-mute">아직 근무 기록이 없어요.</div>
       ) : (
-        <div className="card overflow-x-auto p-0">
-          <table className="table text-[13px]">
+        <>
+        {/* 휴대폰: 열이 많아 옆으로 밀어야 함 → 이름 칸은 고정, 밀 수 있다는 안내 */}
+        <p className="-mb-1 text-xs text-mute sm:hidden" data-swipe-hint>
+          이름은 그대로 두고 옆으로 밀면 공제·계좌·지급이 보여요 →
+        </p>
+        <div className="card overflow-x-auto p-0" data-pay-table>
+          <table className="table table-pin text-[13px]">
             <thead>
               <tr>
                 <th>이름</th>
@@ -249,7 +254,7 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
                 </tr>
               ))}
               <tr className="bg-bg font-bold">
-                <td>합계 {rows.length}명</td>
+                <td className="whitespace-nowrap">합계 {rows.length}명</td>
                 <td>{sum('days')}</td>
                 <td className="whitespace-nowrap">{minutesText(sum('paidMin'))}</td>
                 <td className="text-right">{won(sum('gross'))}</td>
@@ -263,6 +268,7 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             </tbody>
           </table>
         </div>
+        </>
       )}
       {/* 행사 비용 합계: 알바 인건비(세전 지급총액) + 외주 대금 */}
       {(() => {

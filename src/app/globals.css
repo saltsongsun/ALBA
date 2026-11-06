@@ -515,6 +515,34 @@
   }
 }
 
+/* 넓은 표(정산·신고자료)를 휴대폰에서 옆으로 밀어도 첫 칸(이름)은 왼쪽에 남게 — 누구 금액인지 헷갈리지 않게.
+   밀린 칸 위로 겹치므로 바탕을 칸 색으로 채우고, 경계에 가는 선 */
+.table-pin th:first-child,
+.table-pin td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--pin-bg, #fff);
+  box-shadow: inset -1px 0 0 var(--color-line);
+}
+.table-pin th:first-child,
+.table-pin tbody tr:hover td:first-child {
+  --pin-bg: #f9fafb;
+}
+.table-pin tr.bg-bg td:first-child {
+  --pin-bg: var(--color-bg);
+}
+:root[data-theme='dark']:not(:has(.print-sheet)) .table-pin td:first-child {
+  --pin-bg: var(--dk-surface);
+}
+:root[data-theme='dark']:not(:has(.print-sheet)) .table-pin th:first-child,
+:root[data-theme='dark']:not(:has(.print-sheet)) .table-pin tbody tr:hover td:first-child {
+  --pin-bg: var(--dk-raised);
+}
+:root[data-theme='dark']:not(:has(.print-sheet)) .table-pin tr.bg-bg td:first-child {
+  --pin-bg: var(--color-bg);
+}
+
 /* 불러오는 중 회색 자리: 전체가 천천히 숨 쉬듯 밝아졌다 흐려짐 (투명도만 바꿔 그리기를 다시 하지 않음 — 휴대폰에서 끊기지 않게) */
 .skeleton {
   animation: skeleton-pulse 1.4s ease-in-out infinite;
