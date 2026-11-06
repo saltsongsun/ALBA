@@ -716,6 +716,8 @@ export function SignForm({ docId, title, userId }: { docId: string; title: strin
   const [saved, setSaved] = useState<string | null>(null)
   // 서명 없이 '제출'을 누르면 서버까지 가지 않고 바로 서명란으로 (빨간 테두리 · 흔들림)
   const [needSign, setNeedSign] = useState(false)
+  // 동의 체크 없이 '제출'을 누르면: 휴대폰 브라우저 기본 말풍선(앱마다 모양·말이 다름) 대신 체크 칸을 흔들고 바로 아래 안내
+  const [needAgree, setNeedAgree] = useState(false)
   useEffect(() => {
     try {
       const v = JSON.parse(sessionStorage.getItem(LAST_SIGNATURE) ?? 'null') as { u?: string; at?: number; data?: string } | null
@@ -743,19 +745,53 @@ export function SignForm({ docId, title, userId }: { docId: string; title: strin
           }
           return
         }
+        const agree = e.currentTarget.querySelector<HTMLInputElement>('input[name=agree]')
+        if (agree && !agree.checked) {
+          e.preventDefault()
+          setNeedAgree(true)
+          haptic([20, 40, 20])
+          const box = e.currentTarget.querySelector<HTMLElement>('[data-sign-agree]')
+          if (box) {
+            box.classList.remove('animate-shake')
+            void box.offsetWidth
+            box.classList.add('animate-shake')
+          }
+          agree.focus({ preventScroll: true })
+          return
+        }
         try {
           sessionStorage.setItem(LAST_SIGNATURE, JSON.stringify({ u: userId, at: Date.now(), data: sig }))
         } catch {}
       }}
       id="sign"
+      // 확인은 위 onSubmit에서 (서명 → 동의 차례로 · 기본 말풍선 대신 화면 안내)
+      noValidate
       className="card no-print scroll-mt-20 space-y-4"
     >
       <h2 className="font-bold">근로자 서명</h2>
       <SignaturePad name="signature" reuse={saved} invalid={needSign} onDrawn={() => setNeedSign(false)} />
-      <label className="flex items-start gap-2.5 text-sm">
-        <input type="checkbox" name="agree" className="mt-0.5 size-5 accent-brand-600" required />
-        <span>위 「{title}」 내용을 모두 읽고 이해했으며, 전자서명으로 체결(제출)하는 데 동의합니다.</span>
-      </label>
+      <div className="space-y-1.5">
+        <label
+          data-sign-agree
+          className={`flex items-start gap-2.5 rounded-xl text-sm transition-colors duration-200 ${needAgree ? '-mx-2 bg-rose-50 px-2 py-2 ring-1 ring-rose-300' : ''}`}
+        >
+          <input
+            type="checkbox"
+            name="agree"
+            className="mt-0.5 size-5 shrink-0 accent-brand-600"
+            required
+            aria-invalid={needAgree || undefined}
+            aria-describedby={needAgree ? 'sign-agree-hint' : undefined}
+            onChange={(e) => e.currentTarget.checked && setNeedAgree(false)}
+          />
+          <span>위 「{title}」 내용을 모두 읽고 이해했으며, 전자서명으로 체결(제출)하는 데 동의합니다.</span>
+        </label>
+        {needAgree && (
+          <p id="sign-agree-hint" role="alert" className="animate-pop text-sm font-semibold text-rose-600" data-sign-agree-hint>
+            위 동의 칸에 체크해야 제출할 수 있어요
+          </p>
+        )}
+      </div>
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="제출 중…">
         서명하고 제출하기
