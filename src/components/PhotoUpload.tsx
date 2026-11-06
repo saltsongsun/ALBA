@@ -16,12 +16,15 @@ export default function PhotoUpload({
   photoAt,
   admin = false,
   children,
+  doneKey,
 }: {
   userId: string
   name: string
   photoAt: string | null
   admin?: boolean
   children?: React.ReactNode
+  /** 올릴 때 이 이름으로 잠깐 표시를 남김 (공고 화면: 사진 칸이 지원 칸으로 바뀐 뒤 '이제 지원할 수 있어요' 안내) */
+  doneKey?: string
 }) {
   const [state, action, pending] = useActionState(savePhoto.bind(null, admin ? userId : null), null)
   const form = useRef<HTMLFormElement>(null)
@@ -30,10 +33,16 @@ export default function PhotoUpload({
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const has = !!(preview || photoAt)
-  // 올리지 못했으면 미리보기를 거둠
+  // 올리지 못했으면 미리보기를 거두고 (doneKey가 있으면) 올리기 직전에 남긴 표시도 지움
   useEffect(() => {
-    if (state?.error) setPreview(null)
-  }, [state])
+    if (!state?.error) return
+    setPreview(null)
+    if (doneKey) {
+      try {
+        sessionStorage.removeItem(doneKey)
+      } catch {}
+    }
+  }, [state, doneKey])
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -45,6 +54,12 @@ export default function PhotoUpload({
       const data = await toSquareJpeg(file)
       setPreview(data)
       photo.current!.value = data
+      // 올리기 직전에 표시 (성공하면 이 칸이 바로 지원 칸으로 바뀌어 사라지므로 미리 남김 · 실패하면 위에서 지움)
+      if (doneKey) {
+        try {
+          sessionStorage.setItem(doneKey, String(Date.now()))
+        } catch {}
+      }
       form.current!.requestSubmit()
     } catch {
       setErr('이 사진은 열 수 없어요. 다른 사진을 골라 주세요.')

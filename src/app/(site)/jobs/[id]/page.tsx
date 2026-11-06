@@ -9,6 +9,8 @@ import Flash from '@/components/Flash'
 import MessageChips from '@/components/MessageChips'
 import JobCard, { APP_STATUS, wageBadge } from '@/components/JobCard'
 import StickyApply from '@/components/StickyApply'
+import PhotoDoneNote from '@/components/PhotoDoneNote'
+import { PHOTO_DONE_KEY } from '@/lib/photoDone'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
 import { approvedCounts, countApps, getJob, getSettings, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
@@ -402,6 +404,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           summary={shows(job, 'estimate') ? `하루 약 ${won(est.gross)}` : wageBadge(job)}
           href={user ? undefined : `/signup?next=${encodeURIComponent(path)}`}
           aboveTabs={!!user}
+          // 얼굴 사진이 없으면 아래 칸이 '사진 올리기'라서, 바도 그대로 말해 줌 (눌렀는데 지원이 아니라 놀라지 않게)
+          note={needPhoto ? '지원 전에 얼굴 사진 1장이 필요해요' : undefined}
+          cta={needPhoto ? '사진 올리고 지원' : undefined}
         />
       )}
       <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
@@ -612,12 +617,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <p className="font-bold">📷 얼굴 사진을 먼저 올려 주세요</p>
                 <p className="text-sm text-sub">올리면 바로 지원할 수 있어요</p>
               </div>
-              <PhotoUpload userId={user.id} name={user.name} photoAt={null} />
+              <PhotoUpload userId={user.id} name={user.name} photoAt={null} doneKey={PHOTO_DONE_KEY} />
             </div>
           )
         ) : (
           canApply && (
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
+              {/* 방금 사진을 올려 이 칸이 나타났으면 알려 줌 */}
+              <PhotoDoneNote />
               {startedToday && (
                 <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-started-note>
                   {hhmm(job.start_time)}에 이미 시작한 {expert ? '일정이에요' : '근무예요'}. 지원하면 담당자가 확인한 뒤 알려 드려요.

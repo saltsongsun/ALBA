@@ -15,6 +15,8 @@ export default function StickyApply({
   summary,
   href,
   aboveTabs,
+  note,
+  cta = '지원하기',
 }: {
   targetId: string
   title: string
@@ -23,6 +25,10 @@ export default function StickyApply({
   href?: string
   /** 로그인한 근무자는 아래 탭이 있으므로 그 위에 */
   aboveTabs: boolean
+  /** 지원 전에 할 일이 있으면 공고 이름 대신 그 안내 (예: 얼굴 사진이 필요해요) */
+  note?: string
+  /** 버튼 글자 (지원 전에 할 일이 있으면 그 일로 — 눌렀는데 지원이 아니라 놀라지 않게) */
+  cta?: string
 }) {
   const [mounted, setMounted] = useState(false)
   const [targetVisible, setTargetVisible] = useState(false)
@@ -54,16 +60,22 @@ export default function StickyApply({
     >
       <div className="glass mx-auto flex max-w-md animate-slide-up items-center gap-3 rounded-[22px] p-2 pl-4">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs text-mute">{title}</p>
+          {note ? (
+            <p className="truncate text-xs font-semibold text-amber-700" data-sticky-note>
+              {note}
+            </p>
+          ) : (
+            <p className="truncate text-xs text-mute">{title}</p>
+          )}
           <p className="font-extrabold tracking-tight">{summary}</p>
         </div>
         {href ? (
-          <Link href={href} className="btn-primary shrink-0 px-5">
+          <Link href={href} className="btn-primary shrink-0 px-5" data-track="공고 아래 바: 1분 가입하고 지원">
             1분 가입하고 지원
           </Link>
         ) : (
-          <button type="button" onClick={goToForm} className="btn-primary shrink-0 px-6">
-            지원하기
+          <button type="button" onClick={goToForm} className={`btn-primary shrink-0 ${cta.length > 5 ? 'px-4' : 'px-6'}`} data-track={`공고 아래 바: ${cta}`}>
+            {cta}
           </button>
         )}
       </div>
