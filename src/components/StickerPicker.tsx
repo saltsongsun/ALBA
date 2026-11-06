@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { DEFAULT_PACK, PACKS } from '@/lib/stickers'
 import Icon from './Icon'
 import { haptic } from './ui'
@@ -18,11 +18,18 @@ export default function StickerPicker({ onPick, onClose, title = '이모티콘' 
   useEffect(() => {
     tabsRef.current?.querySelector<HTMLButtonElement>('[aria-selected=true]')?.focus({ preventScroll: true })
   }, [])
+  // 화살표로 탭을 옮기면 초점도 같은 순간에 새 탭으로 (다음 화면 그리기를 기다리지 않게 — 늦으면 초점이 옛 탭에 남아 보임)
+  const focusTo = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (!focusTo.current) return
+    tabsRef.current?.querySelector<HTMLButtonElement>(`[data-pack="${focusTo.current}"]`)?.focus()
+    focusTo.current = null
+  }, [packId])
   const moveTab = (dir: 1 | -1) => {
     const i = PACKS.findIndex((p) => p.id === pack.id)
     const next = PACKS[(i + dir + PACKS.length) % PACKS.length]
+    focusTo.current = next.id
     setPackId(next.id)
-    requestAnimationFrame(() => tabsRef.current?.querySelector<HTMLButtonElement>(`[data-pack="${next.id}"]`)?.focus())
   }
   return (
     <div
