@@ -9,6 +9,7 @@ import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
+import { finishIfAllOut } from '@/lib/autoFinish'
 import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, recent } from '@/lib/ratelimit'
@@ -323,11 +324,11 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
   const [user, { data }] = await Promise.all([
     requireUser(),
     isUuid(attendanceId)
-      ? db().from('attendance').select('user_id, clock_out, job:jobs(lat, lng)').eq('id', attendanceId).maybeSingle()
+      ? db().from('attendance').select('user_id, clock_out, job_id, work_date, job:jobs(lat, lng)').eq('id', attendanceId).maybeSingle()
       : { data: null },
   ])
   if (!isUuid(attendanceId)) return { error: '잘못된 요청입니다.' }
-  const att = data as { user_id: string; clock_out: string | null; job: { lat: number | null; lng: number | null } | null } | null
+  const att = data as { user_id: string; clock_out: string | null; job_id: string; work_date: string; job: { lat: number | null; lng: number | null } | null } | null
   if (!att || att.user_id !== user.id) return { error: '근무 기록을 찾을 수 없습니다.' }
   if (att.clock_out) return { error: '이미 종료된 근무입니다.' }
   const job = att.job
@@ -340,6 +341,8 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
       .eq('id', attendanceId)
       .is('clock_out', null),
   )
+  // 마지막 날 마지막으로 퇴근한 사람이면 행사 종료
+  await finishIfAllOut(att.job_id, att.work_date)
   revalidatePath('/me')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
 }
@@ -458,6 +461,7 @@ export async function closeForgotten(attendanceId: string, _: FormState, form: F
     .is('clock_out', null)
     .select('id')
   if (!(done as { id: string }[] | null)?.length) return { error: '이미 종료된 근무입니다.' }
+  await finishIfAllOut(att.job_id, att.work_date)
   // 담당자가 문의함에서 확인할 수 있게 (안 읽음 표시)
   await db()
     .from('messages')

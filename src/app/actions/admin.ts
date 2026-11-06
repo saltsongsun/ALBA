@@ -2,6 +2,7 @@
 
 import { randomInt } from 'node:crypto'
 import { rosterUnlockedFor } from '@/lib/rosterLock'
+import { FINISHED_NOTE, finishIfAllOut } from '@/lib/autoFinish'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
@@ -616,8 +617,9 @@ export async function saveAttendance(attId: string, form: FormData) {
       .eq('id', attId),
   )
   await audit(admin.id, 'attendance.edit', att.user_id, `${att.work_date} ${inV || '-'}~${outV || '-'}`, admin.companyId)
+  const finished = closeNow && (await finishIfAllOut(att.job_id, att.work_date))
   revalidatePath(`/admin/jobs/${att.job_id}`)
-  back(path, '근무 기록을 저장했습니다.')
+  back(path, `근무 기록을 저장했습니다.${finished ? FINISHED_NOTE : ''}`)
 }
 
 export async function addAttendance(jobId: string, form: FormData) {
@@ -908,9 +910,10 @@ export async function dismissWorker(attId: string, form: FormData) {
       .join('\n'),
     tag: `dismiss-${att.job_id}`,
   })
+  const finished = await finishIfAllOut(att.job_id, att.work_date)
   revalidatePath(`/admin/jobs/${att.job_id}`)
   revalidatePath('/admin/chat')
-  back(path, `귀가 조치했어요. ${kstTime(now)} 종료로 기록하고 근무자에게 알렸어요.`)
+  back(path, `귀가 조치했어요. ${kstTime(now)} 종료로 기록하고 근무자에게 알렸어요.${finished ? FINISHED_NOTE : ''}`)
 }
 
 export async function deleteAttendance(attId: string) {
@@ -938,8 +941,9 @@ export async function bulkClockOut(jobId: string, date: string) {
     const t = new Date(a.clock_in) < out ? out : new Date()
     await db().from('attendance').update({ clock_out: t.toISOString(), note: '관리자 일괄 종료' }).eq('id', a.id)
   }
+  const finished = open.length > 0 && (await finishIfAllOut(jobId, date))
   revalidatePath(`/admin/jobs/${jobId}`)
-  back(`/admin/jobs/${jobId}?tab=att&date=${date}`, `${open.length}명을 근무 종료 처리했습니다.`)
+  back(`/admin/jobs/${jobId}?tab=att&date=${date}`, `${open.length}명을 근무 종료 처리했습니다.${finished ? FINISHED_NOTE : ''}`)
 }
 
 /** 출석 체크로 고른 사람 (form의 user_ids · 중복·이상한 값 빼고 최대 500명) */
@@ -1036,8 +1040,9 @@ export async function bulkClockOutPicked(jobId: string, date: string, form: Form
     text: (uid) => `${job.title} · 담당자가 ${outOf.get(uid)} 근무 종료로 기록했어요. 시각이 다르면 앱에서 기록 정정을 요청해 주세요.`,
     tag: `clockout-${jobId}`,
   })
+  const finished = outOf.size > 0 && (await finishIfAllOut(jobId, date))
   revalidatePath(`/admin/jobs/${jobId}`)
-  back(path, `${outOf.size}명 근무 종료로 기록했어요.`)
+  back(path, `${outOf.size}명 근무 종료로 기록했어요.${finished ? FINISHED_NOTE : ''}`)
 }
 
 export async function confirmDay(jobId: string, date: string) {
