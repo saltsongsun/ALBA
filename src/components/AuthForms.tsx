@@ -14,7 +14,7 @@ import { FormMessage, keepInputs, SubmitButton } from './ui'
 import CareerEditor from './CareerEditor'
 import SignupProgress from './SignupProgress'
 import { MEMBER_TYPES, SPECIALTIES } from '@/lib/members'
-import { weakPin } from '@/lib/validate'
+import { parseRrn, weakPin } from '@/lib/validate'
 import type { MemberType } from '@/lib/types'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
@@ -256,6 +256,132 @@ function birthCandidates(rrn1: string, rrn2: string): string[] {
   return [`19${yy}-${md}`, `20${yy}-${md}`]
 }
 
+type RrnHint = { ok: boolean; text: string; at?: 'rrn1' | 'rrn2' }
+
+/** 날짜로 맞는지 (YYMMDD + 세기) */
+function realDate(yymmdd: string, century: number): boolean {
+  const y = century + Number(yymmdd.slice(0, 2))
+  const m = Number(yymmdd.slice(2, 4))
+  const d = Number(yymmdd.slice(4, 6))
+  const t = new Date(Date.UTC(y, m - 1, d))
+  return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d
+}
+
+/**
+ * 주민번호 칸을 쓰는 동안 바로 확인 (done: 다 쓴 뒤 — 칸을 벗어났거나 가입을 누름)
+ * 서버도 같은 규칙(parseRrn)으로 한 번 더 막음
+ */
+function rrnHint(r1: string, r2: string, done: boolean): RrnHint | null {
+  const front = { ok: false, text: '앞 6자리는 생년월일이에요 (예: 990315)', at: 'rrn1' as const }
+  if (r1.length < 6) return done ? { ok: false, text: '앞자리 생년월일 6자리를 넣어 주세요', at: 'rrn1' } : null
+  const g = r2 ? Number(r2[0]) : 0
+  if (r2 && ![1, 2, 3, 4, 5, 6, 7, 8].includes(g)) return { ok: false, text: '뒷자리 첫 숫자는 1~8 중 하나예요. 다시 확인해 주세요', at: 'rrn2' }
+  const centuries = !g ? [1900, 2000] : [1, 2, 5, 6].includes(g) ? [1900] : [2000]
+  if (!centuries.some((c) => realDate(r1, c))) return front
+  if (r2.length < 7) return done ? { ok: false, text: '뒷자리 7자리를 모두 넣어 주세요', at: 'rrn2' } : null
+  const p = parseRrn(r1 + r2)
+  if (!p) return { ok: false, text: '주민등록번호를 다시 확인해 주세요', at: 'rrn1' }
+  const [y, m, d] = p.birthDate.split('-').map(Number)
+  return { ok: true, text: `${y}년 ${m}월 ${d}일생` }
+}
+
+/**
+ * 주민등록번호 앞·뒤 칸 (아르바이트·전문가 가입).
+ * 틀린 곳을 '가입하기' 전에 그 칸 아래에서 바로 알려 주고, 그래도 틀린 채 누르면 서버로 보내지 않고 그 칸으로
+ * (인사이트: '주민등록번호 13자리를 정확히 입력해 주세요'를 가입을 누른 뒤에야 보고 같은 칸을 여러 번 누름)
+ */
+function RrnFields({ note }: { note: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [hint, setHint] = useState<RrnHint | null>(null)
+  useEffect(() => {
+    const form = ref.current?.closest('form')
+    if (!form) return
+    const input = (n: 'rrn1' | 'rrn2') => form.elements.namedItem(n) as HTMLInputElement | null
+    const digits = (n: 'rrn1' | 'rrn2') => (input(n)?.value ?? '').replace(/\D/g, '')
+    let done = false
+    const check = () => setHint(rrnHint(digits('rrn1'), digits('rrn2'), done))
+    const onInput = (e: Event) => {
+      const name = (e.target as HTMLInputElement | null)?.name
+      if (name === 'rrn1' || name === 'rrn2') check()
+    }
+    const onLeave = (e: FocusEvent) => {
+      const from = (e.target as HTMLInputElement | null)?.name
+      const to = (e.relatedTarget as HTMLInputElement | null)?.name
+      // 앞칸 → 뒷칸으로 옮겨 가는 건 아직 쓰는 중
+      if ((from === 'rrn1' || from === 'rrn2') && to !== 'rrn1' && to !== 'rrn2') {
+        done = true
+        check()
+      }
+    }
+    const onSubmit = (e: SubmitEvent) => {
+      // 얼굴 사진이 없으면 사진 칸(위쪽)부터 — 그 안내는 사진 칸이 함
+      const photo = form.elements.namedItem('photo')
+      if (photo instanceof HTMLInputElement && !photo.value && form.querySelector('[data-photo-field]')) return
+      done = true
+      const h = rrnHint(digits('rrn1'), digits('rrn2'), true)
+      setHint(h)
+      if (!h || h.ok) return
+      e.preventDefault()
+      const el = input(h.at ?? 'rrn1')
+      el?.focus({ preventScroll: true })
+      el?.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+    }
+    form.addEventListener('input', onInput)
+    form.addEventListener('focusout', onLeave)
+    form.addEventListener('submit', onSubmit)
+    return () => {
+      form.removeEventListener('input', onInput)
+      form.removeEventListener('focusout', onLeave)
+      form.removeEventListener('submit', onSubmit)
+    }
+  }, [])
+  const bad = (n: 'rrn1' | 'rrn2') => (hint && !hint.ok && hint.at === n ? 'border-amber-400 ring-2 ring-amber-200' : '')
+  return (
+    <div ref={ref}>
+      <label className="label" htmlFor="rrn1">주민등록번호</label>
+      <div className="flex items-center gap-2">
+        <input
+          id="rrn1"
+          name="rrn1"
+          className={`input min-w-0 text-center ${bad('rrn1')}`}
+          inputMode="numeric"
+          maxLength={6}
+          placeholder="앞 6자리"
+          onInput={digitsThenNext}
+          data-next="rrn2"
+          aria-invalid={hint && !hint.ok && hint.at === 'rrn1' ? true : undefined}
+          aria-describedby="rrn-hint"
+          required
+        />
+        <span className="text-mute">-</span>
+        <input
+          name="rrn2"
+          type="password"
+          className={`input min-w-0 text-center tracking-widest ${bad('rrn2')}`}
+          inputMode="numeric"
+          maxLength={7}
+          placeholder="뒤 7자리"
+          autoComplete="off"
+          onInput={digitsThenNext}
+          data-next="phone"
+          aria-invalid={hint && !hint.ok && hint.at === 'rrn2' ? true : undefined}
+          aria-describedby="rrn-hint"
+          aria-label="주민등록번호 뒤 7자리"
+          required
+        />
+      </div>
+      <p
+        id="rrn-hint"
+        aria-live="polite"
+        data-rrn-hint={hint ? (hint.ok ? 'ok' : 'bad') : 'note'}
+        className={hint ? `mt-1.5 text-xs font-semibold ${hint.ok ? 'text-emerald-700' : 'text-amber-700'}` : 'hint'}
+      >
+        {hint ? (hint.ok ? `✓ ${hint.text} · 암호화해서 보관해요` : hint.text) : note}
+      </p>
+    </div>
+  )
+}
+
 /**
  * 비밀번호·확인 칸 (모든 유형 공통).
  * 쓸 수 없는 번호(생년월일·휴대폰 번호·123456 등)는 '가입하기'를 누르기 전에 바로 알려 줌
@@ -437,26 +563,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
             <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
           </div>
           <PhotoField />
-          <div>
-            <label className="label">주민등록번호</label>
-            <div className="flex items-center gap-2">
-              <input name="rrn1" className="input min-w-0 text-center" inputMode="numeric" maxLength={6} placeholder="앞 6자리" onInput={digitsThenNext} data-next="rrn2" required />
-              <span className="text-mute">-</span>
-              <input
-                name="rrn2"
-                type="password"
-                className="input min-w-0 text-center tracking-widest"
-                inputMode="numeric"
-                maxLength={7}
-                placeholder="뒤 7자리"
-                autoComplete="off"
-                onInput={digitsThenNext}
-                data-next="phone"
-                required
-              />
-            </div>
-            <p className="hint">{pro ? '용역 대금의 사업소득(3.3%) 신고에 필요해요.' : '임금 지급 시 세금·보험 신고에 필요해요.'} 암호화해서 보관해요.</p>
-          </div>
+          <RrnFields note={`${pro ? '용역 대금의 사업소득(3.3%) 신고에 필요해요.' : '임금 지급 시 세금·보험 신고에 필요해요.'} 암호화해서 보관해요.`} />
           <div>
             <label className="label" htmlFor="phone">
               휴대폰 번호

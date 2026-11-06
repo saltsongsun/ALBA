@@ -1,6 +1,7 @@
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import TopLink from '@/components/TopLink'
 import LogoutButton from '@/components/LogoutButton'
 import { otherCompaniesUnread, unreadForAdmins } from '@/lib/data'
 import { db } from '@/lib/db'
@@ -47,12 +48,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* 한 줄: 로고 · 회사(여럿이면 고르기) · 근무자 화면 · 로그아웃 */}
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4">
           <div className="flex min-w-0 items-center gap-2.5">
-            <Link href="/admin" aria-label={`${APP_NAME} 관리자 홈`} className="flex shrink-0 items-center gap-2 text-[17px] font-extrabold whitespace-nowrap">
+            <TopLink href="/admin" aria-label={`${APP_NAME} 관리자 홈`} className="flex shrink-0 items-center gap-2 text-[17px] font-extrabold whitespace-nowrap">
               <Logo mono />
               <span className="hidden sm:inline">
                 {APP_NAME} <span className="text-sm font-semibold text-mute">관리자</span>
               </span>
-            </Link>
+            </TopLink>
             {admin.companies.length > 1 ? (
               <CompanySwitcher companies={admin.companies} current={admin.companyId} unread={Object.fromEntries(others.map((o) => [o.id, o.n]))} />
             ) : (
