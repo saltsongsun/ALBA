@@ -1,5 +1,7 @@
 import type { Metadata } from 'next'
-import { canWrite, newCommentsOnMine, reviewNudge } from '@/lib/community'
+import { canWrite, myReviewedJobs, newCommentsOnMine, reviewNudge } from '@/lib/community'
+import LevelCard from '@/components/LevelCard'
+import { computeXp, shiftFacts } from '@/lib/xp'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
@@ -107,10 +109,10 @@ export default async function MePage(props: PageProps<'/me'>) {
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title' | 'status' | 'signed_at'>[]),
     db()
       .from('users')
-      .select('photo_at, bank_account_enc')
+      .select('photo_at, bank_account_enc, emergency_phone, address, careers')
       .eq('id', user.id)
       .maybeSingle()
-      .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null } | null),
+      .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null; emergency_phone: string | null; address: string | null; careers: unknown } | null),
     // 담당자가 공고 확정자에게 보낸 공지 (오늘 근무 카드에 최근 것 하나)
     db()
       .from('messages')
@@ -254,7 +256,26 @@ export default async function MePage(props: PageProps<'/me'>) {
     </div>
   ) : null
 
-  const [nudge, newComments] = await Promise.all([nudgeP, newCommentsP])
+  const [nudge, newComments, reviewedJobs] = await Promise.all([
+    nudgeP,
+    newCommentsP,
+    // 레벨 카드의 '후기' 점수 (못 읽으면 0)
+    !pro && user.role !== 'admin' ? myReviewedJobs(user.id).catch(() => new Set<string>()) : Promise.resolve(new Set<string>()),
+  ])
+  // 병아리 레벨 (아르바이트만 · 기록으로 계산, 저장하지 않음)
+  const xp =
+    !pro && user.role !== 'admin'
+      ? computeXp({
+          shifts: atts.map((a) => {
+            const job = jobsById.get(a.job_id)
+            const start = a.sched_start ?? job?.start_time
+            return shiftFacts(a, start ? kstAt(a.work_date, start) : null)
+          }),
+          signedDocs: docs.filter((d) => d.status === 'signed').length,
+          reviews: reviewedJobs.size,
+          profileComplete: !!(me?.photo_at && me.bank_account_enc && me.emergency_phone && me.address && Array.isArray(me.careers) && me.careers.length > 0),
+        })
+      : null
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
@@ -275,6 +296,7 @@ export default async function MePage(props: PageProps<'/me'>) {
           내 정보
         </Link>
       </div>
+      {xp && <LevelCard s={xp} />}
 
       {/* 담당자가 근무시간을 바꿨을 때: 계속하시겠습니까? */}
       {pendingShifts.length > 0 && (

@@ -4,6 +4,7 @@ import SlotBar from '@/components/SlotBar'
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import JobActions from '@/components/JobActions'
+import { InstallBanner } from '@/components/InstallGuide'
 import { decideApplication, setJobStatus } from '@/app/actions/admin'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -476,6 +477,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
+      {/* 휴대폰 관리자도 앱으로 설치 (누르면 바로 설치 창 · 이미 앱이면 안 보임) */}
+      <InstallBanner />
       {/* 직접 가입해 확인 전인 회사: 무엇이 되고 무엇이 확인 뒤에 열리는지 */}
       {!admin.companyVerified && (
         <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200/70">

@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { CopyButton } from './ui'
 import { APP_NAME } from '@/lib/brand'
 
@@ -44,6 +44,46 @@ function installed(): boolean {
   return matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true
 }
 
+/**
+ * 브라우저가 '설치할 수 있어요'라고 알려 주는 신호(beforeinstallprompt)를 화면이 뜨기 전부터 잡아 둠.
+ * 잡아 두면 '앱 설치' 버튼 한 번에 휴대폰의 설치 창이 바로 뜸 (안드로이드 크롬·삼성 인터넷 · 아이폰은 지원 안 함)
+ */
+let deferred: InstallPromptEvent | null = null
+const subs = new Set<() => void>()
+const setDeferred = (e: InstallPromptEvent | null) => {
+  deferred = e
+  subs.forEach((f) => f())
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault()
+    setDeferred(ev as InstallPromptEvent)
+  })
+  window.addEventListener('appinstalled', () => setDeferred(null))
+}
+function useInstallPrompt(): InstallPromptEvent | null {
+  return useSyncExternalStore(
+    (f) => {
+      subs.add(f)
+      return () => {
+        subs.delete(f)
+      }
+    },
+    () => deferred,
+    () => null,
+  )
+}
+/** 휴대폰의 설치 창을 띄움 → 'accepted'(설치함) · 'dismissed'(취소) · 'none'(이 브라우저는 바로 설치를 못 함) */
+async function runInstall(): Promise<'accepted' | 'dismissed' | 'none'> {
+  const p = deferred
+  if (!p) return 'none'
+  await p.prompt()
+  const { outcome } = await p.userChoice
+  setDeferred(null)
+  return outcome
+}
+const kakaoExternal = () => `kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}`
+
 function ShareIcon() {
   return (
     <svg viewBox="0 0 24 24" className="inline size-4 align-[-3px]" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-label="공유">
@@ -52,18 +92,44 @@ function ShareIcon() {
   )
 }
 
-/** 내 근무 화면 위쪽의 작은 설치 권유. 누르면 설치 안내가 열림 (이미 앱이거나 '나중에'를 눌렀으면 숨김) */
+/**
+ * 화면 위쪽의 '앱 설치' 버튼 (내 근무·관리자 첫 화면). 사용자 요청 2026-11-06 "설치 안내 말고 실제 설치까지 되게 버튼 띄워줘".
+ * 안드로이드(크롬·삼성 인터넷): 누르면 바로 휴대폰 설치 창 · 카카오톡: 기본 브라우저로 열기(그다음 설치) · 아이폰: 공유 → 홈 화면에 추가 안내
+ * 이미 앱으로 열었거나 '✕'를 누르면 7일 동안 숨김
+ */
 export function InstallBanner() {
-  const [show, setShow] = useState(false)
-  useEffect(() => setShow(!installed() && !snoozed()), [])
-  if (!show) return null
+  const [env, setEnv] = useState<Env | null>(null)
+  const [done, setDone] = useState(false)
+  const prompt = useInstallPrompt()
+  useEffect(() => setEnv(!installed() && !snoozed() ? detect() : null), [])
+  if (!env) return null
+  if (done) {
+    return (
+      <p role="status" data-install-done className="animate-pop rounded-2xl bg-emerald-50 px-4 py-3 text-[13px] font-semibold text-emerald-800">
+        ✓ 설치했어요 · 홈 화면의 {APP_NAME} 아이콘으로 열어 주세요
+      </p>
+    )
+  }
+  const install = async () => {
+    if (prompt) {
+      if ((await runInstall()) === 'accepted') setDone(true)
+      return
+    }
+    if (env === 'kakao') {
+      location.href = kakaoExternal()
+      return
+    }
+    window.dispatchEvent(new Event(OPEN_EVENT))
+  }
   return (
-    <div className="flex animate-slide-down items-center gap-3 rounded-2xl bg-brand-50 py-2.5 pr-2 pl-3">
+    <div className="flex animate-slide-down items-center gap-3 rounded-2xl bg-brand-50 py-2.5 pr-2 pl-3" data-install-banner>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/icons/icon-192.png" alt="" className="size-9 rounded-lg" />
-      <p className="min-w-0 flex-1 text-[13px] leading-snug font-semibold text-brand-700">홈 화면에 앱으로 설치하면 출퇴근이 더 빨라요</p>
-      <button type="button" className="btn-primary btn-sm" onClick={() => window.dispatchEvent(new Event(OPEN_EVENT))}>
-        설치
+      <p className="min-w-0 flex-1 text-[13px] leading-snug font-semibold text-brand-700">
+        {env === 'kakao' ? '카카오톡 밖에서 열면 앱으로 설치할 수 있어요' : '앱으로 설치하면 출퇴근이 더 빨라요'}
+      </p>
+      <button type="button" className="btn-primary btn-sm shrink-0" onClick={install} data-track="앱 설치" data-install-button={prompt ? 'native' : env}>
+        {env === 'kakao' && !prompt ? '브라우저로' : '앱 설치'}
       </button>
       <button
         type="button"
@@ -71,7 +137,7 @@ export function InstallBanner() {
         className="rounded-lg px-1.5 py-1 text-brand-700/50 transition active:scale-90"
         onClick={() => {
           snooze()
-          setShow(false)
+          setEnv(null)
         }}
       >
         ✕
@@ -84,7 +150,7 @@ export default function InstallGuide() {
   const pathname = usePathname()
   const [env, setEnv] = useState<Env | null>(null)
   const [open, setOpen] = useState(false)
-  const [prompt, setPrompt] = useState<InstallPromptEvent | null>(null)
+  const prompt = useInstallPrompt()
   const autoShown = useRef(false)
 
   useEffect(() => {
@@ -92,20 +158,11 @@ export default function InstallGuide() {
     if (installed()) return
     setEnv(detect())
 
-    const onPrompt = (ev: Event) => {
-      ev.preventDefault()
-      setPrompt(ev as InstallPromptEvent)
-    }
-    const onInstalled = () => {
-      setOpen(false)
-      setPrompt(null)
-    }
+    const onInstalled = () => setOpen(false)
     const onOpen = () => setOpen(true)
-    window.addEventListener('beforeinstallprompt', onPrompt)
     window.addEventListener('appinstalled', onInstalled)
     window.addEventListener(OPEN_EVENT, onOpen)
     return () => {
-      window.removeEventListener('beforeinstallprompt', onPrompt)
       window.removeEventListener('appinstalled', onInstalled)
       window.removeEventListener(OPEN_EVENT, onOpen)
     }
@@ -126,11 +183,7 @@ export default function InstallGuide() {
     setOpen(false)
   }
   const install = async () => {
-    if (!prompt) return
-    await prompt.prompt()
-    const { outcome } = await prompt.userChoice
-    setPrompt(null)
-    if (outcome === 'accepted') setOpen(false)
+    if ((await runInstall()) === 'accepted') setOpen(false)
   }
 
   let body: React.ReactNode
@@ -138,7 +191,7 @@ export default function InstallGuide() {
     body = (
       <>
         <p className="text-sm text-sub">카카오톡 안에서는 설치할 수 없어요. 휴대폰 기본 브라우저로 연 다음 설치해 주세요.</p>
-        <a href={`kakaotalk://web/openExternal?url=${encodeURIComponent(location.href)}`} className="btn-primary mt-3 w-full">
+        <a href={kakaoExternal()} className="btn-primary mt-3 w-full">
           브라우저로 열기
         </a>
       </>
@@ -154,8 +207,8 @@ export default function InstallGuide() {
     )
   } else if (prompt) {
     body = (
-      <button type="button" className="btn-primary w-full" onClick={install}>
-        설치하기
+      <button type="button" className="btn-primary w-full" onClick={install} data-track="앱 설치(안내창)">
+        지금 설치하기
       </button>
     )
   } else if (env === 'ios') {
