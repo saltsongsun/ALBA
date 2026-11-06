@@ -46,7 +46,7 @@ const patchJob = (b) => rest(`jobs?id=eq.${J}`, 'PATCH', b)
   await openJob()
   ok("당일 근무 시간: 큰 '출석 체크' + 근무 중·퇴근 숫자", (await phase()) === 'live' && (await acts.locator('a', { hasText: '출석 체크' }).getAttribute('href')).includes('view=check') && (await a.locator('[data-job-counts]').innerText()).includes('근무 중 1'))
   ok('큰 버튼 글자 한 줄', await oneLine(acts.locator('a', { hasText: '출석 체크' })))
-  await a.locator('[data-job-more] summary').click()
+  await a.locator('[data-job-more] [data-more-toggle]').click()
   await a.waitForTimeout(400)
   ok("더보기의 작은 '행사 종료'는 없어짐 (위의 큰 버튼으로)", (await a.locator('[data-job-more]').getByRole('button', { name: '행사 종료', exact: true }).count()) === 0)
 

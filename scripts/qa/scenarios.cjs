@@ -75,6 +75,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   await rest(MF, 'jobs', 'POST', { ...job, id: J4, title: '우천 취소 테스트 행사', start_date: tomorrow, end_date: tomorrow, status: 'open', applications: [{ status: 'approved' }] })
   await rest(MF, 'applications', 'POST', { id: '11111111-0000-4000-8000-0000000000a4', job_id: J4, user_id: WK, status: 'approved', available_dates: null, position: null, message: null, admin_memo: null, decided_at: null, created_at: new Date().toISOString(), job: { ...job, id: J4, title: '우천 취소 테스트 행사', start_date: tomorrow, end_date: tomorrow }, user: workerLite })
   await af.goto(`${F}/admin/jobs/${J4}`)
+  await af.locator('[data-job-more] [data-more-toggle]').click()
   await af.getByText(/행사가 취소됐나요/).click()
   await af.locator('textarea[name=reason]').fill('태풍 예보로 주최측이 행사를 취소했습니다.')
   await shot(af, '6-cancel-form', 'textarea[name=reason]')

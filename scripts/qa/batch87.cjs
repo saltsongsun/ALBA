@@ -82,7 +82,7 @@ const status = async () => (await rest(`jobs?id=eq.${J}`))[0]?.status
   ok("관리자 안내: '… 모두 퇴근해서 행사를 종료했어요'", (await a.getByText('모두 퇴근해서 행사를 종료했어요').count()) >= 1)
   ok("공고 상태가 '행사 종료'(done)로", (await status()) === 'done')
   await a.goto(`${D}/admin/jobs/${J}`)
-  await a.locator('[data-job-more] summary').click()
+  await a.locator('[data-job-more] [data-more-toggle]').click()
   await a.getByRole('button', { name: '모집 열기' }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
   ok("되돌리기: 더보기에 '모집 열기'", await a.getByRole('button', { name: '모집 열기' }).isVisible())
 

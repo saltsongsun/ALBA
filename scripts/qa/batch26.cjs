@@ -80,7 +80,7 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   const more = m.locator('[data-job-more]')
   await more.waitFor({ timeout: 10000 }).catch(() => {})
   ok("공고 화면: '복사해서 새 공고'는 접혀 있음", !(await more.getByRole('button', { name: '복사해서 새 공고' }).isVisible()))
-  await more.locator('summary').click()
+  await more.locator('[data-more-toggle]').click()
   // (펼치는 움직임이 끝날 때까지 기다림)
   const shown = (name) => more.getByRole('button', { name }).waitFor({ state: 'visible', timeout: 3000 }).then(() => true, () => false)
   ok("'더보기'를 누르면 복사·마감·종료·삭제", (await shown('복사해서 새 공고')) && (await shown('삭제')))

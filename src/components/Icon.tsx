@@ -157,6 +157,14 @@ const PATHS = {
     </>
   ),
   trash: <path d="M4.5 7h15M10 11v6M14 11v6M6 7l1 11.5a2 2 0 0 0 2 1.5h6a2 2 0 0 0 2-1.5L18 7M9.5 7V5a1.5 1.5 0 0 1 1.5-1.5h2A1.5 1.5 0 0 1 14.5 5v2" />,
+  phone: <path d="M6.6 3.8h2.6l1.4 4.1-2 1.4a12 12 0 0 0 6.1 6.1l1.4-2 4.1 1.4v2.6a2 2 0 0 1-2.1 2A16.5 16.5 0 0 1 4.6 5.9a2 2 0 0 1 2-2.1z" />,
+  more: (
+    <>
+      <circle cx="5.5" cy="12" r="1.3" />
+      <circle cx="12" cy="12" r="1.3" />
+      <circle cx="18.5" cy="12" r="1.3" />
+    </>
+  ),
 } as const
 
 export type IconName = keyof typeof PATHS

@@ -3,7 +3,7 @@ import { bulkClockOut, duplicateJob, endEvent, setJobStatus } from '@/app/action
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { jobPhase } from '@/lib/jobPhase'
 import { shiftOf } from '@/lib/pay'
-import { dateList, fmtDate, hhmm } from '@/lib/time'
+import { dateList, fmtDate, hhmm, kstAt } from '@/lib/time'
 import type { Job } from '@/lib/types'
 
 /** 근무자 화면의 '근무 시작·종료'처럼 크게 (지금 할 일 하나) */
@@ -34,7 +34,14 @@ export default function JobActions({ job, today, working, finished = 0, absent =
   if (phase === 'cancelled') return null
   const size = compact ? 'py-3 text-base' : 'py-4 text-lg'
   const base = `/admin/jobs/${job.id}`
-  const counts = !compact && (phase === 'live' || phase === 'dayOver' || phase === 'lastOver') && (
+  // 당일이라도 시작 시각 전에는 '미출근'·'대신 확정'·'일찍 끝내기'를 보이지 않음 (사용자 지적 2026-11-07: 19:30 행사인데 낮에 '미출근 13')
+  const startText = hhmm(shiftOf(job).start_time)
+  const started = phase !== 'live' || today > job.end_date || working + finished > 0 || Date.now() >= kstAt(today, shiftOf(job).start_time).getTime()
+  const counts = !compact && (phase === 'live' || phase === 'dayOver' || phase === 'lastOver') && (!started ? (
+    <p className="text-center text-sm font-semibold text-sub" data-job-counts data-before-start>
+      오늘 {startText} 시작 · 아직 출근 전이에요
+    </p>
+  ) : (
     <p className="flex items-center justify-center gap-3 text-sm font-semibold tabular-nums" data-job-counts>
       <span className="text-emerald-700">근무 중 {working}</span>
       <span className="text-line">|</span>
@@ -46,7 +53,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
         </>
       )}
     </p>
-  )
+  ))
   const endText = hhmm(shiftOf(job).end_time)
   return (
     <div data-job-actions={phase} className="space-y-2">
@@ -98,13 +105,13 @@ export default function JobActions({ job, today, working, finished = 0, absent =
             출석 체크{compact && working > 0 ? ` · 근무 중 ${working}명` : ''}
           </Link>
           {/* 시나리오: 당일 결원 → 대기 지원자로 바로 대신 확정 */}
-          {!compact && absent > 0 && waiting > 0 && (
+          {!compact && started && absent > 0 && waiting > 0 && (
             <Link href={`${base}?tab=apps`} className="btn-soft w-full" data-substitute data-track="대기자로 대신 확정">
               미출근 {absent}명 · 대기자 {waiting}명 대신 확정
             </Link>
           )}
           {/* 시나리오: 비·사고로 마지막 날 일찍 끝냄 → 근무 중인 사람은 지금 시각으로 종료하고 행사 종료 */}
-          {!compact && today === job.end_date && (
+          {!compact && started && today === job.end_date && (
             <form action={endEvent.bind(null, job.id)}>
               <ConfirmSubmit className="btn-gray w-full" confirmText="한 번 더 누르면 지금 모두 종료" track="행사 일찍 끝내기">
                 행사 일찍 끝내기

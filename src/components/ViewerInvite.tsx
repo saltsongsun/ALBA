@@ -11,12 +11,13 @@ export default function ViewerInvite({ jobId, viewers, canInvite }: { jobId: str
   const [state, action] = useActionState(inviteToJob.bind(null, jobId), null)
   const notApplied = viewers.filter((v) => !v.applied)
   return (
-    <details className="mt-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm">
-      <summary className="cursor-pointer font-semibold text-sub">
+    // 상자 없이 한 줄 (펼치면 목록만 연한 바탕) · 사용자 지적 2026-11-07 '지저분하다'
+    <details className="group/viewers mt-1 text-sm">
+      <summary className="cursor-pointer text-sub">
         {/* '지원 안 함'은 본 가입자 안의 사람 수 (따로 더하는 숫자가 아님) */}
         본 가입자 {viewers.length}명 · 그중 지원 안 함 {notApplied.length}명
       </summary>
-      <ul className="mt-2 divide-y divide-line">
+      <ul className="mt-1.5 divide-y divide-line rounded-xl bg-bg px-3">
         {viewers.map((v) => (
           <li key={v.id} className="flex items-center justify-between gap-2 py-1.5">
             <span className="min-w-0 truncate">

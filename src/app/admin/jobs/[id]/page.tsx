@@ -7,6 +7,7 @@ import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
 import JobActions from '@/components/JobActions'
+import JobTools from '@/components/JobTools'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { getSettings, wageTotal } from '@/lib/data'
 import { won } from '@/lib/format'
@@ -47,6 +48,9 @@ export type WorkerLite = {
   specialty?: string | null
 }
 export type AppRow = Application & { user: WorkerLite }
+
+/** 더보기 안의 한 줄 메뉴 */
+const MENU_ROW = 'flex w-full items-center gap-2 px-3.5 py-3 text-left text-sm font-semibold transition hover:bg-bg active:bg-bg'
 
 const STATUS_LABEL: Record<Job['status'], string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
 
@@ -191,9 +195,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
 
       <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
         <div className="card">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className={`badge ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{STATUS_LABEL[job.status]}</span>
-            {job.event_name && <span className="text-sm font-semibold text-mute">{job.event_name}</span>}
+          <div className="flex items-center gap-2">
+            <span className={`badge shrink-0 ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{STATUS_LABEL[job.status]}</span>
+            {job.event_name && <span className="min-w-0 truncate text-sm font-semibold text-mute">{job.event_name}</span>}
+            <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm ml-auto shrink-0" data-job-edit>
+              <Icon name="pen" /> 수정
+            </Link>
           </div>
           {job.audience === 'expert' && <span className="badge mt-1 bg-violet-50 text-violet-700">🎛️ 전문가 의뢰 · 용역계약 · 사업소득 3.3%</span>}
           <h1 className="mt-1 text-2xl font-extrabold">{job.title}</h1>
@@ -253,105 +260,106 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
               </Link>
             </div>
           )}
-          {/* 지금 할 일 하나를 크게 (근무자의 근무 시작·종료처럼) */}
-          {remindRead && (
-            <div className="mt-4 rounded-xl bg-bg px-3.5 py-2.5 text-sm" data-remind-read>
-              <p className="font-semibold">
-                ⏰ 전날 안내 확인 <b className={remindRead.unread.length ? 'text-amber-700' : 'text-emerald-700'}>{remindRead.total - remindRead.unread.length}</b>/{remindRead.total}명
-                {remindRead.unread.length === 0 && <span className="text-emerald-700"> · 모두 읽었어요</span>}
-              </p>
-              {remindRead.unread.length > 0 && (
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <span className="text-xs text-sub">안 읽음 · 눌러서 전화</span>
-                  {remindRead.unread.map((uid) => {
-                    const u = users.get(uid)
-                    const tel = (u?.phone ?? '').replace(/\D/g, '')
-                    return tel ? (
-                      <a key={uid} href={`tel:${tel}`} className="contact-btn bg-white text-ink ring-1 ring-line" aria-label={`${u?.name} ${phoneFmt(u?.phone)} 전화`} data-unread-person>
-                        📞 {u?.name}
-                      </a>
-                    ) : null
-                  })}
-                </div>
-              )}
-            </div>
-          )}
-          <div className="mt-4">
-            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} approved={approved.length} headcount={job.headcount} />
-          </div>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm">
-              수정
-            </Link>
-            {/* 확정자 + 담당자 단체방 */}
-            {job.status !== 'draft' && (
-              <Link href={`/admin/chat/room/${job.id}`} className="btn-soft btn-sm">
-                <Icon name="users" /> 단체방
-              </Link>
-            )}
-            {!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && (
-              <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}&shift=1#shift`} className="btn-soft btn-sm">
-                <Icon name="clock" /> 근무시간 변경
-              </Link>
-            )}
-            {/* 행사 당일: 새 인력이 QR만 찍으면 가입·로그인 후 바로 확정 */}
-            {['open', 'closed'].includes(job.status) && dates.includes(today) && (
-              <Link href={`/admin/jobs/${job.id}/qr`} className="btn-sm btn bg-rose-50 text-rose-600">
-                <Icon name="qr" /> 긴급 투입 QR
-              </Link>
-            )}
-            {/* 자주 안 쓰는 것은 접어 둠 (복사·모집 열기/마감·삭제) · 행사 종료는 위의 큰 버튼 */}
-            <details className="group/more open:basis-full" data-job-more>
-              <summary className="btn-gray btn-sm cursor-pointer">더보기</summary>
-              {/* 접혀 있을 때는 자리도 차지하지 않게 */}
-              <div className="mt-2 hidden flex-wrap gap-2 group-open/more:flex">
-                <form action={duplicateJob.bind(null, job.id)}>
-                  <SubmitButton className="btn-gray btn-sm">복사해서 새 공고</SubmitButton>
-                </form>
-                {job.status !== 'open' && job.status !== 'cancelled' && (
-                  <form action={setJobStatus.bind(null, job.id, 'open')}>
-                    <SubmitButton className="btn-gray btn-sm">모집 열기</SubmitButton>
-                  </form>
+          {/* 지금 할 일: 전날 안내 확인 → 큰 버튼 → 도구 줄 (정보와 줄로 나눔) */}
+          <div className="mt-4 space-y-3 border-t border-line pt-4" data-job-now>
+            {/* 시나리오: 행사 전날 밤 '확정자가 진짜 올까?' → 전날 안내를 읽었는지, 안 읽은 사람에게 바로 전화 */}
+            {remindRead && (
+              <div className="rounded-2xl bg-bg px-3.5 py-3 text-sm" data-remind-read>
+                <p className="flex items-center justify-between gap-2">
+                  <span className="min-w-0 font-semibold">
+                    <Icon name="bell" className="text-mute" /> 전날 안내 확인{' '}
+                    <b className={`tabular-nums ${remindRead.unread.length ? 'text-amber-600' : 'text-emerald-600'}`}>{remindRead.total - remindRead.unread.length}</b>/{remindRead.total}명
+                  </span>
+                  <span className={`shrink-0 text-xs font-semibold ${remindRead.unread.length ? 'text-sub' : 'text-emerald-600'}`}>
+                    {remindRead.unread.length ? `안 읽음 ${remindRead.unread.length}명` : '모두 읽었어요'}
+                  </span>
+                </p>
+                {remindRead.unread.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {remindRead.unread.map((uid) => {
+                      const u = users.get(uid)
+                      const tel = (u?.phone ?? '').replace(/\D/g, '')
+                      return tel ? (
+                        <a
+                          key={uid}
+                          href={`tel:${tel}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-ink ring-1 ring-line transition active:scale-95"
+                          aria-label={`${u?.name} ${phoneFmt(u?.phone)} 전화`}
+                          data-unread-person
+                        >
+                          <Icon name="phone" className="text-emerald-600" /> {u?.name}
+                        </a>
+                      ) : null
+                    })}
+                  </div>
                 )}
-                {job.status === 'open' && (
-                  <form action={setJobStatus.bind(null, job.id, 'closed')}>
-                    <SubmitButton className="btn-gray btn-sm">모집 마감</SubmitButton>
-                  </form>
-                )}
-                <form action={deleteJob.bind(null, job.id)}>
-                  <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 삭제?">
-                    삭제
-                  </ConfirmSubmit>
-                </form>
               </div>
-            </details>
+            )}
+            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} approved={approved.length} headcount={job.headcount} />
+            {/* 같은 크기 칸 한 줄 · 자주 안 쓰는 것(복사·모집·행사 취소·삭제)은 더보기 안에 · 행사 종료는 위의 큰 버튼 */}
+            <JobTools
+              tools={[
+                ...(job.status !== 'draft' ? [{ href: `/admin/chat/room/${job.id}`, icon: 'users' as const, label: '단체방' }] : []),
+                ...(!['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today ? [{ href: `/admin/jobs/${job.id}?tab=att&date=${date}&shift=1#shift`, icon: 'clock' as const, label: '시간 변경' }] : []),
+                // 행사 당일: 새 인력이 QR만 찍으면 가입·로그인 후 바로 확정
+                ...(['open', 'closed'].includes(job.status) && dates.includes(today) ? [{ href: `/admin/jobs/${job.id}/qr`, icon: 'qr' as const, label: '긴급 QR', tone: 'rose' as const }] : []),
+              ]}
+              more={
+                <div className="divide-y divide-line overflow-hidden rounded-xl ring-1 ring-line">
+                  <form action={duplicateJob.bind(null, job.id)}>
+                    <SubmitButton className={MENU_ROW} pendingText="복사하는 중…">
+                      <Icon name="copy" className="text-mute" /> 복사해서 새 공고
+                    </SubmitButton>
+                  </form>
+                  {job.status !== 'open' && job.status !== 'cancelled' && (
+                    <form action={setJobStatus.bind(null, job.id, 'open')}>
+                      <SubmitButton className={MENU_ROW}>
+                        <Icon name="megaphone" className="text-mute" /> 모집 열기
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {job.status === 'open' && (
+                    <form action={setJobStatus.bind(null, job.id, 'closed')}>
+                      <SubmitButton className={MENU_ROW}>
+                        <Icon name="check" className="text-mute" /> 모집 마감
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {/* 비·주최측 사정 등으로 행사가 열리지 않을 때: 사유와 함께 확정·지원자 모두에게 알림 (아직 근무 기록이 없을 때만) */}
+                  {canCancel && (
+                    <details className="px-3.5 py-3">
+                      <summary className="cursor-pointer text-sm font-semibold text-rose-600">행사가 취소됐나요? (우천·주최측 사정 등)</summary>
+                      <form action={cancelEvent.bind(null, job.id)} className="mt-2.5 space-y-2.5">
+                        <textarea
+                          name="reason"
+                          required
+                          maxLength={200}
+                          rows={2}
+                          className="input text-sm"
+                          placeholder="취소 사유 (근무자에게 그대로 전달돼요) 예: 태풍 예보로 주최측이 행사를 취소했습니다."
+                        />
+                        <p className="hint">
+                          확정 {approved.length}명 · 대기 {waiting.length}명에게 앱 문의함과 휴대폰 알림으로 알리고, 지원은 모두 취소돼요. 되돌릴 수 없어요.
+                        </p>
+                        <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 취소하고 알릴까요?">
+                          행사 취소하고 알리기
+                        </ConfirmSubmit>
+                      </form>
+                    </details>
+                  )}
+                  <form action={deleteJob.bind(null, job.id)}>
+                    <ConfirmSubmit className={`${MENU_ROW} text-rose-600`} confirmText="정말 삭제?">
+                      <Icon name="trash" /> 삭제
+                    </ConfirmSubmit>
+                  </form>
+                </div>
+              }
+            />
           </div>
           {job.status === 'cancelled' && (
             <p className="mt-3 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-800">
               취소한 행사예요. 지원·확정은 모두 취소됐고 근무자에게 알렸어요. 다시 모집하려면 ‘더보기 → 복사해서 새 공고’를 눌러 주세요.
             </p>
-          )}
-          {/* 비·주최측 사정 등으로 행사가 열리지 않을 때: 사유와 함께 확정·지원자 모두에게 알림 */}
-          {canCancel && (
-            <details className="mt-3 rounded-xl border border-line px-3.5 py-2.5">
-              <summary className="cursor-pointer text-sm font-semibold text-rose-600">행사가 취소됐나요? (우천·주최측 사정 등)</summary>
-              <form action={cancelEvent.bind(null, job.id)} className="mt-2.5 space-y-2.5">
-                <textarea
-                  name="reason"
-                  required
-                  maxLength={200}
-                  rows={2}
-                  className="input text-sm"
-                  placeholder="취소 사유 (근무자에게 그대로 전달돼요) 예: 태풍 예보로 주최측이 행사를 취소했습니다."
-                />
-                <p className="hint">
-                  확정 {approved.length}명 · 대기 {waiting.length}명에게 앱 문의함과 휴대폰 알림으로 알리고, 지원은 모두 취소돼요. 되돌릴 수 없어요.
-                </p>
-                <ConfirmSubmit className="btn-danger btn-sm" confirmText="정말 취소하고 알릴까요?">
-                  행사 취소하고 알리기
-                </ConfirmSubmit>
-              </form>
-            </details>
           )}
         </div>
 
