@@ -118,6 +118,29 @@ export function PhotoField() {
   const [data, setData] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  // 사진 없이 '가입하기'를 누르면 (가입 폼이 'need-photo'를 보냄): 서버까지 가지 않고 이 칸으로 · 빨간 표시 · 흔들림
+  // (인사이트: 가입을 누른 뒤에야 맨 아래에 '얼굴 사진을 찍거나 골라 주세요'가 떠서 어디를 고쳐야 하는지 찾아 헤맴)
+  const [need, setNeed] = useState(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = boxRef.current
+    if (!el) return
+    const onNeed = () => {
+      setNeed(true)
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+      el.scrollIntoView({ behavior: still ? 'auto' : 'smooth', block: 'center' })
+      if (!still) {
+        el.classList.remove('animate-shake')
+        void el.offsetWidth
+        el.classList.add('animate-shake')
+      }
+    }
+    el.addEventListener('need-photo', onNeed)
+    return () => el.removeEventListener('need-photo', onNeed)
+  }, [])
+  useEffect(() => {
+    if (data) setNeed(false)
+  }, [data])
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -138,14 +161,14 @@ export function PhotoField() {
   )
 
   return (
-    <div>
+    <div ref={boxRef} data-photo-field data-invalid={need || undefined}>
       <p className="label">얼굴 사진</p>
       <div className="flex items-center gap-4">
         {/* 동그라미를 눌러도 고르기 */}
         <label
           aria-label="얼굴 사진 고르기"
           className={`grid size-24 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full transition active:scale-95 ${
-            data ? 'ring-2 ring-brand-500 ring-offset-2' : 'border-2 border-dashed border-line bg-bg text-mute'
+            data ? 'ring-2 ring-brand-500 ring-offset-2' : need ? 'border-2 border-dashed border-rose-400 bg-rose-50 text-rose-500' : 'border-2 border-dashed border-line bg-bg text-mute'
           } ${busy ? 'animate-pulse' : ''}`}
         >
           {input()}
@@ -177,6 +200,11 @@ export function PhotoField() {
       </div>
       <input type="hidden" name="photo" value={data ?? ''} />
       {err && <p className="mt-2 text-sm font-medium text-rose-600">{err}</p>}
+      {need && !err && (
+        <p role="alert" className="mt-2 animate-pop text-sm font-semibold text-rose-600" data-photo-need>
+          가입하려면 얼굴 사진 1장이 필요해요
+        </p>
+      )}
     </div>
   )
 }

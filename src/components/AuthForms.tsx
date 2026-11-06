@@ -236,6 +236,15 @@ const VENDOR_REQUIRED: [string, string][] = [
   ['agree_third', '제3자 제공 동의'],
 ]
 
+/** 얼굴 사진 칸이 있는 가입 폼: 사진 없이 제출하면 서버로 보내지 않고 사진 칸으로 (칸이 화면 위쪽이라 아래 오류 문구로는 찾기 어려움) */
+const needPhotoFirst = (e: React.FormEvent<HTMLFormElement>) => {
+  const field = e.currentTarget.querySelector('[data-photo-field]')
+  const photo = e.currentTarget.elements.namedItem('photo')
+  if (!field || !(photo instanceof HTMLInputElement) || photo.value) return
+  e.preventDefault()
+  field.dispatchEvent(new Event('need-photo'))
+}
+
 /** 생년월일 후보 (주민번호 앞자리 + 뒷자리 첫 숫자로 세기 · 뒷자리가 아직 없으면 1900·2000년대 둘 다) */
 function birthCandidates(rrn1: string, rrn2: string): string[] {
   if (!/^\d{6}$/.test(rrn1)) return []
@@ -382,7 +391,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
   // 계좌번호 몇 자리인지 바로 보여 주려고 (칸 자체는 그대로 폼이 읽음)
   const [acct, setAcct] = useState('')
   return (
-    <form action={action} onReset={keepInputs} className="space-y-5">
+    <form action={action} onReset={keepInputs} onSubmit={needPhotoFirst} className="space-y-5">
       <Honeypot />
       <SignupProgress required={vendor ? VENDOR_REQUIRED : PERSON_REQUIRED} />
       <input type="hidden" name="next" value={next} />
