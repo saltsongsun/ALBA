@@ -1,4 +1,5 @@
 import Icon from '@/components/Icon'
+import PayTools from '@/components/PayTools'
 import Link from 'next/link'
 import { announcePayday, nudgeWorkers, setAllPaid, setPaid } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
@@ -168,18 +169,13 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             </form>
           )}
           {unpaid.length > 0 && <TransferCopy jobId={job.id} />}
-          <Link href={`/admin/jobs/${job.id}/edit`} className="btn-gray btn-sm">
-            급여 설정 바꾸기
-          </Link>
-          <a href={`/admin/export/settlement?job=${job.id}`} className="btn-primary btn-sm">
-            정산표 엑셀(CSV)
-          </a>
-          {/* 일한 사람 모두의 임금명세서를 한 사람에 한 장씩 */}
-          {rows.length > 0 && (
-            <Link href={`/print/payslip/${job.id}`} className="btn-gray btn-sm">
-              <Icon name="printer" /> 명세서 한 번에 인쇄
-            </Link>
-          )}
+          {/* 급여 설정 · 정산표 엑셀 · 명세서 인쇄 (같은 크기 칸 한 줄 · 안 끝난 근무가 있으면 엑셀은 한 번 멈춤) */}
+          <PayTools
+            settingsHref={`/admin/jobs/${job.id}/edit`}
+            csvHref={`/admin/export/settlement?job=${job.id}`}
+            printHref={rows.length > 0 ? `/print/payslip/${job.id}` : null}
+            incomplete={incomplete}
+          />
         </div>
       </div>
       {noAccount.length > 0 && (
