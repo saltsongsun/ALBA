@@ -160,6 +160,14 @@ export function ClockPanel({
   // 현장 위치 확인에 연달아 막힌 횟수: 두 번째부터는 같은 버튼을 또 누르지 않게 출근 확인 요청 칸으로 데려감
   const [gpsFails, setGpsFails] = useState(0)
   const askBox = useRef<HTMLDivElement>(null)
+  // '근무 종료하러 가기'(/me#clock)로 왔으면 버튼을 화면 가운데로 (위에 카드가 많으면 영역 머리만 보이고 버튼은 화면 밖이던 것)
+  const mainBtn = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open || location.hash !== '#clock') return
+    const t = setTimeout(() => mainBtn.current?.scrollIntoView({ block: 'center' }), 60)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // 위치 권한이 이미 꺼져 있으면 누르기 전에 미리 알려 줌 (지원하는 브라우저만)
   useEffect(() => {
@@ -335,6 +343,7 @@ export function ClockPanel({
         </div>
       )}
       <button
+        ref={mainBtn}
         type="button"
         onClick={press}
         disabled={pending}

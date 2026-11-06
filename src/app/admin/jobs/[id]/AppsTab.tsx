@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addWorkerToJob, approveAllApplied, approveSelected, decideApplication, rejectWaiting } from '@/app/actions/admin'
+import { addWorkerToJob, approveAllApplied, approveSelected, decideApplication, holdApplication, rejectWaiting } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
@@ -38,6 +38,14 @@ function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어�
               확정
             </SubmitButton>
           )}
+        </form>
+      )}
+      {/* 보류: 근무자에게 알림 없이 따로 둠 (상태는 그대로 대기) */}
+      {a.status === 'applied' && (
+        <form action={holdApplication.bind(null, a.id, !a.held_at)} className={form}>
+          <SubmitButton className={btn(false)} pendingText="…" track={a.held_at ? '보류 풀기' : '보류'}>
+            {a.held_at ? '보류 풀기' : '보류'}
+          </SubmitButton>
         </form>
       )}
       {a.status === 'applied' && (
@@ -196,7 +204,10 @@ export default async function AppsTab({
       </>
     )
   }
-  const waiting = apps.filter((a) => a.status === 'applied').length
+  // 보류한 지원자는 '대기'에서 빼고 따로 (확정·미선발을 나중에 정함)
+  const isHeld = (a: AppRow) => a.status === 'applied' && !!a.held_at
+  const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at).length
+  const heldN = apps.filter(isHeld).length
   const approved = apps.filter((a) => a.status === 'approved')
   // 날짜별 확정 인원 (여러 날 행사는 사람마다 가능한 날이 달라서 날마다 셈)
   const dates = dateList(job.start_date, job.end_date)
@@ -252,7 +263,7 @@ export default async function AppsTab({
   // 휴대폰: 대기는 펼쳐 두고, 확정은 대기가 있으면 접어 둠, 미선발·취소는 접어 둠 (카드가 길어서)
   // 여러 명 골라 한 번에 확정 (대기 중인 지원자만)
   const pickBox = (a: AppRow) =>
-    a.status === 'applied' && waiting > 1 ? (
+    a.status === 'applied' && !a.held_at && waiting > 1 ? (
       <label className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg active:bg-bg" aria-label={`${a.user.name} 고르기`}>
         <input type="checkbox" name="app" value={a.id} form={BULK_FORM} data-minor={minorWarn(a) ? '1' : undefined} className="size-5 accent-brand-600" />
       </label>
@@ -278,7 +289,13 @@ export default async function AppsTab({
             {scores[a.user_id] && <StarAvg scores={scores[a.user_id]} />}
             {age != null && age < 18 && <span className="badge bg-rose-50 text-rose-600">연소자</span>}
             {minorWarn(a) && <span className="badge bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
-            <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+            {isHeld(a) ? (
+              <span className="badge ml-auto bg-violet-50 text-violet-700" data-held>
+                보류
+              </span>
+            ) : (
+              <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+            )}
           </div>
         </div>
         <p className="text-xs text-mute">
@@ -303,7 +320,8 @@ export default async function AppsTab({
     )
   }
   const groups: [string, AppRow[], boolean][] = [
-    ['대기', sorted.filter((a) => a.status === 'applied'), true],
+    ['대기', sorted.filter((a) => a.status === 'applied' && !a.held_at), true],
+    ['보류', sorted.filter(isHeld), waiting === 0],
     ['확정', sorted.filter((a) => a.status === 'approved'), waiting === 0],
     ['미선발·취소', sorted.filter((a) => a.status === 'rejected' || a.status === 'cancelled'), false],
   ]
@@ -318,7 +336,7 @@ export default async function AppsTab({
       </datalist>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
-          확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명
+          확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
         </p>
         <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`[${job.title}] `} />
         <div className="flex flex-wrap gap-2">
@@ -429,12 +447,12 @@ export default async function AppsTab({
           <div className="space-y-2 sm:hidden">
             {groups.map(([label, list, open]) =>
               list.length === 0 ? null : open ? (
-                <div key={label} className="stagger space-y-2">
+                <div key={label} className="stagger space-y-2" data-app-group={label}>
                   {label !== '대기' && <h3 className="pt-2 text-sm font-bold text-sub">{label} {list.length}명</h3>}
                   {list.map(mobileCard)}
                 </div>
               ) : (
-                <details key={label} className="pt-2">
+                <details key={label} className="pt-2" data-app-group={label}>
                   <summary className="cursor-pointer py-1 text-sm font-bold text-sub">
                     {label} {list.length}명
                   </summary>
@@ -506,7 +524,7 @@ export default async function AppsTab({
                       </td>
                       <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
                       <td>
-                        <span className={`badge ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+                        {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>}
                       </td>
                       <td className="whitespace-nowrap">
                         <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />

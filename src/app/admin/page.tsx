@@ -5,7 +5,7 @@ import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
-import { decideApplication, setJobStatus } from '@/app/actions/admin'
+import { decideApplication, holdApplication, setJobStatus } from '@/app/actions/admin'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -106,6 +106,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .from('applications')
       .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date, photo_at)').eq('company_id', admin.companyId)
       .eq('status', 'applied')
+      .is('held_at', null) // 보류한 지원자는 '확정 대기'에서 빼고 공고의 지원자 탭 '보류'에서
       .order('created_at', { ascending: false })
       .limit(30)
       .then(
@@ -390,7 +391,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </div>
       )}
       <ContactButtons phone={p.user.phone} name={p.user.name} />
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-3 gap-2">
         <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
           {isFull(p.job.id) ? (
             <ConfirmSubmit className="btn-primary w-full" confirmText="인원 다 찼어요 · 확정?">
@@ -402,9 +403,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             </SubmitButton>
           )}
         </form>
+        {/* 보류: 근무자에게 알림 없이 따로 (공고의 지원자 탭 '보류'로) */}
+        <form action={holdApplication.bind(null, p.id, true, 'dashboard')}>
+          <SubmitButton className="btn-gray w-full" pendingText="…" track="보류(대시보드)">
+            보류
+          </SubmitButton>
+        </form>
         <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')}>
           {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
-          <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림 보낼까요?">
+          <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림?">
             미선발
           </ConfirmSubmit>
         </form>

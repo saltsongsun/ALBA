@@ -481,7 +481,8 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
   must(
     await db()
       .from('applications')
-      .update({ status, decided_at: status === 'applied' ? null : new Date().toISOString() })
+      // 확정·미선발·대기로 정하면 보류는 풀림
+      .update({ status, decided_at: status === 'applied' ? null : new Date().toISOString(), held_at: null })
       .eq('id', appId),
   )
   if (status === 'approved') {
@@ -531,7 +532,8 @@ export async function approveAllApplied(jobId: string) {
   const job = await companyJob(admin, jobId)
   if (!job) return
   const apps = must(
-    await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('status', 'applied'),
+    // 보류한 지원자는 '모두 확정'에서 빼고
+    await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('status', 'applied').is('held_at', null),
   ) as { id: string; user_id: string }[]
   if (!apps.length) return
   must(
@@ -546,6 +548,26 @@ export async function approveAllApplied(jobId: string) {
 }
 
 /** 지원자 탭에서 고른 사람만 한 번에 확정 (대기 중인 지원만) */
+/**
+ * 지원자 보류 / 보류 풀기 (사용자 요청 2026-11-06 "확정과 미선발 외에도 보류 · 근무자에게는 알림 가지 않게").
+ * 상태는 그대로 '지원'(applied) — 근무자 화면은 계속 '검토 중'이고 알림·문의함 기록 없음. 관리자 화면에서만 '보류' 칸으로 모음
+ */
+export async function holdApplication(appId: string, hold: boolean, from?: 'dashboard' | FormData) {
+  const admin = await requireAdmin()
+  if (!isUuid(appId)) return
+  const app = await companyRow<{ id: string; job_id: string; user_id: string; company_id: string; status: string }>(admin, 'applications', appId, 'id, job_id, user_id, status')
+  if (!app) return
+  const path = from === 'dashboard' ? '/admin' : `/admin/jobs/${app.job_id}?tab=apps`
+  if (app.status !== 'applied') back(path, '대기 중인 지원자만 보류할 수 있어요.')
+  must(await db().from('applications').update({ held_at: hold ? new Date().toISOString() : null }).eq('id', appId).eq('status', 'applied'))
+  await audit(admin.id, hold ? 'application.hold' : 'application.unhold', app.user_id, app.job_id, admin.companyId)
+  const { data: u } = await db().from('users').select('name').eq('id', app.user_id).maybeSingle()
+  const name = (u as { name: string } | null)?.name ?? '지원자'
+  revalidatePath(`/admin/jobs/${app.job_id}`)
+  revalidatePath('/admin')
+  back(path, hold ? `${name}님 보류 · 근무자에게는 알리지 않았어요` : `${name}님 보류를 풀었어요 · 다시 대기`)
+}
+
 export async function approveSelected(jobId: string, form: FormData) {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
@@ -585,7 +607,8 @@ export async function rejectWaiting(jobId: string) {
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=apps`
   const apps = must(
-    await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('company_id', admin.companyId).eq('status', 'applied'),
+    // 보류한 지원자는 빼고 (보류는 관리자가 따로 정함)
+    await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('company_id', admin.companyId).eq('status', 'applied').is('held_at', null),
   ) as { id: string; user_id: string }[]
   if (!apps.length) back(path, '대기 중인 지원자가 없어요.')
   must(

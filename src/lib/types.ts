@@ -148,6 +148,8 @@ export type Application = {
   /** 종이·외부 서비스로 받은 근로계약서를 관리자가 받았다고 표시한 시각 */
   contract_received_at: string | null
   decided_at: string | null
+  /** 관리자가 '보류'로 둔 시각 (상태는 그대로 'applied' — 근무자에게는 계속 검토 중, 알림 없음) */
+  held_at?: string | null
   created_at: string
 }
 

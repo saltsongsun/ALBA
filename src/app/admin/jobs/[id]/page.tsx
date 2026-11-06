@@ -136,7 +136,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     : dates.includes(today) ? today : dates[0]
   const tab = (['apps', 'att', 'pay', 'docs'] as const).find((t) => t === sp.tab) ?? (dates.includes(today) ? 'att' : 'apps')
   const approved = apps.filter((a) => a.status === 'approved')
-  const waiting = apps.filter((a) => a.status === 'applied')
+  // 보류한 지원자는 '대기'에서 빼고 (지원자 탭 '보류'에 따로)
+  const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
