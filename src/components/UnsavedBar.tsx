@@ -22,7 +22,18 @@ function snap(form: HTMLFormElement): string {
  * state: 폼의 useActionState 결과 (바뀔 때마다 저장 결과로 봄)
  * bar=false: 저장 버튼이 이미 늘 보이는 폼(공고 등록·수정)은 바 없이 '나가기 전 한 번 멈춤'만
  */
-export default function UnsavedBar({ formId, state, bar = true }: { formId: string; state: { error?: string } | null; bar?: boolean }) {
+export default function UnsavedBar({
+  formId,
+  state,
+  bar = true,
+  warnText = '저장하지 않았어요 · 한 번 더 누르면 나가요',
+}: {
+  formId: string
+  state: { error?: string } | null
+  bar?: boolean
+  /** bar=false일 때 나가려 하면 보이는 말 (서명: '서명 제출 전이에요 · …') */
+  warnText?: string
+}) {
   const base = useRef<string | null>(null)
   const savingRef = useRef(false)
   const [dirty, setDirty] = useState(false)
@@ -129,7 +140,7 @@ export default function UnsavedBar({ formId, state, bar = true }: { formId: stri
   if (!bar)
     return createPortal(
       <div data-vv="pin" data-unsaved="warn" role="status" className="no-print pointer-events-none fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top)+10px)] z-30 px-3">
-        <p className="glass mx-auto w-fit animate-shake rounded-full px-4 py-2.5 text-[13px] font-semibold text-amber-700">저장하지 않았어요 · 한 번 더 누르면 나가요</p>
+        <p className="glass mx-auto w-fit animate-shake rounded-full px-4 py-2.5 text-[13px] font-semibold text-amber-700">{warnText}</p>
       </div>,
       document.body,
     )

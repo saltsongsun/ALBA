@@ -815,7 +815,18 @@ export function SignForm({ docId, title, userId }: { docId: string; title: strin
       className="card no-print scroll-mt-20 space-y-4"
     >
       <h2 className="font-bold">근로자 서명</h2>
-      <SignaturePad name="signature" reuse={saved} invalid={needSign} onDrawn={() => setNeedSign(false)} />
+      <SignaturePad
+        name="signature"
+        reuse={saved}
+        invalid={needSign}
+        onDrawn={() => {
+          setNeedSign(false)
+          // 그린 서명을 '바뀐 값'으로 알림 → 제출 전에 다른 화면으로 나가려 하면 한 번 멈춤 (아래 UnsavedBar)
+          document.getElementById('sign')?.dispatchEvent(new Event('input', { bubbles: true }))
+        }}
+      />
+      {/* 실수 막기: 서명을 그려 놓고 아래 탭 등을 잘못 누르면 서명이 사라짐 → 한 번 멈추고 '한 번 더 누르면 나가요' */}
+      <UnsavedBar formId="sign" state={state} bar={false} warnText="서명 제출 전이에요 · 한 번 더 누르면 나가요" />
       <div className="space-y-1.5">
         <label
           data-sign-agree

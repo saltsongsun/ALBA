@@ -5,9 +5,14 @@
     'Malgun Gothic', system-ui, sans-serif;
   --color-brand-50: #eef4ff;
   --color-brand-100: #dbe6fe;
+  /* 200·300·400·800: 강조 테두리(ring-brand-300)·버튼 빛(shadow-brand-200)·점 깜빡임(bg-brand-400)에 쓰던 색이 없어서 검정·투명으로 나오던 것 */
+  --color-brand-200: #bfd3fe;
+  --color-brand-300: #93b4fb;
+  --color-brand-400: #6690f8;
   --color-brand-500: #3b6cf6;
   --color-brand-600: #2557e8;
   --color-brand-700: #1c45c4;
+  --color-brand-800: #1a3a9e;
   --color-ink: #191f28;
   --color-sub: #4e5968;
   --color-mute: #8b95a1;
@@ -36,9 +41,13 @@
 [data-mode='pro'] {
   --color-brand-50: #f4f0ff;
   --color-brand-100: #e7defe;
+  --color-brand-200: #d2c1fd;
+  --color-brand-300: #b59bfb;
+  --color-brand-400: #9a78f8;
   --color-brand-500: #8159f5;
   --color-brand-600: #6a3fe8;
   --color-brand-700: #5630c8;
+  --color-brand-800: #4628a2;
 }
 
 /* 애니메이션 모양 (@theme의 --animate-* 와 .stagger 등에서 사용) */
