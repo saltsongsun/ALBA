@@ -1,7 +1,7 @@
-// 커뮤니티 2단계: 함께 일한 사람 연결 ('동료 맺기')
-// · 같은 공고에서 함께 출근한 사람만 목록(별명, 함께 N번) · 요청 → 상대가 수락하면 동료
-// · 동료가 같은 공고에 지원했으면 공고 화면에 '🤝 동료 N명도 지원했어요' (서로 맺은 사람만)
-// · 함께 일한 적 없는 사람에게는 요청 안 됨 · 관리자는 못 씀 · 동료 끊기 · 360px
+// 함께 일한 사람: 한쪽으로만 '내 지원 보여 주기' (사용자 요청 "스토킹 걱정 · 내 지원 정보를 지정된 사람에게만 · 남의 정보를 내가 아는 건 아님")
+// · 같은 공고에서 함께 출근한 사람만 목록(별명, 함께 N번) · 내가 고른 사람에게만 내 지원이 보임 (요청·수락·알림 없음)
+// · 내가 보여 줘도 상대의 지원은 안 보임 · 상대 공고 화면에 '🤝 동료 N명도 지원했어요'는 상대가 고른 경우만
+// · 함께 일한 적 없는 사람은 못 고름 · 관리자는 못 씀 · 그만 보여 주기 · 360px
 // node scripts/qa/coworkers.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -51,30 +51,27 @@ const links = () => rest('coworker_links').then((r) => (Array.isArray(r) ? r : [
   ok('실명(김지원)·모르는 사람 안 보임', !(await w.locator('body').innerText()).includes('김지원') && !(await w.locator('body').innerText()).includes('모르는사람'))
   ok('360px: 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
-  // 아직 동료 아님 → 공고 화면에 표시 없음
-  await w.goto(`${D}/jobs/${J}`)
-  ok('맺기 전: 공고 화면에 동료 표시 없음', (await w.locator('[data-coworkers-on-job]').count()) === 0)
-
-  // ── 2. 요청 → 수락 ──
+  // ── 2. 한쪽으로만 보여 주기: 주차왕(W)이 새벽스태프(AP)에게 '내 지원 보여 주기' ──
   await w.goto(`${D}/community/coworkers`)
-  await w.getByRole('button', { name: '👋 동료 맺기' }).click()
-  ok('요청 보냄 → 요청 취소 버튼', await w.locator('[data-coworker=sent]').waitFor({ timeout: 8000 }).then(() => true, () => false))
-  ok('요청 기록 (주차왕 → 새벽스태프)', (await links()).some((l) => l.from_id === W && l.to_id === AP))
+  await w.getByRole('button', { name: '내 지원 보여 주기' }).click()
+  ok("누르면 '✓ 보여 주는 중'", await w.locator('[data-coworker=sharing]').waitFor({ timeout: 8000 }).then(() => true, () => false))
+  ok('기록: 주차왕 → 새벽스태프 (한 줄만)', (await links()).some((l) => l.from_id === W && l.to_id === AP) && !(await links()).some((l) => l.from_id === AP && l.to_id === W))
+  // 내가 보여 줘도 남의 지원은 안 보임 (새벽스태프도 이 공고에 지원했지만)
   await w.goto(`${D}/jobs/${J}`)
-  ok('한쪽만 요청: 아직 공고 화면 표시 없음', (await w.locator('[data-coworkers-on-job]').count()) === 0)
+  ok('내가 보여 줘도 상대의 지원은 안 보임', (await w.locator('[data-coworkers-on-job]').count()) === 0)
 
+  // 받은 쪽: 요청·수락 없음, 상대가 고른 사실만 (상대의 선택)
   const ap = await pg(AP)
   await ap.goto(`${D}/community/coworkers`)
-  ok('받은 쪽: 동료 맺기를 원해요 + 받은 요청 1', (await see(ap, '동료 맺기를 원해요')) && /받은 요청\s*1/.test(await ap.locator('[data-coworker-summary]').innerText()))
-  await ap.getByRole('button', { name: '수락' }).click()
-  ok('수락 → 🤝 동료', await ap.locator('[data-coworker=linked]').waitFor({ timeout: 8000 }).then(() => true, () => false))
-  ok('동료 1명 표시', /동료\s*1명/.test(await ap.locator('[data-coworker-summary]').innerText()))
+  await ap.locator('[data-coworker-list]').waitFor({ timeout: 10000 }).catch(() => {})
+  ok("받은 쪽: '나에게 지원 공고를 보여 줘요' · 수락 버튼·요청 배지 없음", (await ap.locator('[data-shares-with-me]').count()) === 1 && (await ap.getByRole('button', { name: '수락' }).count()) === 0 && !(await ap.locator('body').innerText()).includes('요청'))
+  ok('받은 쪽은 아무것도 안 했으니 자기 지원은 비공개 그대로', (await ap.locator('[data-coworker=sharing]').count()) === 0)
 
-  // ── 3. 공고 화면: 동료도 지원했어요 ──
-  await w.goto(`${D}/jobs/${J}`)
-  const pal = w.locator('[data-coworkers-on-job]')
-  ok('공고 화면: 🤝 동료 1명도 지원했어요 · 새벽스태프', (await pal.count()) === 1 && (await pal.innerText()).includes('동료 1명') && (await pal.innerText()).includes('새벽스태프'), await pal.innerText().catch(() => ''))
-  ok('360px: 공고 화면 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
+  // ── 3. 공고 화면: 보여 준 사람의 지원만 ──
+  await ap.goto(`${D}/jobs/${J}`)
+  const pal = ap.locator('[data-coworkers-on-job]')
+  ok('새벽스태프의 공고 화면: 🤝 동료 1명도 지원했어요 · 주차왕 (주차왕이 고름)', (await pal.count()) === 1 && (await pal.innerText()).includes('동료 1명') && (await pal.innerText()).includes('주차왕'), await pal.innerText().catch(() => ''))
+  ok('360px: 공고 화면 옆으로 안 밀림', await ap.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 4. 함께 일한 적 없는 사람에게는 요청 안 됨 ──
   const before = (await links()).length
@@ -91,15 +88,15 @@ const links = () => rest('coworker_links').then((r) => (Array.isArray(r) ? r : [
   await ad.goto(`${D}/community/coworkers`)
   ok('관리자: 쓸 수 없다는 안내', await see(ad, '쓸 수 없어요'))
 
-  // ── 6. 동료 끊기 (내 쪽만) ──
+  // ── 6. 그만 보여 주기 (내 쪽만 · 알림 없음) ──
   await w.goto(`${D}/community/coworkers`)
-  const cut = w.locator('[data-coworker=linked] form button')
-  await cut.click()
-  await cut.click()
-  await w.locator('[data-coworker=received]').waitFor({ timeout: 8000 }).catch(() => {})
-  ok('끊기: 내 쪽 연결만 지움', !(await links()).some((l) => l.from_id === W && l.to_id === AP) && (await links()).some((l) => l.from_id === AP && l.to_id === W))
-  await w.goto(`${D}/jobs/${J}`)
-  ok('끊은 뒤: 공고 화면 표시 없음', (await w.locator('[data-coworkers-on-job]').count()) === 0)
+  const stop = w.locator('[data-coworker=sharing] form button')
+  await stop.click()
+  await stop.click()
+  await w.locator('[data-coworker=none]').waitFor({ timeout: 8000 }).catch(() => {})
+  ok('그만 보여 주기: 기록 지움', !(await links()).some((l) => l.from_id === W && l.to_id === AP))
+  await ap.goto(`${D}/jobs/${J}`)
+  ok('그만 보여 준 뒤: 상대 공고 화면에서도 사라짐', (await ap.locator('[data-coworkers-on-job]').count()) === 0)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

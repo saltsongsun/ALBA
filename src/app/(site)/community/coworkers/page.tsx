@@ -10,12 +10,14 @@ import { fmtDate, fmtDateRange } from '@/lib/time'
 
 export const metadata: Metadata = { title: '함께 일한 사람' }
 
-/** 함께 일한 사람: 같은 행사에서 함께 출근한 근무자(별명) + 동료 맺기 */
+/**
+ * 함께 일한 사람: 같은 행사에서 함께 출근한 근무자(별명).
+ * '내 지원 공고 보여 주기'는 한쪽으로만: 내가 고른 사람에게만 내 지원이 보이고, 남의 지원은 그 사람이 나를 골랐을 때만 보임 (요청·알림 없음)
+ */
 export default async function CoworkersPage() {
   const user = await requireUser('/community/coworkers')
   const [list, palJobs] = canWrite(user) ? await Promise.all([coworkers(user.id), jobsWithCoworkers(user.id)]) : [[], []]
-  const received = list.filter((c) => c.state === 'received')
-  const linked = list.filter((c) => c.state === 'linked').length
+  const sharing = list.filter((c) => c.mine).length
 
   return (
     <div className="space-y-4">
@@ -24,7 +26,7 @@ export default async function CoworkersPage() {
       </Link>
       <div>
         <h1 className="text-2xl font-extrabold">함께 일한 사람</h1>
-        <p className="mt-1 text-sm text-sub">같은 행사에서 함께 출근한 사람이에요. 서로 &lsquo;동료 맺기&rsquo;를 하면 같은 공고에 지원했을 때 알 수 있어요.</p>
+        <p className="mt-1 text-sm text-sub">같은 행사에서 함께 출근한 사람이에요. 고른 사람에게만 내가 지원한 공고가 보여요(별명으로). 상대에게 알림은 가지 않아요.</p>
       </div>
       {list.length > 0 && (
         <p className="flex gap-3 text-sm font-semibold" data-coworker-summary>
@@ -32,19 +34,14 @@ export default async function CoworkersPage() {
             함께한 사람 <b className="text-brand-700 tabular-nums">{list.length}</b>명
           </span>
           <span>
-            🤝 동료 <b className="text-brand-700 tabular-nums">{linked}</b>명
+            내 지원을 보여 주는 사람 <b className="text-brand-700 tabular-nums">{sharing}</b>명
           </span>
-          {received.length > 0 && (
-            <span className="text-amber-700">
-              👋 받은 요청 <b className="tabular-nums">{received.length}</b>
-            </span>
-          )}
         </p>
       )}
       {/* 동료가 지원한 공고: 같이 일하러 가기 */}
       {palJobs.length > 0 && (
         <section className="space-y-2" data-pal-jobs>
-          <h2 className="font-bold">🤝 동료가 지원한 공고</h2>
+          <h2 className="font-bold">🤝 나에게 보여 준 동료의 지원 공고</h2>
           <ul className="space-y-2">
             {palJobs.map((j) => (
               <li key={j.id}>
@@ -75,33 +72,28 @@ export default async function CoworkersPage() {
       ) : (
         <ul className="stagger space-y-2" data-coworker-list>
           {list.map((c) => (
-            <li key={c.id} className={`card flex items-center gap-3 p-4 ${c.state === 'received' ? 'ring-2 ring-amber-200' : ''}`} data-coworker={c.state}>
-              <span aria-hidden className={`grid size-11 shrink-0 place-items-center rounded-full text-xl ${c.state === 'linked' ? 'animate-pop bg-brand-600 text-white' : 'bg-brand-50'}`}>
-                {c.state === 'linked' ? '🤝' : '🐥'}
+            <li key={c.id} className="card flex items-center gap-3 p-4" data-coworker={c.mine ? 'sharing' : 'none'}>
+              <span aria-hidden className={`grid size-11 shrink-0 place-items-center rounded-full text-xl ${c.mine ? 'bg-brand-600 text-white' : 'bg-brand-50'}`}>
+                {c.mine ? '🤝' : '🐥'}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-bold">{c.nick}</p>
                 <p className="truncate text-xs text-sub">
                   함께 {c.together}번 · {fmtDate(c.lastDate)} {c.lastTitle}
                 </p>
-                {c.state === 'received' && <p className="text-xs font-semibold text-amber-700">동료 맺기를 원해요</p>}
+                {/* 상대가 나를 고른 경우만 (상대의 선택) */}
+                {c.theirs && <p className="text-xs font-semibold text-brand-700" data-shares-with-me>나에게 지원 공고를 보여 줘요</p>}
               </div>
-              {c.state === 'linked' ? (
+              {c.mine ? (
                 <form action={unlinkCoworker.bind(null, c.id)} className="shrink-0">
-                  <ConfirmSubmit className="rounded-lg px-2 py-1.5 text-xs font-semibold text-mute" confirmText="끊을까요?">
-                    🤝 동료
+                  <ConfirmSubmit className="btn-soft btn-sm" confirmText="그만 보여 줄까요?" track="그만 보여 주기">
+                    ✓ 보여 주는 중
                   </ConfirmSubmit>
-                </form>
-              ) : c.state === 'sent' ? (
-                <form action={unlinkCoworker.bind(null, c.id)} className="shrink-0">
-                  <SubmitButton className="btn-gray btn-sm" pendingText="취소 중…">
-                    요청 취소
-                  </SubmitButton>
                 </form>
               ) : (
                 <form action={linkCoworker.bind(null, c.id)} className="shrink-0">
-                  <SubmitButton className={`btn-sm ${c.state === 'received' ? 'btn-primary' : 'btn-soft'}`} pendingText="보내는 중…">
-                    {c.state === 'received' ? '수락' : '👋 동료 맺기'}
+                  <SubmitButton className="btn-gray btn-sm" pendingText="…" track="내 지원 보여 주기">
+                    내 지원 보여 주기
                   </SubmitButton>
                 </form>
               )}
@@ -109,7 +101,7 @@ export default async function CoworkersPage() {
           ))}
         </ul>
       )}
-      <p className="text-center text-xs text-balance text-mute">실명·연락처는 서로 보이지 않아요. 동료를 끊어도 상대에게 알리지 않아요.</p>
+      <p className="text-center text-xs text-balance text-mute">실명·연락처·사진은 보이지 않아요. 내가 보여 줘도 상대의 지원은 보이지 않고, 언제든 그만 보여 줄 수 있어요(알림 없음).</p>
     </div>
   )
 }

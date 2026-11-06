@@ -145,7 +145,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         .gte('end_date', kstDate()),
       // 근무자 후기 평균 별점 (가입한 회원에게만)
       user ? companyReviews(job.company_id, 1).catch(() => null) : null,
-      // 이 공고에 지원·확정된 내 동료 (서로 동료 맺은 사람만, 별명)
+      // 이 공고에 지원·확정된 동료 중 나에게 지원을 보여 주기로 한 사람만 (별명)
       user ? coworkersOnJob(user.id, job.id) : [],
     ]).then(([c, n, rv, pals]) => ({
       verified: (c.data as { verified?: boolean | null } | null)?.verified === true,
@@ -266,7 +266,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </span>
           </Link>
         )}
-        {/* 함께 일했던 동료도 지원했으면 (서로 동료 맺은 사람만) */}
+        {/* 함께 일했던 동료도 지원했으면 (그 사람이 나에게 보여 주기로 한 경우만) */}
         {coInfo.pals.length > 0 && (
           <p className="mt-2 flex animate-pop items-center gap-1.5 rounded-xl bg-brand-50 px-3 py-2 text-sm font-semibold text-brand-700" data-coworkers-on-job>
             <span aria-hidden>🤝</span>

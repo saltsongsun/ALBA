@@ -1,4 +1,4 @@
-// 묶음 16: 커뮤니티 글·댓글에 '🤝 동료'(서로 동료 맺은 사람만) · '함께 일한 사람'에 받은 요청 수
+// 묶음 16: 커뮤니티 글·댓글에 '🤝 동료' — 그 사람이 나에게 지원 공고를 보여 주기로 한 경우만 (한쪽으로만 · 요청·배지 없음)
 // node scripts/qa/batch16.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -27,16 +27,15 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   w.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
 
   await w.goto(`${D}/community`)
-  ok('동료 맺기 전: 동료 표시 없음 · 요청 없음', (await w.locator('[data-pal-badge]').count()) === 0 && (await w.locator('[data-request-badge]').count()) === 0)
-  // 새벽스태프 → 나에게 요청, 야간조장도 요청
-  await rest('coworker_links', 'POST', [{ from_id: AP, to_id: W }, { from_id: X, to_id: W }])
+  ok('아무도 고르기 전: 동료 표시 없음 · 요청 배지 없음', (await w.locator('[data-pal-badge]').count()) === 0 && (await w.locator('[data-request-badge]').count()) === 0)
+  // 내가 야간조장에게 보여 줘도(내 쪽 선택) 야간조장 글엔 표시 없음 — 남의 정보는 그 사람이 골라야만
+  await rest('coworker_links', 'POST', { from_id: W, to_id: X })
   await w.reload()
-  ok("받은 요청 2: '👋 요청 2'", /요청\s*2/.test(await w.locator('[data-request-badge]').innerText().catch(() => '')))
-  ok('한쪽 요청만으로는 동료 표시 없음', (await w.locator('[data-pal-badge]').count()) === 0)
-  // 내가 새벽스태프 요청 수락 → 동료
-  await rest('coworker_links', 'POST', { from_id: W, to_id: AP })
+  ok('내가 보여 준 사람의 글: 표시 없음 (그 사람이 나를 고르지 않았으니)', (await w.locator('[data-pal-badge]').count()) === 0)
+  // 새벽스태프가 나에게 보여 주기로 함 → 새벽스태프 글에 '🤝 동료'
+  await rest('coworker_links', 'POST', { from_id: AP, to_id: W })
   await w.reload()
-  ok('수락 뒤 요청 1', /요청\s*1/.test(await w.locator('[data-request-badge]').innerText().catch(() => '')))
+  ok('요청 배지는 없음 (요청·수락이 없는 방식)', (await w.locator('[data-request-badge]').count()) === 0)
   const card = w.locator('[data-post]', { hasText: '동료가 쓴 글' })
   ok("동료가 쓴 글에 '🤝 동료'", (await card.locator('[data-pal-badge]').count()) === 1 && (await w.locator('[data-post]', { hasText: '모르는 사람 글' }).locator('[data-pal-badge]').count()) === 0)
   ok('360px: 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))

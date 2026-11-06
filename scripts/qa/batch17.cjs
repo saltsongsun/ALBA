@@ -1,4 +1,4 @@
-// 묶음 17: 공고 목록 카드 '🤝 동료 N명 지원'(서로 동료 맺은 사람만) · 함께 일한 사람 '동료가 지원한 공고'
+// 묶음 17: 공고 목록 카드 '🤝 동료 N명 지원'(그 사람이 나에게 보여 주기로 한 경우만 · 한쪽으로만) · 함께 일한 사람 '나에게 보여 준 동료의 지원 공고'
 // node scripts/qa/batch17.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -24,12 +24,14 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   await w.goto(`${D}/`)
   ok('동료 없으면 카드에 표시 없음', (await chip().count()) === 0)
-  await rest('coworker_links', 'POST', { from_id: AP, to_id: W })
-  await w.reload()
-  ok('한쪽 요청만으로는 표시 없음', (await chip().count()) === 0)
+  // 내가 새벽스태프에게 보여 줘도 새벽스태프의 지원은 안 보임
   await rest('coworker_links', 'POST', { from_id: W, to_id: AP })
   await w.reload()
-  ok("서로 동료: 카드에 '🤝 동료 1명 지원'", (await chip().count()) === 1 && (await chip().innerText()).includes('동료 1명'))
+  ok('내가 보여 준 것만으로는 상대 지원 표시 없음', (await chip().count()) === 0)
+  // 새벽스태프가 나에게 보여 주기로 함 → 보임
+  await rest('coworker_links', 'POST', { from_id: AP, to_id: W })
+  await w.reload()
+  ok("상대가 나에게 보여 줌: 카드에 '🤝 동료 1명 지원'", (await chip().count()) === 1 && (await chip().innerText()).includes('동료 1명'))
   ok('360px: 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   await w.goto(`${D}/community/coworkers`)

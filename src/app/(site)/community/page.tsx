@@ -6,7 +6,7 @@ import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canPost, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
-import { linkedAmong, pendingRequests } from '@/lib/coworkers'
+import { linkedAmong } from '@/lib/coworkers'
 import { PACKS, splitPostBody } from '@/lib/stickers'
 
 /** 이모티콘 아이디 → 작은 그림 */
@@ -28,10 +28,10 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
     reviewTab ? [] : hot && !q ? hotPosts(user.id) : listPosts({ category, viewerId: user.id, q, mine }),
     reviewTab ? recentReviews(30) : [],
   ])
-  const writer = canWrite(user) // 동료 맺기 등 근무자끼리 기능
+  const writer = canWrite(user) // 내 지원 보여 주기 등 근무자끼리 기능
   const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
-  // 서로 동료 맺은 사람이 쓴 글에는 '🤝 동료'
-  const [pals, requests] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), pendingRequests(user.id)]) : [new Set<string>(), 0]
+  // 나에게 지원 공고를 보여 주는 사람이 쓴 글에는 '🤝 동료' (상대가 고른 경우만)
+  const pals = writer ? await linkedAmong(user.id, posts.map((p) => p.author_id)) : new Set<string>()
   const tabs: { id: string; label: string; icon: IconName | '' }[] = [
     { id: '', label: '전체', icon: '' },
     { id: 'hot', label: '인기', icon: 'flame' },
@@ -91,15 +91,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
           </span>
           <span className="min-w-0 flex-1">
             <b className="block text-[15px]">함께 일한 사람</b>
-            <span className="block truncate text-xs text-sub">동료를 맺으면 같은 공고에 지원했을 때 알 수 있어요</span>
+            <span className="block truncate text-xs text-sub">내가 고른 사람에게만 내 지원 공고가 보여요</span>
           </span>
-          {requests > 0 ? (
-            <span className="shrink-0 animate-pop rounded-full bg-amber-500 px-2.5 py-1 text-xs font-bold text-white" data-request-badge>
-              👋 요청 {requests}
-            </span>
-          ) : (
-            <span className="shrink-0 text-sm font-semibold text-brand-600">보기 →</span>
-          )}
+          <span className="shrink-0 text-sm font-semibold text-brand-600">보기 →</span>
         </Link>
       )}
 
