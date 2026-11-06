@@ -20,6 +20,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   // 준비: 막 가입한 사진 없는 근무자
   const [w1] = await rest(`users?id=eq.${W}`)
   await rest('users', 'POST', { ...w1, id: N, name: '새회원', phone: '01077770123', photo_at: null, created_at: new Date().toISOString() })
+  // 공고는 내일로 (오늘 근무 시간이 이미 끝난 저녁에 돌리면 '오늘 근무 종료'라 지원 바가 아예 안 나와서)
+  const tomorrow = new Date(Date.now() + 9 * 3600e3 + 86_400_000).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tomorrow, end_date: tomorrow })
   const b = await chromium.launch()
   const errs = []
   const pg = async (uid) => {
