@@ -12,6 +12,26 @@ import { cleanLabel, send, track } from '@/lib/track'
  * · 앱 오류 · 화면에 뜬 오류 안내(FormMessage가 보냄)
  * · 앱을 열어 둔 동안 1분마다 '접속 중' 신호 (최고 관리자만 근무자 접속 여부를 봄)
  */
+/** 누른 곳이 어디인지 (글자 없이): 위로 5단계까지 올라가며 data 이름·id·role이 있는 요소를 찾고, 그 아래 요소 종류를 붙임 */
+function whereOf(el: Element): string {
+  const tag = el.tagName.toLowerCase()
+  let n: Element | null = el
+  for (let i = 0; n && i < 6; i++, n = n.parentElement) {
+    if (n === document.body) break
+    const data = Array.from(n.attributes)
+      .map((a) => a.name)
+      .find((a) => a.startsWith('data-') && !['data-track', 'data-vv', 'data-confirm', 'data-track-text'].includes(a))
+    const id = n.id && !/\d{3}/.test(n.id) ? `#${n.id}` : ''
+    const role = n.getAttribute('role') ? `[role=${n.getAttribute('role')}]` : ''
+    const mark = data ? `[${data}]` : id || role
+    if (mark) {
+      const here = `${n.tagName.toLowerCase()}${mark}`
+      return n === el ? here : `${here} › ${tag}`
+    }
+  }
+  return tag
+}
+
 export default function UsageTracker() {
   const path = usePathname()
   const prev = useRef<string | null>(null)
@@ -97,17 +117,23 @@ export default function UsageTracker() {
       }
       taps = [...taps.filter((x) => now - x < 1000), now]
       if (taps.length === 3) {
-        // 어디인지만 (글자는 보내지 않음): 버튼 이름표가 있으면 그것, 없으면 요소 종류와 data 이름
+        // 어디인지만 (글자는 보내지 않음): 버튼 이름표가 있으면 그것, 없으면 누른 곳부터 위로 올라가며
+        // 처음 만나는 data 이름·id·role (예: 'li[data-msg-id] › div') — 'div'만 남아 어디인지 모르던 것을 고침
         const name = tracked?.dataset.track || (tracked ? cleanLabel(tracked.innerText) : '')
-        const data = Array.from((spot as HTMLElement).attributes ?? [])
-          .map((a) => a.name)
-          .find((n) => n.startsWith('data-') && n !== 'data-track')
-        track('rage', name || `${spot.tagName.toLowerCase()}${data ? `[${data}]` : ''}`)
+        track('rage', name || whereOf(t))
       }
     }
 
-    // 앱 오류 (메시지 앞부분만)
-    const onError = (e: ErrorEvent) => track('error', `앱 오류: ${String(e.message ?? '').slice(0, 40)}`)
+    // 앱 오류 (메시지 앞부분만). 다른 곳 스크립트(브라우저 확장·인앱 브라우저가 넣은 것)의 'Script error.'처럼
+    // 내용 없는 오류는 고칠 수 없어 기록을 흐리기만 하므로 뺌
+    const onError = (e: ErrorEvent) => {
+      const msg = String(e.message ?? '')
+      if (!msg || /^Script error\.?$/i.test(msg)) return
+      try {
+        if (e.filename && new URL(e.filename, location.href).origin !== location.origin) return
+      } catch {}
+      track('error', `앱 오류: ${msg.slice(0, 40)}`)
+    }
     const onRejection = (e: PromiseRejectionEvent) => track('error', `앱 오류: ${String((e.reason as { message?: string })?.message ?? e.reason ?? '').slice(0, 40)}`)
 
     // 접속 중 신호: 화면을 보고 있는 동안 1분마다

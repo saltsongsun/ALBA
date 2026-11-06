@@ -29,7 +29,7 @@ export function cleanLabel(s: string | null | undefined): string {
   return (s ?? '')
     .replace(/\s+/g, ' ')
     .replace(/\d/g, '#')
-    .replace(/[^\p{L}\p{N}#\s·:/()'?!.,~\[\]_-]/gu, '')
+    .replace(/[^\p{L}\p{N}#\s·:/()'?!.,~\[\]_=›-]/gu, '')
     .trim()
     .slice(0, 30)
 }

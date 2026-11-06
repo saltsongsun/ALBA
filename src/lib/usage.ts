@@ -79,7 +79,7 @@ export function cleanEventLabel(raw: unknown): string | null {
   const s = raw
     .replace(/\s+/g, ' ')
     .replace(/\d/g, '#')
-    .replace(/[^\p{L}\p{N}#\s·:/()'?!.,~\[\]_-]/gu, '')
+    .replace(/[^\p{L}\p{N}#\s·:/()'?!.,~\[\]_=›-]/gu, '')
     .trim()
     .slice(0, 40)
   return s || null

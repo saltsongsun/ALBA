@@ -14,6 +14,7 @@ import { FormMessage, keepInputs, SubmitButton } from './ui'
 import CareerEditor from './CareerEditor'
 import SignupProgress from './SignupProgress'
 import { MEMBER_TYPES, SPECIALTIES } from '@/lib/members'
+import { weakPin } from '@/lib/validate'
 import type { MemberType } from '@/lib/types'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
@@ -235,35 +236,81 @@ const VENDOR_REQUIRED: [string, string][] = [
   ['agree_third', '제3자 제공 동의'],
 ]
 
-/** 비밀번호·확인 칸 (모든 유형 공통) */
+/** 생년월일 후보 (주민번호 앞자리 + 뒷자리 첫 숫자로 세기 · 뒷자리가 아직 없으면 1900·2000년대 둘 다) */
+function birthCandidates(rrn1: string, rrn2: string): string[] {
+  if (!/^\d{6}$/.test(rrn1)) return []
+  const yy = rrn1.slice(0, 2)
+  const md = `${rrn1.slice(2, 4)}-${rrn1.slice(4, 6)}`
+  const g = Number(rrn2[0])
+  if ([1, 2, 5, 6].includes(g)) return [`19${yy}-${md}`]
+  if ([3, 4, 7, 8].includes(g)) return [`20${yy}-${md}`]
+  return [`19${yy}-${md}`, `20${yy}-${md}`]
+}
+
+/**
+ * 비밀번호·확인 칸 (모든 유형 공통).
+ * 쓸 수 없는 번호(생년월일·휴대폰 번호·123456 등)는 '가입하기'를 누르기 전에 바로 알려 줌
+ * (인사이트: 가입을 누른 뒤에야 '생년월일로 된 비밀번호는 쓸 수 없어요'를 보고 다시 입력하는 사람이 있었음).
+ * 확인은 이 휴대폰 안에서만 — 서버도 같은 규칙으로 한 번 더 막음
+ */
 function PinFields() {
+  const ref = useRef<HTMLDivElement>(null)
+  const [hint, setHint] = useState<{ ok: boolean; text: string } | null>(null)
+  useEffect(() => {
+    const form = ref.current?.closest('form')
+    if (!form) return
+    const val = (n: string) => {
+      const el = form.elements.namedItem(n)
+      return el instanceof HTMLInputElement ? el.value.replace(/\D/g, '') : ''
+    }
+    const check = () => {
+      const pin = val('pin')
+      const pin2 = val('pin2')
+      if (pin.length < 6) return setHint(null)
+      const phone = val('phone')
+      const births = birthCandidates(val('rrn1'), val('rrn2'))
+      const weak = (births.length ? births : [null]).map((b) => weakPin(pin, { birthDate: b, phone: phone.length >= 10 ? phone : null })).find(Boolean)
+      if (weak) return setHint({ ok: false, text: weak })
+      if (pin2.length === 6 && pin2 !== pin) return setHint({ ok: false, text: '비밀번호 확인이 달라요. 같은 번호를 한 번 더 넣어 주세요.' })
+      setHint({ ok: true, text: pin2.length === 6 ? '쓸 수 있는 비밀번호예요 · 확인도 같아요' : '쓸 수 있는 비밀번호예요' })
+    }
+    form.addEventListener('input', check)
+    return () => form.removeEventListener('input', check)
+  }, [])
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <div>
-        <label className="label" htmlFor="pin">
-          비밀번호
-        </label>
-        <input
-          id="pin"
-          name="pin"
-          type="password"
-          className="input tracking-[0.3em] placeholder:tracking-normal"
-          inputMode="numeric"
-          maxLength={6}
-          placeholder="숫자 6자리"
-          autoComplete="new-password"
-          onInput={digitsThenNext}
-          data-next="pin2"
-          required
-        />
+    <div ref={ref} className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="label" htmlFor="pin">
+            비밀번호
+          </label>
+          <input
+            id="pin"
+            name="pin"
+            type="password"
+            className={`input tracking-[0.3em] placeholder:tracking-normal ${hint && !hint.ok ? 'border-amber-400 ring-2 ring-amber-200' : ''}`}
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="숫자 6자리"
+            autoComplete="new-password"
+            onInput={digitsThenNext}
+            data-next="pin2"
+            aria-invalid={hint && !hint.ok ? true : undefined}
+            aria-describedby="pin-hint"
+            required
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="pin2">
+            비밀번호 확인
+          </label>
+          <input id="pin2" name="pin2" type="password" className="input tracking-[0.3em]" inputMode="numeric" maxLength={6} autoComplete="new-password" onInput={digitsOnly} required />
+          <PinReveal names={['pin', 'pin2']} />
+        </div>
       </div>
-      <div>
-        <label className="label" htmlFor="pin2">
-          비밀번호 확인
-        </label>
-        <input id="pin2" name="pin2" type="password" className="input tracking-[0.3em]" inputMode="numeric" maxLength={6} autoComplete="new-password" onInput={digitsOnly} required />
-        <PinReveal names={['pin', 'pin2']} />
-      </div>
+      <p id="pin-hint" aria-live="polite" data-pin-hint={hint ? (hint.ok ? 'ok' : 'weak') : 'rule'} className={`text-xs ${hint ? (hint.ok ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700') : 'text-mute'}`}>
+        {hint ? `${hint.ok ? '✓ ' : ''}${hint.text}` : '생년월일·휴대폰 번호·123456 같은 번호는 안 돼요'}
+      </p>
     </div>
   )
 }
