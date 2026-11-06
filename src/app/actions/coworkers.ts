@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { canWrite, ensureNickname } from '@/lib/community'
 import { coworkersEnabled, shareStates, workedTogether } from '@/lib/coworkers'
+import { FEATURES, type FeatureKey } from '@/lib/flags'
 import { audit } from '@/lib/data'
 import { requireSuper } from '@/lib/session'
 import { redirect } from 'next/navigation'
@@ -36,12 +37,12 @@ export async function unlinkCoworker(targetId: string) {
   revalidatePath(PAGE)
 }
 
-/** 최상위 관리자: '함께 일한 사람' 기능 전체 켜기·끄기 (기록이 남음) */
-export async function setCoworkersFeature(on: boolean) {
+/** 최상위 관리자: 서비스 전체 기능 켜기·끄기 (기록이 남음) */
+export async function setFeature(key: FeatureKey, on: boolean) {
   const admin = await requireSuper()
-  await audit(admin.id, 'feature.coworkers', null, on ? 'on' : 'off', null)
-  revalidatePath('/community')
-  revalidatePath(PAGE)
-  revalidatePath('/admin/community')
-  redirect(`/admin/community?m=${encodeURIComponent(on ? "'함께 일한 사람'을 켰어요 · 근무자에게 메뉴가 보여요" : "'함께 일한 사람'을 껐어요 · 메뉴가 숨고 아무에게도 보이지 않아요")}`)
+  if (!(key in FEATURES)) return
+  await audit(admin.id, `feature.${key}`, null, on ? 'on' : 'off', null)
+  revalidatePath('/', 'layout')
+  const name = FEATURES[key].label
+  redirect(`/admin/community?m=${encodeURIComponent(`'${name}'을 ${on ? '켰어요' : '껐어요'}`)}`)
 }

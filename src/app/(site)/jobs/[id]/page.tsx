@@ -35,6 +35,7 @@ import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
 import { ago, companyReviews } from '@/lib/community'
+import { featureOn } from '@/lib/flags'
 import { coworkersOnJob } from '@/lib/coworkers'
 
 async function load(id: string) {
@@ -144,7 +145,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         .eq('status', 'open')
         .gte('end_date', kstDate()),
       // 근무자 후기 평균 별점 (가입한 회원에게만)
-      user ? companyReviews(job.company_id, 1).catch(() => null) : null,
+      // 운영자가 '공고에 회사 후기 보이기'를 끄면 안 읽음 (별점·최근 후기 숨김)
+      user ? featureOn('job_reviews').then((on) => (on ? companyReviews(job.company_id, 1).catch(() => null) : null)) : null,
       // 이 공고에 지원·확정된 동료 중 나에게 지원을 보여 주기로 한 사람만 (별명)
       user ? coworkersOnJob(user.id, job.id) : [],
     ]).then(([c, n, rv, pals]) => ({

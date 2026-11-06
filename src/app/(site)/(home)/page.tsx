@@ -15,6 +15,7 @@ import { isUuid } from '@/lib/validate'
 import { overlapDay } from '@/lib/overlap'
 import { NewJobsChip } from '@/components/NewJobs'
 import { companyRating, companyRatings } from '@/lib/community'
+import { featureOn } from '@/lib/flags'
 import { coworkerCounts } from '@/lib/coworkers'
 
 /** 회사 공고 모음 링크(/?co=회사)를 보내면: 미리보기에 회사 이름 · 모집 중 공고 수 · 그림 */
@@ -53,7 +54,9 @@ export default async function HomePage(props: PageProps<'/'>) {
       } | null)
     : null
   // 회사 공고 모음: 근무자 후기 평균 별점 (가입한 회원에게만)
-  const rating = company && me ? await companyRating(company.id).catch(() => null) : null
+  // 운영자가 '공고에 회사 후기 보이기'를 끄면 별점·후기 거르기를 숨김
+  const reviewsOn = await featureOn('job_reviews')
+  const rating = company && me && reviewsOn ? await companyRating(company.id).catch(() => null) : null
   const jobsQuery = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', 'worker').in('status', ['open', 'closed']).gte('end_date', today)
   const [user, jobs, myApps] = await Promise.all([
     getUser(),
@@ -83,7 +86,7 @@ export default async function HomePage(props: PageProps<'/'>) {
   const counts = countApps(jobs, 'approved')
   // 회사별 근무자 후기 별점 (가입한 회원에게만, 카드에 ★4.5)
   const [ratings, palCounts] = user
-    ? await Promise.all([companyRatings(jobs.map((j) => j.company_id)), coworkerCounts(user.id, jobs.map((j) => j.id))])
+    ? await Promise.all([reviewsOn ? companyRatings(jobs.map((j) => j.company_id)) : Promise.resolve({} as Awaited<ReturnType<typeof companyRatings>>), coworkerCounts(user.id, jobs.map((j) => j.id))])
     : [{} as Awaited<ReturnType<typeof companyRatings>>, {} as Record<string, number>]
   // 회사 공고 모음: 지금 지원받는 공고 수 (모집 마감은 빼고)
   const openCount = jobs.filter((j) => j.status === 'open').length
@@ -98,7 +101,7 @@ export default async function HomePage(props: PageProps<'/'>) {
   const when = (['soon', 'weekend', 'week'] as const).find((w) => w === sp.when) ?? null
   const avail = sp.avail === '1'
   // 근무자 후기 별점 4점 이상인 회사 공고만 (회원)
-  const good = sp.good === '1' && !!user
+  const good = sp.good === '1' && !!user && reviewsOn
   const plus = (n: number) => kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + n * 86_400_000))
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay() // 0 일요일
   const sat = dow === 0 ? today : plus(6 - dow)

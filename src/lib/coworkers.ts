@@ -1,5 +1,5 @@
 import 'server-only'
-import { cache } from 'react'
+import { featureOn } from './flags'
 import { db } from './db'
 import { nicknames } from './community'
 import { kstDate } from './time'
@@ -16,20 +16,8 @@ type Att = { job_id: string; user_id: string; work_date: string; clock_in: strin
 
 const since = () => kstDate(new Date(Date.now() - 365 * 86_400_000))
 
-/**
- * 운영자 전체 스위치 (사용자 요청 2026-11-06 "동료맺기 기능은 켜고 끄게 해줘" · 운영자가 전체로 · 처음엔 꺼짐).
- * 최상위 관리자가 커뮤니티 관리에서 켜고 끈 기록(audit_logs 'feature.coworkers')의 마지막 값. 기록이 없거나 못 읽으면 꺼짐.
- * 꺼져 있으면 메뉴가 숨고 아무에게도 다른 사람의 지원이 보이지 않음 (이미 고른 기록은 남아 있다가 다시 켜면 이어짐)
- */
-export const coworkersEnabled = cache(async (): Promise<boolean> => {
-  try {
-    const { data } = await db().from('audit_logs').select('detail, created_at').eq('action', 'feature.coworkers').order('created_at', { ascending: false }).limit(100)
-    const last = ((data ?? []) as { detail: string | null; created_at: string }[]).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-    return last?.detail === 'on'
-  } catch {
-    return false
-  }
-})
+/** 운영자 전체 스위치 (사용자 요청 2026-11-06 "동료맺기 기능은 켜고 끄게 해줘" · 처음엔 꺼짐) — 꺼져 있으면 메뉴가 숨고 아무에게도 보이지 않음 */
+export const coworkersEnabled = () => featureOn('coworkers')
 
 /** 내가 출근한 공고들 */
 async function myWorkedJobs(userId: string): Promise<string[]> {
