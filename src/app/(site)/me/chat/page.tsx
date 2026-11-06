@@ -19,6 +19,8 @@ import { fmtDate, kstDate, kstTime } from '@/lib/time'
 export const metadata: Metadata = { title: '문의' }
 
 // 휴대폰으로 자주 보내는 문의 (누르면 입력칸에 채워짐, 고쳐서 보낼 수 있음)
+/** 내 정보에서 '문의하기'로 왔을 때 맨 앞 빠른 답장 */
+const ASK_INFO = '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.'
 const QUICK_DAY = ['조금 늦을 것 같아요. 죄송합니다.', '집결 장소가 어디인가요?', '근무 시작 버튼이 안 눌려요.', '급여 지급일이 언제인가요?']
 const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부만 가능해요.', '식사가 제공되나요?', '주차할 수 있나요?']
 // 해피워크 고객센터(아직 지원한 회사가 없을 때): 근무 날 문의 대신 앱 사용 문의
@@ -29,6 +31,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const user = await requireUser('/me/chat')
   const jobId = typeof sp.job === 'string' && isUuid(sp.job) ? sp.job : null
   const wantCo = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
+  // 내 정보에서 '이름·번호 바꾸기' 문의로 왔는지 (회사를 고르는 동안에도 이어짐)
+  const askInfo = sp.ask === 'info'
   // 문의함은 회사마다 따로: 지원했거나 문의를 주고받은 회사들 (처음이면 기본 회사)
   // 단체방 목록(여러 번 읽음)은 먼저 출발시키고, 회사 이름 읽기와 함께 기다림
   const roomsP = workerRooms(user.id)
@@ -63,7 +67,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   for (const t of threads) if (t.from_admin && !t.read_at) unreadBy.set(t.company_id, (unreadBy.get(t.company_id) ?? 0) + 1)
   // 대화가 둘 이상이면 (회사 문의 여러 곳 · 단체방) 문의 탭은 대화 목록부터
   const many = companies.length + rooms.length >= 2
-  if (many && !jobId && !wantCo) return <ChatList userId={user.id} companies={companies.map((c) => ({ id: c.id, name: nameOf(c), support: support(c.id) }))} threads={threads} unreadBy={unreadBy} rooms={rooms} />
+  if (many && !jobId && !wantCo) return <ChatList userId={user.id} companies={companies.map((c) => ({ id: c.id, name: nameOf(c), support: support(c.id) }))} threads={threads} unreadBy={unreadBy} rooms={rooms} askInfo={askInfo} />
   const [messages, settings] = companyId
     ? await Promise.all([
         // 최근 300개 (오래된 것부터 보여 줌)
@@ -131,7 +135,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : QUICK_DAY}
+          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : QUICK_DAY}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">
@@ -158,8 +162,10 @@ async function ChatList({
   threads,
   unreadBy,
   rooms,
+  askInfo = false,
 }: {
   userId: string
+  askInfo?: boolean
   companies: { id: string; name: string; support: boolean }[]
   threads: Thread[]
   unreadBy: Map<string, number>
@@ -198,7 +204,7 @@ async function ChatList({
       const m = lastCo.get(c.id)
       return {
         key: `c-${c.id}`,
-        href: `/me/chat?co=${c.id}`,
+        href: `/me/chat?co=${c.id}${askInfo ? '&ask=info' : ''}`,
         kind: 'company',
         title: c.name,
         icon: c.support ? 'support' : 'company',
@@ -279,6 +285,12 @@ async function ChatList({
           )}
         </p>
       </div>
+      {/* 내 정보에서 '이름·번호 바꾸기'로 왔으면: 회사가 여럿이니 어느 담당자에게 보낼지 먼저 */}
+      {askInfo && (
+        <p className="animate-pop rounded-xl bg-brand-50 px-3.5 py-2.5 text-sm font-semibold text-brand-700" data-ask-hint>
+          이름·번호를 바꿔 달라고 할 회사를 골라 주세요
+        </p>
+      )}
       {live.length > 0 && (
         <ul className="card stagger divide-y divide-line overflow-hidden p-0" data-chat-list>
           {live.map(row)}

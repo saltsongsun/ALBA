@@ -113,12 +113,19 @@ export default async function ProfilePage() {
         <div id="photo" className="card scroll-mt-20 space-y-3 bg-[radial-gradient(120%_90%_at_0%_0%,color-mix(in_oklab,var(--color-brand-500)_12%,white),white_65%)]" data-profile-hero>
           <PhotoUpload userId={user.id} name={me.name} photoAt={me.photo_at}>
             <h1 className="text-xl font-extrabold">{me.name}</h1>
-            <p className="mt-0.5 text-sm text-sub">
-              <span className="whitespace-nowrap">{phoneFmt(me.phone)}</span> ·{' '}
-              <span className="whitespace-nowrap">{me.rrn_masked ?? '주민번호 미등록'}</span>
+            {/* 번호 두 줄 (한 줄에 이어 쓰면 휴대폰에서 '·'만 줄 끝에 남아 꺾임) */}
+            <p className="mt-0.5 text-sm text-sub tabular-nums" data-profile-ids>
+              <span className="block">{phoneFmt(me.phone)}</span>
+              <span className="block">{me.rrn_masked ?? '주민번호 미등록'}</span>
             </p>
           </PhotoUpload>
-          <p className="hint">이름·주민등록번호·휴대폰 번호를 바꾸려면 담당자에게 요청해 주세요.</p>
+          {/* 어디에 요청하는지 바로: 문의 화면으로 (바꿀 정보 문구를 첫 빠른 답장으로) */}
+          <p className="hint">
+            이름·주민등록번호·휴대폰 번호를 바꾸려면 담당자에게 요청해 주세요.{' '}
+            <Link href="/me/chat?ask=info" className="font-semibold whitespace-nowrap text-brand-600" data-ask-info>
+              문의하기 →
+            </Link>
+          </p>
         </div>
       )}
       {/* 가입 유형: 아르바이트 ↔ 전문가 (외주 업체는 사업자라 그대로) */}
