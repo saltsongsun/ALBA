@@ -42,7 +42,20 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
   const counts = countApps(jobs, 'approved')
   // 지난 공고: 근무는 끝났는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (급여 지급을 빠뜨리지 않게)
   // 공고마다 지급총액(세전, 정산 탭과 같은 계산): 출퇴근 기록이 있는 공고만
-  const [views, unpaid, wages] = await Promise.all([viewStats(jobs.map((j) => j.id)), tab === 'past' ? unpaidByJob(admin.companyId, today) : {}, wageTotals(admin.companyId, jobs)])
+  const [views, unpaid, wages, everCount] = await Promise.all([
+    viewStats(jobs.map((j) => j.id)),
+    tab === 'past' ? unpaidByJob(admin.companyId, today) : {},
+    wageTotals(admin.companyId, jobs),
+    // 공고를 한 번도 안 올린 새 회사인지 (빈 화면을 '첫 공고' 안내로 · 복사할 지난 공고가 없으니 '복사하기'는 숨김)
+    tab === 'active' && all.length === 0
+      ? db()
+          .from('jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', admin.companyId)
+          .then((r) => r.count ?? 1)
+      : 1,
+  ])
+  const firstTime = everCount === 0
   const grossOf = (id: string) => wages[id]?.gross ?? 0
   const waitingBy = countApps(jobs, 'applied')
   const unpaidOf = (id: string) => (unpaid as Record<string, { n: number }>)[id]?.n ?? 0
@@ -58,15 +71,18 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       </div>
       {/* 우리 회사 공고만 모은 링크: 근무자 단톡방에 한 번 올려 두면 새 공고도 그 링크에서 봄 */}
       {tab === 'active' && (
-        <div className="card flex items-center gap-3 p-4">
+        // 좁은 화면: 글이 잘리지 않게 버튼은 아래 줄 오른쪽으로 (넓으면 한 줄)
+        <div className="card flex flex-wrap items-center gap-x-3 gap-y-2 p-4" data-share-card>
           <span aria-hidden className="text-2xl">
             📣
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-bold">우리 회사 공고 모음 링크</span>
-            <span className="block truncate text-sm text-sub">단톡방에 올려 두세요</span>
+          <span className="min-w-0 flex-1 basis-44">
+            <span className="block font-bold">우리 회사 공고 모음 링크</span>
+            <span className="block text-sm text-sub">
+              {firstTime ? '첫 공고를 올린 뒤 단톡방에 올려 두세요' : '단톡방에 올려 두면 새 공고도 여기서 봐요'}
+            </span>
           </span>
-          <span className="flex shrink-0 items-center gap-1.5">
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
             {/* 현장·게시판에 붙일 QR (찍으면 이 회사 공고 모음) */}
             <Link href="/admin/jobs/poster" className="btn-gray btn-sm" data-poster-link>
               QR
@@ -112,6 +128,20 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
               <Link href={`/admin/jobs?tab=${tab}`} className="btn-gray btn-sm mt-3 inline-flex">
                 검색 지우기
               </Link>
+            </Empty>
+          ) : tab === 'active' && firstTime ? (
+            // 처음 시작한 회사: 복사할 지난 공고가 없으니 첫 공고만 안내
+            <Empty icon="📋" title="첫 공고를 올려 보세요">
+              {/* 문장마다 한 줄 (좁은 화면에서 '서류 / 서식은'처럼 어색하게 끊기지 않게) */}
+              <p data-first-job>
+                <span className="block">시간·시급·장소만 넣으면 바로 모집을 시작해요.</span>
+                <span className="block">서류 서식은 기본으로 준비돼 있어요.</span>
+              </p>
+              <div className="mt-4 flex justify-center">
+                <Link href="/admin/jobs/new" className="btn-primary btn-sm" data-track="첫 공고 등록">
+                  + 첫 공고 등록
+                </Link>
+              </div>
             </Empty>
           ) : tab === 'active' ? (
             <Empty icon="📋" title="진행 중인 공고가 없어요">
