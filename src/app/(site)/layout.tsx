@@ -39,10 +39,12 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
     <div data-mode={pro ? 'pro' : undefined} className="contents">
       <SiteHeader />
       {/* 아래 여백 = 아래 탭 높이 + 16px (키보드가 올라와 탭이 숨으면 함께 줄어 입력칸이 키보드 바로 위에) */}
-      <main className={`mx-auto max-w-xl px-4 pt-5 ${user ? 'pb-[calc(var(--tabbar-space)+16px)] sm:pb-16' : 'pb-16'}`}>{children}</main>
+      <main className={`mx-auto max-w-xl px-4 pt-5 ${user ? 'pb-[calc(var(--tabbar-space)+16px)] sm:pb-16' : 'pb-16'}`}>
+        {overdue && <ClockOutPrompt endText={overdue.endText} title={overdue.title} />}
+        {children}
+      </main>
       {user && <BottomNav unread={unread} todo={todo} communityNew={cmNew} mode={user.role === 'admin' ? 'worker' : user.memberType} />}
       {user && <AppBadge count={unread + todo} />}
-      {overdue && <ClockOutPrompt endText={overdue.endText} title={overdue.title} />}
       {/* 설치한 앱에서 맨 위에서 당기면 새로 고침 */}
       {user && <PullToRefresh />}
       <ScrollTop />
