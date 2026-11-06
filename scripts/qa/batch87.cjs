@@ -29,6 +29,8 @@ const status = async () => (await rest(`jobs?id=eq.${J}`))[0]?.status
   }
   await rest('attendance', 'POST', { ...wAtt, id: undefined, user_id: X, clock_in: new Date().toISOString(), clock_out: null })
   await rest(`jobs?id=eq.${J}`, 'PATCH', { start_time: '00:00:00', end_time: '23:59:00', end_date: tomorrow })
+  // (가짜 데이터의 근무자는 서명 안 한 서류가 있어 근무 버튼이 숨어 있음 → 서명한 것으로)
+  await rest(`signed_docs?user_id=eq.${W}`, 'PATCH', { status: 'signed', signed_at: new Date().toISOString() })
 
   const b = await chromium.launch()
   const errs = []
@@ -81,6 +83,7 @@ const status = async () => (await rest(`jobs?id=eq.${J}`))[0]?.status
   ok("공고 상태가 '행사 종료'(done)로", (await status()) === 'done')
   await a.goto(`${D}/admin/jobs/${J}`)
   await a.locator('[data-job-more] summary').click()
+  await a.getByRole('button', { name: '모집 열기' }).waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
   ok("되돌리기: 더보기에 '모집 열기'", await a.getByRole('button', { name: '모집 열기' }).isVisible())
 
   // ── 5. 모두 같은 날 다 퇴근 (안 온 사람 없음) → 근무자 종료만으로도 바로 ──
