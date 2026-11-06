@@ -36,7 +36,7 @@ function getPosition(): Promise<{ pos: { lat: number; lng: number } | null; prob
 }
 
 /** 위치를 못 쓸 때: 지금 쓰는 휴대폰·브라우저에 맞춰 위치를 켜는 방법 */
-function LocationHelp({ problem, required }: { problem: GeoProblem; required: boolean }) {
+function LocationHelp({ problem, required, quiet = false }: { problem: GeoProblem; required: boolean; quiet?: boolean }) {
   const [env, setEnv] = useState<'kakao' | 'ios' | 'android' | 'other'>('other')
   useEffect(() => {
     const ua = navigator.userAgent
@@ -45,7 +45,8 @@ function LocationHelp({ problem, required }: { problem: GeoProblem; required: bo
   return (
     <div role="status" className="animate-pop space-y-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
       <p className="font-bold">📍 {problem === 'denied' ? '위치 권한이 꺼져 있어요' : '위치를 찾지 못했어요'}</p>
-      <p>{required ? '이 행사는 현장에서만 근무 시작을 누를 수 있어요.' : '위치 없이도 기록되지만, 켜 두면 현장 확인이 정확해요.'}</p>
+      {/* 위에 같은 말(오류)이 이미 떠 있으면 되풀이하지 않음 */}
+      {!quiet && <p>{required ? '이 행사는 현장에서만 근무 시작을 누를 수 있어요.' : '위치 없이도 기록되지만, 켜 두면 현장 확인이 정확해요.'}</p>}
       {problem === 'failed' ? (
         <p>건물 밖이나 창가에서 잠시 뒤 다시 눌러 주세요. 휴대폰 설정에서 위치(GPS)가 켜져 있는지도 확인해 주세요.</p>
       ) : env === 'kakao' ? (
@@ -128,6 +129,7 @@ export function ClockPanel({
   endAt,
   endText,
   serverNow,
+  askedAt = null,
 }: {
   jobId: string
   open: { id: string; clock_in: string; startText: string } | null
@@ -139,6 +141,8 @@ export function ClockPanel({
   endText?: string
   /** 서버가 그린 시각: 처음 화면을 서버와 같게 그려서 (분이 바뀌는 순간에도) 경과 시간 글자가 어긋나지 않게 */
   serverNow?: number
+  /** 오늘 담당자에게 보낸 출근 확인 요청 시각 (HH:MM, 아직 처리 전) */
+  askedAt?: string | null
 }) {
   const [pending, start] = useTransition()
   const [result, setResult] = useState<ClockResult | null>(null)
@@ -153,6 +157,9 @@ export function ClockPanel({
   const lastPos = useRef<{ lat: number; lng: number } | null>(null)
   const [asked, setAsked] = useState<ClockResult | null>(null)
   const [asking, startAsk] = useTransition()
+  // 현장 위치 확인에 연달아 막힌 횟수: 두 번째부터는 같은 버튼을 또 누르지 않게 출근 확인 요청 칸으로 데려감
+  const [gpsFails, setGpsFails] = useState(0)
+  const askBox = useRef<HTMLDivElement>(null)
 
   // 위치 권한이 이미 꺼져 있으면 누르기 전에 미리 알려 줌 (지원하는 브라우저만)
   useEffect(() => {
@@ -221,6 +228,7 @@ export function ClockPanel({
       }
       setOffline(false)
       setResult(res)
+      setGpsFails((n) => (res.gps ? n + 1 : 0))
       setStep('')
       setNow(Date.now())
       if (res.ok) {
@@ -255,6 +263,15 @@ export function ClockPanel({
         setAsked({ error: '인터넷 연결이 약해요. 신호가 잡히는 곳에서 다시 눌러 주세요.' })
       }
     })
+
+  // 요청해 둔 것 (서버 기록 또는 방금 보낸 것)
+  const waiting = !open && (!!askedAt || !!asked?.ok)
+  // 출근 확인 요청 칸: 위치에 막혔을 때, 또는 현장 확인이 필요한 공고인데 위치 권한이 꺼진 걸 미리 알 때 (누르기 전부터)
+  const showAsk = !open && !pending && !waiting && (!!result?.gps || (gpsRequired && geo === 'denied'))
+  // (요청 칸은 처리 중엔 숨었다가 끝나면 다시 그려지므로, 다시 보일 때 옮김)
+  useEffect(() => {
+    if (gpsFails >= 2 && showAsk) askBox.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [gpsFails, showAsk])
 
   return (
     <div className="relative space-y-3">
@@ -303,6 +320,19 @@ export function ClockPanel({
           계약 종료 시각({endText})이 지났어요. 일이 끝났으면 근무 종료를 눌러 주세요. 이후 시간은 담당자와 서로 확인한 뒤에만 급여에 들어가요.
         </p>
       )}
+      {/* 담당자에게 출근 확인을 요청해 둔 상태: 다시 같은 버튼을 누르며 헤매지 않게 기다리는 중임을 알려 줌 (확인되면 화면이 저절로 바뀜) */}
+      {waiting && (
+        <div role="status" data-arrive-wait className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-1 ring-brand-100">
+          <p className="flex items-center gap-2 font-bold">
+            <span className="relative flex size-2.5 shrink-0">
+              <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand-400 opacity-75" />
+              <span className="relative inline-flex size-2.5 rounded-full bg-brand-500" />
+            </span>
+            {askedAt ? `${askedAt} 출근 확인 요청함` : '출근 확인 요청함'}
+          </p>
+          <p className="mt-0.5">담당자가 확인하면 요청한 시각으로 출근 처리되고, 이 화면도 저절로 바뀌어요.</p>
+        </div>
+      )}
       <button
         type="button"
         onClick={press}
@@ -327,21 +357,27 @@ export function ClockPanel({
           지금 다시 시도
         </button>
       )}
-      {result?.gps && !open && !pending && (
-        <div className="animate-pop space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-1 ring-brand-100">
-          <p className="font-bold">현장에 도착했는데 위치가 안 맞나요?</p>
-          <p>실내나 지하에서는 위치가 멀게 잡힐 수 있어요. 담당자에게 요청하면 지금 시각으로 출근 처리해 줘요.</p>
-          {asked?.ok ? (
-            <p className="font-semibold text-emerald-700">✓ {asked.ok}</p>
-          ) : (
-            <button type="button" onClick={ask} disabled={asking} className="btn-primary btn-sm disabled:opacity-60">
-              {asking ? '요청 중…' : '담당자에게 출근 확인 요청'}
-            </button>
-          )}
+      {showAsk && (
+        <div
+          ref={askBox}
+          data-arrive-ask
+          data-strong={gpsFails >= 2 ? '' : undefined}
+          className={`animate-pop space-y-2 rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700 ring-brand-100 ${gpsFails >= 2 ? 'ring-2 ring-brand-400' : 'ring-1'}`}
+        >
+          <p className="font-bold">{geo ? '위치를 켜기 어렵나요?' : '현장에 도착했는데 위치가 안 맞나요?'}</p>
+          <p>
+            {geo
+              ? '현장에 도착했다면 담당자에게 요청해 주세요. 확인되면 지금 시각으로 출근 처리돼요.'
+              : '실내나 지하에서는 위치가 멀게 잡힐 수 있어요. 담당자에게 요청하면 지금 시각으로 출근 처리해 줘요.'}
+          </p>
+          <button type="button" onClick={ask} disabled={asking} data-track="출근 확인 요청" className="btn-primary btn-sm disabled:opacity-60">
+            {asking ? '요청 중…' : '담당자에게 출근 확인 요청'}
+          </button>
           {asked?.error && <p className="font-semibold text-rose-600">{asked.error}</p>}
         </div>
       )}
-      {useLocation && geo && !pending && <LocationHelp problem={geo} required={gpsRequired && !open} />}
+      {/* 요청해 두고 기다리는 동안엔 접어 둠 (다시 눌러 막혔을 때만) */}
+      {useLocation && geo && !pending && (!waiting || !!result) && <LocationHelp problem={geo} required={gpsRequired && !open} quiet={!!result?.gps} />}
     </div>
   )
 }

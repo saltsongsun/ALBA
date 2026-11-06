@@ -50,16 +50,16 @@ export default async function ProfilePage() {
   const checks = vendor
     ? [
         { key: 'account', label: '대금 계좌', done: !!me.bank_account_enc, href: '#bank_account', why: '대금을 바로 받아요' },
-        { key: 'specialty', label: '분야', done: !!me.specialty, href: '#pro', why: '맞는 견적 요청을 받아요' },
-        { key: 'intro', label: '한 줄 소개', done: !!me.intro, href: '#pro', why: '회사가 업체를 고를 때 봐요' },
+        { key: 'specialty', label: '분야', done: !!me.specialty, href: '#pro', why: '견적 요청을 받아요' },
+        { key: 'intro', label: '한 줄 소개', done: !!me.intro, href: '#pro', why: '업체 고를 때 봐요' },
       ]
     : [
-        { key: 'photo', label: '얼굴 사진', done: !!me.photo_at, href: '#photo', why: '현장에서 담당자가 알아봐요' },
-        { key: 'account', label: type === 'expert' ? '대금 계좌' : '급여 계좌', done: !!me.bank_account_enc, href: '#bank_account', why: type === 'expert' ? '용역 대금을 바로 받아요' : '급여를 바로 받아요' },
-        { key: 'emergency', label: '비상연락처', done: !!me.emergency_phone, href: '#emergency_phone', why: '현장에서 연락이 안 될 때' },
+        { key: 'photo', label: '얼굴 사진', done: !!me.photo_at, href: '#photo', why: '담당자가 알아봐요' },
+        { key: 'account', label: type === 'expert' ? '대금 계좌' : '급여 계좌', done: !!me.bank_account_enc, href: '#bank_account', why: type === 'expert' ? '대금을 바로 받아요' : '급여를 바로 받아요' },
+        { key: 'emergency', label: '비상연락처', done: !!me.emergency_phone, href: '#emergency_phone', why: '급할 때 연락해요' },
         type === 'expert'
           ? { key: 'specialty', label: '전문 분야', done: !!me.specialty, href: '#pro', why: '맞는 의뢰를 받아요' }
-          : { key: 'address', label: '주소', done: !!me.address, href: '#address', why: '근로계약서에 들어가요' },
+          : { key: 'address', label: '주소', done: !!me.address, href: '#address', why: '계약서에 들어가요' },
         { key: 'careers', label: type === 'expert' ? '참여한 행사' : '행사 경력', done: Array.isArray(me.careers) && me.careers.length > 0, href: '#careers', why: '확정될 때 참고해요' },
       ]
   const doneN = checks.filter((c) => c.done).length
@@ -83,7 +83,7 @@ export default async function ProfilePage() {
             ))}
           </div>
           {/* 빈 항목은 두 칸씩 (위아래로 덜 길게) — 누르면 그 칸으로 */}
-          <ul className="grid grid-cols-2 gap-1.5">
+          <ul data-profile-checks className="grid grid-cols-2 gap-1.5">
             {checks
               .filter((c) => !c.done)
               .map((c) => (

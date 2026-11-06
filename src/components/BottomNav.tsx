@@ -110,7 +110,16 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
             <Link
               key={t.href}
               href={t.href}
-              onClick={onTap(t.href)}
+              onClick={(e) => {
+                // 지금 보고 있는 탭을 또 누르면 맨 위로 (휴대폰 앱처럼). 아무 반응이 없어 여러 번 누르던 것
+                if (path === t.href && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                  e.preventDefault()
+                  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
+                  window.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' })
+                  return
+                }
+                onTap(t.href)(e)
+              }}
               aria-current={i === current ? 'page' : undefined}
               className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
             >

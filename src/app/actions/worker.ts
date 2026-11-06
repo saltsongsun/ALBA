@@ -292,7 +292,7 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
   let distance: number | null = null
   if (pos && job.lat != null && job.lng != null) distance = distanceM(pos.lat, pos.lng, job.lat, job.lng)
   if (job.gps_required && job.lat != null && job.lng != null) {
-    if (!pos) return { error: '이 행사는 현장 위치 확인이 필요합니다. 위치 권한을 허용하고 다시 눌러 주세요.', gps: true }
+    if (!pos) return { error: '현장 위치를 확인하지 못했어요. 이 행사는 현장에서만 근무 시작을 누를 수 있어요.', gps: true }
     if (distance! > job.gps_radius_m) {
       return { error: `행사장에서 약 ${distance!.toLocaleString()}m 떨어져 있어요. 현장(${job.gps_radius_m}m 이내)에서 눌러 주세요.`, gps: true }
     }

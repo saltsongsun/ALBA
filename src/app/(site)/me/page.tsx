@@ -167,6 +167,9 @@ export default async function MePage(props: PageProps<'/me'>) {
     const l = signalOf(m.body) === 'late' ? parseLate(m.body) : null
     if (l && !lateSent.has(m.job_id)) lateSent.set(m.job_id, { ...l, at: kstTime(m.created_at) })
   }
+  // 오늘 보낸 출근 확인 요청 (위치 확인이 안 될 때): 공고별 마지막 요청 시각 — 출근 기록이 생기면 화면에서 사라짐
+  const arriveSent = new Map<string, string>()
+  for (const m of mySignals) if (signalOf(m.body) === 'arrive' && !arriveSent.has(m.job_id)) arriveSent.set(m.job_id, kstTime(m.created_at))
   const latestNotice = new Map<string, { body: string; created_at: string }>()
   for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
   const photoAt = me?.photo_at ?? null
@@ -256,7 +259,10 @@ export default async function MePage(props: PageProps<'/me'>) {
     <div className="space-y-5">
       <Flash m={sp.m} />
       {/* 근무 날·답을 기다리는 일이 있으면: 담당자의 출근 처리·시간 변경·정정 결과가 새로 고치지 않아도 보이게 */}
-      {(todayApps.length > 0 || pendingShifts.length > 0) && <AutoRefresh seconds={60} quiet />}
+      {(todayApps.length > 0 || pendingShifts.length > 0) && (
+        // 출근 확인을 요청해 두었으면 담당자가 처리하는 대로 빨리 바뀌게 (20초)
+        <AutoRefresh seconds={todayApps.some((a) => arriveSent.has(a.job_id) && !atts.some((t) => t.job_id === a.job_id && t.work_date === today)) ? 20 : 60} quiet />
+      )}
       <InstallBanner />
       {/* 아직 알림을 안 켰으면 (켰거나 지원 안 되는 기기면 안 보임) */}
       <PushToggle publicKey={pushPublicKey()} variant="card" />
@@ -618,7 +624,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       <details className="text-sm">
                         <summary className="cursor-pointer py-1 font-semibold text-sub">담당자가 오늘 나와 달라고 했나요?</summary>
                         <div className="mt-2">
-                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
+                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} />
                         </div>
                       </details>
                     </div>
@@ -670,13 +676,14 @@ export default async function MePage(props: PageProps<'/me'>) {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      <StartCountdown
+                      {/* 출근 확인을 요청해 두었으면 '근무 시작을 눌러 주세요' 안내는 빼고 (기다리는 중 안내만) */}
+                      {!arriveSent.has(job.id) && <StartCountdown
                         startAt={kstAt(today, todayShift(job).start_time).toISOString()}
                         endAt={scheduledEnd(todayShift(job), today).toISOString()}
                         startText={hhmm(todayShift(job).start_time)}
                         serverNow={Date.now()}
-                      />
-                      <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} />
+                      />}
+                      <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} />
                     </div>
                   )}
                   {/* 출근 전이고 근무가 끝나기 전: 늦으면 담당자에게 알리기 */}
