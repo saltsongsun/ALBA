@@ -34,7 +34,7 @@ export default function ClockOutPrompt({ endText, title }: { endText: string; ti
       <div className="glass animate-slide-up mx-auto max-w-md space-y-2 rounded-[22px] p-3 pl-4 ring-1 ring-rose-200">
         <div className="min-w-0">
           <p className="text-[14px] font-bold text-rose-700">⏰ 종료 시각({endText})이 지났어요</p>
-          <p className="truncate text-[13px] text-sub">{title} · 일이 끝났으면 근무 종료를 눌러 주세요</p>
+          <p className="truncate text-[13px] text-sub">일이 끝났으면 근무 종료를 눌러 주세요 · {title}</p>
         </div>
         <div className="flex gap-2">
           <Link href="/me#clock" data-track="근무 종료하러 가기" className="btn-sm btn flex-1 bg-rose-500 text-white hover:bg-rose-600">
