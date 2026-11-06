@@ -2,7 +2,7 @@
 
 import { randomInt } from 'node:crypto'
 import { rosterUnlockedFor } from '@/lib/rosterLock'
-import { FINISHED_NOTE, finishIfAllOut } from '@/lib/autoFinish'
+import { FINISHED_NOTE, finishIfAllOut, tellPaydayOnEnd } from '@/lib/autoFinish'
 import { remindOthersToClockOut } from '@/lib/remind'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
@@ -264,6 +264,88 @@ export async function setJobStatus(jobId: string, status: Job['status']) {
   must(await db().from('jobs').update({ status }).eq('id', jobId).eq('company_id', admin.companyId).neq('status', 'cancelled'))
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/')
+}
+
+/**
+ * 관리자 '행사 종료하기' (근무자의 '근무 종료'처럼 큰 버튼): 아직 근무 중인 사람은 예정 종료 시각(지났으면) 또는 지금으로 근무 종료,
+ * 공고는 '행사 종료'로 바꾸고 정산 탭으로. 마지막 날부터만 (여러 날 행사의 중간 날엔 '오늘 근무 마무리'를 씀)
+ * 사용자 요청 2026-11-06 "관리자도 근무자처럼 버튼들 만들어줘 · 행사 종료하기 등등"
+ */
+export async function endEvent(jobId: string) {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return
+  const path = `/admin/jobs/${jobId}`
+  if (!['open', 'closed'].includes(job.status)) back(path, '이미 종료했거나 취소된 행사예요.')
+  if (kstDate() < job.end_date) back(path, '마지막 날부터 행사를 종료할 수 있어요. 오늘 근무만 마치려면 \'오늘 근무 마무리\'를 눌러 주세요.')
+  const open = must(
+    await db().from('attendance').select('id, user_id, work_date, clock_in, sched_start, sched_end, note').eq('job_id', jobId).eq('company_id', admin.companyId).is('clock_out', null),
+  ) as { id: string; user_id: string; work_date: string; clock_in: string; sched_start: string | null; sched_end: string | null; note: string | null }[]
+  const now = new Date()
+  const outOf = new Map<string, string>()
+  await Promise.all(
+    open.map(async (a) => {
+      // 사람마다 그날 종료 시각이 지났으면 그 시각, 아니면 지금 (일괄 종료와 같은 규칙)
+      const end = scheduledEnd(shiftOf(job, a), a.work_date)
+      const out = end < now ? end : now
+      const t = new Date(a.clock_in) < out ? out : now
+      const note = [a.note, '행사 종료로 근무 종료'].filter(Boolean).join(' · ').slice(0, 300)
+      const { error } = await db().from('attendance').update({ clock_out: t.toISOString(), note }).eq('id', a.id).is('clock_out', null)
+      if (!error) outOf.set(a.user_id, kstTime(t))
+    }),
+  )
+  must(await db().from('jobs').update({ status: 'done' }).eq('id', jobId).eq('company_id', admin.companyId).in('status', ['open', 'closed']))
+  await audit(admin.id, 'job.end', null, `${jobId} 근무 종료 ${outOf.size}명`, admin.companyId)
+  // 일한 근무자 모두에게 정산 예정일 안내 (지급일을 정해 둔 공고만)
+  const paydayTold = await tellPaydayOnEnd(job, admin.id)
+  if (outOf.size) {
+    await tellWorkers([...outOf.keys()], {
+      senderId: admin.id,
+      companyId: admin.companyId,
+      jobId,
+      title: '🏁 행사가 끝났어요',
+      text: (uid) => `${job.title} · 담당자가 행사를 종료하면서 ${outOf.get(uid)} 근무 종료로 기록했어요. 시각이 다르면 앱에서 기록 정정을 요청해 주세요.`,
+      tag: `clockout-${jobId}`,
+    })
+  }
+  revalidatePath(path)
+  revalidatePath('/admin')
+  revalidatePath('/admin/jobs')
+  revalidatePath('/')
+  back(
+    `${path}?tab=pay`,
+    `행사를 종료했어요.${outOf.size ? ` 근무 중이던 ${outOf.size}명은 근무 종료로 기록했어요.` : ''}${paydayTold ? ` ${paydayTold}명에게 정산 예정일을 알렸어요.` : ''}`,
+  )
+}
+
+/**
+ * 정산 예정일 알리기 (정산 탭): 이 행사에서 일한 근무자 모두에게 '💰 정산 예정일 안내' (앱 알림 + 문의함).
+ * 근무자의 '지난 근무'에 그 날짜가 보임 · 사용자 요청 2026-11-06 "정산예정일자 고지기능 넣어줘"
+ */
+export async function announcePayday(jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=pay`
+  const date = str(form, 'payday')
+  if (!isDate(date)) back(path, '정산 예정일을 골라 주세요.')
+  const memo = optLine(form, 'memo', 80)
+  const ids = [
+    ...new Set((must(await db().from('attendance').select('user_id').eq('job_id', jobId).eq('company_id', admin.companyId)) as { user_id: string }[]).map((r) => r.user_id)),
+  ]
+  if (!ids.length) back(path, '아직 근무 기록이 있는 근무자가 없어요.')
+  await tellWorkers(ids, {
+    senderId: admin.id,
+    companyId: admin.companyId,
+    jobId,
+    title: `${SIGNAL.payday} 안내`,
+    text: `${job.title} · 정산 예정일: ${fmtDate(date)}${memo ? `\n${memo}` : ''}`,
+    url: '/me/history',
+    tag: `payday-${jobId}`,
+  })
+  await audit(admin.id, 'job.payday', null, `${jobId} ${date} ${ids.length}명`, admin.companyId)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back(path, `${ids.length}명에게 정산 예정일(${fmtDate(date)})을 알렸어요.`)
 }
 
 export async function duplicateJob(jobId: string) {

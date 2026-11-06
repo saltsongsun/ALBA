@@ -6,6 +6,7 @@ import { cancelEvent, deleteJob, duplicateJob, setJobStatus } from '@/app/action
 import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
+import JobActions from '@/components/JobActions'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { getSettings, wageTotal } from '@/lib/data'
 import { won } from '@/lib/format'
@@ -14,6 +15,7 @@ import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
+import { jobPhase } from '@/lib/jobPhase'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
 import AppsTab from './AppsTab'
@@ -148,6 +150,13 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     ['docs', `서류${pendingDocs ? ` (대기 ${pendingDocs})` : ''}`],
   ] as const
 
+  // 지금 할 일 큰 버튼의 숫자: 오늘(행사가 지났으면 남은 기록 전체) 근무 중·퇴근·미출근
+  const phase = jobPhase(job, today)
+  const dayAtts = atts.filter((a) => a.work_date === today)
+  const actWorking = phase === 'after' ? atts.filter((a) => !a.clock_out).length : dayAtts.filter((a) => !a.clock_out).length
+  const actFinished = dayAtts.filter((a) => a.clock_out).length
+  const cameToday = new Set(dayAtts.map((a) => a.user_id))
+  const actAbsent = dates.includes(today) ? approved.filter((a) => (!a.available_dates || a.available_dates.includes(today)) && !cameToday.has(a.user_id)).length : 0
   const reviewAvg = jobReviews.length ? Math.round((jobReviews.reduce((n, r) => n + r.rating, 0) / jobReviews.length) * 10) / 10 : 0
   return (
     <div className="space-y-5">
@@ -220,7 +229,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
               </Link>
             </div>
           )}
-          <div className="mt-4 flex flex-wrap gap-2">
+          {/* 지금 할 일 하나를 크게 (근무자의 근무 시작·종료처럼) */}
+          <div className="mt-4">
+            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
             <Link href={`/admin/jobs/${job.id}/edit`} className="btn-soft btn-sm">
               수정
             </Link>
@@ -241,7 +254,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                 <Icon name="qr" /> 긴급 투입 QR
               </Link>
             )}
-            {/* 자주 안 쓰는 것은 접어 둠 (복사·모집 열기/마감·행사 종료·삭제) */}
+            {/* 자주 안 쓰는 것은 접어 둠 (복사·모집 열기/마감·삭제) · 행사 종료는 위의 큰 버튼 */}
             <details className="group/more open:basis-full" data-job-more>
               <summary className="btn-gray btn-sm cursor-pointer">더보기</summary>
               {/* 접혀 있을 때는 자리도 차지하지 않게 */}
@@ -257,11 +270,6 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                 {job.status === 'open' && (
                   <form action={setJobStatus.bind(null, job.id, 'closed')}>
                     <SubmitButton className="btn-gray btn-sm">모집 마감</SubmitButton>
-                  </form>
-                )}
-                {job.status !== 'done' && job.status !== 'cancelled' && (
-                  <form action={setJobStatus.bind(null, job.id, 'done')}>
-                    <SubmitButton className="btn-gray btn-sm">행사 종료</SubmitButton>
                   </form>
                 )}
                 <form action={deleteJob.bind(null, job.id)}>

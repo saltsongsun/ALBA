@@ -3,9 +3,12 @@ import { after } from 'next/server'
 import { db } from './db'
 import { scheduledEnd, shiftOf } from './pay'
 import { adminIds, sendPush } from './push'
+import { tellWorkers } from './notify'
+import { paydayLabel } from './payday'
+import { SIGNAL } from './signals'
 import type { Job } from './types'
 
-type FinishJob = Pick<Job, 'id' | 'title' | 'status' | 'company_id' | 'end_date' | 'start_time' | 'end_time'>
+type FinishJob = Pick<Job, 'id' | 'title' | 'status' | 'company_id' | 'end_date' | 'start_time' | 'end_time' | 'pay_day'>
 
 /**
  * 행사 마지막 날, 근무자가 모두 퇴근하면 '행사 종료'로 바꿈 (사용자 요청 2026-11-06 "아르바이트 전원 퇴근하면 행사종료해줘").
@@ -19,7 +22,7 @@ type FinishJob = Pick<Job, 'id' | 'title' | 'status' | 'company_id' | 'end_date'
  * 반환: 이번에 종료했으면 true
  */
 export async function finishIfAllOut(jobId: string, workDate: string): Promise<boolean> {
-  const { data: j } = await db().from('jobs').select('id, title, status, company_id, end_date, start_time, end_time').eq('id', jobId).maybeSingle()
+  const { data: j } = await db().from('jobs').select('id, title, status, company_id, end_date, start_time, end_time, pay_day').eq('id', jobId).maybeSingle()
   const job = j as FinishJob | null
   if (!job || !['open', 'closed'].includes(job.status) || workDate !== job.end_date) return false
   const [{ data: atts }, { data: apps }] = await Promise.all([
@@ -41,6 +44,8 @@ export async function finishIfAllOut(jobId: string, workDate: string): Promise<b
   revalidatePath('/admin')
   revalidatePath('/')
   const n = came.size
+  // 일한 근무자 모두에게 정산 예정일 안내 (지급일을 정해 둔 공고만)
+  await tellPaydayOnEnd(job, null)
   after(async () =>
     sendPush(await adminIds(job.company_id), {
       title: '🏁 행사 종료 · 전원 퇴근',
@@ -54,3 +59,24 @@ export async function finishIfAllOut(jobId: string, workDate: string): Promise<b
 
 /** 관리자 화면 안내 문구 끝에 붙이는 말 */
 export const FINISHED_NOTE = ' 모두 퇴근해서 행사를 종료했어요.'
+
+/**
+ * 행사가 끝나면 이 행사에서 일한 근무자 모두에게 '💰 정산 예정일 안내' (사용자 요청 2026-11-06 "정산예정일자 고지기능 넣어줘").
+ * 공고의 지급일 글자로 날짜를 짐작 ('익월 10일' → 12/10(목)) · 지급일이 비어 있으면 보내지 않음 · 반환: 받은 사람 수
+ */
+export async function tellPaydayOnEnd(job: Pick<Job, 'id' | 'title' | 'company_id' | 'end_date' | 'pay_day'>, senderId: string | null): Promise<number> {
+  const label = paydayLabel(job.pay_day, job.end_date)
+  if (!label) return 0
+  const { data } = await db().from('attendance').select('user_id').eq('job_id', job.id)
+  const ids = [...new Set(((data ?? []) as { user_id: string }[]).map((r) => r.user_id))]
+  if (!ids.length) return 0
+  return tellWorkers(ids, {
+    senderId,
+    companyId: job.company_id,
+    jobId: job.id,
+    title: `${SIGNAL.payday} 안내`,
+    text: `${job.title} · 행사가 끝났어요. 정산 예정일: ${label}`,
+    url: '/me/history',
+    tag: `payday-${job.id}`,
+  })
+}

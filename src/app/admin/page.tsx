@@ -3,6 +3,7 @@ import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
+import JobActions from '@/components/JobActions'
 import { decideApplication, setJobStatus } from '@/app/actions/admin'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -659,7 +660,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         ) : (
           <div className="stagger grid gap-3 md:grid-cols-2">
             {todayJobs.map((j) => (
-              <Link key={j.id} href={`/admin/jobs/${j.id}?tab=att&date=${today}`} className="card-link block">
+              <div key={j.id} className="card space-y-3" data-today-job>
+                <Link href={`/admin/jobs/${j.id}?tab=att&date=${today}`} className="block transition active:scale-[0.99]">
                 <p className="font-bold">{j.title}</p>
                 <p className="text-sm text-sub">
                   {scheduleText(j)}
@@ -679,7 +681,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   </span>
                 </p>
                 <SlotBar value={workingBy[j.id] ?? 0} max={counts[j.id] ?? 0} color="bg-emerald-500" className="mt-2" />
-              </Link>
+                </Link>
+                {/* 지금 할 일 큰 버튼 (출석 체크 · 오늘 근무 마무리 · 행사 종료하기) */}
+                <JobActions job={j} today={today} working={workingBy[j.id] ?? 0} compact />
+              </div>
             ))}
           </div>
         )}

@@ -1,12 +1,14 @@
 import Icon from '@/components/Icon'
 import Link from 'next/link'
-import { nudgeWorkers, setAllPaid, setPaid } from '@/app/actions/admin'
+import { announcePayday, nudgeWorkers, setAllPaid, setPaid } from '@/app/actions/admin'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { maskAccount, won } from '@/lib/format'
 import { calcDay, settle, TAX_LABEL, workingToday } from '@/lib/pay'
-import { kstDate, minutesText } from '@/lib/time'
+import { fmtDate, kstDate, kstDateTime, minutesText } from '@/lib/time'
+import { paydayGuess } from '@/lib/payday'
+import { parsePayday, SIGNAL } from '@/lib/signals'
 import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
 import { payState } from '@/lib/vendors'
@@ -64,9 +66,48 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
   const paidN = payable.filter((r) => r.paid).length
   const leftWon = unpaid.reduce((t, r) => t + r.s.net, 0)
   const paidPct = payable.length ? Math.round((paidN / payable.length) * 100) : 0
+  // 정산 예정일: 마지막으로 알린 것 (근무자 문의함에 남은 안내) · 처음 고를 날짜는 공고의 지급일 글자로 짐작
+  const lastPayday = userIds.length
+    ? await db()
+        .from('messages')
+        .select('body, created_at')
+        .eq('company_id', job.company_id)
+        .eq('job_id', job.id)
+        .eq('from_admin', true)
+        .like('body', `${SIGNAL.payday}%`)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .then((r) => {
+          const m = ((r.data ?? []) as { body: string; created_at: string }[]).filter((x) => x.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+          return m ? { label: parsePayday(m.body), at: kstDateTime(m.created_at) } : null
+        })
+    : null
+  const guess = paydayGuess(job.pay_day, job.end_date)
 
   return (
     <div className="space-y-4">
+      {/* 정산 예정일 알리기: 일한 근무자 모두에게 앱 알림 + 문의함, 근무자 '지난 근무'에 그 날짜가 보임 */}
+      {userIds.length > 0 && unpaid.length > 0 && (
+        <form action={announcePayday.bind(null, job.id)} className="card space-y-3" data-payday>
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <h3 className="font-bold">💰 정산 예정일 알리기</h3>
+              <p className="text-xs text-sub" data-payday-last>
+                {lastPayday?.label ? `${lastPayday.at}에 '${lastPayday.label}'로 알렸어요` : `일한 근무자 ${userIds.length}명에게 언제 들어오는지 알려요`}
+              </p>
+            </div>
+            {job.pay_day && <span className="badge shrink-0 bg-bg text-sub">지급일 {job.pay_day}</span>}
+          </div>
+          <div className="flex gap-2">
+            <input type="date" name="payday" required defaultValue={guess?.date ?? ''} min={job.end_date} className="input min-w-0 flex-1" aria-label="정산 예정일" />
+            <SubmitButton className="btn-primary shrink-0" pendingText="알리는 중…" track="정산 예정일 알리기">
+              {userIds.length}명에게 알리기
+            </SubmitButton>
+          </div>
+          <input name="memo" maxLength={80} className="input" placeholder="덧붙일 말 (선택) · 예: 오후 중 순서대로 입금돼요" aria-label="덧붙일 말" />
+          {guess && <p className="hint">지급일 ‘{job.pay_day}’로 {fmtDate(guess.date)}을 골라 두었어요{guess.until ? ' (이날까지)' : ''}.</p>}
+        </form>
+      )}
       {payable.length > 0 && (
         <div className="card space-y-3" data-pay-summary>
           <div className="grid grid-cols-3 gap-2 text-center">

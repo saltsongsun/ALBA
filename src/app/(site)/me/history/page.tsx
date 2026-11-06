@@ -10,6 +10,8 @@ import { fmtDateRange, kstDate, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { canWrite, myReviewedJobs } from '@/lib/community'
+import { paydayLabel } from '@/lib/payday'
+import { parsePayday, SIGNAL } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '지난 근무' }
 
@@ -43,6 +45,24 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     // 후기를 이미 쓴 공고 (못 읽어도 화면은 그대로)
     myReviewedJobs(user.id).catch(() => new Set<string>()),
   ])
+  // 담당자가 알린 정산 예정일 (공고별 마지막 안내) · 못 읽으면 공고의 지급일 글자로
+  const paydayMsgs = await db()
+    .from('messages')
+    .select('job_id, body, created_at')
+    .eq('thread_user_id', user.id)
+    .eq('from_admin', true)
+    .like('body', `${SIGNAL.payday}%`)
+    .order('created_at', { ascending: false })
+    .limit(50)
+    .then(
+      (r) => ((r.data ?? []) as { job_id: string | null; body: string; created_at: string }[]).filter((m) => m.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      () => [],
+    )
+  const told = new Map<string, string>()
+  for (const m of paydayMsgs) {
+    const label = parsePayday(m.body)
+    if (m.job_id && label && !told.has(m.job_id)) told.set(m.job_id, label)
+  }
   const reviewer = canWrite(user)
   // 서류는 근무가 확정된 동안만 열 수 있음 (지원 취소·확정 되돌림이면 관리자 문의)
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
@@ -213,6 +233,12 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                           {!(live > 0 && s.days === 0) && ` · ${s.days}일 · ${minutesText(s.paidMin)}`}
                         </p>
                         {live > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
+                        {/* 정산 예정일: 담당자가 알린 날짜, 없으면 공고의 지급일 */}
+                        {!paid && !(live > 0 && s.days === 0) && (told.get(job.id) ?? paydayLabel(job.pay_day, job.end_date)) && (
+                          <p className="text-xs font-semibold text-amber-700" data-payday-line>
+                            💰 정산 예정 {told.get(job.id) ?? paydayLabel(job.pay_day, job.end_date)}
+                          </p>
+                        )}
                         {s.incomplete - live > 0 && <p className="text-xs text-amber-600">종료 기록 없음 {s.incomplete - live}일</p>}
                       </div>
                       <div className="shrink-0 text-right">

@@ -11,6 +11,7 @@ export const SIGNAL = {
   cancel: '❌ 행사 취소', // 담당자 → 확정자·지원자
   remind: '⏰ 내일 근무 안내', // 자동: 근무 전날
   paid: '💸 급여 지급', // 담당자 → 근무자
+  payday: '💰 정산 예정일', // 담당자·자동(행사 종료) → 근무자: 언제 들어오는지
   account: '💳 계좌 등록 요청', // 담당자 → 근무자
   fix: '✏️ 기록 정정 요청', // 근무자 → 담당자: 출근·종료 시각이 잘못 찍힘
   fixDone: '✅ 기록 정정', // 담당자 → 근무자: 요청대로 고침
@@ -65,4 +66,9 @@ export function pendingFix<T extends { body: string; created_at: string; from_ad
 export function fixTime(date: string, fix: { field: 'in' | 'out'; time: string }, inAt: Date): Date {
   const t = new Date(`${date}T${fix.time}:00+09:00`)
   return fix.field === 'out' && t <= inAt ? new Date(t.getTime() + 86_400_000) : t
+}
+
+/** 정산 예정일 안내 본문에서 예정일 글자 ('정산 예정일: 11/14(금)' → '11/14(금)') */
+export function parsePayday(body: string): string | null {
+  return body.match(/정산 예정일: ([^\n]+)/)?.[1]?.trim() ?? null
 }
