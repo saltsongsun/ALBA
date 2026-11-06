@@ -17,7 +17,7 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   const errs = []
   const pg = async (uid) => {
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
-    await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1'); localStorage.setItem('push-nudge-later', String(Date.now())); localStorage.setItem('alba_install_hide_until', String(Date.now() + 864e5)) } catch {} })
+    await ctx.addInitScript(() => { try { sessionStorage.setItem('photo-prompt-later', '1'); sessionStorage.setItem('clockout-prompt-later', String(Date.now())) /* 저녁에 돌리면 가짜 근무자가 종료 시각 지난 근무 중이라 '근무 종료' 안내가 위에 붙음 — 높이 측정에서 뺌 */; localStorage.setItem('push-nudge-later', String(Date.now())); localStorage.setItem('alba_install_hide_until', String(Date.now() + 864e5)) } catch {} })
     await ctx.addCookies([{ name: 'alba_session', value: cookie(uid), url: D }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
