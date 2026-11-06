@@ -389,7 +389,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       )}
       <ContactButtons phone={p.user.phone} name={p.user.name} />
       <div className="grid grid-cols-2 gap-2">
-        <form action={decideApplication.bind(null, p.id, 'approved')}>
+        <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
           {isFull(p.job.id) ? (
             <ConfirmSubmit className="btn-primary w-full" confirmText="인원 다 찼어요 · 확정?">
               확정
@@ -400,7 +400,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             </SubmitButton>
           )}
         </form>
-        <form action={decideApplication.bind(null, p.id, 'rejected')}>
+        <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')}>
           {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
           <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림 보낼까요?">
             미선발
@@ -435,7 +435,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(p.created_at)}</td>
       <td className="whitespace-nowrap">
         <div className="flex gap-1">
-          <form action={decideApplication.bind(null, p.id, 'approved')}>
+          <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
             {isFull(p.job.id) ? (
               <ConfirmSubmit className="btn-primary btn-sm" confirmText="인원 다 찼어요 · 확정?">
                 확정
@@ -446,7 +446,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
               </SubmitButton>
             )}
           </form>
-          <form action={decideApplication.bind(null, p.id, 'rejected')}>
+          <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')}>
             <ConfirmSubmit className="btn-gray btn-sm" confirmText="미선발 알림 보낼까요?">
               미선발
             </ConfirmSubmit>
