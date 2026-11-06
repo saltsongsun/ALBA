@@ -4,7 +4,7 @@ import { linkCoworker, unlinkCoworker } from '@/app/actions/coworkers'
 import Empty from '@/components/Empty'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { canWrite } from '@/lib/community'
-import { coworkers, jobsWithCoworkers } from '@/lib/coworkers'
+import { coworkers, coworkersEnabled, jobsWithCoworkers } from '@/lib/coworkers'
 import { requireUser } from '@/lib/session'
 import { fmtDate, fmtDateRange } from '@/lib/time'
 
@@ -16,6 +16,19 @@ export const metadata: Metadata = { title: '함께 일한 사람' }
  */
 export default async function CoworkersPage() {
   const user = await requireUser('/community/coworkers')
+  // 운영자가 꺼 두었으면 안내만
+  if (!(await coworkersEnabled())) {
+    return (
+      <div className="space-y-4">
+        <Link href="/community" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+          ← 커뮤니티
+        </Link>
+        <p className="card text-sm text-sub" data-coworkers-off>
+          지금은 쓰지 않는 기능이에요.
+        </p>
+      </div>
+    )
+  }
   const [list, palJobs] = canWrite(user) ? await Promise.all([coworkers(user.id), jobsWithCoworkers(user.id)]) : [[], []]
   const sharing = list.filter((c) => c.mine).length
 

@@ -12,6 +12,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 
 ;(async () => {
+  // 운영자 전체 스위치: 이 기능은 처음엔 꺼져 있음 → 켜고 시작
+  await rest('audit_logs', 'POST', { actor_id: 'aaaaaaaa-0000-4000-8000-000000000001', action: 'feature.coworkers', detail: 'on', created_at: new Date().toISOString() })
   await rest(`users?id=eq.${AP}`, 'PATCH', { nickname: '새벽스태프' })
   await rest('users', 'POST', { id: X, name: 'x', phone: '01011110081', pin_hash: 's1:x:y', nickname: '야간조장', created_at: '2026-01-01T00:00:00Z' })
   const [p1] = await rest('community_posts', 'POST', { author_id: AP, category: 'tip', title: '동료가 쓴 글', body: '내용이에요', hidden_at: null })

@@ -22,6 +22,8 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
 const links = () => rest('coworker_links').then((r) => (Array.isArray(r) ? r : []))
 
 ;(async () => {
+  // 운영자 전체 스위치: 이 기능은 처음엔 꺼져 있음 → 켜고 시작
+  await rest('audit_logs', 'POST', { actor_id: 'aaaaaaaa-0000-4000-8000-000000000001', action: 'feature.coworkers', detail: 'on', created_at: new Date().toISOString() })
   // 김지원(AP)도 같은 공고에서 출근함 · 별명
   await rest('attendance', 'POST', { job_id: J, user_id: AP, work_date: new Date().toISOString().slice(0, 10), clock_in: new Date().toISOString(), clock_out: null })
   await rest(`users?id=eq.${W}`, 'PATCH', { nickname: '주차왕' })

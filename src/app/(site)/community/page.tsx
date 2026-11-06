@@ -6,7 +6,7 @@ import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
 import { ago, canPost, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
-import { linkedAmong } from '@/lib/coworkers'
+import { coworkersEnabled, linkedAmong } from '@/lib/coworkers'
 import { PACKS, splitPostBody } from '@/lib/stickers'
 
 /** 이모티콘 아이디 → 작은 그림 */
@@ -31,7 +31,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   const writer = canWrite(user) // 내 지원 보여 주기 등 근무자끼리 기능
   const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
   // 나에게 지원 공고를 보여 주는 사람이 쓴 글에는 '🤝 동료' (상대가 고른 경우만)
-  const pals = writer ? await linkedAmong(user.id, posts.map((p) => p.author_id)) : new Set<string>()
+  const [pals, palsOn] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), coworkersEnabled()]) : [new Set<string>(), false]
   const tabs: { id: string; label: string; icon: IconName | '' }[] = [
     { id: '', label: '전체', icon: '' },
     { id: 'hot', label: '인기', icon: 'flame' },
@@ -84,7 +84,8 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         })}
       </nav>
 
-      {writer && !reviewTab && (
+      {/* 운영자가 켠 경우만 */}
+      {writer && palsOn && !reviewTab && (
         <Link href="/community/coworkers" className="card-link flex items-center gap-3 p-3.5" data-coworkers-link>
           <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
             <Icon name="users" />

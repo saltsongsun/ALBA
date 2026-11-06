@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { db } from './db'
 import { nicknames } from './community'
 import { kstDate } from './time'
@@ -14,6 +15,21 @@ export type Coworker = { id: string; nick: string; together: number; lastTitle: 
 type Att = { job_id: string; user_id: string; work_date: string; clock_in: string | null }
 
 const since = () => kstDate(new Date(Date.now() - 365 * 86_400_000))
+
+/**
+ * 운영자 전체 스위치 (사용자 요청 2026-11-06 "동료맺기 기능은 켜고 끄게 해줘" · 운영자가 전체로 · 처음엔 꺼짐).
+ * 최상위 관리자가 커뮤니티 관리에서 켜고 끈 기록(audit_logs 'feature.coworkers')의 마지막 값. 기록이 없거나 못 읽으면 꺼짐.
+ * 꺼져 있으면 메뉴가 숨고 아무에게도 다른 사람의 지원이 보이지 않음 (이미 고른 기록은 남아 있다가 다시 켜면 이어짐)
+ */
+export const coworkersEnabled = cache(async (): Promise<boolean> => {
+  try {
+    const { data } = await db().from('audit_logs').select('detail, created_at').eq('action', 'feature.coworkers').order('created_at', { ascending: false }).limit(100)
+    const last = ((data ?? []) as { detail: string | null; created_at: string }[]).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    return last?.detail === 'on'
+  } catch {
+    return false
+  }
+})
 
 /** 내가 출근한 공고들 */
 async function myWorkedJobs(userId: string): Promise<string[]> {
@@ -37,6 +53,7 @@ export async function shareStates(userId: string, ids: string[]): Promise<Map<st
 
 /** 함께 일한 사람 목록 (최근에 함께한 순) */
 export async function coworkers(userId: string): Promise<Coworker[]> {
+  if (!(await coworkersEnabled())) return []
   const jobIds = await myWorkedJobs(userId)
   if (!jobIds.length) return []
   const { data } = await db().from('attendance').select('job_id, user_id, work_date, clock_in').in('job_id', jobIds).not('clock_in', 'is', null).neq('user_id', userId).limit(5000)
@@ -79,6 +96,7 @@ export async function workedTogether(a: string, b: string): Promise<boolean> {
 
 /** 이 공고에 지원·확정된 사람 중 나에게 지원 공고를 보여 주기로 한 사람 (별명). 못 읽으면 빈 목록 */
 export async function coworkersOnJob(userId: string, jobId: string): Promise<string[]> {
+  if (!(await coworkersEnabled())) return []
   try {
     const { data: apps } = await db().from('applications').select('user_id, status, job_id').eq('job_id', jobId).in('status', ['applied', 'approved'])
     const ids = [...new Set(((apps ?? []) as { user_id: string; status: string; job_id: string }[]).filter((a) => a.job_id === jobId && a.user_id !== userId).map((a) => a.user_id))]
@@ -96,7 +114,7 @@ export async function coworkersOnJob(userId: string, jobId: string): Promise<str
 /** 이 사람들 중 나에게 지원 공고를 보여 주는 사람 (커뮤니티 글·댓글에 '🤝 동료' 표시 · 상대가 고른 경우만). 못 읽으면 빈 집합 */
 export async function linkedAmong(userId: string, ids: string[]): Promise<Set<string>> {
   const others = [...new Set(ids.filter((id) => id && id !== userId))]
-  if (!others.length) return new Set()
+  if (!others.length || !(await coworkersEnabled())) return new Set()
   try {
     const states = await shareStates(userId, others)
     return new Set(others.filter((id) => states.get(id)?.theirs))
@@ -107,6 +125,7 @@ export async function linkedAmong(userId: string, ids: string[]): Promise<Set<st
 
 /** 나에게 지원 공고를 보여 주는 사람들 (상대가 나를 고른 경우만 · 내가 고른 것과 무관) */
 export async function myLinkedIds(userId: string): Promise<string[]> {
+  if (!(await coworkersEnabled())) return []
   try {
     const { data: got } = await db().from('coworker_links').select('from_id, to_id').eq('to_id', userId).limit(500)
     return [...new Set(((got ?? []) as { from_id: string; to_id: string }[]).filter((r) => r.to_id === userId).map((r) => r.from_id))]

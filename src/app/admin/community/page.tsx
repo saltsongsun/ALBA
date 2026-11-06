@@ -2,9 +2,11 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { moderate } from '@/app/actions/community'
 import Empty from '@/components/Empty'
-import { ConfirmSubmit } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { AUTO_HIDE_REPORTS, ago, moderationQueue } from '@/lib/community'
 import { requireSuper } from '@/lib/session'
+import { coworkersEnabled } from '@/lib/coworkers'
+import { setCoworkersFeature } from '@/app/actions/coworkers'
 import { plainBody } from '@/lib/stickers'
 import Flash from '@/components/Flash'
 
@@ -16,7 +18,7 @@ const TYPE = { post: '글', comment: '댓글', review: '후기' } as const
 export default async function CommunityAdminPage(props: PageProps<'/admin/community'>) {
   await requireSuper()
   const sp = await props.searchParams
-  const items = await moderationQueue()
+  const [items, palsOn] = await Promise.all([moderationQueue(), coworkersEnabled()])
   const waiting = items.filter((i) => i.reports > 0).length
   return (
     <div className="space-y-4">
@@ -30,6 +32,27 @@ export default async function CommunityAdminPage(props: PageProps<'/admin/commun
           커뮤니티 보기
         </Link>
       </div>
+      {/* 운영자 전체 스위치: 함께 일한 사람(내 지원 보여 주기) */}
+      <section className="card flex flex-wrap items-center gap-3" data-coworkers-switch={palsOn ? 'on' : 'off'}>
+        <div className="min-w-0 flex-1">
+          <p className="font-bold">
+            함께 일한 사람 · 내 지원 보여 주기{' '}
+            <span className={`badge ml-1 ${palsOn ? 'bg-emerald-50 text-emerald-700' : 'bg-bg text-sub'}`}>{palsOn ? '켜짐' : '꺼짐'}</span>
+          </p>
+          <p className="mt-0.5 text-xs text-sub">켜면 근무자가 함께 일한 사람 중 고른 사람에게만 자기 지원 공고를 보여 줄 수 있어요(별명, 한쪽으로만). 끄면 메뉴가 숨고 아무에게도 보이지 않아요.</p>
+        </div>
+        <form action={setCoworkersFeature.bind(null, !palsOn)} className="shrink-0">
+          {palsOn ? (
+            <ConfirmSubmit className="btn-gray btn-sm" confirmText="한 번 더 누르면 꺼요" track="동료 기능 끄기">
+              끄기
+            </ConfirmSubmit>
+          ) : (
+            <SubmitButton className="btn-primary btn-sm" pendingText="켜는 중…" track="동료 기능 켜기">
+              켜기
+            </SubmitButton>
+          )}
+        </form>
+      </section>
       <p className="text-sm font-semibold" data-mod-waiting>
         처리할 신고 <b className="text-rose-600 tabular-nums">{waiting}</b>건 · 가려진 것 <b className="tabular-nums">{items.filter((i) => i.hidden).length}</b>개
       </p>
