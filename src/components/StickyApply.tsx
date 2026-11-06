@@ -17,6 +17,7 @@ export default function StickyApply({
   aboveTabs,
   note,
   cta = '지원하기',
+  hrefLabel = '1분 가입하고 지원',
 }: {
   targetId: string
   title: string
@@ -29,6 +30,8 @@ export default function StickyApply({
   note?: string
   /** 버튼 글자 (지원 전에 할 일이 있으면 그 일로 — 눌렀는데 지원이 아니라 놀라지 않게) */
   cta?: string
+  /** href가 있을 때 버튼 글자 (확정 뒤 서명이 남았으면 '서명하기') */
+  hrefLabel?: string
 }) {
   const [mounted, setMounted] = useState(false)
   const [targetVisible, setTargetVisible] = useState(false)
@@ -70,8 +73,8 @@ export default function StickyApply({
           <p className="font-extrabold tracking-tight">{summary}</p>
         </div>
         {href ? (
-          <Link href={href} className="btn-primary shrink-0 px-5" data-track="공고 아래 바: 1분 가입하고 지원">
-            1분 가입하고 지원
+          <Link href={href} className="btn-primary shrink-0 px-5" data-track={`공고 아래 바: ${hrefLabel}`}>
+            {hrefLabel}
           </Link>
         ) : (
           <button type="button" onClick={goToForm} className={`btn-primary shrink-0 ${cta.length > 5 ? 'px-4' : 'px-6'}`} data-track={`공고 아래 바: ${cta}`}>

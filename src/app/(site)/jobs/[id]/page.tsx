@@ -411,6 +411,18 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           cta={needPhoto ? '사진 올리고 지원' : undefined}
         />
       )}
+      {/* 확정됐는데 서명이 남았으면: 화면 아래 바에서 바로 서명 (진행 칸이 화면 아래쪽이라 안 보일 때만) */}
+      {app?.status === 'approved' && unsignedHere && !ended && pendingIds[0] && (
+        <StickyApply
+          targetId="apply"
+          title={job.title}
+          note="확정됐어요 · 근무 전에 서명해 주세요"
+          summary={`서류 ${pendingIds.length}건 서명이 남았어요`}
+          href={`/docs/${pendingIds[0]}`}
+          hrefLabel="서명하기"
+          aboveTabs={!!user}
+        />
+      )}
       <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
         {clashes.length > 0 && (
           <div className="animate-pop rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200/70">
