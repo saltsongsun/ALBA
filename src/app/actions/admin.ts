@@ -382,7 +382,7 @@ async function tellNotSelected(job: Job, userIds: string[], adminId: string, clo
   })
 }
 
-/** from='dashboard': 대시보드에서 눌렀으면 처리 뒤 대시보드 위쪽에 '○○님을 확정했어요 · 알림을 보냈어요' (누가 어떻게 됐는지 바로 보이게) */
+/** from='dashboard': 대시보드에서 눌렀으면 처리 뒤 대시보드 위쪽에 '○○님 확정 · 알림을 보냈어요' (누가 어떻게 됐는지 바로 보이게) */
 // (공고 화면처럼 두 값만 묶어 폼에 걸면 세 번째 자리에 폼 데이터가 들어오므로 'dashboard'일 때만 대시보드로)
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied', from?: 'dashboard' | FormData) {
   const admin = await requireAdmin()
@@ -436,12 +436,8 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
   if (from === 'dashboard' && status !== 'applied') {
     const { data: u } = await db().from('users').select('name').eq('id', app.user_id).maybeSingle()
     const name = (u as { name: string } | null)?.name ?? '근무자'
-    const msg =
-      status === 'approved'
-        ? `${name}님을 확정했어요 · 근무자에게 알림을 보냈어요`
-        : app.status === 'applied'
-          ? `${name}님을 미선발로 정했어요 · 결과 알림을 보냈어요`
-          : `${name}님을 미선발로 바꿨어요`
+    // 휴대폰 한 줄에 들어가게 짧게
+    const msg = status === 'approved' ? `${name}님 확정 · 알림을 보냈어요` : app.status === 'applied' ? `${name}님 미선발 · 알림을 보냈어요` : `${name}님을 미선발로 바꿨어요`
     redirect(`/admin?m=${encodeURIComponent(msg)}`)
   }
 }

@@ -1,5 +1,5 @@
 // 묶음 84: 대시보드 '확정 대기 지원자'에서 확정·미선발을 누르면 위쪽에 결과 안내 — 카드만 사라지고 아무 말이 없던 것
-// · 확정: '김지원님을 확정했어요 · 근무자에게 알림을 보냈어요' · 미선발(두 번 누름): '○○님을 미선발로 정했어요 · 결과 알림을 보냈어요'
+// · 확정: '김지원님 확정 · 알림을 보냈어요' · 미선발(두 번 누름): '○○님 미선발 · 알림을 보냈어요' (휴대폰 한 줄)
 // · 주소에는 안내(m=)가 남지 않음(새로 고침해도 다시 안 뜸) · 공고 화면의 확정·미선발은 그대로 (그 화면에 머묾) · 360px
 // node scripts/qa/batch84.cjs <default 앱> <default 가짜>
 const { chromium, devices } = require('playwright')
@@ -22,7 +22,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }])
   const p = await ctx.newPage()
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
-  const flash = p.locator('[role=status]').filter({ hasText: '님을' })
+  const flash = p.locator('[role=status]').filter({ hasText: '알림을 보냈어요' })
 
   // ── 1. 확정 ──
   await p.goto(`${D}/admin`)
@@ -30,7 +30,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await card('김지원').waitFor({ timeout: 10000 }).catch(() => {})
   await card('김지원').getByRole('button', { name: '확정', exact: true }).click()
   await flash.first().waitFor({ timeout: 15000 }).catch(() => {})
-  ok("확정 → '김지원님을 확정했어요 · 근무자에게 알림을 보냈어요'", (await flash.first().innerText().catch(() => '')).includes('김지원님을 확정했어요'))
+  ok("확정 → '김지원님 확정 · 알림을 보냈어요'", (await flash.first().innerText().catch(() => '')).includes('김지원님 확정 · 알림을 보냈어요'))
+  ok('안내는 한 줄 (360px)', (await flash.first().evaluate((el) => el.querySelector('span').getClientRects().length).catch(() => 0)) === 1)
   ok('확정 저장', (await rest(`applications?id=eq.${AP_APP}`))[0]?.status === 'approved')
   ok('대시보드에 머묾 · 주소에 안내가 남지 않음', new URL(p.url()).pathname === '/admin' && !new URL(p.url()).searchParams.has('m'), p.url())
   ok('360px: 옆으로 안 밀림', await p.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
@@ -48,13 +49,13 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await card(X.name).waitFor({ timeout: 10000 }).catch(() => {})
   await card(X.name).getByRole('button', { name: '미선발', exact: true }).click()
   await card(X.name).getByRole('button', { name: '미선발 알림 보낼까요?' }).click()
-  await p.locator('[role=status]', { hasText: '미선발로 정했어요' }).waitFor({ timeout: 15000 }).catch(() => {})
-  ok(`미선발 → '${X.name}님을 미선발로 정했어요 · 결과 알림을 보냈어요'`, (await p.locator('[role=status]', { hasText: '미선발로 정했어요' }).innerText().catch(() => '')).includes(`${X.name}님을 미선발로 정했어요`))
+  await p.locator('[role=status]', { hasText: '미선발 · 알림' }).waitFor({ timeout: 15000 }).catch(() => {})
+  ok(`미선발 → '${X.name}님 미선발 · 알림을 보냈어요'`, (await p.locator('[role=status]', { hasText: '미선발 · 알림' }).innerText().catch(() => '')).includes(`${X.name}님 미선발 · 알림을 보냈어요`))
   ok('미선발 저장', (await rest(`applications?id=eq.${X.app}`))[0]?.status === 'rejected')
   await p.reload()
   await p.locator('main').waitFor()
   await p.waitForTimeout(600)
-  ok('새로 고침하면 안내는 다시 안 뜸', (await p.locator('[role=status]', { hasText: '님을' }).count()) === 0)
+  ok('새로 고침하면 안내는 다시 안 뜸', (await p.locator('[role=status]', { hasText: '알림을 보냈어요' }).count()) === 0)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
