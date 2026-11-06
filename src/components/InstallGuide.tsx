@@ -124,10 +124,9 @@ export function InstallBanner() {
   return (
     <div className="flex animate-slide-down items-center gap-3 rounded-2xl bg-brand-50 py-2.5 pr-2 pl-3" data-install-banner>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/icons/icon-192.png" alt="" className="size-9 rounded-lg" />
-      <p className="min-w-0 flex-1 text-[13px] leading-snug font-semibold text-brand-700">
-        {env === 'kakao' ? '카카오톡 밖에서 열면 앱으로 설치할 수 있어요' : '앱으로 설치하면 출퇴근이 더 빨라요'}
-      </p>
+      <img src="/icons/icon-192.png" alt="" className="size-8 shrink-0 rounded-lg" />
+      {/* 360px에서 한 줄로 */}
+      <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-brand-700">{env === 'kakao' ? '브라우저로 열면 설치돼요' : '앱으로 설치하면 더 빨라요'}</p>
       <button type="button" className="btn-primary btn-sm shrink-0" onClick={install} data-track="앱 설치" data-install-button={prompt ? 'native' : env}>
         {env === 'kakao' && !prompt ? '브라우저로' : '앱 설치'}
       </button>

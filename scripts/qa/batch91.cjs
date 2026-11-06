@@ -86,6 +86,7 @@ const kst = (ms = 0) => new Date(Date.now() + 9 * 3600e3 + ms).toISOString().sli
   const n = await pg(W, {}, false)
   await n.goto(`${D}/me`)
   await n.locator('[data-install-banner]').waitFor({ timeout: 10000 }).catch(() => {})
+  ok("설치 권유 글 '앱으로 설치하면 더 빨라요' 한 줄 (360px)", await n.locator('[data-install-banner] p').evaluate((el) => el.textContent === '앱으로 설치하면 더 빨라요' && el.scrollWidth <= el.clientWidth + 1).catch(() => false))
   await n.locator('[data-install-banner]').getByRole('button', { name: '앱 설치' }).click()
   ok('설치 신호가 없으면 설치 안내창', await n.getByRole('dialog', { name: '앱 설치 안내' }).isVisible().catch(() => false))
 
@@ -101,7 +102,7 @@ const kst = (ms = 0) => new Date(Date.now() + 9 * 3600e3 + ms).toISOString().sli
   await kk.goto(`${D}/me`)
   const kb = kk.locator('[data-install-banner]')
   await kb.waitFor({ timeout: 10000 }).catch(() => {})
-  ok("카카오톡 안: '카카오톡 밖에서 열면…' + '브라우저로'", (await kb.innerText().catch(() => '')).includes('카카오톡 밖에서 열면') && (await kb.getByRole('button', { name: '브라우저로' }).count()) === 1)
+  ok("카카오톡 안: '브라우저로 열면 설치돼요' + '브라우저로'", (await kb.innerText().catch(() => '')).includes('브라우저로 열면 설치돼요') && (await kb.getByRole('button', { name: '브라우저로' }).count()) === 1)
 
   // 관리자 첫 화면에도
   const a = await pg(A, {}, false)
