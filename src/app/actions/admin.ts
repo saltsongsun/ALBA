@@ -87,7 +87,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
   const break_mode = (['auto', 'fixed', 'none'] as const).find((m) => m === str(form, 'break_mode')) ?? 'auto'
   // 모집 대상: 전문가 의뢰는 사업소득 3.3%로만 (근로계약이 아니므로 고용보험도 없음)
   const audience = str(form, 'audience') === 'expert' ? 'expert' : 'worker'
-  const tax_type = audience === 'expert' ? 'business' : ((['daily', 'business', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily')
+  const tax_type = audience === 'expert' ? 'business' : ((['daily', 'business', 'other', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily')
   const round = int(form, 'round_unit', 1)
   const status = (['draft', 'open', 'closed', 'done', 'cancelled'] as const).find((m) => m === str(form, 'status')) ?? 'open'
   const conditions = parseConditions(str(form, 'conditions', 5000))
@@ -702,6 +702,8 @@ export async function saveAttendance(attId: string, form: FormData) {
   await audit(admin.id, 'attendance.edit', att.user_id, `${att.work_date} ${inV || '-'}~${outV || '-'}`, admin.companyId)
   const finished = closeNow && (await finishIfAllOut(att.job_id, att.work_date))
   revalidatePath(`/admin/jobs/${att.job_id}`)
+  // 정산 탭의 '시간 수정'으로 왔으면 정산 탭으로 (바뀐 금액을 바로 확인)
+  if (str(form, 'back') === 'pay') back(`/admin/jobs/${att.job_id}?tab=pay`, `근무 기록을 고쳤어요. 정산 금액에 바로 반영했어요.${finished ? FINISHED_NOTE : ''}`)
   back(path, `근무 기록을 저장했습니다.${finished ? FINISHED_NOTE : ''}`)
 }
 

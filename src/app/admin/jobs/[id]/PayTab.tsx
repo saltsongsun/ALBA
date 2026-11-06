@@ -254,6 +254,17 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
                 <tr key={r.uid}>
                   <td className="font-semibold whitespace-nowrap">
                     <Link href={`/admin/workers/${r.uid}`}>{r.user?.name}</Link>
+                    {/* 지난 정산도 출근·퇴근 시각·휴게·추가 지급·공제를 고칠 수 있게: 그날 기록 수정 칸으로 (저장하면 정산 탭으로 돌아옴) */}
+                    <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs font-semibold" data-pay-edit>
+                      {(() => {
+                        const days = [...new Set(atts.filter((a) => a.user_id === r.uid).map((a) => a.work_date))].sort()
+                        return days.map((d) => (
+                          <Link key={d} href={`/admin/jobs/${job.id}?tab=att&date=${d}&fix=${r.uid}&from=pay#att-${r.uid}`} className="text-brand-600">
+                            ✏️ {days.length > 1 ? fmtDate(d) : '시간 수정'}
+                          </Link>
+                        ))
+                      })()}
+                    </span>
                   </td>
                   <td>{r.s.days}</td>
                   <td className="whitespace-nowrap">{minutesText(r.s.paidMin)}</td>

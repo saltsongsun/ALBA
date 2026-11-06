@@ -25,6 +25,7 @@ const ACTIONS: Record<string, string> = {
   'export.workers': '근로자 명부 내려받기',
   'export.daily_income': '일용근로소득 자료 내려받기',
   'export.business_income': '사업소득 자료 내려받기',
+  'export.other_income': '기타소득 자료 내려받기',
   'export.employment': '근로내용확인신고 자료 내려받기',
 }
 
@@ -120,6 +121,9 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
           </a>
           <a href={`/admin/export/business-income?month=${month}`} className="btn-gray btn-sm">
             사업소득 간이지급명세 CSV
+          </a>
+          <a href={`/admin/export/other-income?month=${month}`} className="btn-gray btn-sm" data-export-other>
+            기타소득 지급명세 CSV
           </a>
         </div>
         <ul className="list-disc space-y-0.5 pl-5 text-xs text-sub">

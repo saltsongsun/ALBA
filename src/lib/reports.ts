@@ -64,6 +64,7 @@ export async function monthlyRows(ym: string, companyId: string): Promise<MonthR
         byTax: {
           daily: { gross: 0, incomeTax: 0, localTax: 0, days: 0, paidMin: 0 },
           business: { gross: 0, incomeTax: 0, localTax: 0, days: 0, paidMin: 0 },
+          other: { gross: 0, incomeTax: 0, localTax: 0, days: 0, paidMin: 0 },
           none: { gross: 0, incomeTax: 0, localTax: 0, days: 0, paidMin: 0 },
         },
         jobs: [],

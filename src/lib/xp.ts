@@ -8,7 +8,7 @@
 export const XP_RULES = [
   { key: 'shift', label: '근무 1번 마치기', xp: 10 },
   { key: 'ontime', label: '정시 출근', xp: 5 },
-  { key: 'selfOut', label: '근무 종료 직접 누르기', xp: 5 },
+  { key: 'selfOut', label: '종료 버튼 직접 누르기', xp: 5 },
   { key: 'sign', label: '서류 서명', xp: 3 },
   { key: 'review', label: '회사 후기 남기기', xp: 5 },
   { key: 'profile', label: '내 정보 다 채우기 (한 번)', xp: 20 },

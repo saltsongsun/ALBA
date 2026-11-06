@@ -166,6 +166,22 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     )
   }
 
+  // 기타소득: 지급액 · 필요경비 60% · 소득금액 · 세율 20% · 소득세 · 지방소득세 (12만 5천원 이하는 0)
+  if (kind === 'other-income') {
+    const rows = data
+      .filter((r) => r.byTax.other.gross > 0)
+      .map((r) => {
+        const g = r.byTax.other.gross
+        const cost = Math.floor(g * 0.6)
+        return [ym, r.user.name, formatRrn(decrypt(r.user.rrn_enc) ?? ''), r.user.is_foreigner ? '외국인' : '내국인', g, cost, g - cost, '20%', r.byTax.other.incomeTax, r.byTax.other.localTax]
+      })
+    await audit(admin.id, 'export.other_income', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
+    return csvResponse(
+      `기타소득_지급명세_${month}.csv`,
+      toCsv([['귀속연월', '성명', '주민등록번호', '내외국인', '지급액', '필요경비(60%)', '소득금액', '세율', '소득세', '지방소득세'], ...rows]),
+    )
+  }
+
   if (kind === 'employment') {
     const rows = data
       .filter((r) => r.byTax.daily.gross > 0)

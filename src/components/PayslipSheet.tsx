@@ -33,6 +33,9 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
   } else if (job.tax_type === 'business') {
     deductions.push(['사업소득세', total.incomeTax, '지급총액 × 3%'])
     deductions.push(['지방소득세', total.localTax, '소득세 × 10%'])
+  } else if (job.tax_type === 'other') {
+    deductions.push(['기타소득세', total.incomeTax, total.incomeTax ? '(지급액 − 필요경비 60%) × 20%' : '지급액 12만 5천원 이하 · 과세최저한'])
+    deductions.push(['지방소득세', total.localTax, '소득세 × 10%'])
   }
   if (total.deduction) deductions.push(['기타 공제', total.deduction, '관리자 공제'])
 
@@ -40,8 +43,8 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
       <article className={`print-sheet card relative px-5 py-7 sm:px-9 ${className}`}>
         {watermark && <Watermark text={watermark} />}
         {/* 전문가 의뢰(사업소득 3.3%)는 근로가 아니므로 '용역 대금 지급명세서' */}
-        <h1 className={`mb-6 text-center text-2xl font-extrabold ${job.tax_type === 'business' ? 'tracking-[0.1em]' : 'tracking-[0.3em]'}`}>
-          {job.tax_type === 'business' ? '용역 대금 지급명세서' : '임금명세서'}
+        <h1 className={`mb-6 text-center text-2xl font-extrabold ${job.tax_type === 'business' || job.tax_type === 'other' ? 'tracking-[0.1em]' : 'tracking-[0.3em]'}`}>
+          {job.tax_type === 'business' ? '용역 대금 지급명세서' : job.tax_type === 'other' ? '기타소득 지급명세서' : '임금명세서'}
         </h1>
         {/* 한 줄에 한 항목 (휴대폰에서 네 칸으로 나누면 날짜·계좌가 두세 줄로 쪼개짐) */}
         <table className="table mb-5 border-t border-line">
@@ -180,7 +183,7 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
           <p>
             대표 {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} />
           </p>
-          <p className="mt-2 text-[11px] text-mute">{job.tax_type === 'business' ? '사업소득 원천징수(3.3%) 내역' : '근로기준법 제48조 제2항에 따른 임금명세서'} · <span className="whitespace-nowrap">발행 {fmtDateLong(kstDate())}</span></p>
+          <p className="mt-2 text-[11px] text-mute">{job.tax_type === 'business' ? '사업소득 원천징수(3.3%) 내역' : job.tax_type === 'other' ? '기타소득 원천징수(8.8%) 내역' : '근로기준법 제48조 제2항에 따른 임금명세서'} · <span className="whitespace-nowrap">발행 {fmtDateLong(kstDate())}</span></p>
         </div>
       </article>
   )

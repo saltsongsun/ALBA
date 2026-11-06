@@ -5,6 +5,10 @@ export const MIN_WAGE_2026 = 10_320
 const DAILY_INCOME_DEDUCTION = 150_000 // 일용근로소득 1일 근로소득공제
 const DAILY_TAX_RATE = 0.06 * (1 - 0.55) // 세율 6%, 근로소득세액공제 55%
 const BUSINESS_TAX_RATE = 0.03 // 사업소득 3% (+지방소득세 0.3%)
+/** 기타소득: (지급액 − 필요경비 60%) × 20% = 지급액의 8% (+지방소득세 0.8% → 8.8%) */
+const OTHER_INCOME_TAX_RATE = 0.08
+/** 기타소득 과세최저한: 기타소득금액(지급액의 40%) 5만원 이하 = 지급액 12만 5천원 이하는 세금 없음 (소득세법 제84조) */
+export const OTHER_INCOME_EXEMPT = 125_000
 const EMPLOYMENT_INSURANCE_RATE = 0.009 // 고용보험 근로자 부담분
 const MIN_WITHHOLDING = 1_000 // 소액부징수 기준
 /** 계약 종료 시각을 이만큼 넘겨 기록돼야 연장 근무 확인을 물어봄 (더 짧으면 계약 종료 시각까지만 계산) */
@@ -228,6 +232,8 @@ export function settle(rule: PayRule, days: DayPay[]): Settlement {
   let incomeTax = 0
   if (rule.tax_type === 'daily') incomeTax = floor10(sum('dailyTax'))
   else if (rule.tax_type === 'business') incomeTax = floor10(gross * BUSINESS_TAX_RATE)
+  // 기타소득: 지급 1회(한 사람·한 공고) 기준 12만 5천원 이하면 0 (사용자 요청 2026-11-06 '8.8% · 12만 5천원 미만 공제 없음')
+  else if (rule.tax_type === 'other') incomeTax = gross <= OTHER_INCOME_EXEMPT ? 0 : floor10(gross * OTHER_INCOME_TAX_RATE)
   if (incomeTax < MIN_WITHHOLDING) incomeTax = 0
   const localTax = floor10(incomeTax * 0.1)
   const insurance =
@@ -275,12 +281,14 @@ export function estimateDay(job: PayRule & Pick<Job, 'start_date' | 'start_time'
 export const TAX_LABEL: Record<Job['tax_type'], string> = {
   daily: '일용근로소득 (일 15만원 초과분 2.7% + 지방세)',
   business: '사업소득 3.3%',
+  other: '기타소득 8.8% (12만 5천원 이하 공제 없음)',
   none: '공제 없음',
 }
 
 export function taxDescription(job: Pick<Job, 'tax_type' | 'employment_insurance'>): string {
   if (job.tax_type === 'none') return '공제 없음'
   if (job.tax_type === 'business') return '사업소득세 3% 및 지방소득세 0.3% 원천징수'
+  if (job.tax_type === 'other') return '기타소득세 8%(필요경비 60% 공제 후 20%) 및 지방소득세 0.8% 원천징수 (지급액 12만 5천원 이하는 과세최저한으로 공제 없음)'
   const parts = ['일용근로소득세(일급 15만원 초과분의 2.7%) 및 지방소득세(소득세의 10%) 원천징수']
   if (job.employment_insurance) parts.push('고용보험료 근로자 부담분 0.9%')
   return parts.join(', ')

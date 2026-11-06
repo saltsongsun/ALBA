@@ -34,6 +34,7 @@ export default async function AttTab({
   faces = false,
   check = false,
   fix = null,
+  fromPay = false,
 }: {
   job: Job
   apps: AppRow[]
@@ -54,6 +55,8 @@ export default async function AttTab({
   check?: boolean
   /** 정산 탭 '출퇴근에서 고치기'로 온 사람 (그 줄로 가서 잠깐 반짝) */
   fix?: string | null
+  /** 정산 탭의 '시간 수정'으로 왔으면 저장한 뒤 정산 탭으로 돌아감 */
+  fromPay?: boolean
 }) {
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
   const changes = (
@@ -682,7 +685,8 @@ export default async function AttTab({
                   )}
 
                   {a ? (
-                    <details className="mt-3 border-t border-line pt-2.5">
+                    // 정산 탭의 '✏️ 시간 수정'으로 왔으면 펼친 채로
+                    <details open={fix === uid ? true : undefined} className="mt-3 border-t border-line pt-2.5">
                       <summary className="cursor-pointer text-sm font-semibold text-sub">기록 보기 · 수정</summary>
                       <div className="mt-2 rounded-xl bg-bg px-3 py-2 text-xs text-sub">
                         앱 기록: 출근 {kstTime(a.clock_in)}
@@ -693,7 +697,8 @@ export default async function AttTab({
                         {pay && pay.nightMin > 0 && `, 야간 ${minutesText(pay.nightMin)}`}
                         {a.note && <div className="mt-1">메모: {a.note}</div>}
                       </div>
-                      <form action={saveAttendance.bind(null, a.id)} className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-6">
+                      <form action={saveAttendance.bind(null, a.id)} className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-6" data-att-edit={fix === uid ? 'open' : undefined}>
+                        {fromPay && fix === uid && <input type="hidden" name="back" value="pay" />}
                         <label className="col-span-2 sm:col-span-2">
                           <span className="label">출근</span>
                           <input type="datetime-local" name="adj_in" className="input py-2 text-sm" defaultValue={toKstInput(a.adj_in ?? a.clock_in)} />

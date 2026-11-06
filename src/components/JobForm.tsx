@@ -525,7 +525,7 @@ export default function JobForm({
       <Fold
         title="세금 · 보험 공제"
         summary={brief(
-          `${{ daily: '일용근로소득', business: '사업소득 3.3%', none: '공제 없음' }[taxType]}${taxType === 'daily' && fd?.get('employment_insurance') ? ' · 고용보험 0.9%' : ''}`,
+          `${{ daily: '일용근로소득', business: '사업소득 3.3%', other: '기타소득 8.8%', none: '공제 없음' }[taxType]}${taxType === 'daily' && fd?.get('employment_insurance') ? ' · 고용보험 0.9%' : ''}`,
         )}
       >
         {audience === 'expert' && (
@@ -533,11 +533,12 @@ export default function JobForm({
             전문가 의뢰는 <b>사업소득 3.3%</b>(소득세 3% + 지방소득세 0.3%)를 떼고 지급해요. 서류는 근로계약서 대신 <b>용역계약서</b>로 받아요.
           </p>
         )}
-        <div className={`grid gap-2 sm:grid-cols-3 ${audience === 'expert' ? 'hidden' : ''}`}>
+        <div className={`grid gap-2 sm:grid-cols-2 ${audience === 'expert' ? 'hidden' : ''}`}>
           {(
             [
               ['daily', '일용근로소득', '일급 15만원까지 비과세, 초과분 2.7% + 지방세. 근로계약 시 원칙'],
               ['business', '사업소득 3.3%', '전문가(용역) 계약일 때만'],
+              ['other', '기타소득 8.8%', '일시적 강연·심사·출연 등 · 12만 5천원 이하 공제 없음'],
               ['none', '공제 없음', '세전 금액 그대로 지급'],
             ] as const
           ).map(([v, t, d]) => (
@@ -555,6 +556,11 @@ export default function JobForm({
             defaultChecked={job ? job.employment_insurance : true}
             hint="일용근로자도 고용보험 가입 대상입니다 (월 근로내용확인신고)."
           />
+        )}
+        {taxType === 'other' && (
+          <p className="rounded-xl bg-brand-50 px-4 py-3 text-xs text-brand-700" data-other-income-note>
+            지급액의 8.8%(소득세 8% + 지방소득세 0.8%)를 떼고 지급해요. 한 사람에게 이 공고로 주는 돈이 <b>12만 5천원 이하</b>면 세금이 없어요. 계속·반복되는 일은 기타소득이 아니라 사업소득이나 근로소득으로 봐요.
+          </p>
         )}
         {taxType === 'business' && (
           <p className="rounded-xl bg-amber-50 px-4 py-3 text-xs text-amber-800">
