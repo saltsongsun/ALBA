@@ -64,7 +64,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await w.waitForTimeout(500)
   const hasApp = (await rest(`applications?job_id=eq.${J}&user_id=eq.${W}`)).some((a) => a.status !== 'cancelled')
   if (!hasApp) ok("사진 있으면 바는 그대로 '지원하기'", (await w.getByRole('button', { name: '지원하기', exact: true }).count()) === 1 && (await w.locator('[data-sticky-note]').count()) === 0)
-  else ok('(이미 지원한 근무자: 바 없음)', (await w.locator('[data-sticky-note]').count()) === 0)
+  // 이미 지원한 근무자: 지원 바는 없음 (확정됐는데 서명이 남았으면 '서명하기' 바만 · 묶음 97)
+  else ok('(이미 지원한 근무자: 지원·사진 바 없음)', (await w.getByRole('button', { name: '지원하기', exact: true }).count()) === 0 && !(await w.locator('[data-sticky-note]').innerText().catch(() => '')).includes('사진'))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
