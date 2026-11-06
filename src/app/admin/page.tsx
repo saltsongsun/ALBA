@@ -25,6 +25,7 @@ import { requireAdmin, siteOrigin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
 import { ago, companyReviews } from '@/lib/community'
 import { companyWorkerIds } from '@/lib/company'
+import StartsIn from '@/components/StartsIn'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
@@ -695,6 +696,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   {j.location_name && ` · ${j.location_name}`}
                 </p>
                 <p className="mt-3 flex items-baseline justify-between gap-2 text-sm">
+                  {!started(j) && !(workingBy[j.id] ?? 0) ? (
+                    // 시작 전: '근무 중 0명' 대신 시작 시각과 남은 시간 (30초마다 줄어듦)
+                    // 시작 시각은 굵게 한 줄 · 남은 시간은 아래 작은 줄 (한 줄로 이으면 오른쪽 '확정·모집'까지 두 줄로 꺾임)
+                    <span className="min-w-0 font-bold text-brand-600" data-today-before>
+                      {hhmm(j.start_time)} 시작
+                      <StartsIn startAt={kstAt(today, j.start_time).toISOString()} serverNow={Date.now()} />
+                    </span>
+                  ) : (
                   <span className="font-bold text-emerald-600">
                     근무 중 <LiveNumber value={workingBy[j.id] ?? 0} />명
                     {started(j) && (absentBy[j.id] ?? 0) > 0 && (
@@ -703,7 +712,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                       </span>
                     )}
                   </span>
-                  <span className="text-mute">
+                  )}
+                  <span className="shrink-0 text-mute">
                     확정 {counts[j.id] ?? 0}명 · 모집 {j.headcount}명
                   </span>
                 </p>

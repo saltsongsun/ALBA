@@ -137,6 +137,8 @@ export default async function AttTab({
   const today = kstDate()
   // 이날 근무 시작 시각이 지났는지 (미출근자 비상연락처를 눈에 띄게)
   const started = date < today || (date === today && Date.now() >= kstAt(date, dayShift.start).getTime())
+  // 시작 시각 전(오늘 시작 전·앞으로의 날)은 '미출근'이 아니라 '출근 전' (공고 화면 큰 버튼과 같게 · 사용자 지적 2026-11-07)
+  const notYet = !started
   // 날짜별 확정 인원 → 모집 인원보다 모자란 날 (지난 날은 빼고)
   const byDay = staffByDay(dates, apps)
   const shortOn = (d: string) => d >= today && byDay[d] < job.headcount
@@ -217,7 +219,7 @@ export default async function AttTab({
               // 지난 날짜에 퇴근이 없으면 '근무 중'이 아니라 '퇴근 기록 없음'
               [date < today ? '퇴근 기록 없음' : '근무 중', working, date < today ? (working ? 'text-amber-600' : 'text-mute') : 'text-emerald-600'],
               ['종료', done, 'text-ink'],
-              ['미출근', absent.length, absent.length && date <= today ? 'text-rose-500' : 'text-mute'],
+              [notYet ? '출근 전' : '미출근', absent.length, absent.length && !notYet ? 'text-rose-500' : 'text-mute'],
             ] as const
           ).map(([label, n, tone]) => (
             <div key={label}>
@@ -264,7 +266,7 @@ export default async function AttTab({
       {/* 할 일: 한 줄로 (넘치면 옆으로 넘김) */}
       {roster.length > 0 && (
         <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
-          {date <= today && absent.length > 0 && (
+          {started && absent.length > 0 && (
             <GroupContact
               copy={false}
               className="chip-primary"
@@ -274,7 +276,7 @@ export default async function AttTab({
             />
           )}
           {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄). 늦는다고 알렸거나 출근 확인을 요청한 사람은 빼고 */}
-          {date <= today && nudgeable > 0 && (
+          {started && nudgeable > 0 && (
             <form action={nudgeWorkers.bind(null, job.id, 'clockin', date)} className="shrink-0">
               <ConfirmSubmit className="chip" confirmText={`${nudgeable}명에게 보낼까요?`}>
                 미출근 {nudgeable}명 앱 알림
@@ -403,13 +405,15 @@ export default async function AttTab({
           {shown.map((uid) => {
             const u = users.get(uid)
             const a = byUser.get(uid)
-            const label = !a ? (arriveOf.has(uid) ? '출근 요청' : lateOf.has(uid) ? '늦음 알림' : '미출근') : !a.clock_out ? (date < today ? '퇴근 기록 없음' : '근무 중') : '종료'
+            const label = !a ? (arriveOf.has(uid) ? '출근 요청' : lateOf.has(uid) ? '늦음 알림' : notYet ? '출근 전' : '미출근') : !a.clock_out ? (date < today ? '퇴근 기록 없음' : '근무 중') : '종료'
             const cls = !a
               ? arriveOf.has(uid)
                 ? 'bg-brand-600 text-white'
                 : lateOf.has(uid)
                   ? 'bg-amber-100 text-amber-800'
-                  : 'bg-rose-50 text-rose-600'
+                  : notYet
+                    ? 'bg-gray-100 text-mute'
+                    : 'bg-rose-50 text-rose-600'
               : !a.clock_out
                 ? 'bg-emerald-50 text-emerald-700'
                 : 'bg-gray-100 text-sub'
@@ -441,7 +445,9 @@ export default async function AttTab({
               ? { label: '출근 요청', cls: 'bg-brand-600 text-white' }
               : late
                 ? { label: `${late.minutes}분 늦음`, cls: 'bg-amber-100 text-amber-800' }
-                : { label: '미출근', cls: date <= today ? 'bg-rose-50 text-rose-600' : 'bg-gray-100 text-mute' }
+                : notYet
+                  ? { label: '출근 전', cls: 'bg-gray-100 text-mute' }
+                  : { label: '미출근', cls: 'bg-rose-50 text-rose-600' }
             : !a.clock_out
               ? // 지난 날짜인데 퇴근이 없으면 '근무 중'이 아니라 고칠 일
                 date < today
