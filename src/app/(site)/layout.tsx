@@ -1,6 +1,7 @@
 import BottomNav from '@/components/BottomNav'
 import SiteHeader from '@/components/SiteHeader'
-import { todoForWorker, unreadForWorker } from '@/lib/data'
+import { overdueShiftFor, todoForWorker, unreadForWorker } from '@/lib/data'
+import ClockOutPrompt from '@/components/ClockOutPrompt'
 import { getUser } from '@/lib/session'
 import AppBadge from '@/components/AppBadge'
 import { isPro } from '@/lib/members'
@@ -25,9 +26,15 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const user = await getUser()
   // 전문가·외주 업체는 보라색 화면 + 다른 아래 탭 (아르바이트 화면과 한눈에 구분)
   const pro = user && user.role !== 'admin' && isPro(user.memberType)
-  const [unread, todo, cmNew] = user
-    ? await Promise.all([unreadForWorker(user.id), todoForWorker(user.id), !pro && user.role !== 'admin' ? communityNew(user.id) : false])
-    : [0, 0, false]
+  const [unread, todo, cmNew, overdue] = user
+    ? await Promise.all([
+        unreadForWorker(user.id),
+        todoForWorker(user.id),
+        !pro && user.role !== 'admin' ? communityNew(user.id) : false,
+        // 종료 시각이 지났는데 아직 근무 중 → 어느 화면에서든 근무 종료를 누르라고 (외주 업체는 출퇴근이 없음)
+        user.memberType !== 'vendor' ? overdueShiftFor(user.id).catch(() => null) : null,
+      ])
+    : [0, 0, false, null]
   return (
     <div data-mode={pro ? 'pro' : undefined} className="contents">
       <SiteHeader />
@@ -35,6 +42,7 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       <main className={`mx-auto max-w-xl px-4 pt-5 ${user ? 'pb-[calc(var(--tabbar-space)+16px)] sm:pb-16' : 'pb-16'}`}>{children}</main>
       {user && <BottomNav unread={unread} todo={todo} communityNew={cmNew} mode={user.role === 'admin' ? 'worker' : user.memberType} />}
       {user && <AppBadge count={unread + todo} />}
+      {overdue && <ClockOutPrompt endText={overdue.endText} title={overdue.title} />}
       {/* 설치한 앱에서 맨 위에서 당기면 새로 고침 */}
       {user && <PullToRefresh />}
       <ScrollTop />

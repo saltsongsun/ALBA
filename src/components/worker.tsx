@@ -274,7 +274,8 @@ export function ClockPanel({
   }, [gpsFails, showAsk])
 
   return (
-    <div className="relative space-y-3">
+    // 근무 중이면 '근무 종료하러 가기'(/me#clock)가 여기로 데려옴
+    <div id={open ? 'clock' : undefined} className="relative scroll-mt-24 space-y-3">
       {celebrate > 0 && (
         <div key={celebrate} aria-hidden className="burst">
           {BURST.map((d, i) => (

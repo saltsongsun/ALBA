@@ -3,6 +3,7 @@
 import { randomInt } from 'node:crypto'
 import { rosterUnlockedFor } from '@/lib/rosterLock'
 import { FINISHED_NOTE, finishIfAllOut } from '@/lib/autoFinish'
+import { remindOthersToClockOut } from '@/lib/remind'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
@@ -1041,6 +1042,8 @@ export async function bulkClockOutPicked(jobId: string, date: string, form: Form
     tag: `clockout-${jobId}`,
   })
   const finished = outOf.size > 0 && (await finishIfAllOut(jobId, date))
+  // 고르지 않은 사람 중 종료 시각이 지났는데 아직 근무 중인 사람에게 '근무 종료를 눌러 주세요'
+  if (!finished && outOf.size > 0) after(() => remindOthersToClockOut(jobId, date, null).then(() => null, () => null))
   revalidatePath(`/admin/jobs/${jobId}`)
   back(path, `${outOf.size}명 근무 종료로 기록했어요.${finished ? FINISHED_NOTE : ''}`)
 }

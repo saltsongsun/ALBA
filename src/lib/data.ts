@@ -4,7 +4,7 @@ import { db, must } from './db'
 import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
 import { clientInfo } from './session'
-import { calcDay, settle } from './pay'
+import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
 
 const COMPANY_COLS =
@@ -235,3 +235,22 @@ export async function wageTotals(companyId: string, jobs: Job[]): Promise<Record
   ) as Attendance[]
   return Object.fromEntries(jobs.map((j) => [j.id, wageTotal(j, atts)]))
 }
+
+/**
+ * 예정 종료 시각이 지났는데 아직 '근무 중'인 내 기록 (어느 화면에서든 근무 종료를 누르라고 알려 주려고).
+ * 없으면 null · 머리글·아래쪽 안내가 같은 요청에서 한 번만 읽도록 cache
+ */
+export const overdueShiftFor = cache(async (userId: string): Promise<{ endText: string; title: string } | null> => {
+  const { data } = await db()
+    .from('attendance')
+    .select('work_date, clock_out, sched_start, sched_end, job:jobs(title, start_time, end_time)')
+    .eq('user_id', userId)
+    .is('clock_out', null)
+    .order('clock_in', { ascending: false })
+    .limit(1)
+  const a = ((data ?? []) as unknown as (Pick<Attendance, 'work_date' | 'clock_out' | 'sched_start' | 'sched_end'> & { job: Pick<Job, 'title' | 'start_time' | 'end_time'> | null })[]).find((r) => !r.clock_out)
+  if (!a?.job) return null
+  const shift = shiftOf(a.job, a)
+  if (scheduledEnd(shift, a.work_date).getTime() > Date.now()) return null
+  return { endText: shift.end_time.slice(0, 5), title: a.job.title }
+})

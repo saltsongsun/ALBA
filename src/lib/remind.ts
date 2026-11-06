@@ -118,3 +118,41 @@ export async function sendForgotClockOutReminders(now = new Date()): Promise<num
   }
   return sent
 }
+
+/**
+ * 같은 행사에서 누가 근무 종료를 누르면: 예정 종료 시각이 지났는데 아직 근무 중인 다른 사람에게 '근무 종료를 눌러 주세요' (기록마다 한 번).
+ * 사용자 요청 2026-11-06 "근무종료 안누르고 가는 사람들이 있어서 근무종료 누르게 해줘" — 보통 함께 끝나므로 다른 사람이 누르는 순간이 가장 알맞은 때.
+ * (자주 도는 예약 작업 없이도 같은 날 바로 알림. 다음 날 저녁 cron의 sendForgotClockOutReminders는 그대로)
+ */
+export async function remindOthersToClockOut(jobId: string, workDate: string, exceptUserId: string | null, now = new Date()): Promise<number> {
+  const { data: j } = await db().from('jobs').select('title, start_time, end_time, company_id').eq('id', jobId).maybeSingle()
+  const job = j as Pick<Job, 'title' | 'start_time' | 'end_time' | 'company_id'> | null
+  if (!job) return 0
+  const open = (
+    must(
+      await db().from('attendance').select('id, user_id, clock_out, sched_start, sched_end').eq('job_id', jobId).eq('work_date', workDate).is('clock_out', null),
+    ) as Pick<Attendance, 'id' | 'user_id' | 'clock_out' | 'sched_start' | 'sched_end'>[]
+  ).filter((a) => !a.clock_out && a.user_id !== exceptUserId && scheduledEnd(shiftOf(job, a), workDate) <= now)
+  if (!open.length) return 0
+  const done = new Set(
+    (
+      must(await db().from('audit_logs').select('detail').eq('action', 'remind.clockout_now').in('detail', open.map((a) => a.id))) as { detail: string }[]
+    ).map((r) => r.detail),
+  )
+  let sent = 0
+  for (const a of open) {
+    if (done.has(a.id)) continue
+    // 먼저 남겨서 두 사람이 동시에 눌러도 한 번만
+    must(await db().from('audit_logs').insert({ actor_id: null, action: 'remind.clockout_now', detail: a.id }))
+    sent += await tellWorkers([a.user_id], {
+      senderId: null,
+      companyId: job.company_id,
+      jobId,
+      title: '🏁 근무 종료를 눌러 주세요',
+      text: `${job.title} · 함께 일한 분들이 근무를 마쳤어요. 일이 끝났으면 앱에서 ‘근무 종료’를 눌러 주세요 (예정 종료 ${hhmm(shiftOf(job, a).end_time)}).`,
+      url: '/me#clock',
+      tag: `clockout-now-${a.id}`,
+    })
+  }
+  return sent
+}

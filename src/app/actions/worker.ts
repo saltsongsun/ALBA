@@ -10,6 +10,7 @@ import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
 import { adminIds, sendPush } from '@/lib/push'
 import { finishIfAllOut } from '@/lib/autoFinish'
+import { remindOthersToClockOut } from '@/lib/remind'
 import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, recent } from '@/lib/ratelimit'
@@ -316,7 +317,7 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
     return { error: error.code === '23505' ? '오늘은 이미 출근 기록이 있습니다.' : '출근 기록 중 문제가 생겼어요. 다시 시도해 주세요.' }
   }
   revalidatePath('/me')
-  return { ok: '근무를 시작했어요. 오늘도 안전하게!' }
+  return { ok: '근무를 시작했어요. 일이 끝나면 꼭 ‘근무 종료’를 눌러 주세요!' }
 }
 
 export async function clockOut(attendanceId: string, lat: number | null, lng: number | null): Promise<ClockResult> {
@@ -341,8 +342,10 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
       .eq('id', attendanceId)
       .is('clock_out', null),
   )
-  // 마지막 날 마지막으로 퇴근한 사람이면 행사 종료
-  await finishIfAllOut(att.job_id, att.work_date)
+  // 마지막 날 마지막으로 퇴근한 사람이면 행사 종료 · 아니면 종료 시각이 지났는데 아직 안 누른 다른 사람에게 '근무 종료를 눌러 주세요'
+  if (!(await finishIfAllOut(att.job_id, att.work_date))) {
+    after(() => remindOthersToClockOut(att.job_id, att.work_date, user.id).then(() => null, () => null))
+  }
   revalidatePath('/me')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
 }
