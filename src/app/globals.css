@@ -889,3 +889,23 @@ html[data-text='lg'] {
     -webkit-touch-callout: none;
   }
 }
+
+/* 바로 가기로 온 버튼 강조 (문의 채팅 '근무 시작하러 가기' → 내 근무의 근무 시작 버튼): 둘레가 세 번 퍼져 나감 · 움직임 줄이기면 테두리만 */
+[data-flash] {
+  animation: flash-ring 1s ease-out 3;
+}
+@keyframes flash-ring {
+  0% {
+    box-shadow: 0 0 0 0 rgb(251 191 36 / 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 16px rgb(251 191 36 / 0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-flash] {
+    animation: none;
+    outline: 3px solid rgb(251 191 36);
+    outline-offset: 3px;
+  }
+}

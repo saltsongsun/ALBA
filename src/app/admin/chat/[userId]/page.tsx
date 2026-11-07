@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { replyInquiry } from '@/app/actions/chat'
+import { CHAT_BUTTONS } from '@/lib/chatButtons'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/Chat'
@@ -105,7 +106,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         <ChatMessages messages={messages} viewer="admin" viewerId={admin.id} />
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
-        <ChatComposer action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
+        <ChatComposer buttons={CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
         />
       </div>
     </div>

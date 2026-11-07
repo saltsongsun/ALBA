@@ -2,7 +2,9 @@ import Link from 'next/link'
 import { deleteMessage } from '@/app/actions/chat'
 import { deletedText, isDeleted } from '@/lib/deleted'
 import { SIGNAL, signalOf } from '@/lib/signals'
-import { stickerOf } from '@/lib/stickers'
+import { plainBody, stickerOf } from '@/lib/stickers'
+import { splitButtons, type ChatButton } from '@/lib/chatButtons'
+import Icon from './Icon'
 import MessageMenu from './MessageMenu'
 import Sticker from './Sticker'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
@@ -67,6 +69,8 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
         // 같은 사람이 이어서 보낸 말풍선에는 이름을 다시 쓰지 않음
         const prev = messages[i - 1]
         const showName = !mine && (showDay || !prev || prev.from_admin !== m.from_admin || prev.sender?.name !== m.sender?.name)
+        // 담당자가 보낸 바로 가기 버튼: 글 아래 버튼으로 (근무자가 쓴 버튼 모양 글은 버튼으로 바꾸지 않음)
+        const { text, buttons } = m.from_admin && !isDeleted(m.body) ? splitButtons(m.body) : { text: m.body, buttons: [] as ChatButton[] }
         return (
           <li key={m.id}>
             {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
@@ -87,7 +91,7 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
                 ) : (
                   <MessageMenu
                     mine={mine}
-                    copy={stickerOf(m.body) ? null : m.body}
+                    copy={stickerOf(m.body) ? null : plainBody(m.body)}
                     remove={m.sender_id === viewerId && !signalOf(m.body) ? deleteMessage.bind(null, m.id) : undefined}
                   >
                     {stickerOf(m.body) ? (
@@ -99,7 +103,7 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
                           mine ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
                         }`}
                       >
-                        {m.body}
+                        {text}
                       </p>
                     )}
                   </MessageMenu>
@@ -109,6 +113,7 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
                   {kstTime(m.created_at)}
                 </span>
               </div>
+              {buttons.length > 0 && <ChatButtons buttons={buttons} live={viewer === 'worker'} />}
               {/* 근무자의 현장 알림·요청: 처리할 화면으로 바로 */}
               {viewer === 'admin' &&
                 (() => {
@@ -124,6 +129,41 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
         )
       })}
     </ol>
+  )
+}
+
+/**
+ * 담당자가 보낸 바로 가기 버튼 (말풍선 아래). 근무자: 누르면 그 화면으로 · 담당자: 어떻게 보이는지만 (누를 수 없음)
+ */
+function ChatButtons({ buttons, live }: { buttons: ChatButton[]; live: boolean }) {
+  return (
+    <div className={`mt-1.5 flex max-w-[78vw] flex-col gap-1.5 sm:max-w-md ${live ? 'items-start' : 'items-end'}`}>
+      {buttons.map((b) =>
+        live ? (
+          <Link
+            key={b.key}
+            href={b.href}
+            data-chat-button={b.key}
+            className="flex animate-pop items-center gap-2 rounded-2xl bg-brand-600 py-2.5 pr-3.5 pl-3 text-[15px] font-bold text-white shadow-sm transition active:scale-95"
+          >
+            <Icon name={b.icon} className="shrink-0 text-lg" />
+            <span className="min-w-0 truncate">{b.label}</span>
+            <span aria-hidden className="shrink-0 opacity-80">›</span>
+          </Link>
+        ) : (
+          <span
+            key={b.key}
+            data-chat-button={b.key}
+            title="근무자 화면에서는 누르는 버튼으로 보여요"
+            className="flex items-center gap-2 rounded-2xl bg-white py-2 pr-3.5 pl-3 text-sm font-bold text-brand-700 ring-1 ring-brand-200"
+          >
+            <Icon name={b.icon} className="shrink-0" />
+            <span className="min-w-0 truncate">{b.label}</span>
+            <span className="shrink-0 rounded bg-brand-50 px-1 text-[10px] font-bold text-brand-600">버튼</span>
+          </span>
+        ),
+      )}
+    </div>
   )
 }
 

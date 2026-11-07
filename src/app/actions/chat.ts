@@ -11,6 +11,7 @@ import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
 import { signalOf } from '@/lib/signals'
 import { badSticker, plainBody } from '@/lib/stickers'
+import { badButtons, hasButtonLine } from '@/lib/chatButtons'
 import { companyJob, companyWorkerIds, workerInCompany } from '@/lib/company'
 import { DELETED, isDeleted, validMessageId } from '@/lib/deleted'
 import type { FormState } from './auth'
@@ -29,7 +30,8 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   // 앱이 보내는 알림 문구(출근 확인 요청·기록 정정 요청 등)인 척하는 메시지는 막음 (담당자 화면이 진짜 요청으로 처리하지 않게)
   if (signalOf(body)) return { error: '이 문구로 시작하는 메시지는 보낼 수 없어요. 앱의 버튼(늦어요·출근 확인 요청·기록 정정)을 써 주세요.' }
   if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
-  if (isDeleted(body)) return { error: '보낼 수 없는 내용이에요.' }
+  // 바로 가기 버튼은 담당자만 보냄 (근무자가 버튼 모양 글을 써도 버튼으로 보이지 않게 막음)
+  if (isDeleted(body) || hasButtonLine(body)) return { error: '보낼 수 없는 내용이에요.' }
   const since = new Date(Date.now() - 10 * 60_000).toISOString()
   const [{ count }, job, { data: company }] = await Promise.all([
     db()
@@ -61,6 +63,8 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   if (!asked && !(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 문의하거나 지원한 근무자가 아닙니다.' }
   if (badSticker(body)) return { error: '보낼 수 없는 이모티콘이에요.' }
   if (isDeleted(body)) return { error: '보낼 수 없는 내용이에요.' }
+  // 바로 가기 버튼: 정해진 목록의 버튼만 · 한 메시지에 3개까지 · 글과 함께
+  if (badButtons(body)) return { error: '보낼 수 없는 버튼이에요.' }
   must(await db().from('messages').insert({ thread_user_id: userId, sender_id: admin.id, from_admin: true, company_id: admin.companyId, body }))
   const from = (await isSupportThread(admin.companyId, userId)) ? SUPPORT_NAME : admin.companyName
   after(() => sendPush([userId], { title: `💬 ${from} 답장`, body: plainBody(body), url: `/me/chat?co=${admin.companyId}`, tag: `chat-${admin.companyId}` }))

@@ -406,7 +406,7 @@ export default async function MePage(props: PageProps<'/me'>) {
 
       {pendingDocs.length > 0 && (
         // 흰 카드 + 작은 아이콘 (안내 문장은 오늘의 근무 칸에 이미 있어 한 번만)
-        <section className="card animate-pop" data-sign-card>
+        <section id="sign-docs" className="card animate-pop scroll-mt-20" data-sign-card>
           <h2 className="mb-2.5 flex items-center gap-1.5 font-bold">
             <Icon name="pen" className="text-amber-600" />
             서명할 서류가 {pendingDocs.length}건 있어요

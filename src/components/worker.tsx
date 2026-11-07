@@ -162,11 +162,22 @@ export function ClockPanel({
   const [gpsFails, setGpsFails] = useState(0)
   const askBox = useRef<HTMLDivElement>(null)
   // '근무 종료하러 가기'(/me#clock)로 왔으면 버튼을 화면 가운데로 (위에 카드가 많으면 영역 머리만 보이고 버튼은 화면 밖이던 것)
+  // 문의 채팅의 '근무 시작하러 가기' 버튼으로 와도 같음 · 버튼 둘레가 몇 번 번쩍여서 어디를 누를지 바로 보이게
   const mainBtn = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     if (!open || location.hash !== '#clock') return
-    const t = setTimeout(() => mainBtn.current?.scrollIntoView({ block: 'center' }), 60)
-    return () => clearTimeout(t)
+    let off = 0
+    const t = setTimeout(() => {
+      const el = mainBtn.current
+      if (!el) return
+      el.scrollIntoView({ block: 'center' })
+      el.setAttribute('data-flash', '')
+      off = window.setTimeout(() => el.removeAttribute('data-flash'), 3200)
+    }, 60)
+    return () => {
+      clearTimeout(t)
+      clearTimeout(off)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 

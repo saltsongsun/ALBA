@@ -4,6 +4,8 @@ import { startTransition, useActionState, useEffect, useRef, useState } from 're
 import { useFormStatus } from 'react-dom'
 import type { FormState } from '@/app/actions/auth'
 import { stickerToken } from '@/lib/stickers'
+import { buttonToken, type ChatButton } from '@/lib/chatButtons'
+import Icon from './Icon'
 import StickerPicker, { StickerToggle } from './StickerPicker'
 import { FormMessage, haptic, keepInputs } from './ui'
 
@@ -40,6 +42,7 @@ export default function ChatComposer({
   context,
   extra,
   mentions,
+  buttons,
 }: {
   action: (state: FormState, form: FormData) => Promise<FormState>
   placeholder: string
@@ -49,6 +52,8 @@ export default function ChatComposer({
   extra?: React.ReactNode
   /** 단체방: '@이름'으로 부를 수 있는 사람 (나는 빼고) — '@'를 치거나 @ 버튼을 누르면 고르는 줄이 뜸 */
   mentions?: { id: string; name: string; admin?: boolean }[]
+  /** 담당자 문의 답장: 보낼 수 있는 바로 가기 버튼 (예: 근무 시작하러 가기) */
+  buttons?: ChatButton[]
 }) {
   const [state, formAction] = useActionState(action, null)
   const textRef = useRef<HTMLTextAreaElement>(null)
@@ -64,6 +69,18 @@ export default function ChatComposer({
     fd.set('body', stickerToken(id))
     stickerSent.current = true
     setPicker(false)
+    startTransition(() => formAction(fd))
+  }
+
+  // ── 바로 가기 버튼: 고르면 바로 보냄 (입력칸에 쓴 글이 있으면 그 글과 함께, 비어 있으면 기본 안내 한 줄과 함께) ──
+  const [btnPicker, setBtnPicker] = useState(false)
+  const sendButton = (b: ChatButton) => {
+    const form = formRef.current
+    if (!form) return
+    const fd = new FormData(form)
+    fd.set('body', `${textRef.current?.value.trim() || b.lead}\n${buttonToken(b.key)}`)
+    setBtnPicker(false)
+    haptic(8)
     startTransition(() => formAction(fd))
   }
 
@@ -163,8 +180,22 @@ export default function ChatComposer({
 
   return (
     <form ref={formRef} action={formAction} onReset={keepInputs} className="space-y-2">
-      {quickReplies.length > 0 && (
+      {(quickReplies.length > 0 || !!buttons?.length) && (
         <div className="fade-x flex gap-1.5 overflow-x-auto pb-0.5" data-quick-replies>
+          {!!buttons?.length && (
+            <button
+              type="button"
+              aria-expanded={btnPicker}
+              data-button-toggle
+              onClick={() => {
+                setBtnPicker((v) => !v)
+                setPicker(false)
+              }}
+              className={`flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-[13px] font-bold ring-1 transition active:scale-95 ${btnPicker ? 'bg-brand-600 text-white ring-brand-600' : 'bg-brand-50 text-brand-700 ring-brand-100'}`}
+            >
+              <Icon name="sparkle" /> 버튼 보내기
+            </button>
+          )}
           {quickReplies.map((q) => (
             <button
               key={q}
@@ -184,6 +215,27 @@ export default function ChatComposer({
       )}
       {context}
       {state?.error && <FormMessage state={state} />}
+      {btnPicker && !!buttons?.length && (
+        // 바로 가기 버튼 고르기 (누르면 바로 보냄)
+        <div className="animate-pop rounded-2xl bg-white p-3 shadow-[0_4px_20px_rgba(0,0,0,0.08)] ring-1 ring-line" data-button-picker>
+          <p className="text-sm font-bold">어떤 버튼을 보낼까요?</p>
+          <p className="mb-2.5 text-xs text-mute">누르면 바로 보내요 · 입력칸에 쓴 글이 있으면 그 글과 함께</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {buttons.map((b) => (
+              <button
+                key={b.key}
+                type="button"
+                data-button-option={b.key}
+                onClick={() => sendButton(b)}
+                className="flex min-w-0 items-center gap-1.5 rounded-xl bg-bg px-2.5 py-2.5 text-left text-[13px] font-semibold text-ink transition active:scale-95"
+              >
+                <Icon name={b.icon} className="shrink-0 text-brand-600" />
+                <span className="min-w-0 truncate">{b.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       {picker && (
         <StickerPicker
           onPick={sendSticker}
@@ -214,7 +266,13 @@ export default function ChatComposer({
         </div>
       )}
       <div className="flex items-end gap-1.5 rounded-3xl bg-white p-1.5 pl-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.08)] ring-1 ring-line">
-        <StickerToggle open={picker} onClick={() => setPicker((v) => !v)} />
+        <StickerToggle
+          open={picker}
+          onClick={() => {
+            setPicker((v) => !v)
+            setBtnPicker(false)
+          }}
+        />
         {!!mentions?.length && (
           <button
             type="button"
