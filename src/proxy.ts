@@ -68,6 +68,8 @@ export function proxy(request: NextRequest) {
 
   const headers = new Headers(request.headers)
   headers.set('x-nonce', nonce)
+  // 화면 틀(layout)은 주소 뒤 ?값을 받지 못해서 함께 넘김 (관리자 첫 화면 이동에서 공고 모음 링크는 그대로 두려고)
+  headers.set('x-search', request.nextUrl.search)
   headers.set('Content-Security-Policy', csp)
   const res = NextResponse.next({ request: { headers } })
   res.headers.set('Content-Security-Policy', csp)
