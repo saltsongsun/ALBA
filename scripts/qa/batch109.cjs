@@ -49,9 +49,20 @@ const won = (n) => `${n.toLocaleString('ko-KR')}원`
     [DA, '짧은다', '01055550003'],
     [RA, '다음라', '01055550004'],
   ]
-  for (const [id, name, phone] of users) await rest('users', 'POST', { ...w1, id, name, phone, attendance: [], ratings: [], bank_account_enc: null })
+  const people = new Map()
+  for (const [id, name, phone] of users) {
+    const u = { ...w1, id, name, phone, attendance: [], ratings: [], bank_account_enc: null }
+    people.set(id, u)
+    await rest('users', 'POST', u)
+  }
   let n = 0
-  const app = (uid, job) => rest('applications', 'POST', { id: `11111111-0000-4000-8000-0000000009${String(++n).padStart(2, '0')}`, company_id: C, job_id: job.id, user_id: uid, status: 'approved', available_dates: null, created_at: new Date().toISOString(), job: lite(job), user: { id: uid } })
+  // (가짜 DB는 지원에 공고·사람을 함께 붙여 둬야 화면이 이름을 읽음)
+  const app = (uid, job) => {
+    const u = { ...people.get(uid) }
+    delete u.attendance
+    delete u.ratings
+    return rest('applications', 'POST', { id: `11111111-0000-4000-8000-0000000009${String(++n).padStart(2, '0')}`, company_id: C, job_id: job.id, user_id: uid, status: 'approved', available_dates: null, created_at: new Date().toISOString(), job: lite(job), user: u })
+  }
   const att = (uid, job, date, inT, outT) =>
     rest('attendance', 'POST', {
       id: `eeeeeeee-0000-4000-8000-0000000009${String(++n).padStart(2, '0')}`, company_id: C, job_id: job.id, user_id: uid, work_date: date,
@@ -127,9 +138,10 @@ const won = (n) => `${n.toLocaleString('ko-KR')}원`
   ok('3.3% 용역 공고는 주휴 계산에 안 들어감 (가는 20시간)', pga.includes('20시간'))
   ok('360px: 주간 화면 옆으로 안 밀림 (밝은 화면)', await wide(ap))
   if (SHOTS) await ap.screenshot({ path: `${SHOTS}/weekly.png`, fullPage: true })
-  await ap.locator('[data-week-nav] a', { hasText: '다음 주' }).click()
+  ok('주 고르기: 날짜가 한 줄 · 잘리지 않음', await ap.locator('[data-week-range]').evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
+  await ap.locator('[data-week-next]').click()
   await ap.waitForURL((u) => new URL(u).searchParams.get('w') === addDays(W0, 7), { timeout: 10000 }).catch(() => {})
-  ok("'다음 주 ›'로 주 이동", new URL(ap.url()).searchParams.get('w') === addDays(W0, 7))
+  ok("'›'(다음 주)로 주 이동", new URL(ap.url()).searchParams.get('w') === addDays(W0, 7))
   await ap.goto(`${D}/admin/weekly?w=${NEXT}`)
   await ap.locator('[data-weekly]').waitFor({ timeout: 15000 }).catch(() => {})
   const pra = await person('다음라').innerText().catch(() => '')

@@ -101,17 +101,17 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
         <p className="text-sm text-sub">여러 공고를 한 주(월~일)로 모아 예상 인건비와 주휴수당을 확인해요</p>
       </div>
 
-      {/* 주 고르기 */}
-      <nav className="flex items-center justify-between gap-2 rounded-2xl bg-white p-1.5 ring-1 ring-line" aria-label="주 고르기" data-week-nav>
-        <Link href={`/admin/weekly?w=${addDays(ws, -7)}`} className="rounded-xl px-3 py-2 text-sm font-semibold text-sub active:bg-bg" aria-label="지난 주">
-          ‹ 지난 주
+      {/* 주 고르기: 양쪽 화살표 칸 · 가운데 날짜 (360px에서 꺾이거나 잘리지 않게) */}
+      <nav className="flex items-center gap-1.5 rounded-2xl bg-white p-1.5 ring-1 ring-line" aria-label="주 고르기" data-week-nav>
+        <Link href={`/admin/weekly?w=${addDays(ws, -7)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="지난 주" data-week-prev>
+          ‹
         </Link>
-        <p className="min-w-0 truncate text-center text-sm font-bold" data-week-range>
-          {thisWeek ? '이번 주 · ' : ''}
+        <p className="min-w-0 flex-1 text-center text-sm leading-tight font-bold whitespace-nowrap" data-week-range>
+          {thisWeek && <span className="block text-[11px] font-semibold text-brand-600">이번 주</span>}
           {range}
         </p>
-        <Link href={`/admin/weekly?w=${addDays(ws, 7)}`} className="rounded-xl px-3 py-2 text-sm font-semibold text-sub active:bg-bg" aria-label="다음 주">
-          다음 주 ›
+        <Link href={`/admin/weekly?w=${addDays(ws, 7)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="다음 주" data-week-next>
+          ›
         </Link>
       </nav>
       {!thisWeek && (
