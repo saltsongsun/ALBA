@@ -5,6 +5,7 @@ import { SIGNAL, signalOf } from '@/lib/signals'
 import { plainBody, stickerOf } from '@/lib/stickers'
 import { splitButtons, type ChatButton } from '@/lib/chatButtons'
 import Icon from './Icon'
+import { linkify } from './Linkify'
 import MessageMenu from './MessageMenu'
 import Sticker from './Sticker'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
@@ -118,7 +119,8 @@ export function ChatMessages({
                           mine ? 'rounded-br-md bg-brand-600 text-white' : 'rounded-bl-md bg-white text-ink shadow-[0_1px_2px_rgba(0,0,0,0.05)]'
                         }`}
                       >
-                        {text}
+                        {/* 주소·휴대폰 번호는 눌러서 열기·전화 */}
+                        {linkify(text, mine)}
                       </p>
                     )}
                   </MessageMenu>

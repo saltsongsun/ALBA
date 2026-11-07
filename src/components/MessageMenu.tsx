@@ -189,8 +189,8 @@ export default function MessageMenu({
           if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) cancelHold()
         }}
         onPointerUp={(e) => {
-          // 꾹 누르기 전에 뗌 = 짧게 누름 → 1.5초 안에 두 번이면 알려 줌
-          if (timer.current && e.pointerType !== 'mouse') {
+          // 꾹 누르기 전에 뗌 = 짧게 누름 → 1.5초 안에 두 번이면 알려 줌 (글 속 링크·번호를 누른 건 빼고)
+          if (timer.current && e.pointerType !== 'mouse' && !(e.target as HTMLElement).closest('a')) {
             const now = Date.now()
             taps.current = [...taps.current.filter((t) => now - t < 1500), now]
             if (taps.current.length >= 2) {

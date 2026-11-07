@@ -9,6 +9,7 @@ import MessageMenu from './MessageMenu'
 import PinnedNudge from './PinnedNudge'
 import Sticker from './Sticker'
 import { ConfirmSubmit } from './ui'
+import { linkify } from './Linkify'
 
 type Msg = RoomMessage & { name: string }
 
@@ -181,14 +182,15 @@ export function RoomMembersInfo({ workers, admins, worker }: { workers: { id: st
 /** 글 속 '@이름'(방 사람)을 굵게·색으로 (내 말풍선은 흰 글씨라 밑줄) */
 function withMentions(body: string, people: { name: string }[], mine: boolean): React.ReactNode {
   const names = [...new Set(people.map((p) => p.name.trim()).filter(Boolean))].sort((a, b) => b.length - a.length)
-  if (!names.length || !body.includes('@')) return body
+  // 주소·휴대폰 번호는 눌러서 열기·전화 (사람 부르기 사이의 글에도)
+  if (!names.length || !body.includes('@')) return linkify(body, mine)
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const re = new RegExp(`(^|[\\s(\\[])(@(?:${names.map(esc).join('|')}))(?=$|[\\s.,!?~)\\]])`, 'g')
   const out: React.ReactNode[] = []
   let last = 0
   for (const m of body.matchAll(re)) {
     const start = (m.index ?? 0) + m[1].length
-    out.push(body.slice(last, start))
+    out.push(...linkify(body.slice(last, start), mine, `t${last}-`))
     out.push(
       <b key={start} data-mention className={mine ? 'font-bold underline decoration-white/60 underline-offset-2' : 'font-bold text-brand-700'}>
         {m[2]}
@@ -196,6 +198,6 @@ function withMentions(body: string, people: { name: string }[], mine: boolean): 
     )
     last = start + m[2].length
   }
-  out.push(body.slice(last))
+  out.push(...linkify(body.slice(last), mine, `t${last}-`))
   return out
 }
