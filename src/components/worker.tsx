@@ -18,6 +18,8 @@ import {
   type ClockResult,
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
+import { fixTime } from '@/lib/signals'
+import { kstTime } from '@/lib/time'
 import AccountDigits from './AccountDigits'
 import Fold from './Fold'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
@@ -540,11 +542,18 @@ export function FullTimeRequest({ attendanceId, endText, outText, sent }: { atte
 
 export function FixRequest({
   attendanceId,
+  workDate,
+  inAt,
+  outAt,
   inText,
   outText,
   sent,
 }: {
   attendanceId: string
+  /** 근무 날 (YYYY-MM-DD) · 지금 기록된 출근·종료 (ISO) — 고른 시각을 서버와 같은 방식으로 바로 확인 */
+  workDate: string
+  inAt: string
+  outAt: string
   inText: string
   outText: string
   /** 보내 놓고 아직 답을 못 받은 요청 */
@@ -553,7 +562,18 @@ export function FixRequest({
   const [state, action] = useActionState(requestFix.bind(null, attendanceId), null)
   const [open, setOpen] = useState(false)
   const [field, setField] = useState<'in' | 'out'>('out')
+  const [time, setTime] = useState(outText)
   const done = state?.ok
+  // 보내기 전에 바로 확인 (인사이트: '아직 오지 않은 시각이에요'를 보낸 뒤에야 봄)
+  // warn: 노란 테두리로 알림 · 아니면 '바꿀 시각을 골라 주세요'처럼 조용히 안내만 (둘 다 보내기 막음)
+  const fixHint = ((): { warn: boolean; text: string } | null => {
+    if (!/^\d{2}:\d{2}$/.test(time)) return { warn: false, text: '실제 시각을 골라 주세요' }
+    if (time === (field === 'in' ? inText : outText)) return { warn: false, text: '지금 기록된 시각이에요 · 실제 시각으로 바꿔 주세요' }
+    const want = fixTime(workDate, { field, time }, new Date(inAt)).getTime()
+    if (want > Date.now() + 60_000) return { warn: true, text: `아직 오지 않은 시각이에요 · 지금 ${kstTime(new Date())}` }
+    if (field === 'in' && want >= new Date(outAt).getTime()) return { warn: true, text: `출근은 종료(${outText})보다 앞이어야 해요` }
+    return null
+  })()
   useEffect(() => {
     if (done) setOpen(false)
   }, [done])
@@ -569,7 +589,14 @@ export function FixRequest({
         )
       )}
       {!open ? (
-        <button type="button" onClick={() => setOpen(true)} className="w-full text-center text-sm font-semibold text-sub underline underline-offset-4">
+        <button
+          type="button"
+          onClick={() => {
+            setOpen(true)
+            setTime(field === 'in' ? inText : outText)
+          }}
+          className="w-full text-center text-sm font-semibold text-sub underline underline-offset-4"
+        >
           {sent || done ? '다시 요청하기' : '시각이 잘못 찍혔나요? 정정 요청'}
         </button>
       ) : (
@@ -588,22 +615,52 @@ export function FixRequest({
                   field === v ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'
                 }`}
               >
-                <input type="radio" name="field" value={v} checked={field === v} onChange={() => setField(v)} className="sr-only" />
+                <input
+                  type="radio"
+                  name="field"
+                  value={v}
+                  checked={field === v}
+                  onChange={() => {
+                    setField(v)
+                    setTime(v === 'in' ? inText : outText)
+                  }}
+                  className="sr-only"
+                />
                 {label}
               </label>
             ))}
           </div>
           <label className="block">
             <span className="label">실제 {field === 'in' ? '출근' : '종료'} 시각</span>
-            <input key={field} type="time" name="time" defaultValue={field === 'in' ? inText : outText} required className="input bg-white" />
+            <input
+              key={field}
+              type="time"
+              name="time"
+              defaultValue={field === 'in' ? inText : outText}
+              onInput={(e) => setTime(e.currentTarget.value)}
+              required
+              aria-invalid={fixHint?.warn ? true : undefined}
+              aria-describedby="fix-hint"
+              className={`input bg-white ${fixHint?.warn ? 'border-amber-400 ring-2 ring-amber-200' : ''}`}
+            />
           </label>
+          {fixHint && (
+            <p
+              id="fix-hint"
+              className={`-mt-1.5 text-xs ${fixHint.warn ? 'font-semibold text-amber-700' : 'text-mute'}`}
+              data-fix-hint={fixHint.warn ? 'warn' : 'note'}
+              role="status"
+            >
+              {fixHint.text}
+            </p>
+          )}
           <input name="reason" maxLength={100} className="input bg-white text-sm" placeholder="사유 (선택) 예: 실수로 종료를 일찍 눌렀어요" />
           <FormMessage state={state} />
           <div className="grid grid-cols-[1fr_2fr] gap-2">
             <button type="button" onClick={() => setOpen(false)} className="btn-gray">
               취소
             </button>
-            <SubmitButton className="btn-primary" pendingText="보내는 중…">
+            <SubmitButton className="btn-primary" pendingText="보내는 중…" disabled={!!fixHint}>
               정정 요청 보내기
             </SubmitButton>
           </div>

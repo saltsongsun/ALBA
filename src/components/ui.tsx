@@ -22,6 +22,7 @@ export function SubmitButton({
   name,
   value,
   track: label = '',
+  disabled = false,
 }: {
   children: React.ReactNode
   className?: string
@@ -30,10 +31,12 @@ export function SubmitButton({
   value?: string
   /** 행동 기록에 남길 버튼 이름 (비우면 버튼 글자). 이름·회사명이 들어가는 버튼은 꼭 지정 */
   track?: string
+  /** 보내기 전에 막아야 할 때 (예: 아직 오지 않은 시각) */
+  disabled?: boolean
 }) {
   const { pending } = useFormStatus()
   return (
-    <button type="submit" className={className} disabled={pending} aria-busy={pending} name={name} value={value} data-track={label}>
+    <button type="submit" className={className} disabled={pending || disabled} aria-busy={pending} name={name} value={value} data-track={label}>
       {pending ? (
         <>
           <Spinner />
