@@ -99,6 +99,8 @@ export type WeekCheck = {
   holidayMin: number
   /** 주휴수당 (원) — 요건을 채웠거나(eligible) 남은 날을 다 나오면(pending) 받을 금액 */
   amount: number
+  /** 요건과 상관없이 이 시간이면 받을 금액 (15시간을 넘는지 미리 볼 때) */
+  potential: number
   status: WeekStatus
   /** 쉬운 말 설명 (예: '한 주 12시간 · 15시간 미만', '11/5(수) 결근') */
   reason: string
@@ -194,6 +196,7 @@ export function checkWeeks(
       hourly: Math.round(hourly),
       holidayMin,
       amount: status === 'eligible' || status === 'pending' ? amount : 0,
+      potential: minutes >= WEEKLY_MIN_MINUTES ? amount : 0,
       status,
       reason,
       attachTo: status === 'eligible' && !before ? last.attId : null,
@@ -210,13 +213,13 @@ export function hoursText(min: number): string {
   return m ? `${h}시간 ${m}분` : `${h}시간`
 }
 
-/**
- * 한 회사의 주휴 확인 (DB에서 읽음). userIds가 없으면 그 기간 그 회사에서 일정·기록이 있는 모든 사람
- */
-export async function weeklyChecks(companyId: string, from: string, to: string, userIds?: string[], now = Date.now()): Promise<WeekCheck[]> {
+type WeekApp = { user_id: string; job_id: string; available_dates: string[] | null; status: string; job: WeekJob | null }
+type WeekData = { ws: string; we: string; apps: WeekApp[]; atts: WeekAtt[]; jobs: Map<string, WeekJob> }
+
+/** 한 회사의 그 기간 확정 지원·출퇴근 기록·공고를 읽음 (userIds가 없으면 그 회사 모든 사람) */
+async function loadWeekData(companyId: string, from: string, to: string, userIds?: string[]): Promise<WeekData> {
   const ws = weekStart(from)
   const we = addDays(weekStart(to), 6)
-  if (userIds && !userIds.length) return []
   let appsQ = db()
     .from('applications')
     .select(`user_id, job_id, available_dates, status, job:jobs(${JOB_COLS})`)
@@ -233,7 +236,7 @@ export async function weeklyChecks(companyId: string, from: string, to: string, 
     attsQ = attsQ.in('user_id', userIds)
   }
   const [{ data: appRows }, { data: attRows }] = await Promise.all([appsQ.limit(5000), attsQ.limit(20000)])
-  const apps = ((appRows ?? []) as unknown as { user_id: string; job_id: string; available_dates: string[] | null; status: string; job: WeekJob | null }[]).filter(
+  const apps = ((appRows ?? []) as unknown as WeekApp[]).filter(
     (a) => a.status === 'approved' && !!a.job && a.job.company_id === companyId && a.job.start_date <= we && a.job.end_date >= ws && (!userIds || userIds.includes(a.user_id)),
   )
   const atts = ((attRows ?? []) as WeekAtt[]).filter((a) => a.work_date >= ws && a.work_date <= we && (!userIds || userIds.includes(a.user_id)))
@@ -244,6 +247,15 @@ export async function weeklyChecks(companyId: string, from: string, to: string, 
     const { data } = await db().from('jobs').select(JOB_COLS).eq('company_id', companyId).in('id', missingJobs)
     for (const j of (data ?? []) as WeekJob[]) if (j.company_id === companyId) jobs.set(j.id, j)
   }
+  return { ws, we, apps, atts, jobs }
+}
+
+/**
+ * 한 회사의 주휴 확인 (DB에서 읽음). userIds가 없으면 그 기간 그 회사에서 일정·기록이 있는 모든 사람
+ */
+export async function weeklyChecks(companyId: string, from: string, to: string, userIds?: string[], now = Date.now()): Promise<WeekCheck[]> {
+  if (userIds && !userIds.length) return []
+  const { ws, we, apps, atts, jobs } = await loadWeekData(companyId, from, to, userIds)
   const users = userIds ?? [...new Set([...apps.map((a) => a.user_id), ...atts.map((a) => a.user_id)])]
   return users.flatMap((u) =>
     checkWeeks(
@@ -256,6 +268,51 @@ export async function weeklyChecks(companyId: string, from: string, to: string, 
       now,
     ),
   )
+}
+
+/** 이 공고를 확정하면(추가 근로) 생기는 주휴 변화 — 관리자 화면에만 (근무자에게는 보이지 않음) */
+export type WeekImpact = {
+  weekStart: string
+  /** 확정 전 그 주 소정근로(분) · 확정 뒤 */
+  before: number
+  after: number
+  /** 확정 뒤 그 주 주휴수당 (요건대로 개근하면) */
+  amount: number
+  /** becomes: 확정하면 15시간을 넘어 주휴수당을 줘야 함 · already: 이미 대상인 주에 시간이 늘어남 */
+  kind: 'becomes' | 'already'
+}
+
+/**
+ * 지원자(대기·확정)마다: 이 공고를 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는지.
+ * 근로자(일용근로소득) 알바 공고만 · 자동 포함 전 주는 빼고 · 이미 확정된 사람은 지금 상태(이미 들어 있음)
+ */
+export async function weeklyImpact(
+  job: WeekJob,
+  apps: { user_id: string; status: string; available_dates: string[] | null }[],
+  now = Date.now(),
+): Promise<Map<string, WeekImpact>> {
+  const out = new Map<string, WeekImpact>()
+  const people = apps.filter((a) => a.status === 'applied' || a.status === 'approved')
+  if (!weeklyJob(job) || !people.length || addDays(weekStart(job.end_date), 6) < WEEKLY_PAY_FROM) return out
+  const users = [...new Set(people.map((a) => a.user_id))]
+  const data = await loadWeekData(job.company_id, job.start_date, job.end_date, users)
+  const jobs = new Map(data.jobs).set(job.id, job)
+  for (const a of people) {
+    const base = data.apps.filter((x) => x.user_id === a.user_id && x.job_id !== job.id)
+    const mine = { user_id: a.user_id, job_id: job.id, available_dates: a.available_dates, status: 'approved', job }
+    const before = checkWeeks(a.user_id, jobs, base, data.atts, data.ws, data.we, now)
+    const after = checkWeeks(a.user_id, jobs, [...base, mine], data.atts, data.ws, data.we, now)
+    let best: WeekImpact | null = null
+    for (const w of after) {
+      if (w.before || w.minutes < WEEKLY_MIN_MINUTES) continue
+      const b = before.find((x) => x.weekStart === w.weekStart)?.minutes ?? 0
+      if (b === w.minutes) continue // 이 공고가 그 주에 시간을 더하지 않음
+      const imp: WeekImpact = { weekStart: w.weekStart, before: b, after: w.minutes, amount: w.potential, kind: b < WEEKLY_MIN_MINUTES ? 'becomes' : 'already' }
+      if (!best || (imp.kind === 'becomes' && best.kind !== 'becomes')) best = imp
+    }
+    if (best) out.set(a.user_id, best)
+  }
+  return out
 }
 
 /** 출퇴근 기록 id → 그 기록에 붙는 주휴수당 (요건을 채운 주의 마지막 근무일만) */

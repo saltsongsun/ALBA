@@ -19,6 +19,8 @@ import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
 import { MEMBER_TYPES } from '@/lib/members'
 import { careerText } from '@/lib/careers'
+import { won } from '@/lib/format'
+import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
 /** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
@@ -161,6 +163,8 @@ export default async function AppsTab({
           ),
       ])
     : [{} as Record<string, Reliability>, [], [], new Map<string, string>()]
+  // 추가 근로 → 주휴수당 (관리자에게만): 이 공고를 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 사람
+  const impact = await weeklyImpact(job, apps).catch(() => new Map<string, WeekImpact>())
   const today = kstDate()
   const clashOf = new Map<string, { id: string; title: string; at: string }>()
   for (const a of apps) {
@@ -189,6 +193,25 @@ export default async function AppsTab({
     return (
       <Link href={`/admin/jobs/${c.id}`} className="mt-1 inline-block rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
         ⚠️ {fmtDate(kstDate(c.at))} 다른 근무와 겹침 · {c.title}
+      </Link>
+    )
+  }
+  const becomes = (a: AppRow) => a.status === 'applied' && impact.get(a.user_id)?.kind === 'becomes'
+  const Weekly = ({ a }: { a: AppRow }) => {
+    const w = impact.get(a.user_id)
+    if (!w || (a.status !== 'applied' && a.status !== 'approved')) return null
+    const span = `${fmtDate(w.weekStart)} 주 ${hoursText(w.before)}→${hoursText(w.after)}`
+    return (
+      <Link
+        href={`/admin/weekly?w=${w.weekStart}`}
+        className={`mt-1 block truncate rounded-lg px-2 py-1 text-xs font-semibold ring-1 ${becomes(a) ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-bg text-sub ring-line'}`}
+        data-weekly-impact={a.status === 'approved' ? 'approved' : w.kind}
+      >
+        {a.status === 'approved'
+          ? `🧾 주휴 대상 주 · ${hoursText(w.after)} · 개근하면 약 ${won(w.amount)}`
+          : w.kind === 'becomes'
+            ? `🧾 확정하면 주휴 대상 · ${span} · 약 ${won(w.amount)}`
+            : `🧾 이미 주휴 대상 주 · 확정하면 ${hoursText(w.after)} · 약 ${won(w.amount)}`}
       </Link>
     )
   }
@@ -222,11 +245,15 @@ export default async function AppsTab({
   const fullOf = (a: AppRow) => {
     const over = fullDays(a, dates, byDay, job.headcount)
     const warn = minorWarn(a)
+    // 확정하면 주휴수당이 생기는 사람도 한 번 더 (관리자에게만 보임)
+    const weekly = becomes(a)
     return {
-      full: over.length > 0 || !!warn,
+      full: over.length > 0 || !!warn || weekly,
       text: warn
         ? `연소자 ${minorLimits.join('·')} · 확정?`
-        : !multi
+        : weekly && over.length === 0
+          ? '주휴 대상이 돼요 · 확정?'
+          : !multi
           ? '인원 다 찼어요 · 확정?'
           : over.length === dates.length || over.length > 2
             ? '모든 날 인원 다 참 · 확정?'
@@ -234,7 +261,9 @@ export default async function AppsTab({
     }
   }
   const minorsWaiting = minorLimits.length ? apps.filter((a) => a.status === 'applied' && isMinor(a)).length : 0
-  const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0
+  // 확정하면 주휴수당이 생기는 대기 지원자 (관리자에게만 · 모두 확정 전에 한 번 더)
+  const weeklyWaiting = apps.filter((a) => becomes(a) && !a.held_at).length
+  const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0 || weeklyWaiting > 0
   // 모집이 끝났는데(마감·종료·지난 행사·남은 날 인원 다 참) 대기자가 남아 있으면: 미선발로 정리하고 결과 알리기
   const recruitDone =
     job.status !== 'open' || job.end_date < today || dates.filter((d) => d >= today).every((d) => byDay[d] >= job.headcount)
@@ -302,6 +331,7 @@ export default async function AppsTab({
           {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
         </p>
         <Clash uid={a.user_id} />
+        <Weekly a={a} />
         <Memo uid={a.user_id} />
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
@@ -334,6 +364,21 @@ export default async function AppsTab({
           <option key={p} value={p!} />
         ))}
       </datalist>
+      {/* 추가 근로 → 주휴수당 (관리자에게만): 확정하면 한 주 15시간을 넘는 대기 지원자 */}
+      {(() => {
+        const n = apps.filter(becomes)
+        if (!n.length) return null
+        return (
+          <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2.5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-emerald-200/70" data-weekly-impact-summary>
+            <span aria-hidden className="text-lg">🧾</span>
+            <span className="min-w-0 flex-1">
+              <b className="block">확정하면 주휴수당이 생기는 지원자 {n.length}명</b>
+              <span className="block text-xs">다른 공고와 합쳐 한 주 15시간 이상 · 개근하면 약 {won(n.reduce((t, a) => t + (impact.get(a.user_id)?.amount ?? 0), 0))}</span>
+            </span>
+            <span className="shrink-0 text-xs font-semibold">주간 보기 →</span>
+          </Link>
+        )
+      })()}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
           확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
@@ -349,7 +394,9 @@ export default async function AppsTab({
                   confirmText={
                     minorsWaiting
                       ? `연소자 ${minorsWaiting}명(${minorLimits.join('·')}) 포함 · 확정?`
-                      : multi
+                      : weeklyWaiting && !dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
+                        ? `주휴 대상 ${weeklyWaiting}명 생겨요 · 모두 확정?`
+                        : multi
                         ? `모집 ${job.headcount}명을 넘는 날이 있어요 · 확정?`
                         : `모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`
                   }
@@ -519,6 +566,7 @@ export default async function AppsTab({
                         {relText(a.user_id)}
                         <div>
                           <Clash uid={a.user_id} />
+                          <Weekly a={a} />
                           <Memo uid={a.user_id} />
                         </div>
                       </td>

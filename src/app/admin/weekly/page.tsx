@@ -7,7 +7,7 @@ import { won } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { dateList, fmtDate, hhmm, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
-import { addDays, hoursText, plannedPay, WEEKLY_PAY_FROM, weekStart, weeklyChecks, weeklyJob, type WeekCheck } from '@/lib/weekly'
+import { addDays, hoursText, plannedPay, WEEKLY_PAY_FROM, weekStart, weeklyChecks, weeklyImpact, weeklyJob, type WeekCheck, type WeekImpact } from '@/lib/weekly'
 
 export const metadata: Metadata = { title: '주간 근무 · 주휴' }
 
@@ -18,7 +18,7 @@ const STATUS: Record<WeekCheck['status'], { label: string; tone: string; order: 
   short: { label: '15시간 미만', tone: 'bg-bg text-sub', order: 3 },
 }
 
-type WApp = { job_id: string; user_id: string; status: string; available_dates: string[] | null }
+type WApp = { job_id: string; user_id: string; status: string; available_dates: string[] | null; held_at?: string | null }
 
 /**
  * 주간 근무 · 주휴 (사용자 요청 2026-11-07 "여러 일을 진행할 때 예상 금액·주휴수당 요건을 자동으로 계산 + 여러 일을 관리").
@@ -45,29 +45,41 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
       .then((r) => ((r.data ?? []) as Job[]).filter((j) => j.start_date <= we && j.end_date >= ws && j.status !== 'draft').sort((a, b) => a.start_date.localeCompare(b.start_date))),
     weeklyChecks(admin.companyId, ws, we).catch(() => [] as WeekCheck[]),
   ])
-  const userIds = [...new Set(checks.map((c) => c.userId))]
-  const [names, apps] = await Promise.all([
-    userIds.length
-      ? db()
-          .from('users')
-          .select('id, name')
-          .in('id', userIds)
-          .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])))
-      : new Map<string, string>(),
-    // 공고별 확정 인원 (가능한 날짜까지)
-    jobs.length
-      ? db()
-          .from('applications')
-          .select('job_id, user_id, status, available_dates')
-          .eq('company_id', admin.companyId)
-          .eq('status', 'approved')
-          .in(
-            'job_id',
-            jobs.map((j) => j.id),
-          )
-          .then((r) => ((r.data ?? []) as WApp[]).filter((a) => a.status === 'approved'))
-      : ([] as WApp[]),
-  ])
+  // 공고별 확정·대기 지원 (가능한 날짜까지)
+  const allApps = jobs.length
+    ? await db()
+        .from('applications')
+        .select('job_id, user_id, status, available_dates, held_at')
+        .eq('company_id', admin.companyId)
+        .in('status', ['approved', 'applied'])
+        .in(
+          'job_id',
+          jobs.map((j) => j.id),
+        )
+        .then((r) => ((r.data ?? []) as WApp[]).filter((a) => a.status === 'approved' || a.status === 'applied'))
+    : ([] as WApp[])
+  const apps = allApps.filter((a) => a.status === 'approved')
+  // 추가 근로 → 주휴수당 (관리자에게만): 대기 지원자를 확정하면 이 주 15시간을 넘는 사람
+  const extra = (
+    await Promise.all(
+      jobs
+        .filter((j) => weeklyJob(j) && j.status !== 'done' && j.end_date >= today)
+        .map(async (j) => {
+          const waiting = allApps.filter((a) => a.job_id === j.id && a.status === 'applied' && !a.held_at)
+          if (!waiting.length) return []
+          const m = await weeklyImpact(j, waiting).catch(() => new Map<string, WeekImpact>())
+          return [...m].filter(([, w]) => w.kind === 'becomes' && w.weekStart === ws).map(([uid, w]) => ({ job: j, uid, w }))
+        }),
+    )
+  ).flat()
+  const userIds = [...new Set([...checks.map((c) => c.userId), ...extra.map((x) => x.uid)])]
+  const names = userIds.length
+    ? await db()
+        .from('users')
+        .select('id, name')
+        .in('id', userIds)
+        .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])))
+    : new Map<string, string>()
 
   // 공고별: 이 주에 잡힌 날 · 확정 인원 · 예정대로 일했을 때 예상 지급액 (세전, 연장·야간·수당 포함, 주휴는 아래 따로)
   const jobRows = jobs.map((j) => {
@@ -175,6 +187,31 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
           </ul>
         )}
       </section>
+
+      {/* 추가 근로 → 주휴수당 (관리자에게만): 대기 지원자를 확정하면 이 주 15시간을 넘는 사람 */}
+      {extra.length > 0 && (
+        <section className="card p-0 ring-emerald-200/70" data-weekly-extra>
+          <div className="px-4 pt-3.5 pb-2">
+            <h2 className="font-bold">확정하면 주휴 대상이 되는 지원자 {extra.length}명</h2>
+            <p className="text-xs text-sub">다른 공고와 합쳐 이 주 15시간을 넘어요 · 관리자에게만 보여요</p>
+          </div>
+          <ul className="divide-y divide-line border-t border-line">
+            {extra.map(({ job: j, uid, w }) => (
+              <li key={`${j.id}|${uid}`}>
+                <Link href={`/admin/jobs/${j.id}?tab=apps`} className="flex items-center gap-3 px-4 py-2.5 active:bg-bg" data-weekly-extra-row>
+                  <span className="min-w-0 flex-1">
+                    <b className="block truncate text-sm">{names.get(uid) ?? '지원자'}</b>
+                    <span className="block truncate text-xs text-sub">
+                      {j.title} · {hoursText(w.before)}→{hoursText(w.after)}
+                    </span>
+                  </span>
+                  <b className="shrink-0 text-sm text-emerald-700 tabular-nums">약 {won(w.amount)}</b>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 근무자별 주휴 확인 */}
       <section className="card p-0" data-weekly-people>

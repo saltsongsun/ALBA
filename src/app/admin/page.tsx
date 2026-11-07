@@ -26,6 +26,8 @@ import { missingSetup } from '@/lib/setup'
 import { ago, companyReviews } from '@/lib/community'
 import { companyWorkerIds } from '@/lib/company'
 import StartsIn from '@/components/StartsIn'
+import { won } from '@/lib/format'
+import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
@@ -414,6 +416,30 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
   const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
   const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
+  // 추가 근로 → 주휴수당 (관리자에게만): 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 지원자
+  const weeklyOf = new Map<string, WeekImpact>()
+  await Promise.all(
+    [...new Set(pendingApps.map((p) => p.job.id))].map(async (jid) => {
+      const job = activeJobs.find((j) => j.id === jid)
+      if (!job) return
+      const m = await weeklyImpact(
+        job,
+        pendingApps.filter((p) => p.job.id === jid).map((p) => ({ user_id: p.user.id, status: 'applied', available_dates: p.available_dates })),
+      ).catch(() => new Map<string, WeekImpact>())
+      for (const [uid, w] of m) if (w.kind === 'becomes') weeklyOf.set(`${jid}|${uid}`, w)
+    }),
+  )
+  const weeklyFor = (p: (typeof pendingApps)[number]) => weeklyOf.get(`${p.job.id}|${p.user.id}`)
+  const confirmText = (p: (typeof pendingApps)[number]) => (isFull(p.job.id) ? '인원 다 찼어요 · 확정?' : weeklyFor(p) ? '주휴 대상이 돼요 · 확정?' : null)
+  const WeeklyNote = ({ p }: { p: (typeof pendingApps)[number] }) => {
+    const w = weeklyFor(p)
+    if (!w) return null
+    return (
+      <Link href={`/admin/weekly?w=${w.weekStart}`} className="block truncate rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200" data-weekly-impact="becomes">
+        🧾 확정하면 주휴 대상 · {hoursText(w.before)}→{hoursText(w.after)} · 약 {won(w.amount)}
+      </Link>
+    )
+  }
   // 확정 대기 지원자: 5명까지 바로, 나머지는 '더보기'
   const PENDING_SHOW = 5
   const pendingFirst = pendingApps.slice(0, PENDING_SHOW)
@@ -439,11 +465,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           {p.message && <p>“{p.message}”</p>}
         </div>
       )}
+      <WeeklyNote p={p} />
       <ContactButtons phone={p.user.phone} name={p.user.name} />
       <div className="grid grid-cols-3 gap-2">
         <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
-          {isFull(p.job.id) ? (
-            <ConfirmSubmit className="btn-primary w-full" confirmText="인원 다 찼어요 · 확정?">
+          {confirmText(p) ? (
+            <ConfirmSubmit className="btn-primary w-full" confirmText={confirmText(p)!}>
               확정
             </ConfirmSubmit>
           ) : (
@@ -485,6 +512,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
           {p.job.title}
         </Link>
+        <div className="mt-1 max-w-xs">
+          <WeeklyNote p={p} />
+        </div>
       </td>
       <td className="max-w-xs text-xs text-sub">
         {p.available_dates?.map(fmtDate).join(', ')}
@@ -494,8 +524,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <td className="whitespace-nowrap">
         <div className="flex gap-1">
           <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
-            {isFull(p.job.id) ? (
-              <ConfirmSubmit className="btn-primary btn-sm" confirmText="인원 다 찼어요 · 확정?">
+            {confirmText(p) ? (
+              <ConfirmSubmit className="btn-primary btn-sm" confirmText={confirmText(p)!}>
                 확정
               </ConfirmSubmit>
             ) : (
