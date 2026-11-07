@@ -1,5 +1,6 @@
 import { decideJoin, removeTeamAdmin, renewJoinCode } from '@/app/actions/team'
 import { ConfirmSubmit, CopyButton, ShareButton } from '@/components/ui'
+import Icon from '@/components/Icon'
 import { db } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
 import { fmtJoinCode, joinCodeOf } from '@/lib/joinCode'
@@ -44,14 +45,17 @@ export default async function Team({ admin }: { admin: AdminUser }) {
   return (
     <section id="admins" className="card scroll-mt-20 space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-lg font-bold">👥 관리자</h2>
+        <h2 className="flex items-center gap-1.5 text-lg font-bold">
+          <Icon name="users" className="text-brand-600" />
+          관리자
+        </h2>
         <span className="text-sm text-mute">{members.length}명</span>
       </div>
 
       {/* 가입 신청: 아는 사람만 승인 (승인하면 우리 회사 근무자 정보를 봄) */}
       {reqs.length > 0 && (
         <div className="space-y-2 rounded-2xl bg-amber-50 p-3">
-          <p className="font-bold text-amber-900">🧑‍💼 가입 신청 {reqs.length}명</p>
+          <p className="font-bold text-amber-900">가입 신청 {reqs.length}명</p>
           {reqs.map((r) => {
             const p = people.get(r.user_id)
             return (
@@ -87,7 +91,8 @@ export default async function Team({ admin }: { admin: AdminUser }) {
             {fmtJoinCode(code)}
           </p>
           <p className="text-sm text-sub">직원에게 이 코드를 알려 주세요</p>
-          <div className="flex flex-wrap gap-2">
+          {/* 버튼 셋 한 줄 (360px에서 '새 코드로 바꾸기'가 아래 줄로 떨어지지 않게 짧게) */}
+          <div className="flex flex-wrap gap-2" data-join-tools>
             <ShareButton
               title={`${admin.companyName} 관리자 초대`}
               text={`해피워크에서 ${admin.companyName} 관리자로 가입해 주세요.\n회사 코드: ${fmtJoinCode(code)}`}
@@ -97,7 +102,7 @@ export default async function Team({ admin }: { admin: AdminUser }) {
             <CopyButton text={fmtJoinCode(code)} label="코드 복사" />
             <form action={renewJoinCode}>
               <ConfirmSubmit className="btn-gray btn-sm" confirmText="예전 코드는 막혀요">
-                새 코드로 바꾸기
+                새 코드
               </ConfirmSubmit>
             </form>
           </div>

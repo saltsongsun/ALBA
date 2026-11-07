@@ -12,6 +12,7 @@ import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './Templ
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 import SetupChecklist from './SetupChecklist'
 import BizNoField from './BizNoField'
+import { MIN_WAGE_2026 } from '@/lib/pay'
 
 export function RevealRrn({ userId, masked }: { userId: string; masked: string | null }) {
   const [state, action] = useActionState(revealRrn.bind(null, userId), null)
@@ -338,9 +339,10 @@ export function SettingsForm({ s }: { s: Settings }) {
       <section className="card space-y-4">
         <div>
           <h2 className="font-bold">회사(사업주) 정보</h2>
-          <p className="hint">
-            근로계약서·임금명세서·모집 문구·첫 화면에 들어가요. 다른 회사가 이 앱을 쓸 때는 여기(상호·대표자·사업자번호·주소·연락처·직인)만 바꾸면 돼요.
-            이미 서명된 서류는 서명할 때의 회사 정보 그대로 보관돼요.
+          {/* 짧은 두 줄 (예전 '다른 회사가 쓸 때는 여기만 바꾸면 돼요'는 회사마다 설정이 따로라 뺌) */}
+          <p className="hint" data-company-info-hint>
+            <span className="block">근로계약서·임금명세서·모집 글에 들어가요.</span>
+            <span className="block">이미 서명된 서류는 그때 정보 그대로예요.</span>
           </p>
         </div>
         {/* 짧은 칸은 휴대폰에서도 두 칸씩 (위아래로 덜 길게) */}
@@ -390,10 +392,7 @@ export function SettingsForm({ s }: { s: Settings }) {
             <input name="contact_phone" className="input" defaultValue={s.contact_phone ?? ''} />
             <span className="hint">비밀번호 분실 안내에 보여요</span>
           </label>
-          <label>
-            <span className="label">기본 시급(원)</span>
-            <input type="number" name="default_hourly_wage" className="input" defaultValue={s.default_hourly_wage} step={10} />
-          </label>
+          <WageDefault value={s.default_hourly_wage} />
         </div>
         <label className="flex items-start gap-2.5 text-sm">
           <input type="checkbox" name="workplace_5plus" defaultChecked={s.workplace_5plus} className="mt-0.5 size-5 accent-brand-600" />
@@ -406,6 +405,40 @@ export function SettingsForm({ s }: { s: Settings }) {
       <FormMessage state={state} />
       <SubmitButton>설정 저장</SubmitButton>
     </form>
+  )
+}
+
+/**
+ * 기본 시급: 쓰는 대로 최저시급과 비교 (저장하면 서버가 최저시급으로 올려 맞추는데, 모르고 지나치지 않게 미리 알려 줌)
+ * 휴대폰에서는 두 칸 너비 (안내가 꺾이지 않게)
+ */
+function WageDefault({ value }: { value: number }) {
+  const [n, setN] = useState(value)
+  const low = n > 0 && n < MIN_WAGE_2026
+  const min = MIN_WAGE_2026.toLocaleString()
+  return (
+    <label className="col-span-2 sm:col-span-1">
+      <span className="label">기본 시급(원)</span>
+      <input
+        type="number"
+        name="default_hourly_wage"
+        className="input"
+        defaultValue={value}
+        step={10}
+        data-missing={low ? '' : undefined}
+        onInput={(e) => setN(Number(e.currentTarget.value))}
+      />
+      <span className={`hint block ${low ? 'font-semibold text-amber-700' : ''}`} data-wage-hint={low ? 'low' : 'ok'}>
+        {low ? (
+          <>
+            <span className="block">2026년 최저 {min}원보다 적어요</span>
+            <span className="block font-normal">저장하면 {min}원으로 맞춰져요</span>
+          </>
+        ) : (
+          `새 공고에 먼저 들어가요 · 2026년 최저 ${min}원`
+        )}
+      </span>
+    </label>
   )
 }
 

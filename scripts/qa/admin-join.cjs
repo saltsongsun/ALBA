@@ -119,7 +119,7 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
   ok('일반 관리자: 승인 막힘', forged.includes('대표 관리자만') && !(await rest('company_members')).some((m) => m.user_id === nuser.id), forged)
 
   await own.goto(`${D}/admin/settings`)
-  ok('회사 설정: 가입 신청 1명', (await see(own, '🧑‍💼 가입 신청 1명')) && (await see(own, '최신입')) && (await see(own, '010-4545-6767')))
+  ok('회사 설정: 가입 신청 1명', (await see(own, '가입 신청 1명')) && (await see(own, '최신입')) && (await see(own, '010-4545-6767')))
   await twice(own.getByRole('button', { name: '승인' }).first())
   ok('승인 안내', await see(own, '최신입님을 관리자로 승인했어요', 15000))
   ok('회사 관리자로 소속', (await rest('company_members')).some((m) => m.company_id === C2 && m.user_id === nuser.id && m.role === 'admin'))
@@ -170,7 +170,7 @@ const idOf = (file, name) => Object.entries(MAN).find(([, v]) => v.filename === 
   ok('뺀 사람: 소속 없음 → 근무자 계정 · 다시 로그인', !(await rest('company_members')).some((m) => m.user_id === nuser.id) && out.role === 'worker' && out.session_version === 2)
 
   // ── 6. 코드 바꾸기 → 예전 코드 거절 ──
-  await twice(own.getByRole('button', { name: /새 코드로 바꾸기|예전 코드는 막혀요/ }))
+  await twice(own.getByRole('button', { name: /새 코드|예전 코드는 막혀요/ }))
   ok('코드 바꿈 안내', await see(own, '새 코드로 바꿨어요', 15000))
   const code2 = (await own.locator('[data-join-code]').innerText()).trim()
   ok('새 코드는 다름', code2 !== code && /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/.test(code2), `${code} → ${code2}`)

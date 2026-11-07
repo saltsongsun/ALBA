@@ -164,12 +164,15 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
   )
 }
 
-function Field({ label, children, hint, className = '' }: { label: string; children: React.ReactNode; hint?: string; className?: string }) {
+/** 분 → '8시간' · '7.5시간' */
+const hoursOf = (m: number) => `${Number((m / 60).toFixed(1))}시간`
+
+function Field({ label, children, hint, warn, className = '' }: { label: string; children: React.ReactNode; hint?: string; warn?: boolean; className?: string }) {
   return (
     <div className={className}>
       <label className="label">{label}</label>
       {children}
-      {hint && <p className="hint">{hint}</p>}
+      {hint && <p className={`hint ${warn ? 'font-semibold text-amber-700' : ''}`} data-warn={warn ? '' : undefined}>{hint}</p>}
     </div>
   )
 }
@@ -258,6 +261,12 @@ export default function JobForm({
 
   const v = (k: string) => String(fd?.get(k) ?? '').trim()
   const brief = (text: string) => (fd ? text : '\u00a0')
+  // 최저임금 확인 (쓰는 대로 · 저장할 때 서버가 막는 것과 같은 기준)
+  const hourlyNow = Number(fd ? v('hourly_wage') : (job?.hourly_wage ?? defaults.hourly_wage))
+  const dailyNow = Number(fd ? v('daily_wage') : job?.daily_wage || 100_000)
+  const hourlyLow = payType === 'hourly' && hourlyNow > 0 && hourlyNow < MIN_WAGE_2026
+  const minDaily = est && est.paidMin > 0 ? Math.ceil((est.paidMin / 60) * MIN_WAGE_2026) : 0
+  const dailyLow = payType === 'daily' && minDaily > 0 && dailyNow > 0 && dailyNow < minDaily
   const contractMethod = (fd ? v('contract_method') : job?.contract_method) || 'app'
   const CONTRACT_TEXT: Record<string, string> = { app: '', paper: '종이', external: '다른 서비스' }
   const docTitles = templates
@@ -478,11 +487,22 @@ export default function JobForm({
               <option value="daily">일급제</option>
             </select>
           </Field>
-          <Field label="시급(원)" hint={`2026년 최저 ${MIN_WAGE_2026.toLocaleString()}원`} className={payType === 'hourly' ? '' : 'hidden'}>
-            <input type="number" name="hourly_wage" className="input" defaultValue={job?.hourly_wage ?? defaults.hourly_wage} step={10} />
+          {/* 최저임금보다 적으면 저장 전에 바로 (저장하면 서버가 막음 · 일급은 근무시간 기준) */}
+          <Field
+            label="시급(원)"
+            hint={hourlyLow ? `최저 ${MIN_WAGE_2026.toLocaleString()}원 미만` : `2026년 최저 ${MIN_WAGE_2026.toLocaleString()}원`}
+            warn={hourlyLow}
+            className={payType === 'hourly' ? '' : 'hidden'}
+          >
+            <input type="number" name="hourly_wage" className="input" defaultValue={job?.hourly_wage ?? defaults.hourly_wage} step={10} data-missing={hourlyLow ? '' : undefined} />
           </Field>
-          <Field label="일급(원)" className={payType === 'daily' ? '' : 'hidden'}>
-            <input type="number" name="daily_wage" className="input" defaultValue={job?.daily_wage || 100_000} step={1000} />
+          <Field
+            label="일급(원)"
+            hint={minDaily ? (dailyLow ? `최저 ${minDaily.toLocaleString()}원 미만` : `최저 ${minDaily.toLocaleString()}원 (${hoursOf(est?.paidMin ?? 0)})`) : undefined}
+            warn={dailyLow}
+            className={payType === 'daily' ? '' : 'hidden'}
+          >
+            <input type="number" name="daily_wage" className="input" defaultValue={job?.daily_wage || 100_000} step={1000} data-missing={dailyLow ? '' : undefined} />
           </Field>
           <Field label="휴게시간" hint={breakMode === 'auto' ? '4시간 이상 30분, 8시간 이상 1시간' : undefined}>
             <select name="break_mode" className="input" value={breakMode} onChange={(e) => setBreakMode(e.target.value as Job['break_mode'])}>
