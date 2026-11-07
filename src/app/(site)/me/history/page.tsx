@@ -157,23 +157,29 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
               })}
             </nav>
           )}
-          <section className={`${companies.length > 1 ? '-mt-3 ' : ''}grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white`}>
-            {(
-              [
-                ['근무', total.days, '일'],
-                ['행사', items.length, '곳'],
-                ['실수령', Math.round(total.net), '원'],
-              ] as const
-            ).map(([k, v, unit]) => (
-              <div key={k}>
-                <p className="text-xs font-semibold opacity-80">{k}</p>
-                {/* 화면을 열면 0에서 그 숫자까지 올라감 ('움직임 줄이기'면 바로) */}
-                <p className="mt-0.5 text-lg font-extrabold tracking-tight whitespace-nowrap tabular-nums" data-summary={k}>
-                  <LiveNumber value={v} countUp />
-                  {unit}
-                </p>
-              </div>
-            ))}
+          {/* 한눈에: 실수령만 크게 · 근무일·행사 수는 오른쪽 작게 (흰 카드 하나 · 파란 큰 상자 대신) */}
+          {/* 화면을 열면 0에서 그 숫자까지 올라감 ('움직임 줄이기'면 바로) */}
+          <section className={`${companies.length > 1 ? '-mt-3 ' : ''}card flex animate-pop items-end justify-between gap-3 px-5 py-4`} data-history-hero>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-mute">실수령</p>
+              <p className="text-2xl font-extrabold tracking-tight whitespace-nowrap tabular-nums" data-summary="실수령">
+                <LiveNumber value={Math.round(total.net)} countUp />원
+              </p>
+            </div>
+            <p className="shrink-0 pb-0.5 text-right text-sm text-sub">
+              <span className="block whitespace-nowrap" data-summary="근무">
+                근무{' '}
+                <b className="text-ink tabular-nums">
+                  <LiveNumber value={total.days} countUp />일
+                </b>
+              </span>
+              <span className="block whitespace-nowrap" data-summary="행사">
+                행사{' '}
+                <b className="text-ink tabular-nums">
+                  <LiveNumber value={items.length} countUp />곳
+                </b>
+              </span>
+            </p>
           </section>
 
           {unpaidNet > 0 && (

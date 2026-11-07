@@ -4,7 +4,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
-import { fmtDate, minutesText } from '@/lib/time'
+import { fmtDate, kstDate, minutesText } from '@/lib/time'
 import { JOB_FIELDS } from '@/lib/jobFields'
 import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
@@ -261,6 +261,15 @@ export default function JobForm({
 
   const v = (k: string) => String(fd?.get(k) ?? '').trim()
   const brief = (text: string) => (fd ? text : '\u00a0')
+  // 날짜·시각 바로 확인 (요일을 보여 주고, 지난 날짜·거꾸로 된 종료일·밤샘을 쓰는 대로 알려 줌)
+  const sd = fd ? v('start_date') : (job?.start_date ?? '')
+  const ed = fd ? v('end_date') : job && job.end_date !== job.start_date ? job.end_date : ''
+  const st = fd ? v('start_time') : (job?.start_time.slice(0, 5) ?? '09:00')
+  const et = fd ? v('end_time') : (job?.end_time.slice(0, 5) ?? '18:00')
+  const pastStart = !!fd && !!sd && sd < kstDate() && (isNew || sd !== job?.start_date)
+  const endBefore = !!sd && !!ed && ed < sd
+  const spanDays = sd && ed && !endBefore ? Math.round((Date.parse(ed) - Date.parse(sd)) / 86_400_000) + 1 : 1
+  const overnight = !!st && !!et && et <= st
   // 최저임금 확인 (쓰는 대로 · 저장할 때 서버가 막는 것과 같은 기준)
   const hourlyNow = Number(fd ? v('hourly_wage') : (job?.hourly_wage ?? defaults.hourly_wage))
   const dailyNow = Number(fd ? v('daily_wage') : job?.daily_wage || 100_000)
@@ -354,16 +363,16 @@ export default function JobForm({
         )}
       >
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-          <Field label="시작일 *">
-            <input type="date" name="start_date" className="input" defaultValue={job?.start_date} required />
+          <Field label="시작일 *" hint={sd ? (pastStart ? `지난 날짜 · ${fmtDate(sd)}` : fmtDate(sd)) : undefined} warn={pastStart}>
+            <input type="date" name="start_date" className="input" defaultValue={job?.start_date} required data-missing={pastStart ? '' : undefined} />
           </Field>
-          <Field label="종료일" hint="하루짜리면 비워 두세요">
-            <input type="date" name="end_date" className="input" defaultValue={job && job.end_date !== job.start_date ? job.end_date : ''} />
+          <Field label="종료일" hint={endBefore ? '시작일보다 빨라요' : ed ? `${fmtDate(ed)} · ${spanDays}일` : '하루짜리면 비워 두세요'} warn={endBefore}>
+            <input type="date" name="end_date" className="input" defaultValue={job && job.end_date !== job.start_date ? job.end_date : ''} data-missing={endBefore ? '' : undefined} />
           </Field>
           <Field label="시작 시각 *">
             <input type="time" name="start_time" className="input" defaultValue={job?.start_time.slice(0, 5) ?? '09:00'} required />
           </Field>
-          <Field label="종료 시각 *" hint="시작보다 이르면 다음날">
+          <Field label="종료 시각 *" hint={overnight ? `다음날 ${et} 끝 (밤샘)` : est && est.paidMin > 0 ? `휴게 빼고 ${hoursOf(est.paidMin)}` : '시작보다 이르면 다음날'}>
             <input type="time" name="end_time" className="input" defaultValue={job?.end_time.slice(0, 5) ?? '18:00'} required />
           </Field>
           <Field label="모집 인원 *">
