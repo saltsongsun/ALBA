@@ -14,6 +14,9 @@ import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
 import { payState } from '@/lib/vendors'
 import { weeklyPayMap } from '@/lib/weekly'
+
+/** 정산 탭 위 한 줄용 짧은 세금 이름 (자세한 설명은 '세금 계산 방법'에) */
+const TAX_SHORT: Record<Job['tax_type'], string> = { daily: '일용근로 2.7%', business: '사업소득 3.3%', other: '기타소득 8.8%', none: '공제 없음' }
 import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
@@ -162,10 +165,11 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-sm text-sub">
-          {job.pay_type === 'daily' ? `일급 ${won(job.daily_wage)}` : `시급 ${won(job.hourly_wage)}`} · {TAX_LABEL[job.tax_type]}
-          {job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}
-          {job.premium_enabled ? ' · 연장·야간 가산' : ''}
+        {/* 한 줄로 짧게 (자세한 세금 계산은 맨 아래 '세금 계산 방법'에 접어 둠) */}
+        <p className="text-sm text-sub" data-pay-rule>
+          {job.pay_type === 'daily' ? `일급 ${won(job.daily_wage)}` : `시급 ${won(job.hourly_wage)}`} · {TAX_SHORT[job.tax_type]}
+          {job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험' : ''}
+          {job.premium_enabled ? ' · 가산' : ''}
         </p>
         <div className="flex flex-wrap gap-2">
           {unpaid.length > 0 && (
@@ -340,12 +344,24 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
         </div>
         </>
       )}
-      {/* 행사 비용 합계: 알바 인건비(세전 지급총액) + 외주 대금 */}
+      {/* 행사 비용 합계: 알바 인건비(세전 지급총액) + 외주 대금 — 외주가 없으면 한 줄로 */}
       {(() => {
         const labor = sum('gross')
         const vendorSum = vpays.reduce((t, p) => t + p.amount, 0)
         const vendorUnpaid = vpays.filter((p) => !p.paid_at).reduce((t, p) => t + p.amount, 0)
         const today = kstDate()
+        if (!vpays.length)
+          return (
+            <section className="card flex items-center gap-3 px-4 py-3" data-cost-compact>
+              <span className="min-w-0 flex-1">
+                <span className="block text-xs text-mute">행사 비용 · 외주 없음</span>
+                <b className="block truncate text-lg tabular-nums">{won(labor)}</b>
+              </span>
+              <Link href={`/admin/vendors?tab=quotes&job=${job.id}`} className="chip h-8 shrink-0 px-3 text-xs">
+                외주 추가
+              </Link>
+            </section>
+          )
         return (
           <section className="card space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -376,38 +392,39 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
                 </div>
               ))}
             </dl>
-            {vpays.length > 0 && (
-              <ul className="divide-y divide-line text-sm">
-                {vpays.map((p) => {
-                  const st = payState(p, today)
-                  return (
-                    <li key={p.id} className="flex items-center justify-between gap-2 py-2">
-                      <span className="min-w-0 truncate">
-                        <Link href={`/admin/vendors/${p.vendor_id}`} className="font-semibold">
-                          {vnames.get(p.vendor_id) ?? '외주사'}
-                        </Link>{' '}
-                        <span className="text-sub">{p.title}</span>
-                      </span>
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        <b className="tabular-nums">{won(p.amount)}</b>
-                        <span className={`badge ${st.cls}`}>{st.label}</span>
-                      </span>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            <p className="text-xs text-mute">
-              인건비는 세전 지급총액, 외주 비용은 등록한 대금(부가세 포함·별도는 건마다 다름) 기준이에요.
-              {vendorUnpaid > 0 && <b className="text-amber-700"> 외주 미지급 {won(vendorUnpaid)}.</b>}
-            </p>
+            <ul className="divide-y divide-line text-sm">
+              {vpays.map((p) => {
+                const st = payState(p, today)
+                return (
+                  <li key={p.id} className="flex items-center justify-between gap-2 py-2">
+                    <span className="min-w-0 truncate">
+                      <Link href={`/admin/vendors/${p.vendor_id}`} className="font-semibold">
+                        {vnames.get(p.vendor_id) ?? '외주사'}
+                      </Link>{' '}
+                      <span className="text-sub">{p.title}</span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1.5">
+                      <b className="tabular-nums">{won(p.amount)}</b>
+                      <span className={`badge ${st.cls}`}>{st.label}</span>
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+            {vendorUnpaid > 0 && <p className="text-xs font-semibold text-amber-700">외주 미지급 {won(vendorUnpaid)}</p>}
           </section>
         )
       })()}
-      <p className="text-xs text-mute">
-        소득세는 근무자별로 이 공고의 근무일을 한 번에 지급한다고 보고 계산합니다 (1천원 미만 소액부징수). 원천징수한 세금은 다음 달 10일까지 신고·납부하고,
-        월별 신고자료는 정산·신고자료 메뉴에서 내려받으세요.
-      </p>
+      {/* 세금·비용 설명은 접어 둠 (정보는 그대로 · 화면은 단순하게) */}
+      <details className="px-1 text-xs text-mute" data-pay-help>
+        <summary className="cursor-pointer font-semibold">세금 계산 방법</summary>
+        <ul className="mt-2 list-disc space-y-1 pl-5">
+          <li>{TAX_LABEL[job.tax_type]}{job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}{job.premium_enabled ? ' · 8시간 초과·야간 50% 가산' : ''}</li>
+          <li>소득세는 근무자별로 이 공고의 근무일을 한 번에 지급한다고 보고 계산해요 (1천원 미만 소액부징수).</li>
+          <li>원천징수한 세금은 다음 달 10일까지 신고·납부 · 월별 신고자료는 정산·신고자료 메뉴에서.</li>
+          <li>인건비는 세전 지급총액, 외주 비용은 등록한 대금(부가세 포함·별도는 건마다 다름) 기준.</li>
+        </ul>
+      </details>
     </div>
   )
 }

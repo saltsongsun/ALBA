@@ -26,6 +26,7 @@ import { missingSetup } from '@/lib/setup'
 import { ago, companyReviews } from '@/lib/community'
 import { companyWorkerIds } from '@/lib/company'
 import StartsIn from '@/components/StartsIn'
+import NewsNote from '@/components/NewsNote'
 import { won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
@@ -588,6 +589,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           + 새 공고 등록
         </Link>
       </div>
+      {/* 새 소식 한 줄 (회사마다 바뀐 규칙 알리기 · 닫으면 다시 안 보임 · 이달 말까지) */}
+      {today <= '2026-11-30' && (
+        <NewsNote id="weekly-pay-2026-11" href="/admin/weekly">
+          주휴수당이 정산에 자동으로 들어가요 (11/2 주부터) ›
+        </NewsNote>
+      )}
       {/* 한 계정으로 두 역할: 다른 회사에서 오늘 내 근무 → 근무자 화면 '내 근무'로 바로 (출근·종료는 거기서) */}
       {myShift && (
         <a href="/api/view?to=worker&next=/me" className="card-link flex animate-pop items-center gap-3 p-3.5 ring-emerald-200/80" data-my-shift>
