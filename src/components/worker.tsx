@@ -21,6 +21,7 @@ import { BANKS } from '@/lib/privacy'
 import { fixTime } from '@/lib/signals'
 import { kstTime } from '@/lib/time'
 import AccountDigits from './AccountDigits'
+import { onAccountPaste } from './accountPaste'
 import Fold from './Fold'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
@@ -1107,6 +1108,7 @@ export function ProfileForm({
             inputMode="numeric"
             placeholder="숫자만"
             defaultValue={initial.bank_account}
+            onPaste={onAccountPaste}
             data-missing={missing('bank_account', initial.bank_account)}
           />
         </div>

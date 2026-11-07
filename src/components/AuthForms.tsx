@@ -16,6 +16,7 @@ import CareerEditor from './CareerEditor'
 import SignupProgress from './SignupProgress'
 import { MEMBER_TYPES, SPECIALTIES } from '@/lib/members'
 import { parseRrn, weakPin } from '@/lib/validate'
+import { onAccountPaste } from './accountPaste'
 import { phoneFmt } from '@/lib/format'
 import type { MemberType } from '@/lib/types'
 
@@ -622,7 +623,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
             <label className="label" htmlFor="bank_account">
               계좌번호
             </label>
-            <input id="bank_account" name="bank_account" className="input" inputMode="numeric" placeholder="숫자만" onInput={(e) => setAcct(e.currentTarget.value)} />
+            <input id="bank_account" name="bank_account" className="input" inputMode="numeric" placeholder="숫자만" onInput={(e) => setAcct(e.currentTarget.value)} onPaste={onAccountPaste} />
           </div>
         </div>
         <div className="-mt-2">
