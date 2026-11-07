@@ -723,6 +723,9 @@ export function LateNotice({ jobId, sent }: { jobId: string; sent: { minutes: nu
   )
 }
 
+/** 서명으로 받을 최소 길이 (px · 점 하나·짧은 선은 안 됨) */
+const MIN_INK = 40
+
 export function SignaturePad({
   name,
   reuse = null,
@@ -741,6 +744,12 @@ export function SignaturePad({
   const inputRef = useRef<HTMLInputElement>(null)
   const drawing = useRef(false)
   const [empty, setEmpty] = useState(true)
+  // 그린 길이(px): 한 번 톡 누른 점이나 아주 짧은 선은 서명으로 받지 않음 (인사이트: 서명란을 여러 번 톡톡 누름)
+  const ink = useRef(0)
+  const last = useRef<{ x: number; y: number } | null>(null)
+  const [short, setShort] = useState(false)
+  // 손가락을 대고 있는 동안 서명란 테두리를 브랜드 색으로 (그리고 있다는 느낌)
+  const [active, setActive] = useState(false)
 
   // 앞 서류와 같은 서명: 그 그림을 서명란에 그대로 놓고 같은 이미지로 제출
   const applySaved = () => {
@@ -754,6 +763,8 @@ export function SignaturePad({
       const k = Math.min(r.width / img.width, r.height / img.height)
       ctx.drawImage(img, (r.width - img.width * k) / 2, (r.height - img.height * k) / 2, img.width * k, img.height * k)
       inputRef.current!.value = reuse
+      ink.current = MIN_INK
+      setShort(false)
       setEmpty(false)
       onDrawn?.()
     }
@@ -790,16 +801,20 @@ export function SignaturePad({
   }
 
   return (
-    <div data-sign-pad data-invalid={invalid && empty ? '' : undefined}>
+    <div data-sign-pad data-invalid={invalid && empty ? '' : undefined} data-sign-short={short && empty ? '' : undefined}>
       <div className="relative">
         <canvas
           ref={canvasRef}
-          className={`h-44 w-full touch-none rounded-xl border-2 border-dashed bg-white transition-colors ${invalid && empty ? 'border-rose-400' : 'border-line'}`}
+          className={`h-44 w-full touch-none rounded-xl border-2 bg-white transition-colors duration-200 ${
+            active ? 'border-solid border-brand-400' : `border-dashed ${invalid && empty ? 'border-rose-400' : short && empty ? 'border-amber-400' : 'border-line'}`
+          }`}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
             drawing.current = true
+            setActive(true)
             const ctx = e.currentTarget.getContext('2d')!
             const p = point(e)
+            last.current = p
             ctx.beginPath()
             ctx.moveTo(p.x, p.y)
             ctx.lineTo(p.x + 0.1, p.y + 0.1)
@@ -809,26 +824,48 @@ export function SignaturePad({
             if (!drawing.current) return
             const ctx = e.currentTarget.getContext('2d')!
             const p = point(e)
+            if (last.current) ink.current += Math.hypot(p.x - last.current.x, p.y - last.current.y)
+            last.current = p
             ctx.lineTo(p.x, p.y)
             ctx.stroke()
           }}
           onPointerUp={() => {
             if (!drawing.current) return
             drawing.current = false
+            last.current = null
+            setActive(false)
+            // 아직 너무 짧으면 서명으로 받지 않음 (그린 건 그대로 두고 이어서 쓰게)
+            if (ink.current < MIN_INK) {
+              setShort(true)
+              return
+            }
+            setShort(false)
             setEmpty(false)
             exportImage()
             onDrawn?.()
           }}
+          onPointerCancel={() => {
+            drawing.current = false
+            last.current = null
+            setActive(false)
+          }}
         />
         {empty ? (
-          <span className={`pointer-events-none absolute inset-0 grid place-items-center ${invalid ? 'font-semibold text-rose-600' : 'text-mute'}`}>
-            {invalid ? '손가락으로 여기에 서명해 주세요' : '여기에 서명해 주세요'}
-          </span>
+          !short && (
+            <span className={`pointer-events-none absolute inset-0 grid place-items-center ${invalid ? 'font-semibold text-rose-600' : 'text-mute'}`}>
+              {invalid ? '손가락으로 여기에 서명해 주세요' : '여기에 서명해 주세요'}
+            </span>
+          )
         ) : (
           <span className="badge pointer-events-none absolute top-2 right-2 animate-pop bg-emerald-50 text-emerald-700">서명됨 ✓</span>
         )}
       </div>
       <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+        {short && empty && (
+          <p className="mr-auto animate-pop text-sm font-semibold text-amber-700" role="status" data-sign-short-hint>
+            조금 더 길게 이름을 써 주세요
+          </p>
+        )}
         {reuse && empty && (
           <button type="button" onClick={applySaved} className="btn-soft btn-sm mr-auto">
             ✍️ 앞 서류와 같은 서명 쓰기
@@ -841,6 +878,8 @@ export function SignaturePad({
             const c = canvasRef.current!
             c.getContext('2d')!.clearRect(0, 0, c.width, c.height)
             inputRef.current!.value = ''
+            ink.current = 0
+            setShort(false)
             setEmpty(true)
           }}
         >
