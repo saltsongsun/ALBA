@@ -54,6 +54,42 @@ function Stat({ label, value, href, icon, tone }: { label: string; value: number
   )
 }
 
+type MyShift = {
+  job: { id: string; title: string; company_id: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string; company: { company_name: string } | null }
+  working: boolean
+}
+
+/**
+ * 한 계정으로 두 역할: 맡지 않은 회사에서 오늘 근무자로 확정된 근무 (끝낸 근무는 빼고).
+ * 관리자는 접속하면 관리자 화면부터 열려서, 오늘 일하러 가는 날엔 출근 화면으로 바로 가게 대시보드 맨 위에 보여 줌
+ */
+async function myShiftToday(userId: string, managed: string[]): Promise<MyShift | null> {
+  const today = kstDate()
+  const { data } = await db()
+    .from('applications')
+    .select('available_dates, job:jobs(id, title, company_id, start_date, end_date, start_time, end_time, status, company:companies(company_name))')
+    .eq('user_id', userId)
+    .eq('status', 'approved')
+  const hits = ((data ?? []) as unknown as { available_dates: string[] | null; job: MyShift['job'] | null }[]).filter(
+    (r): r is { available_dates: string[] | null; job: MyShift['job'] } =>
+      !!r.job &&
+      !managed.includes(r.job.company_id) &&
+      !['cancelled', 'draft'].includes(r.job.status) &&
+      r.job.start_date <= today &&
+      r.job.end_date >= today &&
+      (!r.available_dates?.length || r.available_dates.includes(today)),
+  )
+  if (!hits.length) return null
+  const { data: atts } = await db().from('attendance').select('job_id, clock_in, clock_out').eq('user_id', userId).eq('work_date', today)
+  const rows = (atts ?? []) as { job_id: string; clock_in: string | null; clock_out: string | null }[]
+  // 아직 안 끝낸 근무 (근무 중이면 그것부터)
+  const left = hits
+    .map((h) => ({ job: h.job, att: rows.find((a) => a.job_id === h.job.id) }))
+    .filter((x) => !x.att?.clock_out)
+    .sort((a, b) => Number(!!b.att?.clock_in) - Number(!!a.att?.clock_in) || a.job.start_time.localeCompare(b.job.start_time))
+  return left[0] ? { job: left[0].job, working: !!left[0].att?.clock_in } : null
+}
+
 export default async function AdminHome(props: PageProps<'/admin'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
@@ -89,6 +125,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   ])
   // 우리 회사 근무자 후기 (별명, 커뮤니티에 모두 공개된 것과 같음). 못 읽어도 대시보드는 그대로
   const reviewsP = companyReviews(admin.companyId, 2).catch(() => null)
+  // 다른 회사에서 오늘 내 근무 (운영자 계정은 근무자로 지원하지 않음)
+  const myShiftP = admin.isSuper
+    ? Promise.resolve(null)
+    : myShiftToday(
+        admin.id,
+        admin.companies.map((c) => c.id),
+      ).catch(() => null)
   // 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (바로 그 회사로 바꿔 보기)
   const othersP = admin.companies.length > 1 ? otherCompaniesUnread(admin.companies, admin.companyId).catch(() => []) : Promise.resolve([])
   // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
@@ -272,7 +315,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     .filter((m) => m !== null)
   type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
-  const [reviews, otherUnread] = await Promise.all([reviewsP, othersP])
+  const [reviews, otherUnread, myShift] = await Promise.all([reviewsP, othersP, myShiftP])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
   const paySoon = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date >= today && p.due_date <= in3)
@@ -510,6 +553,25 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           + 새 공고 등록
         </Link>
       </div>
+      {/* 한 계정으로 두 역할: 다른 회사에서 오늘 내 근무 → 근무자 화면 '내 근무'로 바로 (출근·종료는 거기서) */}
+      {myShift && (
+        <a href="/api/view?to=worker&next=/me" className="card-link flex animate-pop items-center gap-3 p-3.5 ring-emerald-200/80" data-my-shift>
+          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-emerald-50 text-lg text-emerald-600">
+            <Icon name="clock" />
+          </span>
+          {/* 세 줄: 언제(근무 중) · 무슨 일 · 어느 회사 (360px에서 회사 이름이 잘리지 않게 따로) */}
+          <span className="min-w-0 flex-1 leading-snug">
+            <span className="block truncate text-xs font-bold text-emerald-700">
+              {myShift.working ? `내 근무 중 · ${hhmm(myShift.job.end_time)}까지` : `오늘 내 근무 · ${hhmm(myShift.job.start_time)} 시작`}
+            </span>
+            <b className="block truncate">{myShift.job.title}</b>
+            {myShift.job.company?.company_name && <span className="block truncate text-xs text-sub">{myShift.job.company.company_name}</span>}
+          </span>
+          <span className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold whitespace-nowrap text-white ${myShift.working ? 'bg-rose-500' : 'bg-emerald-600'}`}>
+            {myShift.working ? '근무 종료' : '출근하기'}
+          </span>
+        </a>
+      )}
       {otherUnread.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">

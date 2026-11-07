@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Icon, { type IconName } from '@/components/Icon'
+import LiveNumber from '@/components/LiveNumber'
 import { ago } from '@/lib/community'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
@@ -39,7 +40,10 @@ function Tile({ label, value, sub, href, icon, tone }: { label: string; value: n
           <Icon name={icon} />
         </span>
       </p>
-      <p className="mt-0.5 text-[26px] leading-tight font-extrabold tabular-nums">{value.toLocaleString('ko-KR')}</p>
+      {/* 숫자가 0에서 올라감 (움직임 줄이기 설정이면 바로) */}
+      <p className="mt-0.5 text-[26px] leading-tight font-extrabold tabular-nums">
+        <LiveNumber value={value} countUp />
+      </p>
       {sub && <p className="truncate text-xs text-sub">{sub}</p>}
     </Link>
   )
@@ -209,11 +213,10 @@ export default async function OpsPage() {
           {days.map((d, i) => (
             <li key={d} className="flex h-full min-w-0 flex-col items-center justify-end gap-1">
               <span className="text-[11px] font-semibold text-sub tabular-nums">{perDay[i]}</span>
+              {/* 막대가 아래에서 차례로 자람 (움직임 줄이기 설정이면 바로) */}
               <span
-                className={`w-full rounded-t-md ${i === 6 ? 'bg-brand-500' : 'bg-brand-200'}`}
-                style={{
-                  height: `${Math.max(4, Math.round((perDay[i] / peak) * 72))}px`,
-                }}
+                className={`w-full origin-bottom animate-grow-up rounded-t-md ${i === 6 ? 'bg-brand-500' : 'bg-brand-200'}`}
+                style={{ height: `${Math.max(4, Math.round((perDay[i] / peak) * 72))}px`, animationDelay: `${120 + i * 40}ms` }}
               />
               <span className={`text-[11px] ${i === 6 ? 'font-bold text-ink' : 'text-mute'}`}>{i === 6 ? '오늘' : WEEK[new Date(`${d}T00:00:00Z`).getUTCDay()]}</span>
             </li>
