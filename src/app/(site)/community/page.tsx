@@ -15,6 +15,13 @@ const PACK_THUMB = new Map(PACKS.flatMap((p) => p.items.map((it) => [it.id, it.t
 export const metadata: Metadata = { title: '커뮤니티' }
 
 /** 커뮤니티: 근무자 게시판(자유·꿀팁·질문) + 회사 후기. 가입한 회원만, 글쓴이는 별명 */
+/** 빈 커뮤니티에서 시작하기 쉬운 글 세 가지 (분류 · 제목 첫머리) */
+const STARTERS = [
+  { c: 'tip', icon: 'bulb', label: '현장 꿀팁 나누기', sub: '주차·식사·복장… 알아 두면 좋은 것', t: '현장 꿀팁: ' },
+  { c: 'question', icon: 'help', label: '처음이라 궁금한 것 묻기', sub: '지원·서명·출퇴근·급여 무엇이든', t: '처음인데 궁금해요: ' },
+  { c: 'free', icon: 'chat', label: '오늘 근무 이야기', sub: '어땠는지 한 줄 남겨 보세요', t: '오늘 근무 후기' },
+] as const
+
 export default async function CommunityPage(props: PageProps<'/community'>) {
   const sp = await props.searchParams
   const user = await requireUser('/community')
@@ -147,10 +154,39 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             <Icon name="pen" /> 첫 글 쓰기 →
           </Link>
         </Empty>
+      ) : posts.length === 0 && poster && !category ? (
+        // 아직 글이 하나도 없으면: 빈 화면 대신 '이런 글로 시작해 보세요' 세 줄 (누르면 분류·제목 첫머리가 채워진 글쓰기)
+        // (이용 기록: 커뮤니티를 열고 2초 안에 나감 · 글 0개)
+        <section className="card space-y-3" data-community-starters>
+          <div>
+            <h2 className="font-bold">첫 글을 남겨 주세요</h2>
+            <p className="text-sm text-sub">이런 글로 시작해 보세요 · 별명으로 올라가요</p>
+          </div>
+          <ul className="space-y-2">
+            {STARTERS.map((s) => (
+              <li key={s.c}>
+                <Link
+                  href={`/community/new?c=${s.c}&t=${encodeURIComponent(s.t)}`}
+                  className="flex items-center gap-3 rounded-xl bg-bg px-3.5 py-3 transition active:scale-[0.98]"
+                  data-starter={s.c}
+                >
+                  <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-brand-600">
+                    <Icon name={s.icon} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold">{s.label}</span>
+                    <span className="block truncate text-xs text-sub">{s.sub}</span>
+                  </span>
+                  <span aria-hidden className="shrink-0 text-brand-600">›</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : posts.length === 0 ? (
         <Empty icon="💬" sticker="hi" title={category ? `${categoryOf(category).label} 글이 아직 없어요` : '첫 글을 남겨 주세요'}>
           {poster ? (
-            <Link href="/community/new" className="font-semibold text-brand-600">
+            <Link href={`/community/new${category ? `?c=${category}` : ''}`} className="font-semibold text-brand-600">
               <Icon name="pen" /> 첫 글 쓰기 →
             </Link>
           ) : (

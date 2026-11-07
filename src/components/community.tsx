@@ -29,7 +29,7 @@ const CATS = [
 /** 글쓰기 */
 const DRAFT_KEY = 'community-draft'
 
-export function PostForm({ defaultCategory, post }: { defaultCategory: string; post?: { id: string; title: string; body: string } }) {
+export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCategory: string; defaultTitle?: string; post?: { id: string; title: string; body: string } }) {
   const [state, action] = useActionState(post ? updatePost.bind(null, post.id) : createPost, null)
   // 고칠 때: 저장된 내용에서 맨 끝 이모티콘 줄을 떼어 '넣은 이모티콘'으로
   const initial = splitPostBody(post?.body ?? '')
@@ -112,7 +112,7 @@ export function PostForm({ defaultCategory, post }: { defaultCategory: string; p
         <label className="label" htmlFor="post-title">
           제목
         </label>
-        <input id="post-title" name="title" className="input" maxLength={60} required defaultValue={post?.title} placeholder="예: 행사장 주차는 어디가 좋아요?" />
+        <input id="post-title" name="title" className="input" maxLength={60} required defaultValue={post?.title ?? defaultTitle} placeholder="예: 행사장 주차는 어디가 좋아요?" />
       </div>
       <div>
         <label className="label" htmlFor="post-body">

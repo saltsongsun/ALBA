@@ -11,6 +11,8 @@ export default async function NewPostPage(props: PageProps<'/community/new'>) {
   const sp = await props.searchParams
   const user = await requireUser('/community/new')
   const c = typeof sp.c === 'string' && isCategory(sp.c) ? sp.c : 'free'
+  // 빈 커뮤니티의 '이런 글로 시작해 보세요'에서 왔으면 제목 첫머리를 채워 둠 (글자만 · 40자까지)
+  const t = typeof sp.t === 'string' ? sp.t.replace(/[\u0000-\u001f<>]/g, '').slice(0, 40) : undefined
   const { data } = await db().from('users').select('nickname').eq('id', user.id).maybeSingle()
   const nick = (data as { nickname: string | null } | null)?.nickname
   return (
@@ -34,7 +36,7 @@ export default async function NewPostPage(props: PageProps<'/community/new'>) {
             </Link>
           </p>
           <div className="card">
-            <PostForm defaultCategory={c} />
+            <PostForm defaultCategory={c} defaultTitle={t} />
           </div>
         </>
       ) : (
