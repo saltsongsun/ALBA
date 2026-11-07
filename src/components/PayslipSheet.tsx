@@ -24,6 +24,11 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
   if (total.nightPay) earnings.push(['야간근로수당', total.nightPay, `${h(total.nightMin)}시간 × ${won(job.hourly_wage)} × 0.5`])
   if (total.allowance) earnings.push([job.allowance_label || '수당', total.allowance, `${total.days}일 × ${won(job.allowance)}`])
   if (total.extraPay) earnings.push(['기타 지급', total.extraPay, '관리자 추가 지급'])
+  // 주휴수당: 같은 회사에서 한 주 15시간 이상 일하고 개근한 주마다 (그 주 마지막 근무일에 붙음)
+  if (total.weeklyPay) {
+    const weeks = rows.filter((r) => r.pay.weeklyPay > 0).map((r) => fmtDate(r.work_date))
+    earnings.push(['주휴수당', total.weeklyPay, `${weeks.join('·')} 주 · 한 주 15시간 이상 개근 (소정시간 ÷ 40 × 8시간 × 시급)`])
+  }
 
   const deductions: [string, number, string][] = []
   if (job.tax_type === 'daily') {

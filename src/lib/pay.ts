@@ -40,6 +40,8 @@ export type AttendanceTimes = Pick<
   ot_status?: Attendance['ot_status']
   sched_start?: string | null
   sched_end?: string | null
+  /** 이 기록에 붙는 주휴수당 (그 주 요건을 채웠을 때 마지막 근무일에만 · lib/weekly가 계산해 붙임) */
+  weekly_pay?: number
 }
 
 /** 그날 이 근무자에게 적용하는 시작·종료 (근무시간 변경에 동의했으면 그 시간, 아니면 공고 시간) */
@@ -59,6 +61,8 @@ export type DayPay = {
   nightPay: number
   allowance: number
   extraPay: number
+  /** 주휴수당 (그 주 마지막 근무일에만 · 없으면 0) */
+  weeklyPay: number
   deduction: number
   gross: number
   dailyTax: number // 일용근로 일별 소득세 (소액부징수 판단 전)
@@ -78,6 +82,7 @@ export type Settlement = {
   nightPay: number
   allowance: number
   extraPay: number
+  weeklyPay: number
   gross: number
   incomeTax: number
   localTax: number
@@ -152,6 +157,7 @@ export function calcDay(base: PayRule, a: AttendanceTimes): DayPay {
     nightPay: 0,
     allowance: 0,
     extraPay: a.extra_pay ?? 0,
+    weeklyPay: 0,
     deduction: a.deduction ?? 0,
     gross: a.extra_pay ?? 0,
     dailyTax: 0,
@@ -191,10 +197,13 @@ export function calcDay(base: PayRule, a: AttendanceTimes): DayPay {
   }
   const allowance = paidMin > 0 ? rule.allowance : 0
   const extraPay = a.extra_pay ?? 0
-  const gross = basePay + overtimePay + nightPay + allowance + extraPay
+  // 주휴수당: 주휴일(유급휴일) 하루치 임금이라 그날 일급과 따로 1일 근로소득공제를 적용해 세금 계산
+  const weeklyPay = Math.max(0, Math.floor(a.weekly_pay ?? 0))
+  const dayGross = basePay + overtimePay + nightPay + allowance + extraPay
+  const gross = dayGross + weeklyPay
   const dailyTax =
     rule.tax_type === 'daily'
-      ? Math.floor(Math.max(0, gross - DAILY_INCOME_DEDUCTION) * DAILY_TAX_RATE)
+      ? Math.floor(Math.max(0, dayGross - DAILY_INCOME_DEDUCTION) * DAILY_TAX_RATE) + Math.floor(Math.max(0, weeklyPay - DAILY_INCOME_DEDUCTION) * DAILY_TAX_RATE)
       : 0
 
   return {
@@ -209,6 +218,7 @@ export function calcDay(base: PayRule, a: AttendanceTimes): DayPay {
     nightPay,
     allowance,
     extraPay,
+    weeklyPay,
     deduction: a.deduction ?? 0,
     gross,
     dailyTax,
@@ -251,6 +261,7 @@ export function settle(rule: PayRule, days: DayPay[]): Settlement {
     nightPay: sum('nightPay'),
     allowance: sum('allowance'),
     extraPay: sum('extraPay'),
+    weeklyPay: sum('weeklyPay'),
     gross,
     incomeTax,
     localTax,

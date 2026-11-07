@@ -2,6 +2,7 @@ import 'server-only'
 import { db, must } from './db'
 import { calcDay, settle } from './pay'
 import { monthRange } from './time'
+import { withWeeklyPay } from './weekly'
 import type { Attendance, Job, TaxType } from './types'
 
 export type MonthUser = {
@@ -29,7 +30,7 @@ export type MonthRow = {
 /** 한 회사의 한 달(근무일 기준) 근무자별 합계. 소득세는 공고(지급)별로 계산해 더합니다. */
 export async function monthlyRows(ym: string, companyId: string): Promise<MonthRow[]> {
   const [from, to] = monthRange(ym)
-  const atts = must(
+  const raw = must(
     await db()
       .from('attendance')
       .select('*, job:jobs(*), user:users(id, name, phone, birth_date, rrn_enc, is_foreigner)')
@@ -38,6 +39,8 @@ export async function monthlyRows(ym: string, companyId: string): Promise<MonthR
       .lte('work_date', to)
       .order('work_date'),
   ) as (Attendance & { job: Job; user: MonthUser })[]
+  // 주휴수당 (정산 탭·명세서와 같은 금액 · 신고자료 지급액에 들어감)
+  const atts = await withWeeklyPay(raw, companyId)
 
   const out = new Map<string, MonthRow>()
   const groups = new Map<string, typeof atts>()

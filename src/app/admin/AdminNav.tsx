@@ -8,6 +8,7 @@ type NavItem = { href: string; label: string; exact?: boolean; group?: boolean }
 const ITEMS: NavItem[] = [
   { href: '/admin', label: '대시보드', exact: true },
   { href: '/admin/jobs', label: '공고 · 출퇴근' },
+  { href: '/admin/weekly', label: '주간 · 주휴' },
   { href: '/admin/workers', label: '근무자' },
   { href: '/admin/chat', label: '문의' },
   { href: '/admin/reports', label: '정산 · 신고자료' },

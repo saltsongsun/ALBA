@@ -13,6 +13,7 @@ import { parsePayday, SIGNAL } from '@/lib/signals'
 import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
 import { payState } from '@/lib/vendors'
+import { weeklyPayMap } from '@/lib/weekly'
 import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
@@ -32,6 +33,9 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
         .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((v) => [v.id, v.name])))
     : new Map<string, string>()
   const userIds = [...new Set(atts.map((a) => a.user_id))]
+  // 주휴수당: 같은 회사 여러 공고를 합쳐 주(월~일)마다 요건을 확인 → 그 주 마지막 근무일 기록에 붙음 (lib/weekly)
+  const weekly = await weeklyPayMap(job.company_id, atts).catch(() => new Map<string, number>())
+  const wk = (a: Attendance) => ({ ...a, weekly_pay: weekly.get(a.id) ?? 0 })
   const rows = userIds
     .map((uid) => {
       const mine = atts.filter((a) => a.user_id === uid)
@@ -39,7 +43,7 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
       return {
         uid,
         user: users.get(uid),
-        s: settle(job, mine.map((a) => calcDay(job, a))),
+        s: settle(job, mine.map((a) => calcDay(job, wk(a)))),
         paid: done.length > 0 && done.every((a) => a.paid),
         done: done.length,
         unconfirmed: done.filter((a) => !a.confirmed).length,
@@ -144,6 +148,20 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
           <div className="h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="지급 진행" aria-valuenow={paidPct} aria-valuemin={0} aria-valuemax={100}>
             <div className="h-full origin-left rounded-full bg-emerald-500 transition-transform duration-500" style={{ transform: `scaleX(${paidPct / 100})` }} />
           </div>
+          {/* 주휴수당이 붙은 사람 (같은 회사 여러 공고를 합쳐 주마다 확인 → 그 주 마지막 근무일 정산에 들어감) */}
+          {(() => {
+            const wp = rows.filter((r) => r.s.weeklyPay > 0)
+            if (!wp.length) return null
+            return (
+              <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800" data-weekly-note>
+                <span className="min-w-0 flex-1">
+                  <b className="block">주휴수당 {wp.length}명 · {won(wp.reduce((t, r) => t + r.s.weeklyPay, 0))} 포함</b>
+                  <span className="block">한 주 15시간 이상 · 개근한 주 (여러 공고 합산)</span>
+                </span>
+                <span className="shrink-0 font-semibold">주간 보기 →</span>
+              </Link>
+            )
+          })()}
         </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -264,7 +282,14 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
                   </td>
                   <td>{r.s.days}</td>
                   <td className="whitespace-nowrap">{minutesText(r.s.paidMin)}</td>
-                  <td className="text-right">{won(r.s.gross)}</td>
+                  <td className="text-right">
+                    {won(r.s.gross)}
+                    {r.s.weeklyPay > 0 && (
+                      <span className="block text-[11px] font-semibold whitespace-nowrap text-emerald-700" data-weekly-pay>
+                        주휴 +{won(r.s.weeklyPay)}
+                      </span>
+                    )}
+                  </td>
                   <td className="text-right">{won(r.s.incomeTax)}</td>
                   <td className="text-right">{won(r.s.localTax)}</td>
                   <td className="text-right">{won(r.s.insurance)}</td>

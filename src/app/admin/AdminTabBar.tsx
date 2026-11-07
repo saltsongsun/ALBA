@@ -39,6 +39,7 @@ const MAIN: Item[] = [
 
 /** '더보기'에 모은 덜 자주 쓰는 메뉴 */
 const MORE: { href: string; label: string; icon: IconName }[] = [
+  { href: '/admin/weekly', label: '주간 근무 · 주휴', icon: 'calendar' },
   { href: '/admin/reports', label: '정산 · 신고자료', icon: 'receipt' },
   { href: '/admin/vendors', label: '외주', icon: 'building' },
   { href: '/admin/docs', label: '서류', icon: 'file' },

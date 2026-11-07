@@ -11,6 +11,7 @@ import { decrypt, hashPin } from '@/lib/crypto'
 import { phoneFmt } from '@/lib/format'
 import { audit, ensurePendingDocs, getJob, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
+import { withWeeklyPay } from '@/lib/weekly'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
 import { hiddenFromForm } from '@/lib/jobFields'
@@ -1247,9 +1248,11 @@ export async function confirmDay(jobId: string, date: string) {
 async function tellPaid(adminId: string, jobId: string, userIds: string[]) {
   const job = userIds.length ? await getJob(jobId) : null
   if (!job) return
-  const rows = must(
-    await db().from('attendance').select('*').eq('job_id', jobId).in('user_id', userIds).not('clock_out', 'is', null),
-  ) as Attendance[]
+  // 주휴수당까지 넣은 실지급액 (정산 탭과 같은 금액)
+  const rows = await withWeeklyPay(
+    must(await db().from('attendance').select('*').eq('job_id', jobId).in('user_id', userIds).not('clock_out', 'is', null)) as Attendance[],
+    job.company_id,
+  )
   const net = new Map(userIds.map((u) => [u, settle(job, rows.filter((r) => r.user_id === u).map((r) => calcDay(job, r))).net]))
   await tellWorkers(userIds, {
     senderId: adminId,
@@ -1448,9 +1451,11 @@ export async function transferList(jobId: string): Promise<{ ok?: string; error?
   const job = await companyJob(admin, jobId)
   if (!job) return { error: '공고를 찾을 수 없습니다.' }
   if (await overLimit(`export:${admin.id}`, 30, 3600)) return { error: '내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
-  const rows = must(
-    await db().from('attendance').select('*').eq('job_id', jobId).eq('paid', false).not('clock_out', 'is', null),
-  ) as Attendance[]
+  // 이체 금액도 주휴수당까지 (정산 탭과 같은 금액)
+  const rows = await withWeeklyPay(
+    must(await db().from('attendance').select('*').eq('job_id', jobId).eq('paid', false).not('clock_out', 'is', null)) as Attendance[],
+    job.company_id,
+  )
   const ids = [...new Set(rows.map((r) => r.user_id))]
   if (!ids.length) return { error: '지급할 근무가 없어요.' }
   const users = must(await db().from('users').select('id, name, bank_name, bank_account_enc, account_holder').in('id', ids)) as {

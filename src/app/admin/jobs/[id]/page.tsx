@@ -13,6 +13,7 @@ import { getSettings, wageTotal } from '@/lib/data'
 import { won } from '@/lib/format'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
+import { withWeeklyPay } from '@/lib/weekly'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
@@ -146,7 +147,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   // 공고 지급총액 (세전 · 정산 탭과 같은 계산)
-  const wage = wageTotal(job, atts)
+  // (주휴수당 포함 · 같은 회사 여러 공고를 합쳐 주마다 확인)
+  const wage = wageTotal(job, await withWeeklyPay(atts, job.company_id))
   const link = `${origin}/jobs/${job.id}`
   const text = recruitText(job, link, settings.company_name)
 

@@ -3,6 +3,7 @@ import Link from 'next/link'
 import Empty from '@/components/Empty'
 import LiveNumber from '@/components/LiveNumber'
 import { db, must } from '@/lib/db'
+import { withWeeklyPay } from '@/lib/weekly'
 import { won } from '@/lib/format'
 import { calcDay, settle, workingToday } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
@@ -70,7 +71,8 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
 
   // 공고별로 묶어 정산 (가장 최근에 일한 공고부터)
   const byJob = new Map<string, { job: JobCo; rows: Attendance[] }>()
-  for (const a of atts) {
+  // 주휴수당 포함 (회사가 정산할 금액과 같게)
+  for (const a of await withWeeklyPay(atts)) {
     if (!a.job) continue
     const g = byJob.get(a.job_id) ?? { job: a.job, rows: [] }
     g.rows.push(a)

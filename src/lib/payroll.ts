@@ -6,6 +6,7 @@ import { calcDay, settle, type DayPay, type Settlement } from './pay'
 import { canManageCompany, type SessionUser } from './session'
 import type { Attendance, Job, Settings } from './types'
 import { isUuid } from './validate'
+import { withWeeklyPay } from './weekly'
 
 export type WorkerPay = {
   job: Job
@@ -51,7 +52,8 @@ export async function loadWorkerPay(viewer: SessionUser, jobId: string, userId: 
     const { count } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId)
     if (!count) return null
   }
-  const withPay = rows.map((r) => ({ ...r, pay: calcDay(job, r) }))
+  // 주휴수당 (같은 회사 여러 공고를 합쳐 주마다 확인 · 정산 탭과 같은 금액)
+  const withPay = (await withWeeklyPay(rows, job.company_id)).map((r) => ({ ...r, pay: calcDay(job, r) }))
   return {
     job,
     settings,

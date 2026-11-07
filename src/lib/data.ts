@@ -1,6 +1,7 @@
 import 'server-only'
 import { cache } from 'react'
 import { db, must } from './db'
+import { withWeeklyPay } from './weekly'
 import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
 import { clientInfo } from './session'
@@ -230,9 +231,11 @@ export function wageTotal(job: Job, atts: Attendance[]): JobWage {
 /** 공고 목록용: 이 회사 공고들의 지급총액 (세전) · 실수령 · 지급 완료 금액 */
 export async function wageTotals(companyId: string, jobs: Job[]): Promise<Record<string, JobWage>> {
   if (!jobs.length) return {}
-  const atts = must(
+  const raw = must(
     await db().from('attendance').select('*').eq('company_id', companyId).in('job_id', jobs.map((j) => j.id)).limit(20000),
   ) as Attendance[]
+  // 주휴수당도 함께 (정산 탭과 같은 금액)
+  const atts = await withWeeklyPay(raw, companyId)
   return Object.fromEntries(jobs.map((j) => [j.id, wageTotal(j, atts)]))
 }
 

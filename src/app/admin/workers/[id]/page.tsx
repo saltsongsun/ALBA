@@ -14,6 +14,7 @@ import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
+import { withWeeklyPay } from '@/lib/weekly'
 import { maskAccount, maskAddress, maskName, maskPhone, won } from '@/lib/format'
 import { calcDay, settle, workingToday } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
@@ -124,11 +125,13 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const account = decrypt(u.bank_account_enc)
   const age = u.birth_date ? ageOn(u.birth_date, kstDate()) : null
   const jobs = new Map(apps.map((a) => [a.job_id, a.job]))
+  // 주휴수당 포함 (정산 탭과 같은 금액)
+  const attsPay = await withWeeklyPay(atts, admin.companyId)
   const perJob = [...new Set(atts.map((a) => a.job_id))]
     .map((jid) => {
       const job = jobs.get(jid)
       if (!job) return null
-      const rows = atts.filter((a) => a.job_id === jid)
+      const rows = attsPay.filter((a) => a.job_id === jid)
       return { job, s: settle(job, rows.map((r) => calcDay(job, r))), live: workingToday(rows, today) }
     })
     .filter((x) => x !== null)

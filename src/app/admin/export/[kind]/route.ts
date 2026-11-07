@@ -3,6 +3,7 @@ import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { calcDay, settle } from '@/lib/pay'
 import { monthlyRows, toCsv } from '@/lib/reports'
+import { withWeeklyPay } from '@/lib/weekly'
 import { overLimit } from '@/lib/ratelimit'
 import { getUser, requireAdmin } from '@/lib/session'
 import { rosterUnlockedFor } from '@/lib/rosterLock'
@@ -37,7 +38,9 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     const jobId = url.searchParams.get('job') ?? ''
     const job = await companyJob(admin, jobId)
     if (!job) return new Response('공고를 찾을 수 없습니다.', { status: 404 })
-    const atts = must(await db().from('attendance').select('*').eq('job_id', jobId)) as Attendance[]
+    const raw = must(await db().from('attendance').select('*').eq('job_id', jobId)) as Attendance[]
+    // 주휴수당 (같은 회사 여러 공고를 합쳐 주마다 확인 · 정산 탭과 같은 금액)
+    const atts = await withWeeklyPay(raw, job.company_id)
     const ids = [...new Set(atts.map((a) => a.user_id))]
     const users = ids.length
       ? (must(
@@ -64,6 +67,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
           s.nightPay,
           s.allowance,
           s.extraPay,
+          s.weeklyPay,
           s.gross,
           s.incomeTax,
           s.localTax,
@@ -78,7 +82,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     return csvResponse(
       `정산표_${job.title}.csv`,
       toCsv([
-        ['성명', '생년월일', '연락처', '은행', '계좌번호', '예금주', '근무일수', '인정시간', '기본급', '연장수당', '야간수당', '수당', '기타지급', '지급총액', '소득세', '지방소득세', '고용보험', '기타공제', '공제합계', '실지급액', '지급여부'],
+        ['성명', '생년월일', '연락처', '은행', '계좌번호', '예금주', '근무일수', '인정시간', '기본급', '연장수당', '야간수당', '수당', '기타지급', '주휴수당', '지급총액', '소득세', '지방소득세', '고용보험', '기타공제', '공제합계', '실지급액', '지급여부'],
         ...rows,
       ]),
     )

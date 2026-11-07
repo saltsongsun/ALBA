@@ -18,6 +18,7 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { ClockPanel, FixRequest, ForgotClockOut, FullTimeRequest, LateNotice, StartCountdown } from '@/components/worker'
 import AutoRefresh from '@/components/AutoRefresh'
 import { db, must } from '@/lib/db'
+import { withWeeklyPay } from '@/lib/weekly'
 import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
 import PrepChecklist from '@/components/PrepChecklist'
@@ -218,12 +219,13 @@ export default async function MePage(props: PageProps<'/me'>) {
     })
     .filter((x) => x !== null)
 
-  // 근무 내역: 공고별 정산
+  // 근무 내역: 공고별 정산 (주휴수당 포함 · 회사가 정산할 금액과 같게)
+  const attsPay = await withWeeklyPay(atts)
   const history = [...new Set(atts.map((a) => a.job_id))]
     .map((jobId) => {
       const job = jobsById.get(jobId)
       if (!job) return null
-      const rows = atts.filter((a) => a.job_id === jobId)
+      const rows = attsPay.filter((a) => a.job_id === jobId)
       const s = settle(job, rows.map((r) => calcDay(job, r)))
       // 오늘 아직 근무 중이면 '종료 기록 없음'이 아니라 '오늘 근무 중' (퇴근하면 그날이 계산됨)
       const live = workingToday(rows, today)
