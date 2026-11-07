@@ -154,11 +154,8 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             if (!wp.length) return null
             return (
               <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800" data-weekly-note>
-                <span className="min-w-0 flex-1">
-                  <b className="block">주휴수당 {wp.length}명 · {won(wp.reduce((t, r) => t + r.s.weeklyPay, 0))} 포함</b>
-                  <span className="block">한 주 15시간 이상 · 개근한 주 (여러 공고 합산)</span>
-                </span>
-                <span className="shrink-0 font-semibold">주간 보기 →</span>
+                <b className="min-w-0 flex-1 truncate">주휴수당 {wp.length}명 · {won(wp.reduce((t, r) => t + r.s.weeklyPay, 0))} 포함</b>
+                <span aria-hidden className="shrink-0">›</span>
               </Link>
             )
           })()}

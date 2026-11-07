@@ -197,21 +197,19 @@ export default async function AppsTab({
     )
   }
   const becomes = (a: AppRow) => a.status === 'applied' && impact.get(a.user_id)?.kind === 'becomes'
+  // 짧게 한 줄: '확정하면 주휴 대상 · 약 33,024원' (누르면 주간 화면에서 자세히)
   const Weekly = ({ a }: { a: AppRow }) => {
     const w = impact.get(a.user_id)
     if (!w || (a.status !== 'applied' && a.status !== 'approved')) return null
-    const span = `${fmtDate(w.weekStart)} 주 ${hoursText(w.before)}→${hoursText(w.after)}`
+    const text = a.status === 'approved' ? `주휴 대상 · 약 ${won(w.amount)}` : w.kind === 'becomes' ? `확정하면 주휴 대상 · 약 ${won(w.amount)}` : '이미 주휴 대상 주'
     return (
       <Link
         href={`/admin/weekly?w=${w.weekStart}`}
-        className={`mt-1 block truncate rounded-lg px-2 py-1 text-xs font-semibold ring-1 ${becomes(a) ? 'bg-emerald-50 text-emerald-800 ring-emerald-200' : 'bg-bg text-sub ring-line'}`}
+        title={`${fmtDate(w.weekStart)} 주 ${hoursText(w.before)} → ${hoursText(w.after)}`}
+        className={`mt-1 inline-block max-w-full truncate rounded-full px-2.5 py-0.5 text-xs font-semibold ${becomes(a) ? 'bg-emerald-50 text-emerald-800' : 'bg-bg text-sub'}`}
         data-weekly-impact={a.status === 'approved' ? 'approved' : w.kind}
       >
-        {a.status === 'approved'
-          ? `🧾 주휴 대상 주 · ${hoursText(w.after)} · 개근하면 약 ${won(w.amount)}`
-          : w.kind === 'becomes'
-            ? `🧾 확정하면 주휴 대상 · ${span} · 약 ${won(w.amount)}`
-            : `🧾 이미 주휴 대상 주 · 확정하면 ${hoursText(w.after)} · 약 ${won(w.amount)}`}
+        {text}
       </Link>
     )
   }
@@ -364,18 +362,14 @@ export default async function AppsTab({
           <option key={p} value={p!} />
         ))}
       </datalist>
-      {/* 추가 근로 → 주휴수당 (관리자에게만): 확정하면 한 주 15시간을 넘는 대기 지원자 */}
+      {/* 추가 근로 → 주휴수당 (관리자에게만): 확정하면 한 주 15시간을 넘는 대기 지원자 — 한 줄로 */}
       {(() => {
         const n = apps.filter(becomes)
         if (!n.length) return null
         return (
-          <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2.5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ring-1 ring-emerald-200/70" data-weekly-impact-summary>
-            <span aria-hidden className="text-lg">🧾</span>
-            <span className="min-w-0 flex-1">
-              <b className="block">확정하면 주휴수당이 생기는 지원자 {n.length}명</b>
-              <span className="block text-xs">다른 공고와 합쳐 한 주 15시간 이상 · 개근하면 약 {won(n.reduce((t, a) => t + (impact.get(a.user_id)?.amount ?? 0), 0))}</span>
-            </span>
-            <span className="shrink-0 text-xs font-semibold">주간 보기 →</span>
+          <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-900" data-weekly-impact-summary>
+            <b className="min-w-0 flex-1 truncate">확정하면 주휴 대상 {n.length}명 · 약 {won(n.reduce((t, a) => t + (impact.get(a.user_id)?.amount ?? 0), 0))}</b>
+            <span aria-hidden className="shrink-0">›</span>
           </Link>
         )
       })()}

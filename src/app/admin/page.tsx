@@ -435,8 +435,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     const w = weeklyFor(p)
     if (!w) return null
     return (
-      <Link href={`/admin/weekly?w=${w.weekStart}`} className="block truncate rounded-lg bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 ring-1 ring-emerald-200" data-weekly-impact="becomes">
-        🧾 확정하면 주휴 대상 · {hoursText(w.before)}→{hoursText(w.after)} · 약 {won(w.amount)}
+      <Link
+        href={`/admin/weekly?w=${w.weekStart}`}
+        title={`${hoursText(w.before)} → ${hoursText(w.after)}`}
+        className="inline-block max-w-full truncate rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800"
+        data-weekly-impact="becomes"
+      >
+        확정하면 주휴 대상 · 약 {won(w.amount)}
       </Link>
     )
   }
