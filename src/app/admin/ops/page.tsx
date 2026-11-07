@@ -3,6 +3,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Icon, { type IconName } from '@/components/Icon'
 import LiveNumber from '@/components/LiveNumber'
+import Flash from '@/components/Flash'
+import { ConfirmSubmit } from '@/components/ui'
+import { setCompanyVerified } from '@/app/actions/company'
 import { ago } from '@/lib/community'
 import { db } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
@@ -22,6 +25,8 @@ type Ev = {
 type Co = {
   id: string
   company_name: string
+  ceo_name: string | null
+  business_no: string | null
   verified?: boolean | null
   active: boolean
   created_at: string
@@ -54,9 +59,10 @@ function Tile({ label, value, sub, href, icon, tone }: { label: string; value: n
  * 회사 현황(확인 전·새 회사·회사별 활동) · 이용 통계(7일 방문·가입·지원·출근) · 화면 오류와 답답한 곳 · 처리할 신고를 한 화면에.
  * 자세한 것은 회사 관리·인사이트·커뮤니티 관리로 이어짐 · 이름·연락처는 보여 주지 않음
  */
-export default async function OpsPage() {
+export default async function OpsPage(props: PageProps<'/admin/ops'>) {
   const admin = await requireAdmin()
   if (!admin.isSuper) notFound()
+  const sp = await props.searchParams
   const now = Date.now()
   const today = kstDate()
   const since7 = new Date(now - 7 * DAY).toISOString()
@@ -65,7 +71,7 @@ export default async function OpsPage() {
   const rows = <T,>(q: PromiseLike<{ data: unknown; error: unknown }>) => Promise.resolve(q).then((r) => (r.error ? [] : ((r.data ?? []) as T[])))
 
   const [companies, members, signups, apps, atts, openJobs, reports, events] = await Promise.all([
-    rows<Co>(db().from('companies').select('id, company_name, verified, active, created_at').order('created_at')),
+    rows<Co>(db().from('companies').select('id, company_name, ceo_name, business_no, verified, active, created_at').order('created_at')),
     count(db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true)),
     rows<{ created_at: string; member_type: string | null }>(db().from('users').select('created_at, member_type').eq('role', 'worker').gte('created_at', since7).limit(5000)),
     rows<{ company_id: string; created_at: string }>(db().from('applications').select('company_id, created_at').gte('created_at', since7).limit(20000)),
@@ -143,7 +149,7 @@ export default async function OpsPage() {
 
   const todo = [
     waiting.length > 0 && {
-      href: '/admin/companies',
+      href: '#ops-waiting',
       text: `확인 기다리는 회사 ${waiting.length}곳`,
       tone: 'amber',
     },
@@ -165,6 +171,8 @@ export default async function OpsPage() {
         <h1 className="text-2xl font-extrabold">운영 센터</h1>
         <p className="text-sm text-sub">최상위 관리자만 보는 전체 현황 · 최근 7일</p>
       </div>
+
+      <Flash m={sp.m} />
 
       {/* 지금 할 일 (없으면 '괜찮아요') */}
       <section className="card p-0" data-ops-todo>
@@ -272,6 +280,35 @@ export default async function OpsPage() {
           </div>
         )}
       </section>
+
+      {/* 확인 기다리는 회사: 회사 관리까지 가지 않고 여기서 바로 확인 (확인하면 전체 회원 명단·번호로 추가가 열림) */}
+      {waiting.length > 0 && (
+        <section id="ops-waiting" className="card scroll-mt-20 p-0" data-ops-waiting>
+          <div className="flex items-baseline justify-between gap-2 px-4 pt-3.5 pb-2">
+            <h2 className="font-bold">확인 기다리는 회사</h2>
+            <Link href="/admin/companies" className="shrink-0 text-xs font-semibold text-brand-600">
+              자세히 →
+            </Link>
+          </div>
+          <ul className="divide-y divide-line border-t border-line">
+            {waiting.slice(0, 5).map((c) => (
+              <li key={c.id} className="flex items-center gap-3 px-4 py-2.5" data-ops-waiting-row>
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-sm">{c.company_name}</b>
+                  <span className="block truncate text-xs text-sub">{[c.business_no, c.ceo_name && `대표 ${c.ceo_name}`, `${ago(c.created_at, now)} 가입`].filter(Boolean).join(' · ')}</span>
+                </span>
+                <form action={setCompanyVerified.bind(null, c.id, true)} className="shrink-0">
+                  <input type="hidden" name="back" value="/admin/ops" />
+                  <ConfirmSubmit className="chip-primary whitespace-nowrap" confirmText="한 번 더 누르면 확인" track="운영 센터 회사 확인">
+                    확인
+                  </ConfirmSubmit>
+                </form>
+              </li>
+            ))}
+          </ul>
+          {waiting.length > 5 && <p className="border-t border-line px-4 py-2.5 text-xs text-mute">나머지 {waiting.length - 5}곳은 회사 관리에서</p>}
+        </section>
+      )}
 
       {/* 회사별 활동 */}
       <section className="card p-0" data-ops-companies>

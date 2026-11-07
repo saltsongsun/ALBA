@@ -296,8 +296,6 @@ export default async function MePage(props: PageProps<'/me'>) {
           내 정보
         </Link>
       </div>
-      {xp && <LevelCard s={xp} />}
-
       {/* 담당자가 근무시간을 바꿨을 때: 계속하시겠습니까? */}
       {pendingShifts.length > 0 && (
         <section className="card animate-pop space-y-3 bg-brand-50/40 ring-brand-100">
@@ -428,6 +426,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       <PushNudge publicKey={pushPublicKey()} reason="알림을 켜야 확정 소식을 놓치지 않아요" />
       {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
       {todayApps.length === 0 && profileNags}
+      {/* 병아리 레벨 카드는 지금 할 일(시간 변경 답·연장 확인·서명·계좌·사진) 다음에 (재미용이라 할 일을 밀어내지 않게) */}
+      {xp && <LevelCard s={xp} />}
 
       {weekCount > 0 && (
         <section aria-label="이번 주 내 근무" data-week>
@@ -658,7 +658,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                       endText={hhmm(shiftOf(job, forgot).end_time)}
                     />
                   ) : docsLeft > 0 ? (
-                    <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+                    // 두 줄을 고르게 ('…시작할 / 수 있어요.'처럼 끝에 한두 낱말만 남지 않게)
+                    <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-balance text-amber-800" data-sign-before-start>
                       위의 서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요.
                     </p>
                   ) : open ? (
