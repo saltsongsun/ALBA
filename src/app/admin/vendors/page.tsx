@@ -11,6 +11,8 @@ import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { maskAccount, won } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
+import { getSettings } from '@/lib/data'
+import { GroupContact } from '@/components/GroupContact'
 import { fmtDate, kstDate } from '@/lib/time'
 import type { Job, Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
@@ -80,31 +82,41 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
   const overdue = unpaid.filter((p) => p.due_date && p.due_date < today)
   const noInvoice = payments.filter((p) => !p.invoice_at)
   const openRequests = requests.filter((r) => r.status === 'open')
+  // 세금계산서를 아직 안 보낸 업체 (연락처 있는 곳만) → 대금 지급 탭에서 한 번에 문자로 요청 · 발행에 필요한 우리 사업자번호를 넣어 보냄
+  const invoiceVendors = [...new Set(noInvoice.map((p) => p.vendor_id))].map((id) => vendorOf.get(id)).filter((v): v is Vendor => !!v?.phone)
+  const bizNo = tab === 'pay' && invoiceVendors.length > 0 ? ((await getSettings(admin.companyId)).business_no ?? '') : ''
+  const nothing = openRequests.length === 0 && unpaid.length === 0 && noInvoice.length === 0
 
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
       <div>
         <h1 className="text-2xl font-extrabold">외주 관리</h1>
-        <p className="mt-1 text-sm text-sub">협력업체에 견적을 요청해 비교하고, 선정한 업체의 대금 지급·세금계산서를 관리해요.</p>
+        <p className="mt-1 text-sm text-sub">견적 비교 · 대금 지급 · 세금계산서를 한곳에서</p>
       </div>
 
-      {/* 한눈에: 진행 중인 견적 · 지급할 돈 · 지급일 지남 · 계산서 안 받음 */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {(
-          [
-            ['진행 중 견적', `${openRequests.length}건`, '/admin/vendors?tab=quotes', 'text-brand-700'],
-            ['지급할 금액', won(unpaid.reduce((s, p) => s + p.amount, 0)), '/admin/vendors?tab=pay', 'text-ink'],
-            ['지급일 지남', `${overdue.length}건`, '/admin/vendors?tab=pay', overdue.length ? 'text-rose-600' : 'text-mute'],
-            ['계산서 안 받음', `${noInvoice.length}건`, '/admin/vendors?tab=pay&show=all', noInvoice.length ? 'text-amber-700' : 'text-mute'],
-          ] as const
-        ).map(([k, v, href, tone]) => (
-          <Link key={k} href={href} className="card-link p-3.5">
-            <p className="text-xs font-semibold text-mute">{k}</p>
-            <p className={`mt-0.5 text-lg font-extrabold tabular-nums ${tone}`}>{v}</p>
+      {/* 한눈에: 지급할 금액만 크게 + 진행 중 견적 · 지급일 지남 · 계산서 안 받음 짧은 칩 (아무것도 없으면 숫자 0 칸들 없이) */}
+      {!nothing && (
+        <section className="card space-y-2.5 px-4 py-3.5" data-vendor-summary>
+          <Link href="/admin/vendors?tab=pay" className="flex items-baseline justify-between gap-3">
+            <span className="text-xs font-semibold text-mute">지급할 금액</span>
+            <span className="truncate text-xl font-extrabold tabular-nums">{won(unpaid.reduce((n, p) => n + p.amount, 0))}</span>
           </Link>
-        ))}
-      </div>
+          <div className="flex flex-wrap gap-1.5 text-xs font-semibold">
+            {(
+              [
+                ['진행 중 견적', openRequests.length, '/admin/vendors?tab=quotes', 'bg-brand-50 text-brand-700'],
+                ['지급일 지남', overdue.length, '/admin/vendors?tab=pay', 'bg-rose-50 text-rose-700'],
+                ['계산서 안 받음', noInvoice.length, '/admin/vendors?tab=pay&show=all', 'bg-amber-50 text-amber-800'],
+              ] as const
+            ).map(([k, n, href, tone]) => (
+              <Link key={k} href={href} className={`rounded-full px-2.5 py-1 ${n ? tone : 'bg-bg text-mute'}`} data-vendor-chip={k}>
+                {k} {n}
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex border-b border-line">
         {TABS.map(([k, label]) => (
@@ -180,6 +192,21 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
 
       {tab === 'pay' && (
         <div className="space-y-3">
+          {invoiceVendors.length > 0 && (
+            // 한 줄: '계산서 안 받은 업체 n곳' + 문자로 요청 (받는 사람·문구·우리 사업자번호를 채운 채 문자 앱이 열림)
+            <div className="flex items-center gap-2 rounded-2xl bg-white py-1.5 pr-1.5 pl-3.5 ring-1 ring-line" data-invoice-ask>
+              <p className="min-w-0 flex-1 truncate text-sm text-sub">
+                계산서 안 받은 업체 <b className="text-ink">{invoiceVendors.length}곳</b>
+              </p>
+              <GroupContact
+                copy={false}
+                className="chip-primary shrink-0 whitespace-nowrap"
+                phones={invoiceVendors.map((v) => v.phone)}
+                label="문자로 계산서 요청"
+                body={`[${admin.companyName}] 대금 건 세금계산서 발행을 부탁드려요.${bizNo ? `\n사업자등록번호 ${bizNo}` : ''}`}
+              />
+            </div>
+          )}
           <Fold title="＋ 지급 건 등록" summary="견적 없이 바로 등록할 때 (선정한 견적은 자동으로 올라와요)" open={!!presetJob} className="space-y-4">
             {activeVendors.length === 0 ? (
               <p className="text-sm text-mute">먼저 ‘업체’ 탭에서 외주사를 등록해 주세요.</p>
