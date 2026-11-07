@@ -1,6 +1,7 @@
 // 묶음 85: 출근 — 위치에 막혀 '근무 시작'만 여러 번 누르던 것 (인사이트: 한 근무자가 2분 동안 10번 누르고 같은 오류만 봄)
 // · 현장 확인이 필요한 공고인데 위치 권한이 꺼져 있으면 누르기 전부터 '담당자에게 출근 확인 요청' 칸이 보임
-// · 오류 문장은 해요체 한 번만 (아래 위치 안내에서 같은 말을 되풀이하지 않음) · 두 번째로 막히면 요청 칸을 화면 가운데로 데려와 강조
+// · 오류 문장은 해요체 한 번만 (아래 위치 안내에서 같은 말을 되풀이하지 않음)
+// · 두 번째로 막히면 큰 버튼이 '담당자에게 출근 확인 요청'으로 바뀌어 화면 안으로 (묶음 120 · 이용 기록: 같은 버튼만 다시 누름)
 // · 요청하면 버튼 위에 'HH:MM 출근 확인 요청함 · 담당자가 확인하면 …' (다시 열어도 그대로) · 담당자가 처리하면 '근무 중'으로 바뀌고 안내는 사라짐
 // · 내 정보 '정보 채우기' 칸의 설명이 360px에서 잘리지 않음 · 지금 보고 있는 아래 탭을 또 누르면 맨 위로
 // node scripts/qa/batch85.cjs <default 앱> <default 가짜>
@@ -61,11 +62,11 @@ const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
   ok('첫 번째에는 강조하지 않음', (await p.locator('[data-arrive-ask][data-strong]').count()) === 0)
   await p.evaluate(() => scrollTo(0, 0))
   await start.click()
-  const strong = p.locator('[data-arrive-ask][data-strong]')
+  const strong = p.locator('[data-clock-stuck]')
   await strong.waitFor({ timeout: 10000 }).catch(() => {})
   await p.waitForTimeout(900)
   const rect = await strong.evaluate((el) => { const r = el.getBoundingClientRect(); return `${Math.round(r.top)}~${Math.round(r.bottom)}/${innerHeight}` }).catch(() => 'none')
-  ok('두 번째로 막히면 요청 칸을 화면 안으로 데려와 강조', (await strong.count()) === 1 && (await inView(strong)), rect)
+  ok("두 번째로 막히면 큰 버튼이 '담당자에게 출근 확인 요청' (화면 안)", (await strong.count()) === 1 && (await inView(strong)) && (await p.locator('[data-arrive-ask]').count()) === 0, rect)
 
   // ── 3. 요청 → 기다리는 중 ──
   await strong.getByRole('button', { name: '담당자에게 출근 확인 요청' }).click()
