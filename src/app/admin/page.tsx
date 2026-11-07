@@ -592,7 +592,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {/* 새 소식 한 줄 (회사마다 바뀐 규칙 알리기 · 닫으면 다시 안 보임 · 이달 말까지) */}
       {today <= '2026-11-30' && (
         <NewsNote id="weekly-pay-2026-11" href="/admin/weekly">
-          주휴수당이 정산에 자동으로 들어가요 (11/2 주부터) ›
+          주휴수당이 정산에 자동으로 들어가요 ›
         </NewsNote>
       )}
       {/* 한 계정으로 두 역할: 다른 회사에서 오늘 내 근무 → 근무자 화면 '내 근무'로 바로 (출근·종료는 거기서) */}
@@ -658,55 +658,53 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </ul>
         </section>
       )}
+      {/* 인원이 모자란 공고: 흰 카드 + 작은 빨간 점 · 공고마다 한 줄 (사용자 요청 '디자인 더 깔끔하게') */}
       {short.length > 0 && (
-        <section className="card animate-pop space-y-3 bg-rose-50/40 ring-rose-200/70">
-          <div>
-            <h2 className="flex items-center gap-1.5 font-bold">
-              <Icon name="alert" className="text-rose-600" /> 곧 시작하는데 인원이 모자라요
-            </h2>
-            <p className="text-sm text-sub">
-              {appsEver === 0
-                ? '아직 지원자가 없어요. 공고 모음 링크를 단톡방에 올리거나 QR을 붙여 모집을 알려 보세요.'
-                : '취소나 미확정으로 빈자리가 있어요. 대기자를 확정하거나 예전 근무자에게 모집을 알려 보세요.'}
-            </p>
-          </div>
-          {short.map((j) => {
-            const gap = j.headcount - (counts[j.id] ?? 0)
-            const wait = waitingBy[j.id] ?? 0
-            const when = j.start_date < today ? '진행 중' : j.start_date === today ? '오늘' : j.start_date === tomorrow ? '내일' : fmtDate(j.start_date)
-            return (
-              <div key={j.id} className="space-y-2 rounded-xl bg-white p-3.5">
-                <div className="flex items-start justify-between gap-2">
-                  <Link href={`/admin/jobs/${j.id}?tab=apps`} className="min-w-0 font-bold">
-                    {j.title}
-                  </Link>
-                  <span className="badge shrink-0 bg-rose-600 text-white">{gap}명 부족</span>
-                </div>
-                <p className="text-sm text-sub">
-                  <b className="text-ink">{when}</b> {hhmm(j.start_time)} 시작 · 확정 {counts[j.id] ?? 0}/{j.headcount}명 · 대기 {wait}명
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {wait === 0 && appsEver === 0 ? (
-                    // 처음 모집하는 회사: 알릴 예전 근무자가 없으니 공고 모음 링크·QR로
-                    <Link href="/admin/jobs/poster" className="chip-primary" data-short-share>
-                      공고 링크·QR로 알리기
+        <section className="card animate-pop space-y-1" data-shortage>
+          <h2 className="flex items-center gap-2 font-bold">
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-rose-500" /> 곧 시작하는데 인원이 모자라요
+          </h2>
+          {/* 처음 모집하는 회사만 짧은 안내 (알릴 예전 근무자가 없어서) */}
+          {appsEver === 0 && <p className="text-sm text-sub">아직 지원자가 없어요. 공고 모음 링크를 단톡방에 올리거나 QR을 붙여 모집을 알려 보세요.</p>}
+          <ul className="divide-y divide-line">
+            {short.map((j) => {
+              const gap = j.headcount - (counts[j.id] ?? 0)
+              const wait = waitingBy[j.id] ?? 0
+              const when = j.start_date < today ? '진행 중' : j.start_date === today ? '오늘' : j.start_date === tomorrow ? '내일' : fmtDate(j.start_date)
+              return (
+                <li key={j.id} className="space-y-1.5 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <Link href={`/admin/jobs/${j.id}?tab=apps`} className="min-w-0 flex-1 truncate font-semibold">
+                      {j.title}
                     </Link>
-                  ) : (
-                    <Link href={`/admin/jobs/${j.id}?tab=apps`} className="chip-primary">
-                      {wait > 0 ? `대기 ${wait}명 확정하러 가기` : '예전 근무자에게 알리기'}
-                    </Link>
-                  )}
-                  {j.status === 'closed' && (
-                    <form action={setJobStatus.bind(null, j.id, 'open')}>
-                      <SubmitButton className="chip" pendingText="여는 중…">
-                        모집 다시 열기
-                      </SubmitButton>
-                    </form>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+                    <span className="shrink-0 text-sm font-bold text-rose-600">{gap}명 부족</span>
+                  </div>
+                  <p className="text-xs text-sub">
+                    {when} {hhmm(j.start_time)} 시작 · 확정 {counts[j.id] ?? 0}/{j.headcount}명 · 대기 {wait}명
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {wait === 0 && appsEver === 0 ? (
+                      // 처음 모집하는 회사: 알릴 예전 근무자가 없으니 공고 모음 링크·QR로
+                      <Link href="/admin/jobs/poster" className="chip-primary h-8" data-short-share>
+                        공고 링크·QR로 알리기
+                      </Link>
+                    ) : (
+                      <Link href={`/admin/jobs/${j.id}?tab=apps`} className="chip-primary h-8">
+                        {wait > 0 ? `대기 ${wait}명 확정하러 가기` : '예전 근무자에게 알리기'}
+                      </Link>
+                    )}
+                    {j.status === 'closed' && (
+                      <form action={setJobStatus.bind(null, j.id, 'open')}>
+                        <SubmitButton className="chip h-8" pendingText="여는 중…">
+                          모집 다시 열기
+                        </SubmitButton>
+                      </form>
+                    )}
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
         </section>
       )}
       {/* 새 회사: 무엇부터 하면 되는지 (다 하면 사라짐) */}

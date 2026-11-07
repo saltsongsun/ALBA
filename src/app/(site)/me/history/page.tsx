@@ -157,7 +157,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
               })}
             </nav>
           )}
-          <section className={`${companies.length > 1 ? '-mt-3 ' : ''}grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white shadow-lg shadow-brand-600/20`}>
+          <section className={`${companies.length > 1 ? '-mt-3 ' : ''}grid animate-pop grid-cols-[1fr_1fr_2fr] gap-2 rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 p-5 text-white`}>
             {(
               [
                 ['근무', total.days, '일'],

@@ -20,8 +20,8 @@
   --color-line: #e5e8eb;
   --color-bg: #f2f4f6;
 
-  /* 떠 있는 느낌: 아주 옅은 테두리 그림자 + 아래로 번지는 부드러운 그림자 */
-  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 8px 24px -12px rgb(15 23 42 / 0.1);
+  /* 카드는 거의 평평하게: 아주 옅은 그림자 한 겹 (사용자 요청 2026-11-07 '디자인 더 깔끔하게') */
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04);
   --shadow-lift: 0 2px 4px rgb(15 23 42 / 0.04), 0 16px 32px -12px rgb(15 23 42 / 0.16);
 
   /* 마이크로 인터랙션: 살짝 튀어 오르며 멈추는 곡선 */
@@ -144,12 +144,8 @@
     --tabbar-space: calc(64px + max(12px, env(safe-area-inset-bottom)));
   }
   body {
+    /* 바탕은 차분한 단색 (사용자 요청 2026-11-07 '디자인 더 깔끔하게' — 위쪽 색 번짐을 뺌) */
     @apply bg-bg text-ink antialiased;
-    /* 화면 위쪽에 강조색이 은은하게 번지는 배경 (전문가 화면은 보라로 따라 바뀜) */
-    background-image:
-      radial-gradient(100% 340px at 10% -80px, color-mix(in oklab, var(--color-brand-500) 18%, transparent), transparent 75%),
-      radial-gradient(80% 300px at 100% -40px, color-mix(in oklab, #22d3ee 14%, transparent), transparent 75%);
-    background-repeat: no-repeat;
     font-family: var(--font-sans);
     /* 한글은 단어(띄어쓰기) 단위로 줄바꿈, 칸보다 긴 주소·숫자만 끊음.
        anywhere가 아니라 break-word: anywhere는 표 칸을 한 글자 너비까지 줄여 글자가 세로로 쪼개짐 */
@@ -460,9 +456,9 @@
 @utility btn {
   @apply inline-flex items-center justify-center gap-1.5 rounded-[14px] px-4 py-2.5 text-[15px] font-semibold transition duration-150 outline-none select-none focus-visible:ring-4 focus-visible:ring-brand-500/25 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100;
 }
-/* 강조 버튼: 위쪽이 살짝 밝은 입체감 + 강조색 그림자 (바탕색은 그대로 강조색) */
+/* 강조 버튼: 평평한 강조색 (그림자·빛 없이 깔끔하게) */
 @utility btn-primary {
-  @apply btn bg-brand-600 bg-[linear-gradient(180deg,rgb(255_255_255/0.16),rgb(255_255_255/0))] text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.22),0_6px_16px_-6px_color-mix(in_oklab,var(--color-brand-600)_70%,transparent)] hover:bg-brand-700;
+  @apply btn bg-brand-600 text-white hover:bg-brand-700;
 }
 @utility btn-soft {
   @apply btn bg-brand-50 text-brand-700 hover:bg-brand-100;
@@ -485,7 +481,7 @@
   @apply inline-flex h-9 shrink-0 items-center gap-1 rounded-full bg-white px-3.5 text-[13px] font-semibold whitespace-nowrap text-sub ring-1 ring-line transition duration-150 select-none hover:bg-bg active:scale-95 disabled:opacity-50;
 }
 @utility chip-primary {
-  @apply chip bg-brand-600 text-white shadow-[0_4px_12px_-4px_color-mix(in_oklab,var(--color-brand-600)_60%,transparent)] ring-0 hover:bg-brand-700;
+  @apply chip bg-brand-600 text-white ring-0 hover:bg-brand-700;
 }
 /* 누르면 이동하는 카드: 마우스를 올리면 살짝 뜨고, 누르면 눌림 */
 /* 접었다 펴는 카드 (components/Fold.tsx): card와 같은 모양, 안쪽 여백은 제목 줄·내용이 따로 가짐 */
@@ -661,7 +657,7 @@
   --color-sub: #b0b7c1;
   --color-mute: #949ca7;
   --color-line: #2b2f37;
-  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.7);
+  --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.05);
   --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 16px 32px -12px rgb(0 0 0 / 0.8);
   --dk-surface: #17191e;
   --dk-raised: #22252b;

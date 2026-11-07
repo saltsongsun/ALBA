@@ -153,7 +153,7 @@ export default async function HomePage(props: PageProps<'/'>) {
           href={todaySignId ? `/docs/${todaySignId}` : '/me'}
           data-today-hero
           data-today-sign={todaySignId ? '' : undefined}
-          className="relative mb-4 flex animate-pop items-center gap-3 overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#10b981_0%,#0d9488_55%,#0891b2_100%)] p-4 text-white shadow-[0_16px_32px_-16px_rgb(13_148_136/0.75)] transition active:scale-[0.985]"
+          className="relative mb-4 flex animate-pop items-center gap-3 overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#10b981_0%,#0d9488_100%)] p-4 text-white transition active:scale-[0.985]"
         >
           <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-36 rounded-full bg-white/20 blur-2xl" />
           <span aria-hidden className="pointer-events-none absolute -bottom-16 left-10 size-32 rounded-full bg-cyan-300/30 blur-2xl" />
@@ -172,7 +172,7 @@ export default async function HomePage(props: PageProps<'/'>) {
             </span>
           </span>
           {/* 서명이 먼저면 버튼이 한 번 톡 튀어 눈에 띄게 (움직임 줄이기면 그대로) */}
-          <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 shadow-sm ${todaySignId ? 'animate-bump [animation-delay:450ms]' : ''}`}>
+          <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 ${todaySignId ? 'animate-bump [animation-delay:450ms]' : ''}`}>
             {todaySignId ? '서명 →' : '출퇴근 →'}
           </span>
         </Link>
@@ -232,7 +232,7 @@ export default async function HomePage(props: PageProps<'/'>) {
         // 로그인 전: 짧은 소개 (인사이트: 비회원은 거의 홈에서 바로 나감 → 공고가 첫 화면에 더 많이 보이게 줄임 · 가입 안내는 목록 끝에)
         <section
           data-home-intro
-          className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 px-5 py-4 text-white shadow-lg shadow-brand-600/20"
+          className="relative mb-5 overflow-hidden rounded-3xl bg-gradient-to-br from-brand-600 to-brand-700 px-5 py-4 text-white"
         >
           <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-36 animate-float rounded-full bg-white/10" />
           <div className="relative">

@@ -242,7 +242,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     !photoAt ? { key: 'photo', href: '/me/profile#photo', icon: 'camera' as const, tone: 'bg-brand-50 text-brand-600', title: '얼굴 사진을 올려 주세요', sub: '현장 담당자가 알아보기 쉬워요', go: '올리기' } : null,
   ].filter((n) => n !== null)
   const profileNags = nags.length ? (
-    <div className={`card divide-y divide-line overflow-hidden p-0 ${nags[0].key === 'account' ? 'ring-rose-200/70' : ''}`} data-profile-nags>
+    <div className="card divide-y divide-line overflow-hidden p-0" data-profile-nags>
       {nags.map((n) => (
         <Link key={n.key} href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors active:bg-bg">
           <span aria-hidden className={`grid size-9 shrink-0 place-items-center rounded-xl text-lg ${n.tone}`}>
@@ -405,12 +405,15 @@ export default async function MePage(props: PageProps<'/me'>) {
       )}
 
       {pendingDocs.length > 0 && (
-        <section className="card animate-pop bg-amber-50/50 ring-amber-200/70">
-          <h2 className="mb-2 flex items-center gap-1.5 font-bold"><Icon name="pen" className="text-amber-600" />서명할 서류가 {pendingDocs.length}건 있어요</h2>
-          <p className="mb-3 text-sm text-sub">서명을 마쳐야 근무 시작 버튼을 누를 수 있어요.</p>
+        // 흰 카드 + 작은 아이콘 (안내 문장은 오늘의 근무 칸에 이미 있어 한 번만)
+        <section className="card animate-pop" data-sign-card>
+          <h2 className="mb-2.5 flex items-center gap-1.5 font-bold">
+            <Icon name="pen" className="text-amber-600" />
+            서명할 서류가 {pendingDocs.length}건 있어요
+          </h2>
           <div className="space-y-2">
             {pendingDocs.map((d) => (
-              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 font-semibold transition active:scale-[0.98]">
+              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-bg px-4 py-3 font-semibold transition active:scale-[0.98]">
                 <span className="min-w-0">
                   <span className="block">{d.title}</span>
                   <span className="block truncate text-xs font-medium text-mute">{docJobLine(d.job_id)}</span>
@@ -554,7 +557,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               // 지난 근무를 종료하지 않고 그 근무 시간도 끝났으면: 끝난 시각을 따로 받음 (지금 누르면 다음 날 시각이 찍힘)
               const forgot = open && open.work_date < today && Date.now() >= scheduledEnd(shiftOf(job, open), open.work_date).getTime() ? open : null
               return (
-                <div key={a.id} className="card relative space-y-4 before:absolute before:inset-x-0 before:top-0 before:h-1.5 before:rounded-t-[22px] before:bg-[linear-gradient(90deg,var(--color-brand-500),#22d3ee)] before:content-['']">
+                <div key={a.id} className="card relative space-y-4 ring-1 ring-brand-100">
                   <div>
                     <p className="truncate text-xs font-semibold text-mute">
                       {[job.company?.company_name && `🏢 ${job.company.company_name}`, job.event_name].filter(Boolean).join(' · ')}

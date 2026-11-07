@@ -8,7 +8,7 @@ import { dateList, fmtDate, hhmm, kstAt } from '@/lib/time'
 import type { Job } from '@/lib/types'
 
 /** 근무자 화면의 '근무 시작·종료'처럼 크게 (지금 할 일 하나) */
-const BIG = 'flex w-full items-center justify-center gap-2 rounded-2xl font-extrabold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-60'
+const BIG = 'flex w-full items-center justify-center gap-2 rounded-2xl font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60'
 
 type Props = {
   job: Pick<Job, 'id' | 'status' | 'start_date' | 'end_date' | 'start_time' | 'end_time'>
@@ -66,7 +66,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
         <>
           <p className="text-center text-sm text-sub">임시 저장이에요 · 공개해야 지원을 받아요</p>
           <form action={setJobStatus.bind(null, job.id, 'open')}>
-            <SubmitButton className={`${BIG} ${size} bg-brand-600 shadow-brand-200 hover:bg-brand-700`} pendingText="공개하는 중…" track="공고 공개하기">
+            <SubmitButton className={`${BIG} ${size} bg-brand-600 hover:bg-brand-700`} pendingText="공개하는 중…" track="공고 공개하기">
               공개하기
             </SubmitButton>
           </form>
@@ -77,7 +77,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
         (job.status === 'open' && headcount > 0 && approved >= headcount ? (
           <>
             <form action={setJobStatus.bind(null, job.id, 'closed')}>
-              <ConfirmSubmit className={`${BIG} ${size} bg-brand-600 shadow-brand-200 hover:bg-brand-700`} confirmText="한 번 더 누르면 모집 마감" track="인원 다 참 · 모집 마감">
+              <ConfirmSubmit className={`${BIG} ${size} bg-brand-600 hover:bg-brand-700`} confirmText="한 번 더 누르면 모집 마감" track="인원 다 참 · 모집 마감">
                 인원이 다 찼어요 · 모집 마감
               </ConfirmSubmit>
             </form>
@@ -90,7 +90,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
         ) : (
           <>
             {waiting > 0 && (
-              <Link href={`${base}?tab=apps`} className={`${BIG} ${size} bg-brand-600 shadow-brand-200 hover:bg-brand-700`} data-track="지원자 확인">
+              <Link href={`${base}?tab=apps`} className={`${BIG} ${size} bg-brand-600 hover:bg-brand-700`} data-track="지원자 확인">
                 지원자 확인 · 대기 {waiting}명
               </Link>
             )}
@@ -105,7 +105,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
         ))}
       {phase === 'live' && (
         <>
-          <Link href={`${base}?tab=att&date=${today}&view=check`} className={`${BIG} ${size} bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600`} data-track="출석 체크">
+          <Link href={`${base}?tab=att&date=${today}&view=check`} className={`${BIG} ${size} bg-emerald-500 hover:bg-emerald-600`} data-track="출석 체크">
             출석 체크{compact && working > 0 ? ` · 근무 중 ${working}명` : ''}
           </Link>
           {/* 시나리오: 당일 결원 → 대기 지원자로 바로 대신 확정 */}
@@ -157,7 +157,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
       {phase === 'done' && (
         <>
           {!compact && <p className="text-center text-sm font-semibold text-emerald-700">🏁 행사가 끝났어요</p>}
-          <Link href={`${base}?tab=pay`} className={`${BIG} ${size} bg-brand-600 shadow-brand-200 hover:bg-brand-700`} data-track="정산하러 가기">
+          <Link href={`${base}?tab=pay`} className={`${BIG} ${size} bg-brand-600 hover:bg-brand-700`} data-track="정산하러 가기">
             정산하러 가기
           </Link>
           {/* 시나리오: 다음 행사도 같은 팀으로 → 복사해서 새 공고 (새 공고의 지원자 탭에서 이번 근무자 부르기) */}

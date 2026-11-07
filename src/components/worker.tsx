@@ -350,12 +350,12 @@ export function ClockPanel({
         disabled={pending}
         data-track={!open ? '근무 시작' : '근무 종료'}
         data-confirm={open && !confirmOut ? 'idle' : undefined}
-        className={`w-full rounded-2xl py-5 text-xl font-extrabold text-white shadow-lg transition active:scale-[0.98] disabled:opacity-60 ${
+        className={`w-full rounded-2xl py-5 text-xl font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60 ${
           !open
-            ? 'bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600'
+            ? 'bg-emerald-500 hover:bg-emerald-600'
             : confirmOut
               ? 'bg-rose-700 shadow-rose-300'
-              : 'bg-rose-500 shadow-rose-200 hover:bg-rose-600'
+              : 'bg-rose-500 hover:bg-rose-600'
         }`}
       >
         {pending ? step || '처리 중…' : !open ? '근무 시작' : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}

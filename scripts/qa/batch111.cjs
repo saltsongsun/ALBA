@@ -33,7 +33,7 @@ const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
   const news = a.locator('[data-news="weekly-pay-2026-11"]')
   if (today <= '2026-11-30') {
     await news.waitFor({ timeout: 10000 }).catch(() => {})
-    ok("새 소식: '주휴수당이 정산에 자동으로 들어가요 (11/2 주부터)' 한 줄", (await news.innerText().catch(() => '')).includes('주휴수당이 정산에 자동으로 들어가요 (11/2 주부터)') && (await news.evaluate((el) => el.getBoundingClientRect().height < 52)))
+    ok("새 소식: '주휴수당이 정산에 자동으로 들어가요 ›' 한 줄 · 잘리지 않음", (await news.innerText().catch(() => '')).includes('주휴수당이 정산에 자동으로 들어가요') && (await news.evaluate((el) => el.getBoundingClientRect().height < 52)) && (await news.locator('a').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)))
     if (SHOTS) await news.screenshot({ path: `${SHOTS}/news.png` }).catch(() => {})
     await news.locator('a').click()
     await a.waitForURL((u) => new URL(u).pathname === '/admin/weekly', { timeout: 10000 }).catch(() => {})

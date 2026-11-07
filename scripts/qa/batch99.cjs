@@ -73,14 +73,14 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     const el = document.createElement('div')
     document.body.appendChild(el)
     const read = (cls, prop) => { el.className = cls; return getComputedStyle(el)[prop] }
-    const out = { ring300: read('ring-2 ring-brand-300', 'boxShadow'), bg400: read('bg-brand-400', 'backgroundColor'), shadow200: read('shadow-lg shadow-brand-200', 'boxShadow') }
+    const out = { ring300: read('ring-2 ring-brand-300', 'boxShadow'), bg400: read('bg-brand-400', 'backgroundColor'), bg200: read('bg-brand-200', 'backgroundColor') }
     el.remove()
     return out
   })
   ok('ring-brand-300 = 연한 파랑 (검정 아님)', colors.ring300.includes('147, 180, 251'), colors.ring300)
   ok('bg-brand-400 = 파랑 (투명 아님)', colors.bg400.includes('102, 144, 248'), colors.bg400)
-  // (그림자 색은 브라우저가 oklab으로 섞어 계산 · 없던 때는 rgb(0 0 0 / 0.1) 회색)
-  ok('shadow-brand-200 = 파랑 빛 (회색 아님)', /oklab\(0\.8\d* -0\.00\d* -0\.06|191, 211, 254/.test(colors.shadow200) && !colors.shadow200.includes('rgba(0, 0, 0, 0.1)'), colors.shadow200)
+  // (색 그림자는 '디자인 더 깔끔하게'로 뺐음 → brand-200은 바탕색으로 확인)
+  ok('bg-brand-200 = 연한 파랑 (투명 아님)', colors.bg200.includes('191, 211, 254'), colors.bg200)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

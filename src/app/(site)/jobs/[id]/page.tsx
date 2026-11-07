@@ -283,7 +283,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </span>
           </p>
         )}
-        <div data-wage-box className="mt-4 animate-pop rounded-[20px] bg-[linear-gradient(135deg,color-mix(in_oklab,var(--color-brand-500)_11%,white),color-mix(in_oklab,#22d3ee_8%,white))] p-4 ring-1 ring-brand-100/60 [animation-delay:120ms]">
+        <div data-wage-box className="mt-4 animate-pop rounded-[20px] bg-brand-50 p-4 [animation-delay:120ms]">
           {shows(job, 'estimate') ? (
             <>
               <p className="text-sm text-sub">
