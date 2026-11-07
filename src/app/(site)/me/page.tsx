@@ -564,9 +564,9 @@ export default async function MePage(props: PageProps<'/me'>) {
                     </p>
                     {/* 제목을 누르면 공고 (인사이트: 오늘 근무 카드 제목을 여러 번 눌러도 아무 일이 없었음) */}
                     <h3 className="text-lg font-bold">
-                      <Link href={`/jobs/${job.id}`} className="inline-flex max-w-full items-baseline gap-1 transition-opacity active:opacity-60" data-today-title>
-                        <span className="min-w-0">{job.title}</span>
-                        <span aria-hidden className="shrink-0 text-base font-semibold text-mute">›</span>
+                      <Link href={`/jobs/${job.id}`} className="transition-opacity active:opacity-60" data-today-title>
+                        {job.title}
+                        <span aria-hidden className="whitespace-nowrap text-base font-semibold text-mute">{'\u00a0'}›</span>
                       </Link>
                     </h3>
                     <p className="text-sm text-sub">
