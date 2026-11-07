@@ -15,7 +15,8 @@
   --color-brand-800: #1a3a9e;
   --color-ink: #191f28;
   --color-sub: #4e5968;
-  --color-mute: #8b95a1;
+  /* 흐린 글씨(안내·보조): 흰 바탕 대비 4.6:1 (예전 #8b95a1은 3:1로 흐려서 읽기 어려웠음 · 사용자 요청 2026-11-07 '가독성') */
+  --color-mute: #6b7684;
   --color-line: #e5e8eb;
   --color-bg: #f2f4f6;
 
@@ -498,7 +499,7 @@
   @apply mb-1.5 block text-sm font-semibold text-sub;
 }
 @utility input {
-  @apply w-full min-w-0 rounded-[14px] border border-line bg-white px-3.5 py-2.5 text-ink outline-none transition placeholder:text-mute focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15;
+  @apply w-full min-w-0 rounded-[14px] border border-line bg-white px-3.5 py-2.5 text-ink outline-none transition placeholder:text-mute/60 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/15;
 }
 @utility hint {
   @apply mt-1 text-xs text-mute;
@@ -658,7 +659,7 @@
   --color-bg: #0e1013;
   --color-ink: #eceef1;
   --color-sub: #b0b7c1;
-  --color-mute: #808893;
+  --color-mute: #949ca7;
   --color-line: #2b2f37;
   --shadow-card: 0 0 0 1px rgb(255 255 255 / 0.05), 0 8px 24px -12px rgb(0 0 0 / 0.7);
   --shadow-lift: 0 0 0 1px rgb(255 255 255 / 0.08), 0 16px 32px -12px rgb(0 0 0 / 0.8);

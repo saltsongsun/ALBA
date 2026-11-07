@@ -42,6 +42,14 @@ export function parseArriveDistance(body: string): number | null {
 export const DISMISS_NOTE = '귀가 조치'
 export const DISMISS_REASONS = ['무단 이탈', '업무 지시 반복 거부', '음주', '폭언·폭행·성희롱', '안전수칙 위반', '근무 태만', '기타'] as const
 
+/**
+ * 일찍 끝났지만 근로조건(예정 종료 시각)대로 시간을 인정해 달라는 요청 (사용자 요청 2026-11-07).
+ * 기록 정정 요청(fix)과 같은 흐름을 그대로 씀 — '실제 종료'를 예정 종료 시각으로 두고 사유 줄에 이 말을 넣음.
+ * 관리자가 승인하면 종료 시각을 예정 종료 시각으로 보정(adj_out) → 정산에 근로조건대로 들어감
+ */
+export const FULL_TIME_MARK = '일찍 끝났지만 근로조건대로 시간 인정 요청'
+export const isFullTimeAsk = (body: string) => body.includes(FULL_TIME_MARK)
+
 /** 기록 정정 요청 본문에서 고칠 항목(출근·종료)과 실제 시각 */
 export function parseFix(body: string): { field: 'in' | 'out'; time: string } | null {
   const m = body.match(/실제 (출근|종료) (\d{2}:\d{2})/)

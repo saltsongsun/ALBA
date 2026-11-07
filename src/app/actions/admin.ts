@@ -20,7 +20,7 @@ import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { DISMISS_NOTE, DISMISS_REASONS, fixTime, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
@@ -736,6 +736,71 @@ export async function saveAttendance(attId: string, form: FormData) {
   back(path, `근무 기록을 저장했습니다.${finished ? FINISHED_NOTE : ''}`)
 }
 
+/**
+ * 근로시간 일괄 조정 (사용자 요청 2026-11-07 "근로시간 선택해서 일괄조정 가능하게"):
+ * 그날 근무 기록이 있는 사람을 골라 출근·종료 시각을 한 번에 (한 사람 '수정'과 같은 규칙 — 원래 기록은 두고 보정값으로 저장,
+ * 종료를 안 누른 기록은 넣은 시각을 퇴근 기록으로). 지급 완료한 기록은 그대로. 종료 시각이 출근보다 이르면 다음 날(밤샘)로 봄
+ */
+export async function bulkAdjustTimes(jobId: string, date: string, _: FormState, form: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const job = isDate(date) ? await companyJob(admin, jobId) : null
+  if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  const uids = [...new Set(form.getAll('uid').map(String).filter(isUuid))]
+  if (!uids.length) return { error: '고칠 사람을 골라 주세요.' }
+  const inT = str(form, 'in_time')
+  const outT = str(form, 'out_time')
+  if (!inT && !outT) return { error: '출근이나 종료 시각을 넣어 주세요.' }
+  if ((inT && !isTime(inT)) || (outT && !isTime(outT))) return { error: '시각을 확인해 주세요.' }
+  const rows = must(
+    await db()
+      .from('attendance')
+      .select('id, user_id, work_date, clock_in, clock_out, adj_in, adj_out, note, paid, company_id, job_id')
+      .eq('company_id', admin.companyId)
+      .eq('job_id', jobId)
+      .eq('work_date', date)
+      .in('user_id', uids),
+  ) as Pick<Attendance, 'id' | 'user_id' | 'work_date' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'note' | 'paid' | 'company_id' | 'job_id'>[]
+  const differs = (a: Date, b: string | null) => !b || Math.abs(a.getTime() - new Date(b).getTime()) >= 60_000
+  let done = 0
+  let paidSkip = 0
+  let badSkip = 0
+  let closed = false
+  for (const a of rows.filter((r) => r.company_id === admin.companyId && r.job_id === jobId && r.work_date === date && uids.includes(r.user_id))) {
+    if (a.paid) {
+      paidSkip++
+      continue
+    }
+    const inAt = inT ? kstAt(date, inT) : new Date(a.adj_in ?? a.clock_in)
+    let outAt: Date | null = outT ? kstAt(date, outT) : a.adj_out ?? a.clock_out ? new Date((a.adj_out ?? a.clock_out)!) : null
+    // 종료 시각이 출근보다 이르면 다음 날 끝난 것으로 (밤샘 근무)
+    if (outT && outAt && outAt <= inAt) outAt = new Date(outAt.getTime() + 86_400_000)
+    if (outAt && outAt <= inAt) {
+      badSkip++
+      continue
+    }
+    const closeNow = !a.clock_out && !!outT && !!outAt
+    const memo = `일괄 시간 조정 ${inT || kstTime(inAt)}~${outT || (outAt ? kstTime(outAt) : '')}`
+    must(
+      await db()
+        .from('attendance')
+        .update({
+          ...(inT ? { adj_in: differs(inAt, a.clock_in) ? inAt.toISOString() : null } : {}),
+          ...(outT && outAt ? (closeNow ? { clock_out: outAt.toISOString(), adj_out: null } : { adj_out: differs(outAt, a.clock_out) ? outAt.toISOString() : null }) : {}),
+          note: (a.note ? `${a.note} · ${memo}` : memo).slice(0, 300),
+        })
+        .eq('id', a.id),
+    )
+    if (closeNow) closed = true
+    done++
+  }
+  if (!done) return { error: paidSkip ? '고른 기록이 모두 지급 완료라 고치지 않았어요.' : '고칠 수 있는 기록이 없어요. 시각을 확인해 주세요.' }
+  await audit(admin.id, 'attendance.bulk_adjust', null, `${date} ${done}명 ${inT || '-'}~${outT || '-'}`, admin.companyId)
+  const finished = closed && (await finishIfAllOut(jobId, date))
+  revalidatePath(`/admin/jobs/${jobId}`)
+  const skip = [paidSkip && `지급 완료 ${paidSkip}명`, badSkip && `시각이 맞지 않는 ${badSkip}명`].filter(Boolean).join(' · ')
+  return { ok: `${done}명 시간을 고쳤어요. 정산 금액에 바로 반영돼요.${skip ? ` (${skip}은 그대로)` : ''}${finished ? FINISHED_NOTE : ''}` }
+}
+
 export async function addAttendance(jobId: string, form: FormData) {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
@@ -841,23 +906,27 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
   if (accept && att.paid) back(path, '이미 지급 완료한 기록은 고칠 수 없어요.')
   const word = fix.field === 'in' ? '출근' : '종료'
   const day = fmtDate(date)
+  // 일찍 끝났지만 근로조건대로 인정해 달라는 요청 (같은 흐름 · 문구만 다르게)
+  const full = isFullTimeAsk(req.body) && fix.field === 'out'
   if (!accept) {
     await tellWorkers([userId], {
       senderId: admin.id,
       companyId: admin.companyId,
       jobId,
       title: SIGNAL.fixNo,
-      text: `${job.title} · ${day} 근무를 요청한 ${word} ${fix.time}(으)로 고치지 않고 그대로 두었어요. 궁금한 점은 문의함으로 물어봐 주세요.`,
+      text: full
+        ? `${job.title} · ${day} 근무는 근로조건대로 인정하지 않고 실제 종료 시각대로 계산해요. 궁금한 점은 문의함으로 물어봐 주세요.`
+        : `${job.title} · ${day} 근무를 요청한 ${word} ${fix.time}(으)로 고치지 않고 그대로 두었어요. 궁금한 점은 문의함으로 물어봐 주세요.`,
       tag: `fix-${jobId}`,
     })
     revalidatePath(`/admin/jobs/${jobId}`)
-    back(path, '정정하지 않고 근무자에게 알렸어요.')
+    back(path, full ? '실제 종료 시각대로 두고 근무자에게 알렸어요.' : '정정하지 않고 근무자에게 알렸어요.')
   }
   const inAt = new Date(att.adj_in ?? att.clock_in)
   const outAt = new Date(att.adj_out ?? att.clock_out)
   const want = fixTime(date, fix, inAt)
   if (fix.field === 'in' ? want >= outAt : want <= inAt) back(path, '요청한 시각이 출근·종료 순서와 맞지 않아요. 아래 ‘수정’에서 직접 고쳐 주세요.')
-  const memo = `근무자 요청으로 ${word} ${fix.time} 정정`
+  const memo = full ? `일찍 종료 · 근로조건대로 ${fix.time}까지 인정` : `근무자 요청으로 ${word} ${fix.time} 정정`
   must(
     await db()
       .from('attendance')
@@ -867,18 +936,20 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
       })
       .eq('id', att.id),
   )
-  await audit(admin.id, 'attendance.fix_ok', userId, `${date} ${word} ${fix.time}`, admin.companyId)
+  await audit(admin.id, full ? 'attendance.full_time_ok' : 'attendance.fix_ok', userId, `${date} ${word} ${fix.time}`, admin.companyId)
   await tellWorkers([userId], {
     senderId: admin.id,
     companyId: admin.companyId,
     jobId,
     title: SIGNAL.fixDone,
-    text: `${job.title} · ${day} 근무의 ${word} 시각을 ${fix.time}(으)로 고쳤어요.`,
+    text: full
+      ? `${job.title} · ${day} 근무를 근로조건대로 ${fix.time}까지 인정했어요. 정산에 그대로 들어가요.`
+      : `${job.title} · ${day} 근무의 ${word} 시각을 ${fix.time}(으)로 고쳤어요.`,
     tag: `fix-${jobId}`,
   })
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/me')
-  back(path, `${word} 시각을 ${fix.time}(으)로 고쳤어요.`)
+  back(path, full ? `근로조건대로 ${fix.time}까지 인정했어요. 근무자에게 알렸어요.` : `${word} 시각을 ${fix.time}(으)로 고쳤어요.`)
 }
 
 /**

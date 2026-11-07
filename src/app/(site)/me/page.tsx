@@ -15,7 +15,7 @@ import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { ClockPanel, FixRequest, ForgotClockOut, LateNotice, StartCountdown } from '@/components/worker'
+import { ClockPanel, FixRequest, ForgotClockOut, FullTimeRequest, LateNotice, StartCountdown } from '@/components/worker'
 import AutoRefresh from '@/components/AutoRefresh'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -27,7 +27,7 @@ import { answerOvertime, answerShift } from '@/app/actions/worker'
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
@@ -155,7 +155,7 @@ export default async function MePage(props: PageProps<'/me'>) {
       today,
     )
     const f = req && parseFix(req.body)
-    return req && f ? { ...f, at: kstTime(req.created_at) } : null
+    return req && f ? { ...f, at: kstTime(req.created_at), full: isFullTimeAsk(req.body) && f.field === 'out' } : null
   }
   const pendingShifts = shifts.filter((c) => c.status === 'pending')
   // 오늘 적용되는 시간 (동의한 변경이 있으면 그것)
@@ -687,12 +687,22 @@ export default async function MePage(props: PageProps<'/me'>) {
                           </p>
                         )}
                       </div>
+                      {/* 예정보다 일찍 끝났으면: 근로조건대로 시간 인정 요청 (담당자 승인 → 정산에 그대로) */}
+                      {!todayAtt.paid &&
+                        (() => {
+                          const end = scheduledEnd(todayShift(job, todayAtt), todayAtt.work_date)
+                          const out = new Date(todayAtt.adj_out ?? todayAtt.clock_out)
+                          const sent = fixSent(job.id)
+                          return out.getTime() < end.getTime() - 60_000 || sent?.full ? (
+                            <FullTimeRequest attendanceId={todayAtt.id} endText={kstTime(end)} outText={kstTime(out)} sent={sent?.full ? sent.at : null} />
+                          ) : null
+                        })()}
                       {!todayAtt.paid && (
                         <FixRequest
                           attendanceId={todayAtt.id}
                           inText={kstTime(todayAtt.adj_in ?? todayAtt.clock_in)}
                           outText={kstTime(todayAtt.adj_out ?? todayAtt.clock_out)}
-                          sent={fixSent(job.id)}
+                          sent={fixSent(job.id)?.full ? null : fixSent(job.id)}
                         />
                       )}
                     </div>

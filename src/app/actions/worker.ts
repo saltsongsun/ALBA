@@ -15,7 +15,7 @@ import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
-import { fixTime, SIGNAL, signalOf } from '@/lib/signals'
+import { FULL_TIME_MARK, fixTime, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
@@ -417,6 +417,71 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
   revalidatePath('/admin/chat')
   revalidatePath(`/admin/jobs/${jobId}`)
   return { ok: `담당자에게 ${word} ${time}(으)로 정정을 요청했어요. 고쳐지면 알려 드려요.` }
+}
+
+/**
+ * 일찍 끝났어도 시간 인정받기 (사용자 요청 2026-11-07 "일찍 퇴근해도 정상 지급할 때가 있어서 · 관리자 승인하면 근로조건대로 인정").
+ * 오늘 근무를 예정 종료 시각보다 일찍 마쳤을 때: '예정 종료 시각까지 인정' 요청을 담당자에게 (기록 정정 요청과 같은 흐름).
+ * 담당자가 승인하면 종료 시각을 예정 종료 시각으로 보정 → 정산에 근로조건대로 들어감
+ */
+export async function requestFullTime(attendanceId: string, _: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser()
+  if (!isUuid(attendanceId)) return { error: '잘못된 요청입니다.' }
+  const reason = optStr(form, 'reason', 100)
+  const { data } = await db()
+    .from('attendance')
+    .select('id, user_id, job_id, company_id, work_date, clock_in, clock_out, adj_in, adj_out, paid, sched_start, sched_end, job:jobs(title, start_time, end_time)')
+    .eq('id', attendanceId)
+    .maybeSingle()
+  const att = data as
+    | (Pick<Attendance, 'id' | 'user_id' | 'job_id' | 'company_id' | 'work_date' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'paid' | 'sched_start' | 'sched_end'> & {
+        job: { title: string; start_time: string; end_time: string } | null
+      })
+    | null
+  if (!att || att.user_id !== user.id || !att.job) return { error: '근무 기록을 찾을 수 없습니다.' }
+  if (att.work_date !== kstDate()) return { error: '오늘 근무만 여기서 요청할 수 있어요. 지난 근무는 문의함으로 알려 주세요.' }
+  if (!att.clock_out) return { error: '근무를 종료한 뒤에 요청할 수 있어요.' }
+  if (att.paid) return { error: '이미 급여가 지급된 기록이에요. 문의함으로 알려 주세요.' }
+  const end = scheduledEnd(shiftOf(att.job, att), att.work_date)
+  const curIn = new Date(att.adj_in ?? att.clock_in)
+  const curOut = new Date(att.adj_out ?? att.clock_out)
+  if (curOut.getTime() >= end.getTime() - 60_000) return { error: '예정 종료 시각까지 일했어요. 따로 요청하지 않아도 돼요.' }
+  // 이미 보내 놓고 답을 못 받은 요청 · 너무 자주 보내지 않게 (이날 정정·인정 요청 3번까지)
+  const { data: msgs } = await db()
+    .from('messages')
+    .select('body, created_at, from_admin')
+    .eq('thread_user_id', user.id)
+    .eq('job_id', att.job_id)
+    .gte('created_at', kstAt(att.work_date, '00:00').toISOString())
+    .limit(100)
+  const rows = (msgs ?? []) as { body: string; created_at: string; from_admin: boolean }[]
+  const waiting = pendingFix(rows, att.work_date)
+  if (waiting && isFullTimeAsk(waiting.body)) return { error: '이미 요청했어요. 담당자 확인을 기다려 주세요.' }
+  if (rows.filter((m) => !m.from_admin && kstDate(m.created_at) === att.work_date && signalOf(m.body) === 'fix').length >= 3)
+    return { error: '오늘은 이미 여러 번 요청했어요. 담당자에게 전화해 주세요.' }
+  const endText = kstTime(end)
+  const body = [
+    SIGNAL.fix,
+    `${att.job.title} · ${fmtDate(att.work_date)} 근무`,
+    `기록 ${kstTime(curIn)}~${kstTime(curOut)} → 실제 종료 ${endText}`,
+    `사유: ${FULL_TIME_MARK}${reason ? ` · ${reason}` : ''}`,
+  ].join('\n')
+  must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: att.company_id, job_id: att.job_id, body }))
+  const { job_id: jobId, work_date: date, company_id: companyId } = att
+  const title = att.job.title
+  const outText = kstTime(curOut)
+  after(async () =>
+    sendPush(await adminIds(companyId), {
+      title: '🙏 시간 인정 요청',
+      body: `${user.name} · ${title} · ${outText}에 끝남 → ${endText}까지 인정 요청${reason ? ` · ${reason}` : ''}`,
+      url: `/admin/jobs/${jobId}?tab=att&date=${date}`,
+      tag: `fix-${jobId}-${user.id}`,
+    }),
+  )
+  revalidatePath('/me')
+  revalidatePath('/admin/chat')
+  revalidatePath(`/admin/jobs/${jobId}`)
+  return { ok: `근로조건대로 ${endText}까지 인정해 달라고 요청했어요. 담당자가 승인하면 알려 드려요.` }
 }
 
 /**

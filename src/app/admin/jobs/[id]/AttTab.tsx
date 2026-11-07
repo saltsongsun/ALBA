@@ -1,8 +1,9 @@
 import Icon from '@/components/Icon'
 import Link from 'next/link'
-import { addAttendance, answerShiftByAdmin, approveArrival, bulkClockIn, bulkClockOut, bulkClockOutPicked, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, answerShiftByAdmin, approveArrival, bulkAdjustTimes, bulkClockIn, bulkClockOut, bulkClockOutPicked, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
+import BulkAdjust from '@/components/BulkAdjust'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
@@ -13,7 +14,7 @@ import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
 import { calcDay, OT_ASK_MIN, shiftOf } from '@/lib/pay'
-import { DISMISS_NOTE, DISMISS_REASONS, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, FULL_TIME_MARK, isFullTimeAsk, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
@@ -103,14 +104,20 @@ export default async function AttTab({
         .limit(500),
     ) as { thread_user_id: string; body: string; created_at: string; from_admin: boolean }[]
   ).filter((m) => ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''))
-  const fixOf = new Map<string, { field: 'in' | 'out'; time: string; at: string; reason: string | null }>()
+  const fixOf = new Map<string, { field: 'in' | 'out'; time: string; at: string; reason: string | null; full: boolean }>()
   for (const uid of new Set(threads.map((m) => m.thread_user_id))) {
     const req = pendingFix(
       threads.filter((m) => m.thread_user_id === uid),
       date,
     )
     const fix = req && parseFix(req.body)
-    if (req && fix) fixOf.set(uid, { ...fix, at: kstTime(req.created_at), reason: req.body.match(/사유: (.+)/)?.[1] ?? null })
+    if (req && fix) {
+      // 일찍 끝났지만 근로조건대로 인정해 달라는 요청이면 사유에서 그 말은 빼고 덧붙인 말만
+      const full = isFullTimeAsk(req.body) && fix.field === 'out'
+      const raw = req.body.match(/사유: (.+)/)?.[1] ?? null
+      const reason = full ? (raw?.replace(FULL_TIME_MARK, '').replace(/^ · /, '').trim() || null) : raw
+      fixOf.set(uid, { ...fix, at: kstTime(req.created_at), reason, full })
+    }
   }
   const dayAtts = atts.filter((a) => a.work_date === date)
   // 이날 지금 적용 중인 시간 (이날 동의받은 변경 → 출근 기록에 적용된 시간 → 공고 시간). 연장을 또 할 때 이 시각부터 더함
@@ -327,6 +334,29 @@ export default async function AttTab({
             </form>
           )}
         </div>
+      )}
+
+      {/* 근로시간 일괄 조정 (사용자 요청 2026-11-07): 이날 기록이 있는 사람을 골라 출근·종료 시각을 한 번에 */}
+      {dayAtts.length > 0 && (
+        <details className="card p-0" data-bulk-adjust>
+          <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-bold">
+            <Icon name="clock" className="text-brand-600" /> 여러 명 시간 한 번에 고치기
+          </summary>
+          <div className="border-t border-line px-4 py-3.5">
+            <BulkAdjust
+              action={bulkAdjustTimes.bind(null, job.id, date)}
+              people={dayAtts.map((a) => ({
+                uid: a.user_id,
+                name: users.get(a.user_id)?.name ?? '알 수 없음',
+                inText: kstTime(a.adj_in ?? a.clock_in),
+                outText: a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : null,
+                paid: a.paid,
+              }))}
+              startText={hhmm(dayShift.start)}
+              endText={hhmm(dayShift.end)}
+            />
+          </div>
+        </details>
       )}
 
       {/* 배치별 보기 (배치를 하나라도 정했을 때만) */}
@@ -577,6 +607,28 @@ export default async function AttTab({
                     (() => {
                       const f = fixOf.get(uid)
                       if (!f) return null
+                      // 일찍 끝났어도 근로조건대로 인정해 달라는 요청 (승인하면 종료 시각을 예정 종료 시각으로)
+                      if (f.full)
+                        return (
+                          <div className="mt-2.5 space-y-2 rounded-xl bg-violet-50 px-3 py-2.5 text-sm text-violet-900 ring-1 ring-violet-200" data-full-time-ask>
+                            <p>
+                              🙏 {f.at} <b>시간 인정 요청</b> · {kstTime((a.adj_out ?? a.clock_out)!)}에 끝났지만 <b>근로조건대로 {f.time}까지</b>
+                              {f.reason && <span className="text-violet-800"> · {f.reason}</span>}
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                              <form action={decideFix.bind(null, job.id, uid, date, true)}>
+                                <SubmitButton className="chip-primary h-8 px-3 text-xs" pendingText="인정하는 중…">
+                                  {f.time}까지 인정
+                                </SubmitButton>
+                              </form>
+                              <form action={decideFix.bind(null, job.id, uid, date, false)}>
+                                <ConfirmSubmit className="chip h-8 px-3 text-xs" confirmText="한 번 더 누르면 실제대로 둬요">
+                                  실제 시각대로
+                                </ConfirmSubmit>
+                              </form>
+                            </div>
+                          </div>
+                        )
                       return (
                         <div className="mt-2.5 space-y-2 rounded-xl bg-violet-50 px-3 py-2.5 text-sm text-violet-900 ring-1 ring-violet-200">
                           <p>

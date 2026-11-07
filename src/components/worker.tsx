@@ -11,6 +11,7 @@ import {
   notifyLate,
   requestClockIn,
   requestFix,
+  requestFullTime,
   signDocument,
   updateProfile,
   withdraw,
@@ -457,6 +458,51 @@ export function ForgotClockOut({
  * 오늘 기록이 잘못 찍혔을 때 (종료를 실수로 일찍 누름 등): 담당자에게 정정 요청.
  * 근무 완료 카드 아래에 작게 두고, 누르면 펼쳐짐
  */
+/**
+ * 일찍 끝났어도 시간 인정받기 (사용자 요청 2026-11-07): 오늘 근무를 예정 종료 시각보다 일찍 마쳤을 때
+ * '근로조건대로 HH:MM까지 인정해 주세요' 요청 → 담당자가 승인하면 종료 시각이 예정 종료 시각으로 (정산에 그대로)
+ */
+export function FullTimeRequest({ attendanceId, endText, outText, sent }: { attendanceId: string; endText: string; outText: string; sent: string | null }) {
+  const [state, action] = useActionState(requestFullTime.bind(null, attendanceId), null)
+  const [open, setOpen] = useState(false)
+  const done = state?.ok
+  if (done || sent)
+    return (
+      <p className="animate-pop rounded-xl bg-violet-50 px-3.5 py-2.5 text-sm text-violet-900" role="status" data-full-time-sent>
+        🙏 {done ?? <>{sent}에 <b>근로조건대로 {endText}까지</b> 인정을 요청했어요 · 담당자 확인 중</>}
+      </p>
+    )
+  return (
+    <div className="space-y-2 rounded-xl bg-bg px-3.5 py-3" data-full-time>
+      <p className="text-sm">
+        <b>예정({endText})보다 일찍 끝났어요</b>
+        <span className="block text-xs text-sub">담당자가 일찍 보내 줬다면 근로조건대로 {endText}까지 인정을 요청할 수 있어요</span>
+      </p>
+      {!open ? (
+        <button type="button" onClick={() => setOpen(true)} className="btn-soft w-full" data-full-time-open>
+          {endText}까지 시간 인정받기
+        </button>
+      ) : (
+        <form action={action} className="animate-pop space-y-2">
+          <input name="reason" maxLength={100} className="input bg-white text-sm" placeholder="사유 (선택) 예: 비 때문에 일찍 마침" />
+          <FormMessage state={state} />
+          <div className="grid grid-cols-[auto_1fr] gap-2">
+            <button type="button" onClick={() => setOpen(false)} className="btn-gray">
+              취소
+            </button>
+            <SubmitButton className="btn-primary" pendingText="보내는 중…" track="시간 인정 요청">
+              담당자에게 요청하기
+            </SubmitButton>
+          </div>
+          <p className="hint">
+            승인되면 종료 {outText} → {endText}로 바뀌어요
+          </p>
+        </form>
+      )}
+    </div>
+  )
+}
+
 export function FixRequest({
   attendanceId,
   inText,

@@ -19,7 +19,7 @@ import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnr
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
-import { pendingFix, signalOf } from '@/lib/signals'
+import { isFullTimeAsk, pendingFix, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
@@ -308,7 +308,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...group(fixWait, (m) => m.job_id).map((g) => ({
       key: `fix-${g[0].job_id}`,
       icon: 'pen' as const,
-      text: `기록 정정 요청 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      // 일찍 끝났지만 근로조건대로 인정해 달라는 요청은 '시간 인정 요청'으로
+      text: `${g.every((m) => isFullTimeAsk(m.body)) ? '시간 인정 요청' : g.some((m) => isFullTimeAsk(m.body)) ? '정정·시간 인정 요청' : '기록 정정 요청'} · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
       tone: 'text-violet-700',

@@ -54,6 +54,7 @@ export function ConfirmSubmit({
   name,
   value,
   track: label = '',
+  disabled = false,
 }: {
   children: React.ReactNode
   confirmText?: string
@@ -62,6 +63,8 @@ export function ConfirmSubmit({
   value?: string
   /** 행동 기록에 남길 버튼 이름 (비우면 버튼 글자) */
   track?: string
+  /** 아직 누를 수 없을 때 (예: 고른 사람이 없음) */
+  disabled?: boolean
 }) {
   const [armed, setArmed] = useState(false)
   const { pending } = useFormStatus()
@@ -71,7 +74,7 @@ export function ConfirmSubmit({
       // (type을 button→submit으로 바꾸는 방식은 같은 누름 안에서 바뀐 type으로 바로 제출돼 버림)
       type="submit"
       className={className}
-      disabled={pending}
+      disabled={pending || disabled}
       name={name}
       value={value}
       data-track={label}
