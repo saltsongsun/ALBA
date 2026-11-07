@@ -365,6 +365,8 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
     return { error: error.code === '23505' ? '오늘은 이미 출근 기록이 있습니다.' : '출근 기록 중 문제가 생겼어요. 다시 시도해 주세요.' }
   }
   revalidatePath('/me')
+  // 문의 채팅 안의 근무 버튼으로 눌렀어도 바로 '근무 중'으로 보이게
+  revalidatePath('/me/chat')
   return { ok: '근무를 시작했어요. 일이 끝나면 꼭 ‘근무 종료’를 눌러 주세요!' }
 }
 
@@ -395,6 +397,7 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
     after(() => remindOthersToClockOut(att.job_id, att.work_date, user.id).then(() => null, () => null))
   }
   revalidatePath('/me')
+  revalidatePath('/me/chat')
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
 }
 

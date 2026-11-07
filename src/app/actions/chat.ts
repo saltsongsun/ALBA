@@ -25,7 +25,8 @@ const BURST_LIMIT = 20 // 10분에 이만큼까지 (도배 방지)
  */
 export async function sendInquiry(companyId: string, jobId: string | null, _: FormState, form: FormData): Promise<FormState> {
   const user = await requireUser('/me/chat')
-  const body = str(form, 'body', MAX_BODY)
+  // 줄바꿈은 \n 하나로 (보내는 방식에 따라 \r\n으로 오는 것)
+  const body = str(form, 'body', MAX_BODY).replace(/\r\n?/g, '\n')
   if (!body) return { error: '내용을 입력해 주세요.' }
   // 앱이 보내는 알림 문구(출근 확인 요청·기록 정정 요청 등)인 척하는 메시지는 막음 (담당자 화면이 진짜 요청으로 처리하지 않게)
   if (signalOf(body)) return { error: '이 문구로 시작하는 메시지는 보낼 수 없어요. 앱의 버튼(늦어요·출근 확인 요청·기록 정정)을 써 주세요.' }
@@ -57,7 +58,7 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
 export async function replyInquiry(userId: string, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
   if (!isUuid(userId)) return { error: '잘못된 요청입니다.' }
-  const body = str(form, 'body', MAX_BODY)
+  const body = str(form, 'body', MAX_BODY).replace(/\r\n?/g, '\n')
   if (!body) return { error: '내용을 입력해 주세요.' }
   const { count: asked } = await db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('thread_user_id', userId)
   if (!asked && !(await workerInCompany(admin.companyId, userId))) return { error: '이 회사에 문의하거나 지원한 근무자가 아닙니다.' }

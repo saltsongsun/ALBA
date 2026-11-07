@@ -15,6 +15,7 @@ import { roomEnded, workerRooms, type RoomJob, type RoomLast } from '@/lib/room'
 import { isUuid } from '@/lib/validate'
 import { plainBody } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
+import ChatClock from '@/components/ChatClock'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -127,7 +128,13 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           아래 칸에 궁금한 점을 적어 보내 주세요.
         </Empty>
       ) : (
-        <ChatMessages messages={messages} viewer="worker" viewerId={user.id} />
+        // 담당자가 '근무 시작·종료' 버튼을 보냈으면 그 자리에 진짜 근무 버튼 (채팅에서 바로 누름)
+        <ChatMessages
+          messages={messages}
+          viewer="worker"
+          viewerId={user.id}
+          clock={companyId && messages.some((m) => m.from_admin && /::b:clock-(in|out)::/.test(m.body)) ? <ChatClock userId={user.id} companyId={companyId} /> : undefined}
+        />
       )}
 
       {/* 휴대폰은 아래 탭 위에, 넓은 화면은 화면 아래에 붙어 있음 */}

@@ -29,8 +29,9 @@ export const CHAT_BUTTONS: ChatButton[] = [
 
 const BY_KEY = new Map(CHAT_BUTTONS.map((b) => [b.key, b]))
 const KEY = '[a-z][a-z-]{0,19}'
-const ONE = new RegExp(`^[ \\t]*::b:(${KEY})::[ \\t]*$`)
-const LINES = new RegExp(`^[ \\t]*::b:${KEY}::[ \\t]*$`, 'gm')
+// (보낸 글의 줄바꿈이 \r\n이어도 같게)
+const ONE = new RegExp(`^[ \\t]*::b:(${KEY})::[ \\t\\r]*$`)
+const LINES = new RegExp(`^[ \\t]*::b:${KEY}::[ \\t\\r]*$`, 'gm')
 /** 메시지 하나에 버튼은 3개까지 */
 export const MAX_BUTTONS = 3
 
@@ -43,11 +44,11 @@ export function chatButtonOf(line: string): ChatButton | null {
 }
 
 /** 글 안에 버튼 모양 줄이 있는지 (근무자는 버튼을 보낼 수 없음) */
-export const hasButtonLine = (body: string) => body.split('\n').some((l) => /^[ \t]*::b:/.test(l))
+export const hasButtonLine = (body: string) => body.split(/\r?\n/).some((l) => /^[ \t]*::b:/.test(l))
 
 /** 서버에서 거절: 목록에 없는 버튼 · 버튼이 너무 많음 · 버튼만 있고 글이 없음 */
 export function badButtons(body: string): boolean {
-  const lines = body.split('\n').filter((l) => /^[ \t]*::b:/.test(l))
+  const lines = body.split(/\r?\n/).filter((l) => /^[ \t]*::b:/.test(l))
   if (!lines.length) return false
   if (lines.length > MAX_BUTTONS || lines.some((l) => !chatButtonOf(l))) return true
   return !body.replace(LINES, '').trim()
@@ -58,7 +59,7 @@ export function splitButtons(body: string): { text: string; buttons: ChatButton[
   if (!body.includes('::b:')) return { text: body, buttons: [] }
   const buttons: ChatButton[] = []
   const text = body
-    .split('\n')
+    .split(/\r?\n/)
     .filter((l) => {
       const b = chatButtonOf(l)
       if (b) buttons.push(b)

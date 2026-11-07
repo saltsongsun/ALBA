@@ -57,8 +57,23 @@ export function adminActionFor(m: Pick<ChatMessage, 'from_admin' | 'body' | 'cre
  * 날짜가 바뀌면 구분선, 상대가 아직 안 읽은 내 메시지에는 '1'.
  * 말풍선을 꾹 누르면(PC는 오른쪽 클릭) 복사 · 내가 쓴 건 삭제 (앱이 보낸 현장 알림·요청은 기록이라 삭제 없음)
  */
-export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMessage[]; viewer: 'worker' | 'admin'; viewerId: string }) {
+export function ChatMessages({
+  messages,
+  viewer,
+  viewerId,
+  clock,
+}: {
+  messages: ChatMessage[]
+  viewer: 'worker' | 'admin'
+  viewerId: string
+  /** 근무자 화면: 담당자가 보낸 마지막 '근무 시작·종료' 버튼 자리에 넣을 진짜 근무 버튼 (채팅에서 바로 누름) */
+  clock?: React.ReactNode
+}) {
   let lastDay = ''
+  // 진짜 근무 버튼은 맨 마지막 '근무 시작·종료' 버튼 메시지 아래 한 곳에만 (예전 것은 바로 가기 링크로)
+  const clockAt = clock
+    ? messages.findLastIndex((m) => m.from_admin && !isDeleted(m.body) && splitButtons(m.body).buttons.some((b) => CLOCK_KEYS.includes(b.key)))
+    : -1
   return (
     <ol className="space-y-2">
       {messages.map((m, i) => {
@@ -113,7 +128,7 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
                   {kstTime(m.created_at)}
                 </span>
               </div>
-              {buttons.length > 0 && <ChatButtons buttons={buttons} live={viewer === 'worker'} />}
+              {buttons.length > 0 && <ChatButtons buttons={buttons} live={viewer === 'worker'} clock={i === clockAt ? clock : undefined} />}
               {/* 근무자의 현장 알림·요청: 처리할 화면으로 바로 */}
               {viewer === 'admin' &&
                 (() => {
@@ -135,11 +150,17 @@ export function ChatMessages({ messages, viewer, viewerId }: { messages: ChatMes
 /**
  * 담당자가 보낸 바로 가기 버튼 (말풍선 아래). 근무자: 누르면 그 화면으로 · 담당자: 어떻게 보이는지만 (누를 수 없음)
  */
-function ChatButtons({ buttons, live }: { buttons: ChatButton[]; live: boolean }) {
+const CLOCK_KEYS = ['clock-in', 'clock-out']
+
+function ChatButtons({ buttons, live, clock }: { buttons: ChatButton[]; live: boolean; clock?: React.ReactNode }) {
+  // 근무 시작·종료 버튼이 둘 다 있어도 진짜 근무 버튼은 한 번만
+  const shown = clock ? buttons.filter((b, i) => !CLOCK_KEYS.includes(b.key) || buttons.findIndex((x) => CLOCK_KEYS.includes(x.key)) === i) : buttons
   return (
     <div className={`mt-1.5 flex max-w-[78vw] flex-col gap-1.5 sm:max-w-md ${live ? 'items-start' : 'items-end'}`}>
-      {buttons.map((b) =>
-        live ? (
+      {shown.map((b) =>
+        clock && CLOCK_KEYS.includes(b.key) ? (
+          <div key={b.key}>{clock}</div>
+        ) : live ? (
           <Link
             key={b.key}
             href={b.href}
