@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Icon from '@/components/Icon'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import JobCard from '@/components/JobCard'
@@ -127,19 +128,42 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
   const todayJob = jobs.find((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
   // 오늘 근무에 아직 서명 안 한 서류가 있으면 카드가 '서명'으로 바로 (현장에 가서야 근무 시작이 잠긴 걸 알지 않게)
-  const todaySignId =
+  // 오늘 출퇴근 상태도 함께 (근무 중·마침이면 카드 문구를 지금 상태에 맞게 — '출퇴근 전'이라고 잘못 말하지 않게)
+  const [todaySignId, todayAtt] =
     todayJob && user
-      ? await db()
-          .from('signed_docs')
-          .select('id, job_id, status')
-          .eq('user_id', user.id)
-          .eq('job_id', todayJob.id)
-          .eq('status', 'pending')
-          .then(
-            (r) => ((r.data ?? []) as { id: string; job_id: string; status: string }[]).find((d) => d.job_id === todayJob.id && d.status === 'pending')?.id ?? null,
-            () => null,
-          )
-      : null
+      ? await Promise.all([
+          db()
+            .from('signed_docs')
+            .select('id, job_id, status')
+            .eq('user_id', user.id)
+            .eq('job_id', todayJob.id)
+            .eq('status', 'pending')
+            .then(
+              (r) => ((r.data ?? []) as { id: string; job_id: string; status: string }[]).find((d) => d.job_id === todayJob.id && d.status === 'pending')?.id ?? null,
+              () => null,
+            ),
+          db()
+            .from('attendance')
+            .select('job_id, work_date, clock_in, clock_out')
+            .eq('user_id', user.id)
+            .eq('job_id', todayJob.id)
+            .eq('work_date', today)
+            .then(
+              (r) => ((r.data ?? []) as { job_id: string; work_date: string; clock_in: string | null; clock_out: string | null }[]).find((a) => a.job_id === todayJob.id && a.work_date === today) ?? null,
+              () => null,
+            ),
+        ])
+      : [null, null]
+  const todayState: 'before' | 'working' | 'done' = todayAtt?.clock_out ? 'done' : todayAtt?.clock_in ? 'working' : 'before'
+  const todayLabel = todaySignId
+    ? todayState === 'before'
+      ? '출퇴근 전 서명이 남았어요'
+      : todayState === 'working'
+        ? '근무 중 · 서명이 남았어요'
+        : '근무 끝 · 서명이 남았어요'
+    : todayState === 'working'
+      ? '지금 근무 중이에요'
+      : '오늘 근무가 있어요'
   // 로그인한 근무자: 소개 배너 대신 한 줄 인사 + 내 근무 현황 (공고 목록이 첫 화면에 보이게)
   const upcomingCount = jobs.filter((j) => mine[j.id] === 'approved' && j.id !== todayJob?.id).length
   const waitingCount = jobs.filter((j) => mine[j.id] === 'applied').length
@@ -147,35 +171,48 @@ export default async function HomePage(props: PageProps<'/'>) {
   return (
     <>
       <Flash m={sp.m} />
-      {todayJob && (
-        // 오늘 근무: 초록→청록 그라데이션 카드 (빛 번짐 + 유리 아이콘)
-        <Link
-          href={todaySignId ? `/docs/${todaySignId}` : '/me'}
-          data-today-hero
-          data-today-sign={todaySignId ? '' : undefined}
-          className="relative mb-4 flex animate-pop items-center gap-3 overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#10b981_0%,#0d9488_100%)] p-4 text-white transition active:scale-[0.985]"
-        >
-          <span aria-hidden className="pointer-events-none absolute -top-12 -right-10 size-36 rounded-full bg-white/20 blur-2xl" />
-          <span aria-hidden className="pointer-events-none absolute -bottom-16 left-10 size-32 rounded-full bg-cyan-300/30 blur-2xl" />
-          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20 ring-1 ring-white/35 backdrop-blur">
-            <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="13" r="8" />
-              <path d="M12 9v4l2.5 2.5M9.5 2.5h5" />
-            </svg>
+      {todayJob && todayState === 'done' && !todaySignId ? (
+        // 오늘 근무를 마침: 할 일이 없으니 조용한 흰 카드 (지난 근무로)
+        <Link href="/me/history" data-today-hero data-today-state="done" className="card-link mb-4 flex animate-pop items-center gap-3 p-4">
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <Icon name="check" className="text-xl" />
           </span>
-          <span className="relative min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-white/85">{todaySignId ? '출퇴근 전 서명이 남았어요' : '오늘 근무가 있어요'}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-emerald-700">오늘 근무를 마쳤어요 · 수고했어요</span>
             <span className="block truncate font-bold">{todayJob.title}</span>
-            <span className="block truncate text-sm text-white/80">
-              {scheduleText(todayJob)}
-              {todayJob.location_name && ` · ${todayJob.location_name}`}
-            </span>
           </span>
-          {/* 서명이 먼저면 버튼이 한 번 톡 튀어 눈에 띄게 (움직임 줄이기면 그대로) */}
-          <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 ${todaySignId ? 'animate-bump [animation-delay:450ms]' : ''}`}>
-            {todaySignId ? '서명 →' : '출퇴근 →'}
-          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-600">내역 →</span>
         </Link>
+      ) : (
+        todayJob && (
+          // 오늘 근무: 초록→청록 그라데이션 카드 (할 일이 있을 때만 · 빛 번짐 없이)
+          <Link
+            href={todaySignId ? `/docs/${todaySignId}` : '/me'}
+            data-today-hero
+            data-today-state={todayState}
+            data-today-sign={todaySignId ? '' : undefined}
+            className="relative mb-4 flex animate-pop items-center gap-3 overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#10b981_0%,#0d9488_100%)] p-4 text-white transition active:scale-[0.985]"
+          >
+            <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20 ring-1 ring-white/35">
+              <svg viewBox="0 0 24 24" className="size-6" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="13" r="8" />
+                <path d="M12 9v4l2.5 2.5M9.5 2.5h5" />
+              </svg>
+            </span>
+            <span className="relative min-w-0 flex-1">
+              <span className="block truncate text-sm font-semibold text-white/85">{todayLabel}</span>
+              <span className="block truncate font-bold">{todayJob.title}</span>
+              <span className="block truncate text-sm text-white/80">
+                {scheduleText(todayJob)}
+                {todayJob.location_name && ` · ${todayJob.location_name}`}
+              </span>
+            </span>
+            {/* 서명이 먼저면 버튼이 한 번 톡 튀어 눈에 띄게 (움직임 줄이기면 그대로) */}
+            <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 ${todaySignId ? 'animate-bump [animation-delay:450ms]' : ''}`}>
+              {todaySignId ? '서명 →' : '출퇴근 →'}
+            </span>
+          </Link>
+        )
       )}
       {company ? (
         // 회사 공고 모음: 어느 회사 공고인지 + 가입·로그인 뒤 이 화면으로 돌아오게

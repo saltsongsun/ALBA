@@ -29,7 +29,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   // ── 1. 홈 카드: 서명이 먼저 ──
   await w.goto(`${D}/`)
   await hero.waitFor({ timeout: 10000 }).catch(() => {})
-  ok("홈 카드: '출퇴근 전 서명이 남았어요' + '서명 →'", (await hero.getAttribute('data-today-sign')) === '' && (await hero.innerText()).includes('출퇴근 전 서명이 남았어요') && (await hero.innerText()).includes('서명 →'))
+  // (가짜 데이터의 근무자는 이미 출근해 있어서 '근무 중 · 서명이 남았어요' — 출근 전이면 '출퇴근 전 서명이 남았어요' · 묶음 118)
+  ok("홈 카드: '… 서명이 남았어요' + '서명 →'", (await hero.getAttribute('data-today-sign')) === '' && (await hero.innerText()).includes('서명이 남았어요') && (await hero.innerText()).includes('서명 →'))
   ok('카드 제목 한 줄 (360px)', await hero.locator('span.block').first().evaluate((el) => el.getBoundingClientRect().height < 26))
   ok('누르면 그 서류로', (await hero.getAttribute('href')) === `/docs/${docId}`)
   ok('360px: 옆으로 안 밀림 (홈)', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))

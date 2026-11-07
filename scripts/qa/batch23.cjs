@@ -33,7 +33,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   // ── 2. 오늘 근무 그라데이션 카드 ──
   const hero = p.locator('[data-today-hero]')
-  ok('오늘 근무 카드: 그라데이션 + 출퇴근 버튼', (await hero.count()) === 1 && /gradient/.test(await hero.evaluate((el) => getComputedStyle(el).backgroundImage)) && (await hero.innerText()).includes('출퇴근'))
+  ok('오늘 근무 카드: 그라데이션 + 출퇴근·서명 버튼', (await hero.count()) === 1 && /gradient/.test(await hero.evaluate((el) => getComputedStyle(el).backgroundImage)) && /출퇴근 →|서명 →/.test(await hero.innerText()))
   ok('글자가 하얀색 (그라데이션 위에서 잘 보임)', (await hero.evaluate((el) => getComputedStyle(el).color)) === 'rgb(255, 255, 255)')
 
   // ── 3. 다른 탭을 누르면 표시가 옮겨 감 ──
