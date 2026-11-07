@@ -72,7 +72,7 @@ const patchJob = (b) => rest(`jobs?id=eq.${J}`, 'PATCH', b)
   // ── 7. 정산 문의 → 답장 제안 ──
   await rest('messages', 'POST', { thread_user_id: W, sender_id: W, from_admin: false, company_id: C, job_id: null, body: '돈 언제 들어와요?', created_at: new Date().toISOString() })
   await a.goto(`${D}/admin/chat/${W}`)
-  const qr = a.locator('[data-quick-replies] button').first()
+  const qr = a.locator('[data-quick-replies] button:not([data-button-toggle])').first()
   await qr.waitFor({ timeout: 10000 }).catch(() => {})
   ok("7 '돈 언제 들어와요?' → 첫 답장 제안 '정산 예정일은 …이에요.'", /^정산 예정일은 .+이에요\.$/.test(await qr.innerText().catch(() => '')), await qr.innerText().catch(() => ''))
 
