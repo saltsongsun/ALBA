@@ -314,3 +314,31 @@ export function AdminJobSkeleton() {
     </div>
   )
 }
+
+/** 서류 화면 (서명): '← 돌아가기' · 서류 종이(제목 · 조항 줄들) · 서명란 */
+export function DocSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="서류 불러오는 중" className="skeleton space-y-4" data-skeleton="doc">
+      <div className="flex items-center justify-between">
+        <div className={`h-4 w-20 ${bar}`} />
+        <div className="h-6 w-16 rounded-full bg-line/60" />
+      </div>
+      <div className="card space-y-3 px-5 py-6">
+        <div className={`mx-auto h-6 w-40 ${bar}`} />
+        <div className="h-3" />
+        {[0, 1, 2].map((s) => (
+          <div key={s} className="space-y-2 pt-2">
+            <div className={`h-4 w-28 ${bar}`} />
+            <div className="h-3.5 w-full rounded bg-line/60" />
+            <div className="h-3.5 w-full rounded bg-line/60" />
+            <div className="h-3.5 w-4/5 rounded bg-line/60" />
+          </div>
+        ))}
+      </div>
+      <div className="card space-y-3">
+        <div className={`h-5 w-24 ${bar}`} />
+        <div className="h-44 rounded-xl border-2 border-dashed border-line" />
+      </div>
+    </div>
+  )
+}

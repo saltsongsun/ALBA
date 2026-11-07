@@ -5,6 +5,7 @@ import { createQuoteRequest, recordQuote, savePayment, saveVendor, submitQuote }
 import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
 import { VENDOR_CATEGORIES } from '@/lib/vendors'
+import { onAccountPaste } from './accountPaste'
 import BizNoField from './BizNoField'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
@@ -128,7 +129,7 @@ export function VendorForm({
               <option key={b}>{b}</option>
             ))}
           </select>
-          <input name="bank_account" className="input" inputMode="numeric" placeholder="계좌번호" autoComplete="off" />
+          <input name="bank_account" className="input" inputMode="numeric" placeholder="계좌번호" autoComplete="off" onPaste={onAccountPaste} />
         </div>
         <input name="account_holder" className="input" maxLength={40} defaultValue={initial?.account_holder ?? ''} placeholder="예금주" />
         {initial?.account_masked && (
