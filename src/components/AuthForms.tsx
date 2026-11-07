@@ -16,6 +16,7 @@ import CareerEditor from './CareerEditor'
 import SignupProgress from './SignupProgress'
 import { MEMBER_TYPES, SPECIALTIES } from '@/lib/members'
 import { parseRrn, weakPin } from '@/lib/validate'
+import { phoneFmt } from '@/lib/format'
 import type { MemberType } from '@/lib/types'
 
 const digitsOnly = (e: React.FormEvent<HTMLInputElement>) => {
@@ -92,8 +93,10 @@ function LoginWithPhone({ next }: { next: string }) {
   )
 }
 
-export function LoginForm({ next }: { next: string }) {
+export function LoginForm({ next, help }: { next: string; help?: { name: string; phone: string | null } }) {
   const [state, action] = useActionState(login, null)
+  // 비밀번호가 틀렸거나 잠겼을 때: 바로 아래에 '잊었다면 이렇게' (이용 기록: 틀린 뒤 같은 번호로 여러 번 다시 시도)
+  const forgot = !!state?.error && /비밀번호가 맞지 않|잠/.test(state.error)
   const phoneRef = useRef<HTMLInputElement>(null)
   const pinRef = useRef<HTMLInputElement>(null)
   const [filled, setFilled] = useState(false)
@@ -139,6 +142,17 @@ export function LoginForm({ next }: { next: string }) {
         <PinReveal names={['pin']} />
       </div>
       <FormMessage state={state} />
+      {forgot && (
+        <div className="animate-pop space-y-1.5 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900" data-login-forgot>
+          <p className="font-bold">비밀번호가 기억나지 않나요?</p>
+          <p>일한 회사 담당자에게 ‘비밀번호 초기화’를 요청하면 임시 비밀번호(숫자 6자리)를 알려 줘요.</p>
+          {help?.phone && (
+            <a href={`tel:${help.phone}`} className="inline-flex items-center gap-1 font-bold text-amber-900 underline-offset-2 hover:underline">
+              {help.name} {phoneFmt(help.phone)} 전화하기
+            </a>
+          )}
+        </div>
+      )}
       <SubmitButton className="btn-primary w-full py-3.5 text-base">로그인</SubmitButton>
       <p className="text-center text-sm text-mute">
         처음이신가요?{' '}

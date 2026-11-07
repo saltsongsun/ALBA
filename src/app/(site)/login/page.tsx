@@ -18,7 +18,7 @@ export default async function LoginPage(props: PageProps<'/login'>) {
       <h1 className="mb-1 text-2xl font-extrabold">로그인</h1>
       <p className="mb-6 text-sub">가입할 때 쓴 휴대폰 번호로 로그인하세요.</p>
       <div className="card">
-        <LoginForm next={next} />
+        <LoginForm next={next} help={{ name: SUPPORT_NAME, phone: settings.contact_phone ?? null }} />
       </div>
       <p className="mt-5 text-center text-[13px] text-mute">
         비밀번호를 잊었다면 담당자에게 초기화를 요청하세요.

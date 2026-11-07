@@ -38,6 +38,8 @@ export default function MessageMenu({
   const menu = useRef<HTMLDivElement>(null)
   const timer = useRef<number | null>(null)
   const start = useRef<{ x: number; y: number } | null>(null)
+  // 휴대폰에서 말풍선을 짧게 여러 번 톡톡 누르면 (이용 기록: 메뉴가 안 열려 계속 누름) '꾹 누르면…'을 한 번 알려 줌
+  const taps = useRef<number[]>([])
   const [pos, setPos] = useState<{ top: number; left: number; keyboard: boolean } | null>(null)
   const [armed, setArmed] = useState(false)
   const [toast, setToast] = useState('')
@@ -186,7 +188,18 @@ export default function MessageMenu({
           const s = start.current
           if (s && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) cancelHold()
         }}
-        onPointerUp={cancelHold}
+        onPointerUp={(e) => {
+          // 꾹 누르기 전에 뗌 = 짧게 누름 → 1.5초 안에 두 번이면 알려 줌
+          if (timer.current && e.pointerType !== 'mouse') {
+            const now = Date.now()
+            taps.current = [...taps.current.filter((t) => now - t < 1500), now]
+            if (taps.current.length >= 2) {
+              taps.current = []
+              setToast('꾹 누르면 복사·삭제 메뉴가 열려요')
+            }
+          }
+          cancelHold()
+        }}
         onPointerCancel={cancelHold}
         onPointerLeave={cancelHold}
         onKeyDown={(e) => {

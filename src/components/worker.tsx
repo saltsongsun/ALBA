@@ -288,10 +288,14 @@ export function ClockPanel({
   const waiting = !open && (!!askedAt || !!asked?.ok)
   // 출근 확인 요청 칸: 위치에 막혔을 때, 또는 현장 확인이 필요한 공고인데 위치 권한이 꺼진 걸 미리 알 때 (누르기 전부터)
   const showAsk = !open && !pending && !waiting && (!!result?.gps || (gpsRequired && geo === 'denied'))
+  // 위치 확인에 두 번 연달아 막히면: 큰 버튼을 '담당자에게 출근 확인 요청'으로 바꿈
+  // (이용 기록: 위치에 막힌 근무자가 근무 시작만 예닐곱 번씩 다시 누르고, 아래의 출근 확인 요청은 거의 누르지 않았음)
+  // '위치 다시 확인'은 큰 버튼 아래 작은 버튼으로 남김
+  const stuck = showAsk && gpsFails >= 2
   // (요청 칸은 처리 중엔 숨었다가 끝나면 다시 그려지므로, 다시 보일 때 옮김)
   useEffect(() => {
-    if (gpsFails >= 2 && showAsk) askBox.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-  }, [gpsFails, showAsk])
+    if (stuck) mainBtn.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [stuck])
 
   return (
     // 근무 중이면 '근무 종료하러 가기'(/me#clock)가 여기로 데려옴
@@ -354,6 +358,25 @@ export function ClockPanel({
           <p className="mt-0.5">담당자가 확인하면 요청한 시각으로 출근 처리되고, 이 화면도 저절로 바뀌어요.</p>
         </div>
       )}
+      {stuck ? (
+        <div className="space-y-2" data-clock-stuck>
+          <button
+            ref={mainBtn}
+            type="button"
+            onClick={ask}
+            disabled={asking}
+            data-track="출근 확인 요청"
+            className="w-full rounded-2xl bg-brand-600 py-5 text-xl font-extrabold text-white transition active:scale-[0.98] disabled:opacity-60"
+          >
+            {asking ? '요청 중…' : '담당자에게 출근 확인 요청'}
+          </button>
+          <p className="text-center text-sm text-sub">현장에 도착했다면 눌러 주세요. 확인되면 지금 시각으로 출근 처리돼요.</p>
+          <button type="button" onClick={press} disabled={pending} className="mx-auto block py-1 text-sm font-semibold text-sub underline-offset-2 hover:underline" data-retry-gps>
+            {pending ? step || '확인 중…' : '위치 다시 확인하고 근무 시작'}
+          </button>
+          {asked?.error && <p className="text-center text-sm font-semibold text-rose-600">{asked.error}</p>}
+        </div>
+      ) : (
       <button
         ref={mainBtn}
         type="button"
@@ -371,6 +394,7 @@ export function ClockPanel({
       >
         {pending ? step || '처리 중…' : !open ? '근무 시작' : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}
       </button>
+      )}
       {confirmOut && !pending && <p className="text-center text-sm font-semibold text-rose-600">실수로 끝나지 않도록 한 번 더 눌러야 종료돼요.</p>}
       {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치도 함께 기록돼요.</p>}
       <FormMessage state={result} />
@@ -379,7 +403,7 @@ export function ClockPanel({
           지금 다시 시도
         </button>
       )}
-      {showAsk && (
+      {showAsk && !stuck && (
         <div
           ref={askBox}
           data-arrive-ask
