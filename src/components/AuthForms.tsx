@@ -632,9 +632,13 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
 
       {!vendor && (
         <section className="card space-y-3">
-          <h2 className="font-bold">
-            {pro ? '참여한 행사·공연' : '행사 경력'} <span className="text-sm font-medium text-mute">선택 · 가입한 뒤에도 내 정보에서 고칠 수 있어요</span>
-          </h2>
+          {/* 제목 한 줄 + 짧은 안내 한 줄 (360px에서 제목 옆 안내가 두 줄로 꺾이지 않게) */}
+          <div data-signup-careers>
+            <h2 className="font-bold">
+              {pro ? '참여한 행사·공연' : '행사 경력'} <span className="text-sm font-medium text-mute">선택</span>
+            </h2>
+            <p className="text-xs text-mute">가입한 뒤 내 정보에서도 적을 수 있어요</p>
+          </div>
           <CareerEditor />
         </section>
       )}

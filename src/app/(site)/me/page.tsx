@@ -804,28 +804,36 @@ export default async function MePage(props: PageProps<'/me'>) {
             </Link>
           </div>
           <div className="stagger space-y-2">
-            {history.slice(0, 3).map(({ job, s, live, paid }) => (
+            {history.slice(0, 3).map(({ job, s, live, paid }) => {
+              // 첫날 근무 중: 오른쪽에 '오늘 근무 중 / 끝나면 계산돼요' 한 번만 (왼쪽에 같은 말 반복 안 함)
+              const firstLive = live > 0 && s.days === 0
+              const miss = s.incomplete - live
+              return (
               <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="font-bold">{job.title}</p>
                     <CompanyName job={job} />
-                    <p className="text-sm text-sub">
-                      {/* 첫날 근무 중이면 '0일 · 0분' 없이 '오늘 근무 중'만 */}
-                      {!(live > 0 && s.days === 0) && `${s.days}일 · ${minutesText(s.paidMin)}`}
-                      {live > 0 && (
-                        <span className="font-semibold text-emerald-600" data-live-shift>
-                          {s.days > 0 ? ' · ' : ''}오늘 근무 중
-                        </span>
-                      )}
-                      {s.incomplete - live > 0 && <span className="text-amber-600"> · 종료 기록 없음 {s.incomplete - live}일</span>}
-                    </p>
+                    {(!firstLive || miss > 0) && (
+                      <p className="text-sm text-sub">
+                        {/* 첫날 근무 중이면 '0일 · 0분' 없이 (오른쪽에 '오늘 근무 중') */}
+                        {!firstLive && `${s.days}일 · ${minutesText(s.paidMin)}`}
+                        {live > 0 && !firstLive && (
+                          <span className="font-semibold text-emerald-600" data-live-shift>
+                            {' · '}오늘 근무 중
+                          </span>
+                        )}
+                        {miss > 0 && <span className="text-amber-600">{firstLive ? '' : ' · '}종료 기록 없음 {miss}일</span>}
+                      </p>
+                    )}
                   </div>
                   <div className="shrink-0 text-right">
-                    {live > 0 && s.days === 0 ? (
+                    {firstLive ? (
                       // 첫날 근무 중: 0원 대신 (퇴근하면 계산됨)
                       <>
-                        <p className="text-base font-extrabold whitespace-nowrap text-emerald-600">근무 중</p>
+                        <p className="text-base font-extrabold whitespace-nowrap text-emerald-600" data-live-shift>
+                          오늘 근무 중
+                        </p>
                         <p className="text-xs whitespace-nowrap text-mute">끝나면 계산돼요</p>
                       </>
                     ) : (
@@ -863,7 +871,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                       )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </section>
       )}

@@ -8,7 +8,8 @@ import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { StarAvg } from '@/components/Stars'
 import { db, must } from '@/lib/db'
-import { requireAdmin } from '@/lib/session'
+import { requireAdmin, siteOrigin } from '@/lib/session'
+import { GroupContact } from '@/components/GroupContact'
 import { companyWorkerIds } from '@/lib/company'
 import { isMemberType, MEMBER_TYPES } from '@/lib/members'
 import type { MemberType } from '@/lib/types'
@@ -102,6 +103,16 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     .filter((u) => f !== 'nopush' || !pushOn.has(u.id))
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
     .slice(0, 300)
+  // 할 일로 거른 목록(계좌·사진·알림)이면: 우리 회사 지원자에게 한 번에 문자로 요청 (해피워크 전체 회원에게 마구 보내지 않게 우리 회사 지원자만)
+  const co = admin.companyName
+  const ASK = {
+    noaccount: { label: '계좌 등록 요청', body: `[${co}] 급여를 보내 드리려면 계좌가 필요해요. 앱의 내 정보에서 급여 계좌를 등록해 주세요.` },
+    nophoto: { label: '사진 요청', body: `[${co}] 현장에서 알아볼 수 있게 얼굴 사진을 올려 주세요. 담당자만 볼 수 있어요.` },
+    nopush: { label: '알림 켜기 요청', body: `[${co}] 확정·전날 안내를 놓치지 않게 앱 알림을 켜 주세요. 내 정보의 휴대폰 알림에서 켤 수 있어요.` },
+  } as const
+  const ask = f === 'noaccount' || f === 'nophoto' || f === 'nopush' ? ASK[f] : null
+  const askTo = ask ? users.filter((u) => applied.has(u.id) && u.active && u.phone) : []
+  const origin = ask && askTo.length > 0 ? await siteOrigin() : ''
   const stat: Record<string, { days: number; last: string }> = {}
   for (const u of users) {
     for (const a of u.attendance ?? []) {
@@ -192,6 +203,16 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
           </Link>
         ))}
       </div>
+
+      {ask && askTo.length > 0 && (
+        // 한 줄: '우리 회사 지원자 n명' + 문자로 요청 (받는 사람·문구를 채운 채 문자 앱이 열림)
+        <div className="flex items-center gap-2 rounded-2xl bg-white py-1.5 pr-1.5 pl-3.5 ring-1 ring-line" data-bulk-ask={f}>
+          <p className="min-w-0 flex-1 truncate text-sm text-sub">
+            우리 회사 지원자 <b className="text-ink">{askTo.length}명</b>
+          </p>
+          <GroupContact copy={false} className="chip-primary shrink-0 whitespace-nowrap" phones={askTo.map((u) => u.phone)} label={`문자로 ${ask.label}`} body={`${ask.body}\n${origin}/me/profile`} />
+        </div>
+      )}
 
       {/* 휴대폰: 카드 목록 */}
       <div className="stagger space-y-2 sm:hidden">

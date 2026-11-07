@@ -234,7 +234,8 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                           {fmtDateRange(first, last)}
                           {!(live > 0 && s.days === 0) && ` · ${s.days}일 · ${minutesText(s.paidMin)}`}
                         </p>
-                        {live > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
+                        {/* 여러 날 근무 중 오늘 몫 (첫날 근무 중이면 오른쪽에 한 번만) */}
+                        {live > 0 && s.days > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
                         {/* 정산 예정일: 담당자가 알린 날짜, 없으면 공고의 지급일 */}
                         {!paid && !(live > 0 && s.days === 0) && (told.get(job.id) ?? paydayLabel(job.pay_day, job.end_date)) && (
                           <p className="text-xs font-semibold text-amber-700" data-payday-line>
@@ -245,7 +246,12 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                       </div>
                       <div className="shrink-0 text-right">
                         {live > 0 && s.days === 0 ? (
-                          <p className="text-base font-extrabold text-emerald-600">근무 중</p>
+                          <>
+                            <p className="text-base font-extrabold whitespace-nowrap text-emerald-600" data-live-shift>
+                              오늘 근무 중
+                            </p>
+                            <p className="text-xs whitespace-nowrap text-mute">끝나면 계산돼요</p>
+                          </>
                         ) : (
                           <>
                             <p className="text-lg font-extrabold tabular-nums">{won(s.net)}</p>
