@@ -234,7 +234,11 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                   <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="font-bold">{job.title}</p>
+                        {/* 제목을 누르면 공고 (내 근무 '오늘의 근무' 카드와 같게) */}
+                        <Link href={`/jobs/${job.id}`} className="inline-flex max-w-full items-baseline gap-1 font-bold transition-opacity active:opacity-60" data-history-title>
+                          <span className="min-w-0">{job.title}</span>
+                          <span aria-hidden className="shrink-0 text-sm font-semibold text-mute">›</span>
+                        </Link>
                         {job.company?.company_name && <p className="truncate text-xs font-semibold text-sub">🏢 {job.company.company_name}</p>}
                         <p className="text-sm text-sub">
                           {fmtDateRange(first, last)}

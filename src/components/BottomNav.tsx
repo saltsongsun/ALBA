@@ -112,7 +112,9 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
               href={t.href}
               onClick={(e) => {
                 // 지금 보고 있는 탭을 또 누르면 맨 위로 (휴대폰 앱처럼). 아무 반응이 없어 여러 번 누르던 것
-                if (path === t.href && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                // 단, 문의 탭에서 한 회사와의 대화(?co=…)를 보고 있으면 대화 목록으로 (인사이트: 대화 안에서 문의 탭을 여러 번 누름)
+                const inThread = t.href === '/me/chat' && location.search.length > 1
+                if (path === t.href && !inThread && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
                   e.preventDefault()
                   const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
                   window.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' })
