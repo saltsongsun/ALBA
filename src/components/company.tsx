@@ -3,6 +3,7 @@
 import { usePathname } from 'next/navigation'
 import { useActionState } from 'react'
 import { addCompanyAdmin, createCompany, switchCompany } from '@/app/actions/company'
+import BizNoField from './BizNoField'
 import { FormMessage, SubmitButton } from './ui'
 
 /** 관리자 화면 위 회사 고르기 (고르면 바로 그 회사 화면으로 — 보던 메뉴 그대로) */
@@ -58,10 +59,12 @@ export function CreateCompanyForm() {
           <span className="label">대표자 (선택)</span>
           <input name="ceo_name" className="input" />
         </label>
-        <label>
-          <span className="label">사업자등록번호 (선택)</span>
-          <input name="business_no" className="input" inputMode="numeric" />
-        </label>
+        <div>
+          <label className="label" htmlFor="new_business_no">
+            사업자등록번호 (선택)
+          </label>
+          <BizNoField id="new_business_no" placeholder="000-00-00000" />
+        </div>
         <label>
           <span className="label">문의 연락처 (선택)</span>
           <input name="contact_phone" className="input" inputMode="tel" />

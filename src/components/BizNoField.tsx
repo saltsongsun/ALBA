@@ -14,10 +14,12 @@ const stateOf = (v: string): State => {
 /**
  * 사업자등록번호 칸: 쓰는 대로 맞는 번호인지 바로 알려 줌 (끝자리 검증 숫자 · 국세청 계산법).
  * 잘못 친 번호가 근로계약서·임금명세서에 그대로 들어가지 않게 — 막지는 않고 안내만 (서버는 회사 가입 때만 막음)
- * digits: 숫자만 받기 (회사 가입) / 아니면 '000-00-00000'처럼 줄표도 됨 (회사 설정)
+ * digits: 숫자만 받기 (가입 화면) / 아니면 '000-00-00000'처럼 줄표도 됨 (설정·정보 고치기)
+ * 쓰는 곳: 회사로 시작하기 · 회사 설정 · 외주 업체 가입 · 업체 정보 고치기 · 외주처 등록 · 회사 추가(최상위 관리자)
  */
 export default function BizNoField({
   id = 'business_no',
+  name = 'business_no',
   defaultValue = '',
   placeholder,
   required,
@@ -25,6 +27,8 @@ export default function BizNoField({
   hint,
 }: {
   id?: string
+  /** 보내는 칸 이름 (회사·외주처: business_no · 외주 업체 회원·전문가: biz_no) */
+  name?: string
   defaultValue?: string
   placeholder?: string
   required?: boolean
@@ -37,7 +41,7 @@ export default function BizNoField({
     <>
       <input
         id={id}
-        name="business_no"
+        name={name}
         className="input"
         inputMode="numeric"
         // 줄표 넣은 번호(000-00-00000)를 붙여 넣어도 잘리지 않게 12자까지 받고, 숫자만 남김

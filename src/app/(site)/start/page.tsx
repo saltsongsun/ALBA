@@ -1,9 +1,17 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CompanySignupForm, JoinCompanyForm } from '@/components/AuthForms'
+import Icon, { type IconName } from '@/components/Icon'
 import { getUser } from '@/lib/session'
 
 export const metadata: Metadata = { title: '회사로 시작하기' }
+
+const POINTS: [IconName, string][] = [
+  ['megaphone', '공고를 올리면 회원이 휴대폰으로 지원'],
+  ['pen', '근로계약서를 앱에서 전자서명'],
+  ['clock', '출퇴근·임금명세서·신고자료 자동 정리'],
+  ['shield', '자료는 회사마다 따로 관리'],
+]
 
 /**
  * 회사 쪽 가입. 두 가지:
@@ -22,7 +30,7 @@ export default async function StartPage(props: PageProps<'/start'>) {
   return (
     <div className="space-y-5 pt-4">
       <div>
-        <h1 className="text-2xl font-extrabold">🏢 회사로 시작하기</h1>
+        <h1 className="text-2xl font-extrabold">회사로 시작하기</h1>
         <p className="mt-1 text-sub">행사 인력을 뽑는 회사와 직원을 위한 화면이에요.</p>
       </div>
       <nav className="flex gap-1 rounded-2xl bg-line/60 p-1" aria-label="가입 방법">
@@ -49,11 +57,16 @@ export default async function StartPage(props: PageProps<'/start'>) {
         </>
       ) : (
         <>
-          <ul className="card space-y-2 text-sm">
-            <li>📢 공고를 올리면 회원이 휴대폰으로 지원</li>
-            <li>✍️ 근로계약서를 앱에서 전자서명</li>
-            <li>⏱ 출퇴근·임금명세서·신고자료 자동 정리</li>
-            <li>🔒 자료는 회사마다 따로 관리</li>
+          {/* 할 수 있는 일 네 줄 (그림 글자 대신 앱의 선 아이콘 · 한 줄에 짧게) */}
+          <ul className="card space-y-2.5 text-sm" data-start-points>
+            {POINTS.map(([icon, text]) => (
+              <li key={text} className="flex items-center gap-2.5">
+                <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
+                  <Icon name={icon} />
+                </span>
+                <span className="min-w-0">{text}</span>
+              </li>
+            ))}
           </ul>
           {user && user.role !== 'admin' ? (
             <p className="card text-sm text-sub">
@@ -62,8 +75,8 @@ export default async function StartPage(props: PageProps<'/start'>) {
           ) : (
             <CompanySignupForm signedIn={signedIn} />
           )}
-          <p className="hint">
-            가입하면 바로 공고를 올리고 지원자를 받을 수 있어요. 다른 회사에 지원한 사람까지 보이는 해피워크 전체 회원 명단은 회사 확인을 마친 뒤에 열려요.
+          <p className="hint" data-start-note>
+            가입하면 바로 공고를 올리고 지원자를 받아요. 전체 회원 명단은 회사 확인 뒤에 열려요.
           </p>
           <p className="text-center text-sm text-sub">
             이미 우리 회사가 해피워크를 쓰나요?{' '}

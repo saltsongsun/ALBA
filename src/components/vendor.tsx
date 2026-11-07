@@ -5,6 +5,7 @@ import { createQuoteRequest, recordQuote, savePayment, saveVendor, submitQuote }
 import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
 import { VENDOR_CATEGORIES } from '@/lib/vendors'
+import BizNoField from './BizNoField'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 type Opt = { id: string; label: string }
@@ -106,10 +107,12 @@ export function VendorForm({
           <span className="label">이메일</span>
           <input name="email" type="email" className="input" maxLength={100} defaultValue={initial?.email ?? ''} />
         </label>
-        <label>
-          <span className="label">사업자등록번호</span>
-          <input name="business_no" className="input" maxLength={20} defaultValue={initial?.business_no ?? ''} placeholder="000-00-00000" />
-        </label>
+        <div>
+          <label className="label" htmlFor="vendor_business_no">
+            사업자등록번호
+          </label>
+          <BizNoField id="vendor_business_no" defaultValue={initial?.business_no ?? ''} placeholder="000-00-00000" />
+        </div>
       </div>
       <fieldset className="space-y-2 rounded-xl bg-bg p-3">
         <legend className="label">대금 받을 계좌</legend>

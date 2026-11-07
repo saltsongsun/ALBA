@@ -3,6 +3,7 @@
 import { useActionState, useState } from 'react'
 import { saveProInfo } from '@/app/actions/worker'
 import { SPECIALTIES } from '@/lib/members'
+import BizNoField from './BizNoField'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
 /** 전문가·외주 업체 정보 고치기 (분야·소개·포트폴리오, 업체는 상호·사업자번호) */
@@ -24,10 +25,12 @@ export function ProInfoForm({
             <span className="label">상호</span>
             <input name="biz_name" className="input" defaultValue={initial.biz_name} required />
           </label>
-          <label>
-            <span className="label">사업자등록번호</span>
-            <input name="biz_no" className="input" inputMode="numeric" defaultValue={initial.biz_no} required />
-          </label>
+          <div>
+            <label className="label" htmlFor="biz_no">
+              사업자등록번호
+            </label>
+            <BizNoField id="biz_no" name="biz_no" defaultValue={initial.biz_no} required />
+          </div>
         </div>
       )}
       <div>

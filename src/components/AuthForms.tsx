@@ -536,8 +536,8 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
             <label className="label" htmlFor="biz_no">
               사업자등록번호
             </label>
-            <input id="biz_no" name="biz_no" className="input" inputMode="numeric" maxLength={12} placeholder="숫자 10자리" onInput={digitsOnly} required />
-            <p className="hint">세금계산서·대금 지급에 쓰여요.</p>
+            {/* 쓰는 대로 맞는 번호인지 바로 (잘못 치면 세금계산서·대금 지급에 그대로 들어가지 않게) */}
+            <BizNoField id="biz_no" name="biz_no" placeholder="숫자 10자리" required digits hint="세금계산서·대금 지급에 쓰여요." />
           </div>
           <div>
             <label className="label" htmlFor="name">
