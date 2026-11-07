@@ -1,5 +1,5 @@
 // 묶음 91: 병아리 레벨 카드 1단계 ("경험치를 모아서 캐릭터를 키우는 게임") + 진짜 '앱 설치' 버튼 ("설치 안내 말고 실제 설치까지 되게")
-// · 내 근무 맨 위 'Lv.n 새내기 병아리' + 점수 + 다음 레벨까지 근무 몇 번 · 점수 얻는 법 6가지 · 레벨이 오르면 '🎉 레벨 업!' (한 번만)
+// · 내 근무 맨 위 'Lv.n'(배지) '새내기 병아리' + 점수 + '근무 n번 더 하면 Lv.n' · 점수 얻는 법 6가지 · 레벨이 오르면 '🎉 레벨 업!' (한 번만)
 // · 점수는 기록으로 계산: 근무 마침 10 · 정시 출근 5 · 근무 종료 직접 5 · 서명 3 · 후기 5 · 내 정보 다 채움 20
 // · 앱 설치: 휴대폰이 설치를 지원하면 버튼 한 번에 설치 창 → '✓ 설치했어요' · 지원 안 하면 안내창 · 카카오톡은 '브라우저로' · 아이폰은 홈 화면에 추가 안내
 // node scripts/qa/batch91.cjs <default 앱> <default 가짜>
@@ -40,7 +40,10 @@ const kst = (ms = 0) => new Date(Date.now() + 9 * 3600e3 + ms).toISOString().sli
   await card.waitFor({ timeout: 10000 }).catch(() => {})
   const t1 = await card.innerText().catch(() => '')
   // 기본 가짜 근무자: 끝난 근무 0 · 서명 1건(3점)
-  ok("내 근무 맨 위 'Lv.1 새내기 병아리 · 3점 · 다음 레벨까지 근무 2번 · 27점'", t1.includes('Lv.1 새내기 병아리') && t1.includes('3점') && t1.includes('다음 레벨까지 근무 2번 · 27점'), t1.replace(/\n/g, ' / '))
+  // (디자인 다듬기 2026-11-07: 레벨은 작은 배지 'Lv.1' · 이름 '새내기 병아리' · 한 줄 안내 '근무 2번 더 하면 Lv.2')
+  ok("내 근무 맨 위 'Lv.1 · 새내기 병아리 · 3점 · 근무 2번 더 하면 Lv.2'", (await card.locator('[data-xp-level]').innerText()) === 'Lv.1' && t1.includes('새내기 병아리') && t1.includes('3점') && (await card.locator('[data-xp-next]').innerText()).includes('근무 2번 더 하면 Lv.2'), t1.replace(/\n/g, ' / '))
+  ok('병아리는 둥근 바탕 안에 (스티커 글씨는 잘림)', await card.locator('img').first().evaluate((el) => { const p = el.parentElement; const cs = getComputedStyle(p); return cs.overflow === 'hidden' && cs.borderRadius !== '0px' && el.getBoundingClientRect().width > p.getBoundingClientRect().width }))
+  ok('제목 줄·안내 줄 각 한 줄', (await card.locator('[data-xp-level]').evaluate((el) => el.parentElement.getBoundingClientRect().height < 26)) && (await card.locator('[data-xp-next]').evaluate((el) => el.getBoundingClientRect().height < 20)))
   await card.locator('[data-xp-rules] summary').click()
   await w.waitForTimeout(400)
   ok('점수 얻는 법 6가지', (await card.locator('[data-xp-rules] li').count()) === 6)
