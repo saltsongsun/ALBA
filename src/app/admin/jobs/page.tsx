@@ -71,24 +71,18 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       </div>
       {/* 우리 회사 공고만 모은 링크: 근무자 단톡방에 한 번 올려 두면 새 공고도 그 링크에서 봄 */}
       {tab === 'active' && (
-        // 좁은 화면: 글이 잘리지 않게 버튼은 아래 줄 오른쪽으로 (넓으면 한 줄)
-        <div className="card flex flex-wrap items-center gap-x-3 gap-y-2 p-4" data-share-card>
-          <span aria-hidden className="text-2xl">
-            📣
-          </span>
-          <span className="min-w-0 flex-1 basis-44">
-            <span className="block font-bold">우리 회사 공고 모음 링크</span>
-            <span className="block text-sm text-sub">
-              {firstTime ? '첫 공고를 올린 뒤 단톡방에 올려 두세요' : '단톡방에 올려 두면 새 공고도 여기서 봐요'}
-            </span>
-          </span>
-          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+        // 두 줄로 짧게: 위 '공고 모음 링크 · QR · 공유하기' / 아래 한 줄 안내 (360px에서도 잘리지 않음)
+        <div className="card space-y-1 px-4 py-3" data-share-card>
+          <div className="flex items-center gap-2">
+            <Icon name="megaphone" className="shrink-0 text-lg text-brand-600" />
+            <span className="min-w-0 flex-1 truncate font-bold">공고 모음 링크</span>
             {/* 현장·게시판에 붙일 QR (찍으면 이 회사 공고 모음) */}
-            <Link href="/admin/jobs/poster" className="btn-gray btn-sm" data-poster-link>
+            <Link href="/admin/jobs/poster" className="chip shrink-0 whitespace-nowrap" data-poster-link>
               QR
             </Link>
-            <ShareButton title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} />
-          </span>
+            <ShareButton className="chip-primary shrink-0 whitespace-nowrap" title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} />
+          </div>
+          <span className="block text-xs text-sub">{firstTime ? '첫 공고를 올린 뒤 단톡방에 올려 두세요' : '단톡방에 올려 두면 새 공고도 여기서 봐요'}</span>
         </div>
       )}
       <div className="flex gap-1 text-sm font-semibold">

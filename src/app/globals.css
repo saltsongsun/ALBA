@@ -675,6 +675,11 @@
   & .chip:not(.chip-primary) {
     background-color: var(--dk-surface);
   }
+  /* 표 머리 줄 · 손가락/마우스를 올린 줄 (밝은 회색 칸이 어두운 화면에서 하얗게 뜨지 않게) */
+  & .table th,
+  & .table tbody tr:hover {
+    background-color: var(--dk-raised);
+  }
   & .bg-white\/70,
   & .bg-white\/75,
   & .bg-white\/95,

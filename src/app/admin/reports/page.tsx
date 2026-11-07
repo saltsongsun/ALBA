@@ -5,7 +5,9 @@ import { won } from '@/lib/format'
 import { monthlyRows } from '@/lib/reports'
 import { requireAdmin } from '@/lib/session'
 import { kstDate, kstDateTime, minutesText } from '@/lib/time'
+import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
+import ReportDownloads from '@/components/ReportDownloads'
 
 export const metadata: Metadata = { title: '정산 · 신고자료' }
 
@@ -72,72 +74,118 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
   )
   const eightPlus = rows.filter((r) => r.dates.length >= 8)
   const [y, m] = month.split('-').map(Number)
-  const due = `${m === 12 ? y + 1 : y}년 ${m === 12 ? 1 : m + 1}월`
+  const dueY = m === 12 ? y + 1 : y
+  const dueM = m === 12 ? 1 : m + 1
+  // 신고 기한은 다음 달 (올해가 아니면 연도까지)
+  const due = dueY === Number(thisMonth.slice(0, 4)) ? `${dueM}월` : `${dueY}년 ${dueM}월`
+  // 아직 안 끝난 근무: 오늘 근무 중 · 퇴근 기록 없음 (금액·신고자료에 아직 안 들어감)
+  const today = kstDate()
+  const open = rows.flatMap((r) => r.open.map((o) => ({ ...o, user: r.user })))
+  const live = open.filter((o) => o.date === today)
+  const missing = open.filter((o) => o.date !== today).sort((a, b) => a.date.localeCompare(b.date))
+  const fix = missing[0]
+  const fixHref = fix ? `/admin/jobs/${fix.jobId}?tab=att&date=${fix.date}&fix=${fix.user.id}#att-${fix.user.id}` : null
+  const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
+  const isThisMonth = month === thisMonth
 
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold">정산 · 신고자료</h1>
-        <div className="flex items-center gap-1">
-          <Link href={`/admin/reports?month=${shiftMonth(month, -1)}`} className="btn-gray btn-sm">
-            ◀
-          </Link>
-          <form className="flex gap-1">
-            <input type="month" name="month" defaultValue={month} className="input py-1.5 text-sm" />
-            <button className="btn-gray btn-sm">보기</button>
-          </form>
-          <Link href={`/admin/reports?month=${shiftMonth(month, 1)}`} className="btn-gray btn-sm">
-            ▶
-          </Link>
-        </div>
-      </div>
+      <h1 className="text-2xl font-extrabold">정산 · 신고자료</h1>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-        {(
-          [
-            ['근무자', `${rows.length}명`],
-            ['지급총액', won(total.gross)],
-            ['소득세', won(total.incomeTax)],
-            ['지방소득세', won(total.localTax)],
-            ['고용보험(근로자)', won(total.insurance)],
-          ] as const
-        ).map(([k, v]) => (
-          <div key={k} className="card py-4">
-            <p className="text-sm text-mute">{k}</p>
-            <p className="mt-1 text-xl font-extrabold">{v}</p>
+      {/* 달 고르기: 양쪽 화살표 칸 · 가운데 '2026년 11월' (주간 화면과 같은 모양 · 영어 달 이름 없음) */}
+      <nav className="flex items-center gap-1.5 rounded-2xl bg-white p-1.5 ring-1 ring-line" aria-label="달 고르기" data-month-nav>
+        <Link href={`/admin/reports?month=${shiftMonth(month, -1)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="지난 달" data-month-prev>
+          ‹
+        </Link>
+        <Link href="/admin/reports" className="min-w-0 flex-1 text-center text-sm leading-tight font-bold whitespace-nowrap" data-month-label>
+          <span className={`block text-[11px] font-semibold ${isThisMonth ? 'text-brand-600' : 'text-mute'}`}>{isThisMonth ? '이번 달' : '이번 달로'}</span>
+          {y}년 {m}월
+        </Link>
+        <Link href={`/admin/reports?month=${shiftMonth(month, 1)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="다음 달" data-month-next>
+          ›
+        </Link>
+      </nav>
+
+      {/* 한눈에: 지급총액만 크게 · 세금·보험은 아래 작은 세 칸 */}
+      <section className="card space-y-3" data-report-summary>
+        <div className="flex items-end justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-mute">지급총액</p>
+            <p className="truncate text-2xl font-extrabold tabular-nums" data-report-gross>
+              {won(total.gross)}
+            </p>
           </div>
-        ))}
-      </div>
-
-      <section className="card space-y-3">
-        <h2 className="font-bold">{month.replace('-', '년 ')}월 신고자료 내려받기</h2>
-        <div className="flex flex-wrap gap-2">
-          <a href={`/admin/export/daily-income?month=${month}`} className="btn-primary btn-sm">
-            일용근로소득 지급명세 CSV
-          </a>
-          <a href={`/admin/export/employment?month=${month}`} className="btn-soft btn-sm">
-            근로내용확인신고(고용·산재) CSV
-          </a>
-          <a href={`/admin/export/business-income?month=${month}`} className="btn-gray btn-sm">
-            사업소득 간이지급명세 CSV
-          </a>
-          <a href={`/admin/export/other-income?month=${month}`} className="btn-gray btn-sm" data-export-other>
-            기타소득 지급명세 CSV
-          </a>
+          <p className="shrink-0 pb-1 text-sm text-sub">
+            근무자 <b className="text-ink">{rows.length}명</b>
+          </p>
         </div>
-        <ul className="list-disc space-y-0.5 pl-5 text-xs text-sub">
-          <li>원천징수 이행상황신고·납부: {due} 10일까지 (홈택스)</li>
-          <li>일용근로소득 지급명세서: {due} 말일까지 (홈택스, 매월 제출)</li>
-          <li>근로내용확인신고: {due} 15일까지 (고용·산재보험 토탈서비스 또는 4대보험 정보연계센터)</li>
-          <li>내려받은 파일에는 주민등록번호가 들어 있습니다. 신고 후 바로 삭제하고, 내려받은 기록은 아래 처리 기록에 남습니다.</li>
+        <dl className="grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
+          {(
+            [
+              ['소득세', total.incomeTax, undefined],
+              ['지방소득세', total.localTax, undefined],
+              ['고용보험', total.insurance, '근로자 부담분'],
+            ] as const
+          ).map(([k, v, t]) => (
+            <div key={k} className="min-w-0" title={t}>
+              <dt className="truncate text-[11px] font-semibold text-mute">{k}</dt>
+              <dd className="truncate text-sm font-bold tabular-nums">{won(v)}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      {missing.length > 0 && (
+        <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800" data-report-missing>
+          <b className="block">퇴근 기록이 없는 근무 {missing.length}건</b>
+          <span className="block truncate text-xs">
+            {missing
+              .slice(0, 3)
+              .map((o) => `${o.user.name} ${md(o.date)}`)
+              .join(' · ')}
+            {missing.length > 3 && ` 외 ${missing.length - 3}건`}
+          </span>
+          <span className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <span>금액·신고자료에서 빠져 있어요</span>
+            {fixHref && (
+              <Link href={fixHref} className="font-bold whitespace-nowrap underline-offset-2 hover:underline" data-report-fix>
+                출퇴근에서 고치기 →
+              </Link>
+            )}
+          </span>
+        </div>
+      )}
+      {live.length > 0 && (
+        <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800" data-report-live>
+          오늘 근무 중 {live.length}건은 퇴근하면 들어가요.
+        </p>
+      )}
+
+      <section className="card space-y-3" data-report-downloads>
+        <h2 className="font-bold">신고자료 내려받기</h2>
+        <ReportDownloads
+          incomplete={open.length}
+          files={[
+            { key: 'daily', href: `/admin/export/daily-income?month=${month}`, label: '일용근로소득 지급명세', note: `${due} 말일까지 · 홈택스` },
+            { key: 'employment', href: `/admin/export/employment?month=${month}`, label: '근로내용확인신고 (고용·산재)', note: `${due} 15일까지 · 고용·산재 토탈서비스` },
+            { key: 'business', href: `/admin/export/business-income?month=${month}`, label: '사업소득 간이지급명세' },
+            { key: 'other', href: `/admin/export/other-income?month=${month}`, label: '기타소득 지급명세' },
+          ]}
+        />
+        <ul className="space-y-0.5 text-xs text-sub" data-report-notes>
+          <li>원천세 신고·납부: {due} 10일까지 · 홈택스</li>
+          <li className="flex items-start gap-1">
+            <Icon name="shield" className="mt-px shrink-0 text-[13px] text-mute" />
+            <span>파일에 주민등록번호가 있어요. 신고 후 바로 지워 주세요 (받은 기록은 아래에 남아요).</span>
+          </li>
         </ul>
       </section>
 
       {eightPlus.length > 0 && (
-        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          이번 달 8일 이상 근무: <b>{eightPlus.map((r) => `${r.user.name}(${r.dates.length}일)`).join(', ')}</b> — 일용근로자도 월 8일 이상(또는 월 60시간
-          이상) 일하면 국민연금·건강보험 사업장 가입 대상이 될 수 있으니 확인하세요.
+        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800" data-report-eight>
+          <b className="block">이번 달 8일 이상: {eightPlus.map((r) => `${r.user.name}(${r.dates.length}일)`).join(', ')}</b>
+          <span className="block text-xs">월 8일(또는 60시간) 이상이면 일용근로자도 국민연금·건강보험 가입 대상일 수 있어요.</span>
         </p>
       )}
 
@@ -170,7 +218,19 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
                     </td>
                     <td className="whitespace-nowrap">
                       {r.dates.length}일
-                      <div className="text-[11px] text-mute">{r.dates.map((d) => Number(d.slice(8))).join(', ')}일</div>
+                      {r.dates.length > 0 && <div className="text-[11px] text-mute">{r.dates.map((d) => Number(d.slice(8))).join(', ')}일</div>}
+                      {/* 아직 안 끝난 근무 (금액에 안 들어간 날) */}
+                      {r.open.some((o) => o.date !== today) ? (
+                        <div className="text-[11px] font-semibold text-amber-700" data-row-open>
+                          퇴근 기록 없음 {r.open.filter((o) => o.date !== today).length}
+                        </div>
+                      ) : (
+                        r.open.length > 0 && (
+                          <div className="text-[11px] font-semibold text-emerald-700" data-row-open>
+                            오늘 근무 중
+                          </div>
+                        )
+                      )}
                     </td>
                     <td className="whitespace-nowrap">{minutesText(r.paidMin)}</td>
                     <td className="text-right">{won(r.gross)}</td>
@@ -187,8 +247,11 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         )}
       </section>
 
-      <section>
-        <h2 className="section-title">개인정보 처리 기록</h2>
+      {/* 개인정보 처리 기록: 접어 두기 (필요할 때 펼쳐 보기) */}
+      <details className="group" data-audit-log>
+        <summary className="section-title cursor-pointer">
+          개인정보 처리 기록 <span className="text-xs font-semibold text-mute">· 최근 {logs.length}건</span>
+        </summary>
         <div className="card overflow-x-auto p-0">
           <table className="table text-[13px]">
             <thead>
@@ -224,7 +287,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
           </table>
         </div>
         <p className="hint">개인정보의 안전성 확보조치 기준에 따라 접속·처리 기록은 1년 이상 보관하세요.</p>
-      </section>
+      </details>
     </div>
   )
 }

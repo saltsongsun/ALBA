@@ -25,6 +25,8 @@ export type MonthRow = {
   net: number
   byTax: Record<TaxType, { gross: number; incomeTax: number; localTax: number; days: number; paidMin: number }>
   jobs: string[]
+  /** 아직 안 끝난 근무 (퇴근 기록 없음 · 오늘 근무 중) — 금액·신고자료에 아직 안 들어감 */
+  open: { date: string; jobId: string }[]
 }
 
 /** 한 회사의 한 달(근무일 기준) 근무자별 합계. 소득세는 공고(지급)별로 계산해 더합니다. */
@@ -71,9 +73,11 @@ export async function monthlyRows(ym: string, companyId: string): Promise<MonthR
           none: { gross: 0, incomeTax: 0, localTax: 0, days: 0, paidMin: 0 },
         },
         jobs: [],
+        open: [],
       } satisfies MonthRow)
     rows.forEach((r, i) => {
       if (!days[i].incomplete && !row.dates.includes(r.work_date)) row.dates.push(r.work_date)
+      else if (days[i].incomplete) row.open.push({ date: r.work_date, jobId: r.job_id })
     })
     row.paidMin += s.paidMin
     row.gross += s.gross
