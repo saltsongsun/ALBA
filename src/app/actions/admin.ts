@@ -28,6 +28,7 @@ import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, ks
 import type { Attendance, Job, JobCondition, ShiftChange, SignedDoc } from '@/lib/types'
 import { bool, formatRrn, int, isDate, isTime, isUuid, line, normalizePhone, oneLine, optLine, optStr, str, weakPin } from '@/lib/validate'
 import type { FormState } from './auth'
+import { buttonToken } from '@/lib/chatButtons'
 
 function back(path: string, msg: string): never {
   redirect(`${path}${path.includes('?') ? '&' : '?'}m=${encodeURIComponent(msg)}`)
@@ -1404,13 +1405,18 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
         : `${job.title} ${contractNameOf(job.audience)}는 전자계약(모두싸인 등)으로 받아요. ${job.contract_url ? `아래 링크에서 서명해 주세요.\n${job.contract_url}` : '문자·카카오톡으로 온 서명 링크를 확인해 서명해 주세요.'}`,
     ],
   }[kind]
+  // 문의 채팅에 바로 가기 버튼도 (출근·종료는 채팅 안에서 바로 누르는 근무 버튼) · 휴대폰 알림을 누르면 그 버튼이 있는 곳으로
+  const BTN = { sign: 'sign', clockin: 'clock-in', clockout: 'clock-out', account: 'account', contract: null }[kind]
+  const URL_OF = { sign: '/me#sign-docs', clockin: '/me#clock', clockout: '/me#clock', account: '/me/profile#bank_account', contract: '/me' }[kind]
   must(
     await db()
       .from('messages')
-      .insert(to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, company_id: job.company_id, job_id: jobId, body: `${title}\n${text}` }))),
+      .insert(
+        to.map((uid) => ({ thread_user_id: uid, sender_id: admin.id, from_admin: true, company_id: job.company_id, job_id: jobId, body: `${title}\n${text}${BTN ? `\n${buttonToken(BTN)}` : ''}` })),
+      ),
   )
   await audit(admin.id, `nudge.${kind}`, null, `${jobId} ${date ?? ''} ${to.length}명`, admin.companyId)
-  after(() => sendPush(to, { title, body: text, url: kind === 'account' ? '/me/profile' : '/me', tag: `${kind}-${jobId}` }))
+  after(() => sendPush(to, { title, body: text, url: URL_OF, tag: `${kind}-${jobId}` }))
   revalidatePath('/admin/chat')
   redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}`)
 }

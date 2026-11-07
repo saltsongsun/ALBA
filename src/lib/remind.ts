@@ -113,6 +113,7 @@ export async function sendForgotClockOutReminders(now = new Date()): Promise<num
       title: '⏰ 근무 종료 확인',
       text: `${a.job!.title} · ${fmtDate(a.work_date)} 근무 종료를 누르지 않았어요. 앱 ‘${myWorkTab(a.job!.audience)}’에서 끝난 시각을 알려 주세요.`,
       url: '/me',
+      button: 'clock-out',
       tag: `forgot-${a.id}`,
     })
   }
@@ -152,6 +153,8 @@ export async function remindOthersToClockOut(jobId: string, workDate: string, ex
       text: `${job.title} · 함께 일한 분들이 근무를 마쳤어요. 일이 끝났으면 앱에서 ‘근무 종료’를 눌러 주세요 (예정 종료 ${hhmm(shiftOf(job, a).end_time)}).`,
       url: '/me#clock',
       tag: `clockout-now-${a.id}`,
+      // 문의 채팅에서도 바로 근무 종료
+      button: 'clock-out',
     })
   }
   return sent

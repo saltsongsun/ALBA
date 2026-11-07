@@ -2,6 +2,7 @@ import 'server-only'
 import { after } from 'next/server'
 import { db, must } from './db'
 import { sendPush } from './push'
+import { buttonToken } from './chatButtons'
 
 /**
  * 근무자 각자의 문의함에 담당자 메시지로 남기고 휴대폰 알림도 보냄.
@@ -18,6 +19,8 @@ export async function tellWorkers(
     text: string | ((uid: string) => string)
     url?: string
     tag?: string
+    /** 문의 채팅에 함께 넣을 바로 가기 버튼 (예: 'clock-out' → 채팅 안에서 바로 근무 종료) */
+    button?: string
   },
 ) {
   const ids = [...new Set(to)]
@@ -33,7 +36,7 @@ export async function tellWorkers(
           from_admin: true,
           company_id: o.companyId,
           job_id: o.jobId,
-          body: `${o.title}\n${textOf(uid)}`.slice(0, 2000),
+          body: `${`${o.title}\n${textOf(uid)}`.slice(0, 1970)}${o.button ? `\n${buttonToken(o.button)}` : ''}`,
         })),
       ),
   )

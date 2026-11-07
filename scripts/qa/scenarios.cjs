@@ -49,7 +49,7 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   await af.goto(`${F}/admin/jobs/${J}?tab=att`)
   await shot(af, '1-admin-late', 'text=도착 예정')
   ok('S1 관리자 출퇴근 탭: 30분 늦음 배지·도착 예정', (await see(af, '30분 늦음')) && (await see(af, /도착 예정/)))
-  ok('S1 늦는다고 알린 사람은 미출근 앱 알림 대상에서 빠짐', (await af.getByRole('button', { name: /미출근 \d+명 앱 알림/ }).count()) === 0)
+  ok('S1 늦는다고 알린 사람은 미출근 앱 알림 대상에서 빠짐', (await af.getByRole('button', { name: /미출근 \d+명 · 근무 시작 버튼/ }).count()) === 0)
 
   // S2 위치 확인 실패 → 출근 확인 요청 → 관리자 출근 처리
   await rest(MF, `jobs?id=eq.${J}`, 'PATCH', { gps_required: true })

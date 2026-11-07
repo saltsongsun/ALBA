@@ -282,18 +282,19 @@ export default async function AttTab({
               body={`[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`}
             />
           )}
-          {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄). 늦는다고 알렸거나 출근 확인을 요청한 사람은 빼고 */}
+          {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄). 늦는다고 알렸거나 출근 확인을 요청한 사람은 빼고
+              문의 채팅에 근무 시작·종료 버튼이 함께 가서 근무자가 채팅에서 바로 누름 · 알림을 누르면 근무 버튼으로 */}
           {started && nudgeable > 0 && (
             <form action={nudgeWorkers.bind(null, job.id, 'clockin', date)} className="shrink-0">
-              <ConfirmSubmit className="chip" confirmText={`${nudgeable}명에게 보낼까요?`}>
-                미출근 {nudgeable}명 앱 알림
+              <ConfirmSubmit className="chip" confirmText={`${nudgeable}명에게 근무 시작 버튼을 보낼까요?`}>
+                미출근 {nudgeable}명 · 근무 시작 버튼
               </ConfirmSubmit>
             </form>
           )}
           {working > 0 && (
             <form action={nudgeWorkers.bind(null, job.id, 'clockout', date)} className="shrink-0">
-              <ConfirmSubmit className="chip" confirmText={`${working}명에게 보낼까요?`}>
-                근무 중 {working}명 종료 알림
+              <ConfirmSubmit className="chip" confirmText={`${working}명에게 근무 종료 버튼을 보낼까요?`}>
+                근무 중 {working}명 · 근무 종료 버튼
               </ConfirmSubmit>
             </form>
           )}
