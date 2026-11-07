@@ -88,12 +88,16 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     // 보안: 명단 잠금을 풀지 않았으면 잠금 화면으로 (풀면 바로 내려받기)
     // (상대 주소로: 프록시 뒤에서 req.url의 호스트가 실제 주소와 달라도 같은 사이트로)
     if (!(await rosterUnlockedFor(admin.id))) return new Response(null, { status: 303, headers: { Location: '/admin/workers?unlock=csv' } })
-    // 이 회사에 지원한 근무자만
-    const ids = await companyWorkerIds(admin.companyId)
+    // 이 회사에 지원한 근무자만 (다른 회사 관리자 계정이 근무자로 지원한 경우 포함 · 이 회사 관리자는 빼고)
+    const [ids, memberRows] = await Promise.all([companyWorkerIds(admin.companyId), db().from('company_members').select('user_id').eq('company_id', admin.companyId)])
+    const staff = new Set(((memberRows.data ?? []) as { user_id: string }[]).map((m) => m.user_id))
     const users = ids.length
-      ? (must(
-          await db().from('users').select('id, name, gender, birth_date, phone, address, active, created_at').in('id', ids).eq('role', 'worker').order('name'),
-        ) as Pick<UserRow, 'id' | 'name' | 'gender' | 'birth_date' | 'phone' | 'address' | 'active' | 'created_at'>[])
+      ? (
+          must(await db().from('users').select('id, name, gender, birth_date, phone, address, active, created_at').in('id', ids).order('name')) as Pick<
+            UserRow,
+            'id' | 'name' | 'gender' | 'birth_date' | 'phone' | 'address' | 'active' | 'created_at'
+          >[]
+        ).filter((u) => !staff.has(u.id))
       : []
     const atts = must(await db().from('attendance').select('user_id, job_id, work_date').eq('company_id', admin.companyId)) as Pick<Attendance, 'user_id' | 'job_id' | 'work_date'>[]
     const rows = users.map((u) => {

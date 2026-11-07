@@ -43,7 +43,7 @@ export async function GET(req: Request) {
       : ''
 
   if (s === 'me-chat') {
-    if (user.role === 'admin') return no()
+    // 관리자 계정도 근무자 문의함이 있음 (다른 회사에서 근무자로 일할 때 · 내 문의함만 봄)
     const [last, reads, gone, rooms] = await Promise.all([
       latest(db().from('messages').select('created_at').eq('thread_user_id', user.id).order('created_at', { ascending: false }).limit(1), 'created_at'),
       db().from('messages').select('id', { count: 'exact', head: true }).eq('thread_user_id', user.id).not('read_at', 'is', null),
@@ -79,10 +79,12 @@ export async function GET(req: Request) {
 
   if (s === 'room') {
     if (!isUuid(id)) return no()
-    if (user.role === 'admin') {
+    // 근무자로 확정된 방(관리자 계정이 다른 회사에서 일하는 방 포함) 또는 관리자가 보고 있는 회사의 방
+    if (!(await workerRoom(user.id, id))) {
+      if (user.role !== 'admin') return no()
       const companyId = await adminCompanyId()
       if (!companyId || !(await companyJob({ companyId }, id))) return no()
-    } else if (!(await workerRoom(user.id, id))) return no()
+    }
     const [last, pinned, read, gone] = await Promise.all([
       latest(db().from('job_chat').select('created_at').eq('job_id', id).order('created_at', { ascending: false }).limit(1), 'created_at'),
       latest(db().from('job_chat').select('pinned_at').eq('job_id', id).not('pinned_at', 'is', null).order('pinned_at', { ascending: false }).limit(1), 'pinned_at'),

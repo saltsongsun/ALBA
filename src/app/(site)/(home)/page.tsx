@@ -8,6 +8,8 @@ import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { getUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
+import { VIEW_COOKIE } from '@/lib/view'
 import { isPro } from '@/lib/members'
 import { kstDate } from '@/lib/time'
 import { workOver } from '@/lib/pay'
@@ -44,6 +46,8 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 전문가·외주 업체는 전문가 화면으로 (아르바이트 공고와 섞이지 않게)
   const me = await getUser()
   if (me && me.role !== 'admin' && isPro(me.memberType)) redirect('/pro')
+  // 관리자는 접속하면 관리자 화면부터 (사용자 요청 2026-11-07) · '근무자 화면'을 눌러 들어왔거나 공고 모음 링크·검색이면 그대로
+  if (me?.role === 'admin' && Object.keys(sp).length === 0 && (await cookies()).get(VIEW_COOKIE)?.value !== 'worker') redirect('/admin')
   // 회사가 단톡방에 올린 '우리 회사 공고 모음' 링크(/?co=회사id)면 그 회사 공고만
   const coId = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
   const company = coId

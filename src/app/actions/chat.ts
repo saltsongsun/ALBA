@@ -81,10 +81,10 @@ export async function deleteMessage(id: number | string): Promise<FormState> {
   const m = data as { thread_user_id: string; sender_id: string | null; from_admin: boolean; company_id: string; body: string } | null
   const notMine = { error: '내가 보낸 메시지만 지울 수 있어요.' }
   if (!m || m.sender_id !== user.id) return notMine
-  if (user.role === 'admin') {
-    const admin = await requireAdmin()
-    if (!m.from_admin || m.company_id !== admin.companyId) return notMine
-  } else if (m.from_admin || m.thread_user_id !== user.id) return notMine
+  // 담당자로 쓴 답장은 지금 고른 회사에서만 · 근무자로 쓴 문의(관리자 계정이 다른 회사에 한 문의 포함)는 내 문의함 것만
+  if (m.from_admin) {
+    if (user.role !== 'admin' || m.company_id !== (await requireAdmin()).companyId) return notMine
+  } else if (m.thread_user_id !== user.id) return notMine
   if (isDeleted(m.body)) return { ok: '지웠어요' }
   if (signalOf(m.body)) return { error: '앱이 보낸 현장 알림·요청은 처리 기록이라 지울 수 없어요.' }
   must(await db().from('messages').update({ body: DELETED }).eq('id', id).eq('sender_id', user.id))

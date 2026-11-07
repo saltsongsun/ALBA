@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
 import Link from 'next/link'
+import { WorkerIdentityForm } from '@/components/AuthForms'
 import { notFound } from 'next/navigation'
 import { applyJob, cancelApplication, changeDates } from '@/app/actions/worker'
 import { ContactButtons } from '@/components/Contact'
@@ -20,7 +21,7 @@ import { scheduleSummary, scheduleText } from '@/lib/docs'
 import { phoneFmt, won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
 import { breakDescription, estimateDay, TAX_LABEL, workOver } from '@/lib/pay'
-import { getUser } from '@/lib/session'
+import { adminCompanies, getUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, minutesText } from '@/lib/time'
 import type { Application, Job } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
@@ -129,10 +130,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     user
       ? db()
           .from('users')
-          .select('photo_at, bank_account_enc')
+          .select('photo_at, bank_account_enc, rrn_masked')
           .eq('id', user.id)
           .maybeSingle()
-          .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null } | null)
+          .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null; rrn_masked: string | null } | null)
       : null,
     // 회사: 해피워크가 확인한 회사인지 + 지금 모집 중인 공고 수 (그 회사 공고 모음으로)
     Promise.all([
@@ -172,10 +173,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const path = `/jobs/${job.id}`
   // 전문가 의뢰는 전문가 화면(보라)·말투로, 지원도 가입 유형이 맞아야 (알바 공고는 알바, 전문가 의뢰는 전문가)
   const expert = job.audience === 'expert'
-  const wrongType = !!user && user.role !== 'admin' && !canApplyTo(user.memberType, job.audience)
   // 얼굴 사진이 없는 근무자·전문가 (현장 담당자가 알아볼 수 있게 지원 전에 등록)
   const photoAt = me?.photo_at ?? null
-  const needPhoto = !!user && user.role === 'worker' && user.memberType !== 'vendor' && !photoAt
+  // 관리자 계정 (한 계정으로 두 역할): 맡은 회사 공고는 관리자 화면에서 · 다른 회사 공고는 근무자로 지원 (처음 한 번 근무자 정보)
+  const ownJob = user?.role === 'admin' && (user.isSuper || (await adminCompanies(user.id, false)).some((c) => c.id === job.company_id))
+  const asWorker = !!user && (user.role === 'worker' || !ownJob)
+  const needPhoto = !!user && asWorker && user.memberType !== 'vendor' && !photoAt
+  const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
+  const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
   const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
@@ -399,7 +404,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       {/* 아직 지원 전이면 휴대폰 아래에 지원 버튼을 띄움 (지원 칸이 화면 아래쪽이라) */}
       {/* 관리자 조회 현황용 신호 (관리자 본인은 세지 않음) */}
       <JobViewBeacon jobId={job.id} />
-      {canApply && (!app || app.status === 'cancelled') && (
+      {canApply && !ownJob && (!app || app.status === 'cancelled') && (
         <StickyApply
           targetId="apply"
           title={job.title}
@@ -407,8 +412,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           href={user ? undefined : `/signup?next=${encodeURIComponent(path)}`}
           aboveTabs={!!user}
           // 얼굴 사진이 없으면 아래 칸이 '사진 올리기'라서, 바도 그대로 말해 줌 (눌렀는데 지원이 아니라 놀라지 않게)
-          note={needPhoto ? '지원 전에 얼굴 사진 1장이 필요해요' : undefined}
-          cta={needPhoto ? '사진 올리고 지원' : undefined}
+          note={needPhoto ? '지원 전에 얼굴 사진 1장이 필요해요' : needIdentity ? '처음 한 번 근무자 정보가 필요해요' : undefined}
+          cta={needPhoto ? '사진 올리고 지원' : needIdentity ? '정보 넣고 지원' : undefined}
         />
       )}
       {/* 확정됐는데 서명이 남았으면: 화면 아래 바에서 바로 서명 (진행 칸이 화면 아래쪽이라 안 보일 때만) */}
@@ -488,7 +493,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               </div>
             )}
             {/* 지원·확정했는데 받을 계좌가 없으면: 계좌번호 칸으로 바로 (확정 뒤 급여가 늦어지지 않게) */}
-            {activeApp && user?.role === 'worker' && !me?.bank_account_enc && (
+            {activeApp && asWorker && !me?.bank_account_enc && (
               <Link href="/me/profile#bank_account" data-account-nudge className="card-link flex items-center gap-3 rounded-2xl p-3 ring-rose-200/70">
                 <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-rose-50 text-lg text-rose-600">
                   <Icon name="card" />
@@ -612,15 +617,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               )}
             </div>
           )
-        ) : user?.role === 'admin' ? (
-          // 관리자 계정은 지원하지 않음 (지원·확정은 근무자 계정으로)
+        ) : ownJob ? (
+          // 맡은 회사 공고는 근무자로 지원하지 않음 (자기 지원을 스스로 확정·기록 수정하지 않게) · 운영자는 모든 회사를 맡음
           canApply && (
-            <div className="card space-y-2 text-center">
-              <p className="font-semibold">관리자 계정으로는 지원할 수 없어요</p>
-              <p className="text-sm text-sub">근무자 계정으로 로그인해 주세요</p>
-              <Link href="/admin" className="btn-soft btn-sm">
+            <div className="card space-y-2 text-center" data-own-job>
+              <p className="font-semibold">{user?.isSuper ? '운영자 계정은 근무자로 지원하지 않아요' : '우리 회사 공고예요'}</p>
+              <p className="text-sm text-sub">지원자는 관리자 화면에서 확인해 주세요</p>
+              <a href="/api/view?to=admin" className="btn-soft btn-sm">
                 관리자 화면으로
-              </Link>
+              </a>
             </div>
           )
         ) : needPhoto ? (
@@ -634,6 +639,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               <PhotoUpload userId={user.id} name={user.name} photoAt={null} doneKey={PHOTO_DONE_KEY} />
             </div>
           )
+        ) : needIdentity ? (
+          // 관리자로 가입한 계정은 근무자 정보(주민번호)가 없음 → 처음 한 번만 넣으면 바로 지원 칸
+          canApply && <WorkerIdentityForm />
         ) : (
           canApply && (
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
@@ -683,7 +691,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       </div>
       {/* 지원·확정한 공고: 사진이 없으면 등록 창, 알림을 안 켰으면 켜기 권유 (공고마다 한 번) */}
       {activeApp && needPhoto && user && <PhotoPrompt userId={user.id} name={user.name} />}
-      {activeApp && app && user && user.role !== 'admin' && (
+      {activeApp && app && user && asWorker && (
         <PushNudge
           publicKey={pushPublicKey()}
           pro={expert}

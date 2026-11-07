@@ -20,9 +20,10 @@ export default async function SiteHeader() {
           {user ? (
             <>
               {user.role === 'admin' && (
-                <Link href="/admin" className="rounded-lg px-2.5 py-1.5 text-brand-700 hover:bg-brand-50">
+                // 관리자 화면으로 돌아감 (근무자 화면 표시를 지워 다음 접속은 다시 관리자 화면부터)
+                <a href="/api/view?to=admin" className="rounded-lg px-2.5 py-1.5 text-brand-700 hover:bg-brand-50" data-to-admin>
                   관리자
-                </Link>
+                </a>
               )}
               {/* 휴대폰에서는 아래 탭에 있으므로 넓은 화면에서만 */}
               <Link href="/me" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">

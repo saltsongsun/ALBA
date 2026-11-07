@@ -3,8 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
-import { decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
-import { approvedCounts, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
+import { blindIndex, decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
+import { approvedCounts, audit, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
@@ -13,13 +13,13 @@ import { finishIfAllOut } from '@/lib/autoFinish'
 import { remindOthersToClockOut } from '@/lib/remind'
 import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
-import { note, recent } from '@/lib/ratelimit'
+import { note, overLimit, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
 import { FULL_TIME_MARK, fixTime, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
-import { clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
-import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
+import { adminCompanies, clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
+import { ageOn, dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
-import { isDate, isPin, isUuid, line, normalizePhone, optLine, optStr, str, weakPin } from '@/lib/validate'
+import { isDate, isPin, isUuid, line, normalizePhone, optLine, optStr, parseRrn, str, weakPin } from '@/lib/validate'
 import { canOpenJobDocs } from '@/lib/doc-access'
 import { canApplyTo, myWorkTab, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
@@ -31,6 +31,48 @@ function back(path: string, msg: string): never {
 
 // ───────────── 지원 ─────────────
 
+/** 이 회사를 맡은 관리자인지 (운영자의 '모든 회사'는 빼고 실제 소속만) */
+async function adminOf(userId: string, companyId: string): Promise<boolean> {
+  return (await adminCompanies(userId, false)).some((c) => c.id === companyId)
+}
+
+/**
+ * 관리자 계정이 다른 회사 공고에 근무자로 지원하기 전, 근무자 정보를 처음 한 번 넣기 (사용자 요청 2026-11-07 '한 계정으로 두 역할').
+ * 아르바이트 가입과 같은 확인: 주민번호 13자리 · 만 15세 이상 · 다른 계정과 겹치지 않음 · 제3자 제공·고유식별정보 동의.
+ * 이미 넣었으면 바꾸지 않음 (바꾸는 건 담당자 문의로) · 운영자 계정은 지원하지 않아 넣지 않음
+ */
+export async function addWorkerIdentity(_: FormState, form: FormData): Promise<FormState> {
+  const user = await requireUser('/me')
+  if (user.role !== 'admin' || user.isSuper) return { error: '관리자 계정만 근무자 정보를 따로 넣어요.' }
+  if (await overLimit(`worker-id:${user.id}`, 5, 3600)) return { error: '시도가 너무 많아요. 한 시간 뒤에 다시 시도해 주세요.' }
+  const rrn = parseRrn(str(form, 'rrn1') + str(form, 'rrn2'))
+  if (!rrn) return { error: '주민등록번호 13자리를 정확히 입력해 주세요.' }
+  if (form.get('agree_third') !== 'on' || form.get('agree_rrn') !== 'on') return { error: '필수 동의 항목에 모두 체크해 주세요.' }
+  if (ageOn(rrn.birthDate) < 15) return { error: '만 15세 미만은 근무할 수 없습니다. (근로기준법 제64조)' }
+  const { data: cur } = await db().from('users').select('rrn_enc').eq('id', user.id).maybeSingle()
+  if ((cur as { rrn_enc: string | null } | null)?.rrn_enc) return { ok: '이미 근무자 정보가 있어요. 바로 지원할 수 있어요.' }
+  const rrnHash = blindIndex(rrn.digits)
+  const { data: dup } = await db().from('users').select('id').eq('rrn_hash', rrnHash).neq('id', user.id).maybeSingle()
+  // 어떤 주민번호가 가입돼 있는지 알려 주지 않도록 두루뭉술하게 (아르바이트 가입과 같은 말)
+  if (dup) return { error: '이 정보로는 등록할 수 없어요. 예전에 근무자로 가입한 번호가 있으면 그 번호로 로그인하거나 담당자에게 문의해 주세요.' }
+  const { error } = await db()
+    .from('users')
+    .update({
+      rrn_enc: encrypt(rrn.digits),
+      rrn_hash: rrnHash,
+      rrn_masked: rrn.masked,
+      birth_date: rrn.birthDate,
+      gender: rrn.gender,
+      is_foreigner: rrn.isForeigner,
+    })
+    .eq('id', user.id)
+    .is('rrn_enc', null)
+  if (error) return { error: '저장하지 못했어요. 잠시 후 다시 시도해 주세요.' }
+  await audit(user.id, 'worker.identity', user.id, '관리자 계정 근무자 정보 등록')
+  revalidatePath('/me/profile')
+  return { ok: '근무자 정보를 넣었어요. 이제 지원할 수 있어요.' }
+}
+
 export async function applyJob(jobId: string, form: FormData) {
   const user = await requireUser(`/jobs/${jobId}`)
   const job = isUuid(jobId) ? await getJob(jobId) : null
@@ -38,8 +80,12 @@ export async function applyJob(jobId: string, form: FormData) {
   const path = `/jobs/${jobId}`
   if (job.status !== 'open') back(path, '모집이 마감된 공고입니다.')
   if (job.end_date < kstDate()) back(path, '이미 끝난 행사입니다.')
-  // 관리자 계정은 지원 못 함 (근무자 계정으로)
-  if (user.role === 'admin') back(path, '관리자 계정으로는 지원할 수 없어요. 근무자 계정으로 로그인해 주세요.')
+  // 관리자 계정도 다른 회사 공고에는 근무자로 지원 (사용자 요청 2026-11-07 '한 계정으로 두 역할').
+  // 맡은 회사 공고는 안 됨 (자기 지원을 스스로 확정·기록 수정하지 않게) · 운영자는 모든 회사를 맡아서 지원 안 함
+  if (user.role === 'admin') {
+    if (user.isSuper) back(path, '운영자 계정은 모든 회사를 관리해서 근무자로 지원할 수 없어요.')
+    if (await adminOf(user.id, job.company_id)) back(path, '우리 회사 공고에는 근무자로 지원할 수 없어요. 관리자 화면에서 관리해 주세요.')
+  }
   // 알바 공고는 아르바이트 회원, 전문가 의뢰는 전문가 회원만 (외주 업체는 견적 요청으로)
   if (!canApplyTo(user.memberType, job.audience)) {
     back(path, job.audience === 'expert' ? '전문가 회원만 지원할 수 있는 의뢰예요.' : '아르바이트 회원만 지원할 수 있는 공고예요.')
@@ -47,8 +93,10 @@ export async function applyJob(jobId: string, form: FormData) {
   // 오늘이 마지막 날이고 근무 시간까지 끝났으면 받지 않음 (화면을 열어 둔 사이 끝난 경우)
   if (workOver(job, job.end_date)) back(path, `오늘 ${job.audience === 'expert' ? '일정이' : '근무가'} ${hhmm(job.end_time)}에 끝났어요. 다른 공고를 찾아 주세요.`)
   // 얼굴 사진이 있어야 지원 (현장 담당자가 알아볼 수 있게. 가입 때 사진을 안 올린 예전 회원 포함)
-  const { data: me } = await db().from('users').select('photo_at').eq('id', user.id).maybeSingle()
+  const { data: me } = await db().from('users').select('photo_at, rrn_enc').eq('id', user.id).maybeSingle()
   if (!(me as { photo_at: string | null } | null)?.photo_at) back(path, '얼굴 사진을 먼저 올려 주세요. 현장에서 담당자가 알아볼 수 있게 필요해요.')
+  // 관리자로 가입한 계정은 근무자 정보(주민등록번호)가 없음 → 처음 한 번 넣어야 지원 (근로계약·신고에 필요)
+  if (user.role === 'admin' && !(me as { rrn_enc: string | null } | null)?.rrn_enc) back(path, '근무자 정보(주민등록번호)를 먼저 넣어 주세요. 근로계약과 신고에 필요해요.')
 
   const dates = form
     .getAll('dates')

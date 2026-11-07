@@ -85,8 +85,9 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const applied = new Set(workerIds)
   const memberIds = new Set(members.map((m) => m.user_id))
   const listed = (must(rowsRes) as unknown as Row[])
-    // 관리자(우리 회사·다른 회사 모두)·외주 업체 계정은 근무자 목록에서 뺌 — 우리 회사 관리자는 '관리자 명부'에서
-    .filter((u) => u.role !== 'admin' && !memberIds.has(u.id) && u.member_type !== 'vendor')
+    // 관리자·외주 업체 계정은 근무자 목록에서 뺌 — 우리 회사 관리자는 '관리자 명부'에서.
+    // 다른 회사 관리자 계정이 우리 회사에 근무자로 지원했으면 근무자로 보임 (한 계정으로 두 역할)
+    .filter((u) => (u.role !== 'admin' || applied.has(u.id)) && !memberIds.has(u.id) && u.member_type !== 'vendor')
     // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 (전체 회원 명단은 확인 뒤)
     .filter((u) => admin.companyVerified || applied.has(u.id))
     // 탈퇴·정지한 회원은 우리 회사와 관계있을 때만 (기록 보관 의무는 함께 일한 회사에만)

@@ -3,7 +3,7 @@
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useTabTarget } from '@/components/useTabTarget'
 
 type Item = { href: string; label: string; icon: React.ReactNode; exact?: boolean }
@@ -44,7 +44,9 @@ const MORE: { href: string; label: string; icon: IconName }[] = [
   { href: '/admin/docs', label: '서류', icon: 'file' },
   { href: '/admin/settings', label: '회사 설정', icon: 'gear' },
 ]
+/** 최상위 관리자만: '운영' 묶음 (운영 센터가 먼저 · 더보기 안에서 이름표 아래 따로) */
 const SUPER: { href: string; label: string; icon: IconName }[] = [
+  { href: '/admin/ops', label: '운영 센터', icon: 'flag' },
   { href: '/admin/companies', label: '회사 관리', icon: 'building' },
   { href: '/admin/insights', label: '인사이트', icon: 'eye' },
   { href: '/admin/community', label: '커뮤니티 관리', icon: 'shield' },
@@ -82,29 +84,37 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
           <button type="button" aria-label="닫기" className="absolute inset-0 bg-black/25 backdrop-blur-[2px]" onClick={() => setOpen(false)} />
           <div role="dialog" aria-label="더보기" className="glass absolute inset-x-3 bottom-[calc(var(--tabbar-space)+8px)] animate-slide-up rounded-[26px] p-2">
             <ul className="grid grid-cols-2 gap-1.5">
-              {more.map((m) => {
+              {more.map((m, i) => {
                 const on = path.startsWith(m.href)
                 const n = count(m.href)
                 return (
-                  <li key={m.href}>
-                    <Link
-                      href={m.href}
-                      aria-current={on ? 'page' : undefined}
-                      className={`flex items-center gap-2 rounded-[18px] px-3 py-3 text-sm font-semibold transition active:scale-95 ${on ? 'bg-brand-50 text-brand-700' : 'bg-white/70 text-ink'}`}
-                    >
-                      <span aria-hidden className={`text-lg ${on ? '' : 'text-sub'}`}>
-                        <Icon name={m.icon} />
-                      </span>
-                      <span className="min-w-0 flex-1 truncate">{m.label}</span>
-                      {n > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{n > 99 ? '99+' : n}</span>}
-                    </Link>
-                  </li>
+                  <Fragment key={m.href}>
+                    {i === MORE.length && (
+                      <li className="col-span-2 px-2 pt-1.5 text-[11px] font-bold text-mute" data-super-group>
+                        운영 · 최상위 관리자
+                      </li>
+                    )}
+                    <li>
+                      <Link
+                        href={m.href}
+                        aria-current={on ? 'page' : undefined}
+                        className={`flex items-center gap-2 rounded-[18px] px-3 py-3 text-sm font-semibold transition active:scale-95 ${on ? 'bg-brand-50 text-brand-700' : 'bg-white/70 text-ink'}`}
+                      >
+                        <span aria-hidden className={`text-lg ${on ? '' : 'text-sub'}`}>
+                          <Icon name={m.icon} />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">{m.label}</span>
+                        {n > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{n > 99 ? '99+' : n}</span>}
+                      </Link>
+                    </li>
+                  </Fragment>
                 )
               })}
               <li className="col-span-2">
-                <Link href="/" className="flex items-center justify-center gap-1.5 rounded-[18px] px-3 py-2.5 text-sm font-semibold text-sub transition active:scale-95">
+                {/* 근무자 화면으로 바꿈 (관리자는 접속하면 관리자 화면부터라, 이 버튼으로 들어온 동안만 근무자 화면) */}
+                <a href="/api/view?to=worker" className="flex items-center justify-center gap-1.5 rounded-[18px] px-3 py-2.5 text-sm font-semibold text-sub transition active:scale-95" data-to-worker>
                   👀 근무자 화면으로 보기
-                </Link>
+                </a>
               </li>
             </ul>
           </div>

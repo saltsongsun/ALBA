@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
+import { addWorkerIdentity } from '@/app/actions/worker'
 import { signupCompany } from '@/app/actions/company'
 import { requestJoin } from '@/app/actions/team'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE, THIRD_PARTY_ITEMS, THIRD_PARTY_ITEMS_VENDOR } from '@/lib/privacy'
@@ -895,6 +896,46 @@ export function SetupForm() {
       </div>
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full">관리자 계정 만들기</SubmitButton>
+    </form>
+  )
+}
+
+/**
+ * 관리자 계정이 다른 회사 공고에 근무자로 처음 지원할 때 한 번만 넣는 근무자 정보 (사용자 요청 2026-11-07 '한 계정으로 두 역할').
+ * 아르바이트 가입과 같은 주민번호 칸·동의 (개인정보 수집·이용은 관리자 가입 때 이미 동의) · 넣으면 화면이 지원 칸으로 바뀜
+ */
+export function WorkerIdentityForm() {
+  const router = useRouter()
+  const [state, action] = useActionState(addWorkerIdentity, null)
+  useEffect(() => {
+    if (state?.ok) router.refresh()
+  }, [state, router])
+  return (
+    <form action={action} className="card space-y-4" data-worker-identity>
+      <div>
+        <p className="font-bold">처음 한 번 근무자 정보를 넣어 주세요</p>
+        <p className="text-sm text-sub">관리자 계정 그대로 다른 회사에서 일할 수 있어요 · 근로계약과 신고에 필요해요</p>
+      </div>
+      <RrnFields note="암호화해서 보관하고, 지원·근무하는 회사만 신고용으로 봐요" />
+      <div className="space-y-3 text-sm">
+        <label className="flex items-start gap-2.5">
+          <input type="checkbox" name="agree_third" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
+          <span>
+            <b>[필수]</b> 개인정보 제3자 제공 동의
+            <span className="block text-[13px] text-mute">지원·근무하는 구인 회사에 제공</span>
+          </span>
+        </label>
+        <ConsentDetails items={THIRD_PARTY_ITEMS} />
+        <label className="flex items-start gap-2.5">
+          <input type="checkbox" name="agree_rrn" className="mt-0.5 size-5 shrink-0 accent-brand-600" required />
+          <span>
+            <b>[필수]</b> 고유식별정보(주민등록번호) 처리 안내를 확인했습니다.
+            <span className="mt-1 block text-[13px] text-mute">{RRN_NOTICE}</span>
+          </span>
+        </label>
+      </div>
+      <FormMessage state={state} />
+      <SubmitButton className="btn-primary w-full py-3.5 text-base">근무자 정보 넣기</SubmitButton>
     </form>
   )
 }

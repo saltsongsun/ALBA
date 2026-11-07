@@ -8,7 +8,7 @@ import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { sendPush } from '@/lib/push'
 import { markRoomRead, mentionedIn, pinnedReads, roomMembers, roomOpen, roomPinned, roomReads, unreadFor, workerRoom, type RoomJob } from '@/lib/room'
-import { requireAdmin, requireUser } from '@/lib/session'
+import { canManageCompany, requireAdmin, requireUser } from '@/lib/session'
 import { overLimit } from '@/lib/ratelimit'
 import { badSticker, plainBody } from '@/lib/stickers'
 import { DELETED, DELETED_BY_ADMIN, isDeleted, validMessageId } from '@/lib/deleted'
@@ -29,13 +29,12 @@ const roomPaths = (jobId: string) => {
 export async function sendRoom(jobId: string, _: FormState, form: FormData): Promise<FormState> {
   const user = await requireUser(`/me/chat/room/${jobId}`)
   if (!isUuid(jobId)) return { error: '잘못된 요청입니다.' }
-  let job: RoomJob | null
-  const asAdmin = user.role === 'admin'
+  let job: RoomJob | null = await workerRoom(user.id, jobId)
+  // 관리자 계정이 다른 회사에서 근무자로 확정된 방이면 근무자로 씀 (한 계정으로 두 역할) · 맡은 회사 방이면 담당자로
+  const asAdmin = user.role === 'admin' && (!job || (await canManageCompany(user, job.company_id)))
   if (asAdmin) {
     const admin = await requireAdmin()
     job = (await companyJob(admin, jobId)) as RoomJob | null
-  } else {
-    job = await workerRoom(user.id, jobId)
   }
   if (!job) return { error: '이 단체방에 들어갈 수 없어요. (확정된 근무자와 담당자만)' }
   if (!roomOpen(job)) return { error: '행사가 끝나고 7일이 지나 이제 글을 쓸 수 없어요. 대화 저장은 할 수 있어요.' }
@@ -83,8 +82,10 @@ export async function sendRoom(jobId: string, _: FormState, form: FormData): Pro
 export async function deleteRoomMessage(jobId: string, id: number | string): Promise<FormState> {
   const user = await requireUser(`/me/chat/room/${jobId}`)
   if (!isUuid(jobId) || !validMessageId(id)) return { error: '잘못된 요청입니다.' }
-  const asAdmin = user.role === 'admin'
-  const job = asAdmin ? await companyJob(await requireAdmin(), jobId) : await workerRoom(user.id, jobId)
+  const mineRoom = await workerRoom(user.id, jobId)
+  // 다른 회사에서 근무자로 확정된 관리자 계정은 그 방에서 근무자 (자기 글만 지움)
+  const asAdmin = user.role === 'admin' && (!mineRoom || (await canManageCompany(user, mineRoom.company_id)))
+  const job = asAdmin ? await companyJob(await requireAdmin(), jobId) : mineRoom
   if (!job) return { error: '이 단체방에 들어갈 수 없어요.' }
   const { data } = await db().from('job_chat').select('id, sender_id, body, pinned_at').eq('id', id).eq('job_id', jobId).maybeSingle()
   const m = data as { sender_id: string | null; body: string; pinned_at: string | null } | null

@@ -3,7 +3,9 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
-const ITEMS = [
+type NavItem = { href: string; label: string; exact?: boolean; group?: boolean }
+
+const ITEMS: NavItem[] = [
   { href: '/admin', label: '대시보드', exact: true },
   { href: '/admin/jobs', label: '공고 · 출퇴근' },
   { href: '/admin/workers', label: '근무자' },
@@ -16,38 +18,52 @@ const ITEMS = [
 
 export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false, reports = 0 }: { unread?: number; joinWait?: number; isSuper?: boolean; reports?: number }) {
   const path = usePathname()
-  // 회사 관리는 최고 관리자만
-  const items = isSuper ? [...ITEMS, { href: '/admin/companies', label: '회사 관리' }, { href: '/admin/community', label: '커뮤니티 관리' }, { href: '/admin/insights', label: '인사이트' }] : ITEMS
+  // 최상위 관리자는 '운영' 묶음을 칸막이 뒤에 따로 (운영 센터가 먼저)
+  const items: NavItem[] = isSuper
+    ? [
+        ...ITEMS,
+        { href: '/admin/ops', label: '운영 센터', group: true },
+        { href: '/admin/companies', label: '회사 관리' },
+        { href: '/admin/insights', label: '인사이트' },
+        { href: '/admin/community', label: '커뮤니티 관리' },
+      ]
+    : ITEMS
   return (
     <nav aria-label="관리자 메뉴" className="mx-auto hidden max-w-6xl gap-1 overflow-x-auto px-3 pb-2 text-sm font-semibold sm:flex">
       {items.map((it) => {
         const active = it.exact ? path === it.href : path.startsWith(it.href)
         return (
-          <Link
-            key={it.href}
-            href={it.href}
-            className={`shrink-0 rounded-lg px-3 py-1.5 transition duration-200 active:scale-95 ${active ? 'bg-ink text-white shadow-sm' : 'text-sub hover:bg-bg'}`}
-          >
-            {it.label}
-            {/* 안 읽은 근무자 문의 */}
-            {it.href === '/admin/chat' && unread > 0 && (
-              <span className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
-                {unread > 99 ? '99+' : unread}
-              </span>
-            )}
-            {/* 처리 안 한 커뮤니티 신고 (최고 관리자) */}
-            {it.href === '/admin/community' && reports > 0 && (
-              <span aria-label={`처리할 신고 ${reports}건`} data-report-badge className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
-                {reports > 99 ? '99+' : reports}
-              </span>
-            )}
-            {/* 관리자 가입 신청 (대표 관리자) */}
-            {it.href === '/admin/settings' && joinWait > 0 && (
-              <span aria-label={`관리자 가입 신청 ${joinWait}명`} className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
-                {joinWait}
-              </span>
-            )}
-          </Link>
+          <span key={it.href} className="contents">
+            {it.group && <span aria-hidden className="mx-1 my-1.5 w-px shrink-0 bg-line" data-super-group />}
+            <Link href={it.href} className={`shrink-0 rounded-lg px-3 py-1.5 transition duration-200 active:scale-95 ${active ? 'bg-ink text-white shadow-sm' : 'text-sub hover:bg-bg'}`}>
+              {it.label}
+              {/* 안 읽은 근무자 문의 */}
+              {it.href === '/admin/chat' && unread > 0 && (
+                <span className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white">
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
+              {/* 처리 안 한 커뮤니티 신고 (최고 관리자) */}
+              {it.href === '/admin/community' && reports > 0 && (
+                <span
+                  aria-label={`처리할 신고 ${reports}건`}
+                  data-report-badge
+                  className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white"
+                >
+                  {reports > 99 ? '99+' : reports}
+                </span>
+              )}
+              {/* 관리자 가입 신청 (대표 관리자) */}
+              {it.href === '/admin/settings' && joinWait > 0 && (
+                <span
+                  aria-label={`관리자 가입 신청 ${joinWait}명`}
+                  className="ml-1 inline-grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-amber-500 px-1 align-[1px] text-[10px] leading-none font-bold text-white"
+                >
+                  {joinWait}
+                </span>
+              )}
+            </Link>
+          </span>
         )
       })}
     </nav>

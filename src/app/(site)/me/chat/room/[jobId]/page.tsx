@@ -8,7 +8,7 @@ import Empty from '@/components/Empty'
 import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
 import { markRoomRead, roomMembers, roomMessages, roomOpen, roomPinned, roomReads, workerRoom } from '@/lib/room'
-import { requireUser } from '@/lib/session'
+import { canManageCompany, requireUser } from '@/lib/session'
 import { fmtDateRange } from '@/lib/time'
 
 export const metadata: Metadata = { title: '단체방' }
@@ -17,8 +17,9 @@ export const metadata: Metadata = { title: '단체방' }
 export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jobId]'>) {
   const { jobId } = await props.params
   const user = await requireUser(`/me/chat/room/${jobId}`)
-  if (user.role === 'admin') redirect(`/admin/chat/room/${jobId}`)
   const job = await workerRoom(user.id, jobId)
+  // 관리자는 맡은 회사 방이면 관리자 단체방으로 · 다른 회사에서 근무자로 확정된 방이면 근무자로 (한 계정으로 두 역할)
+  if (user.role === 'admin' && (!job || (await canManageCompany(user, job.company_id)))) redirect(`/admin/chat/room/${jobId}`)
   if (!job) notFound()
   const [messages, members, pinned, reads] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), roomReads(job.id), markRoomRead(job.id, user.id)])
   const open = roomOpen(job)

@@ -467,7 +467,8 @@ async function tellNotSelected(job: Job, userIds: string[], adminId: string, clo
     jobId: job.id,
     title: '🙏 이번엔 함께하지 못해요',
     text: `${job.title}\n${scheduleSummary(job)}\n${closed ? '모집이 마감돼 ' : ''}이번에는 함께하지 못하게 됐어요. 지원해 주셔서 고마워요. 다음 행사 때 다시 만나요!`,
-    url: '/',
+    // 다른 공고 목록으로 (관리자 계정이 근무자로 받아도 관리자 화면으로 넘어가지 않게 표시를 붙임)
+    url: '/?from=push',
     tag: `notsel-${job.id}`,
   })
 }
@@ -1567,15 +1568,19 @@ export async function restoreDefaultTemplates() {
  * 이 회사와 실제로 일하는(확정됐거나 출퇴근 기록이 있는) 근무자 계정인지.
  * 주민번호 보기·비밀번호 초기화처럼 민감한 일은 '지원만 한' 사람이나 관리자·최고 관리자 계정에는 못 하게
  */
-async function workingWorker(companyId: string, userId: string): Promise<{ role: string; is_super: boolean; member_type: string | null } | null> {
+async function workingWorker(companyId: string, userId: string, adminToo = false): Promise<{ role: string; is_super: boolean; member_type: string | null } | null> {
   if (!isUuid(userId)) return null
-  const [{ data: u }, { count: apps }, { count: atts }] = await Promise.all([
+  const [{ data: u }, { count: apps }, { count: atts }, { count: member }] = await Promise.all([
     db().from('users').select('role, is_super, member_type').eq('id', userId).maybeSingle(),
     db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('user_id', userId).eq('status', 'approved'),
     db().from('attendance').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('user_id', userId),
+    db().from('company_members').select('user_id', { count: 'exact', head: true }).eq('company_id', companyId).eq('user_id', userId),
   ])
   const user = u as { role: string; is_super: boolean; member_type: string | null } | null
-  if (!user || user.role !== 'worker' || user.is_super || ((apps ?? 0) === 0 && (atts ?? 0) === 0)) return null
+  // 관리자 계정은 기본으로 안 됨 (비밀번호 초기화 등으로 다른 회사 관리자 계정을 가로채지 못하게).
+  // adminToo(주민번호 신고용 열람만): 우리 회사에서 근무자로 일한 다른 회사 관리자 계정까지 — 이 회사 동료 관리자·운영자 계정은 안 됨
+  if (!user || user.is_super || ((apps ?? 0) === 0 && (atts ?? 0) === 0)) return null
+  if (user.role !== 'worker' && !(adminToo && user.role === 'admin' && (member ?? 0) === 0)) return null
   return user
 }
 
@@ -1585,7 +1590,7 @@ export async function revealRrn(userId: string, _: FormState): Promise<FormState
   if (!(await rosterUnlockedFor(admin.id))) return { error: '근무자 명단 잠금이 풀려 있지 않아요. 근무자 화면에서 비밀번호를 넣어 주세요.' }
   // 주민번호는 신고용: 이 회사에서 출퇴근 기록이 있는 근무자만 (지원만 했거나 관리자 계정이면 안 됨)
   const { count: worked } = await db().from('attendance').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('user_id', userId)
-  if (!(await workingWorker(admin.companyId, userId)) || !worked) return { error: '이 회사에서 근무한 기록이 있는 근무자만 볼 수 있어요.' }
+  if (!(await workingWorker(admin.companyId, userId, true)) || !worked) return { error: '이 회사에서 근무한 기록이 있는 근무자만 볼 수 있어요.' }
   // 관리자 계정이 털려도 주민번호를 한꺼번에 빼 가지 못하게 열람 횟수 제한
   if (await overLimit(`rrn-view:${admin.id}`, 30, 3600)) return { error: '주민등록번호 열람이 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
   const { data } = await db().from('users').select('rrn_enc').eq('id', userId).maybeSingle()

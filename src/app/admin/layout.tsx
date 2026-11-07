@@ -65,9 +65,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <div className="flex shrink-0 items-center gap-0.5 text-sm whitespace-nowrap">
             <span className="hidden text-mute lg:inline">{admin.name}</span>
             {/* 휴대폰에서는 아래 탭 '더보기' 안에 */}
-            <Link href="/" className="hidden rounded-lg px-2 py-1.5 font-semibold hover:bg-bg sm:inline">
+            {/* 근무자 화면으로 바꿈 (관리자는 접속하면 관리자 화면부터라, 이 버튼으로 들어온 동안만 근무자 화면) */}
+            <a href="/api/view?to=worker" className="hidden rounded-lg px-2 py-1.5 font-semibold hover:bg-bg sm:inline" data-to-worker>
               근무자 화면
-            </Link>
+            </a>
             <LogoutButton className="rounded-lg px-2 py-1.5 text-mute hover:bg-bg" />
           </div>
         </div>

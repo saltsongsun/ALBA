@@ -305,7 +305,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               canGrant={admin.isSuper || (admin.companyVerified && admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner')}
             />
             {/* 비밀번호 초기화: 근무자 계정만 (관리자 계정은 최고 관리자만) */}
-            {(u.role === 'worker' || admin.isSuper) && u.id !== admin.id && (
+            {/* 다른 회사 관리자 계정이 근무자로 일하는 경우도 최고 관리자만 (계정 가로채기 막기) */}
+            {((u.role === 'worker' && found.role === 'worker') || admin.isSuper) && u.id !== admin.id && (
               <div className="mt-3 border-t border-line pt-3">
                 <ResetPin userId={u.id} />
               </div>
