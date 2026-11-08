@@ -57,6 +57,16 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       : 1,
   ])
   const firstTime = everCount === 0
+  // 진행·예정 공고에서 오늘 하는 행사는 '오늘', 내일 시작은 '내일' (현장에서 지금 볼 공고를 바로 찾게)
+  const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
+  const dayTag = (j: JobWithAppStatus): [string, string] | null =>
+    tab !== 'active' || j.status === 'cancelled'
+      ? null
+      : j.start_date <= today && j.end_date >= today
+        ? ['오늘', 'bg-emerald-50 text-emerald-700']
+        : j.start_date === tomorrow
+          ? ['내일', 'bg-sky-50 text-sky-700']
+          : null
   const grossOf = (id: string) => wages[id]?.gross ?? 0
   const waitingBy = countApps(jobs, 'applied')
   const unpaidOf = (id: string) => (unpaid as Record<string, { n: number }>)[id]?.n ?? 0
@@ -170,6 +180,11 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                 <Link key={j.id} href={`/admin/jobs/${j.id}`} className="card-link block p-4">
                   <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                     <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
+                    {dayTag(j) && (
+                      <span className={`badge ${dayTag(j)![1]}`} data-day-tag>
+                        {dayTag(j)![0]}
+                      </span>
+                    )}
                     {waitingBy[j.id] > 0 && <span className="badge bg-amber-50 text-amber-700">대기 {waitingBy[j.id]}명</span>}
                     {unpaidOf(j.id) > 0 && <span className="badge bg-rose-50 text-rose-600">💰 미지급 {unpaidOf(j.id)}명</span>}
                     {j.event_name && <span className="text-xs font-semibold text-mute">{j.event_name}</span>}
