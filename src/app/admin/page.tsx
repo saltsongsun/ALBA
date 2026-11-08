@@ -183,6 +183,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const soon = kstDate(new Date(Date.now() + 2 * 86_400_000))
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const short = activeJobs.filter((j) => j.start_date <= soon && (counts[j.id] ?? 0) < j.headcount)
+  // 이미 시작한 행사 (어제 이전 시작 · 오늘 시작 시각이 지남): '오늘 09:00 시작' 대신 '진행 중'
+  const nowAt = Date.now()
+  const begun = (j: { start_date: string; start_time: string }) => j.start_date < today || (j.start_date === today && kstAt(today, hhmm(j.start_time)).getTime() <= nowAt)
   const todayJobs = activeJobs.filter((j) => j.start_date <= today && j.end_date >= today)
   const workingBy: Record<string, number> = {}
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
@@ -662,7 +665,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {short.length > 0 && (
         <section className="card animate-pop space-y-1" data-shortage>
           <h2 className="flex items-center gap-2 font-bold">
-            <span aria-hidden className="size-2 shrink-0 rounded-full bg-rose-500" /> 곧 시작하는데 인원이 모자라요
+            {/* 이미 시작한 행사만 남았으면 '곧 시작하는데'가 맞지 않음 */}
+            <span aria-hidden className="size-2 shrink-0 rounded-full bg-rose-500" /> {short.every(begun) ? '진행 중인데 인원이 모자라요' : '곧 시작하는데 인원이 모자라요'}
           </h2>
           {/* 처음 모집하는 회사만 짧은 안내 (알릴 예전 근무자가 없어서) */}
           {appsEver === 0 && <p className="text-sm text-sub">아직 지원자가 없어요. 공고 모음 링크를 단톡방에 올리거나 QR을 붙여 모집을 알려 보세요.</p>}
@@ -670,7 +674,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             {short.map((j) => {
               const gap = j.headcount - (counts[j.id] ?? 0)
               const wait = waitingBy[j.id] ?? 0
-              const when = j.start_date < today ? '진행 중' : j.start_date === today ? '오늘' : j.start_date === tomorrow ? '내일' : fmtDate(j.start_date)
+              const when = begun(j) ? '진행 중 ·' : j.start_date === today ? '오늘' : j.start_date === tomorrow ? '내일' : fmtDate(j.start_date)
               return (
                 <li key={j.id} className="space-y-1.5 py-2.5">
                   <div className="flex items-center gap-2">
