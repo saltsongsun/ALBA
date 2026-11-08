@@ -19,7 +19,7 @@ import {
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
 import { fixTime } from '@/lib/signals'
-import { kstTime } from '@/lib/time'
+import { kstDate, kstTime } from '@/lib/time'
 import AccountDigits from './AccountDigits'
 import { onAccountPaste } from './accountPaste'
 import { onPhoneInput, phoneShown } from './phoneTyping'
@@ -164,6 +164,24 @@ export function ClockPanel({
   const [asking, startAsk] = useTransition()
   // 현장 위치 확인에 연달아 막힌 횟수: 두 번째부터는 같은 버튼을 또 누르지 않게 출근 확인 요청 칸으로 데려감
   const [gpsFails, setGpsFails] = useState(0)
+  // 막힌 횟수는 오늘 이 공고 기준으로 잠깐 기억 (인사이트: 위치에 막힌 근무자가 홈·문의를 오가며 화면을 다시 열 때마다
+  // 횟수가 0으로 돌아가 '담당자에게 출근 확인 요청'으로 바뀌지 않고 근무 시작만 계속 누름)
+  const failKey = `gps-fails:${jobId}:${kstDate()}`
+  useEffect(() => {
+    try {
+      const n = Number(sessionStorage.getItem(failKey))
+      if (n > 0) setGpsFails(n)
+    } catch {}
+  }, [failKey])
+  const countGps = (failed: boolean) =>
+    setGpsFails((n) => {
+      const v = failed ? n + 1 : 0
+      try {
+        if (v) sessionStorage.setItem(failKey, String(v))
+        else sessionStorage.removeItem(failKey)
+      } catch {}
+      return v
+    })
   const askBox = useRef<HTMLDivElement>(null)
   // '근무 종료하러 가기'(/me#clock)로 왔으면 버튼을 화면 가운데로 (위에 카드가 많으면 영역 머리만 보이고 버튼은 화면 밖이던 것)
   // 문의 채팅의 '근무 시작하러 가기' 버튼으로 와도 같음 · 버튼 둘레가 몇 번 번쩍여서 어디를 누를지 바로 보이게
@@ -252,7 +270,7 @@ export function ClockPanel({
       }
       setOffline(false)
       setResult(res)
-      setGpsFails((n) => (res.gps ? n + 1 : 0))
+      countGps(!!res.gps)
       setStep('')
       setNow(Date.now())
       if (res.ok) {

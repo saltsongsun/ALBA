@@ -33,6 +33,7 @@ import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutes
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { contractNameOf } from '@/lib/members'
+import { VIEW_COOKIE } from '@/lib/view'
 
 export const metadata: Metadata = { title: '내 근무' }
 
@@ -78,6 +79,8 @@ function CompanyName({ job, className = '' }: { job: { company?: { company_name:
 export default async function MePage(props: PageProps<'/me'>) {
   const sp = await props.searchParams
   const user = await requireUser('/me')
+  // 앱 아이콘으로 열었을 때(?app=1) 관리자는 관리자 화면부터 (첫 화면 '/'와 같게 · '근무자 화면으로 보기' 중이면 그대로)
+  if (sp.app === '1' && user.role === 'admin' && (await cookies()).get(VIEW_COOKIE)?.value !== 'worker') redirect('/admin')
   // 외주 업체는 근무(출퇴근)가 없으므로 전문가 화면으로
   if (user.memberType === 'vendor' && user.role !== 'admin') redirect('/pro')
   // 전문가: '근무' 대신 '일', 빈 화면에서 전문가 의뢰 목록으로
