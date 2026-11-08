@@ -6,7 +6,7 @@ import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
 import { VENDOR_CATEGORIES } from '@/lib/vendors'
 import { onAccountPaste } from './accountPaste'
-import { onPhoneInput } from './phoneTyping'
+import { onPhoneInput, phoneShown } from './phoneTyping'
 import BizNoField from './BizNoField'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
@@ -103,7 +103,7 @@ export function VendorForm({
         </label>
         <label>
           <span className="label">연락처</span>
-          <input name="phone" className="input" inputMode="tel" maxLength={20} defaultValue={initial?.phone ?? ''} placeholder="010-0000-0000" onInput={onPhoneInput} />
+          <input name="phone" className="input" inputMode="tel" maxLength={20} defaultValue={phoneShown(initial?.phone)} placeholder="010-0000-0000" onInput={onPhoneInput} />
         </label>
         <label>
           <span className="label">이메일</span>

@@ -15,9 +15,17 @@ export function phoneTyping(raw: string): string {
   return `${d.slice(0, area)}-${rest.slice(0, mid)}-${rest.slice(mid)}`
 }
 
+/** 저장된 번호를 칸에 보여 줄 때도 같은 모양으로 (숫자·'-'·빈칸 말고 다른 글자(예: 내선)가 있으면 그대로) */
+export function phoneShown(v: string | null | undefined): string {
+  if (!v) return ''
+  return /^[\d\s-]+$/.test(v) ? phoneTyping(v) : v
+}
+
 export function onPhoneInput(e: React.FormEvent<HTMLInputElement>) {
   const el = e.currentTarget
   if (el.selectionStart !== el.value.length) return
+  // '02-123-4567 (내선 3)'처럼 숫자 말고 다른 글자를 쓰는 중이면 건드리지 않음
+  if (!/^[\d\s-]*$/.test(el.value)) return
   const next = phoneTyping(el.value)
   if (next !== el.value) el.value = next
 }

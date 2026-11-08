@@ -7,7 +7,7 @@ import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
 import type { DocTemplate, Settings } from '@/lib/types'
 import { DocBody } from './DocSheet'
-import { onPhoneInput } from './phoneTyping'
+import { onPhoneInput, phoneShown } from './phoneTyping'
 import SealField from './SealField'
 import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
@@ -358,7 +358,7 @@ export function SettingsForm({ s }: { s: Settings }) {
           </label>
           <label>
             <span className="label">회사 전화</span>
-            <input name="company_phone" className="input" inputMode="tel" onInput={onPhoneInput} defaultValue={s.company_phone ?? ''} />
+            <input name="company_phone" className="input" inputMode="tel" onInput={onPhoneInput} defaultValue={phoneShown(s.company_phone)} />
           </label>
           <div className="col-span-2 sm:col-span-1">
             <label className="label" htmlFor="business_no">
@@ -390,7 +390,7 @@ export function SettingsForm({ s }: { s: Settings }) {
           </label>
           <label>
             <span className="label">문의 연락처</span>
-            <input name="contact_phone" className="input" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={s.contact_phone ?? ''} />
+            <input name="contact_phone" className="input" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={phoneShown(s.contact_phone)} />
             <span className="hint">비밀번호 분실 안내에 보여요</span>
           </label>
           <WageDefault value={s.default_hourly_wage} />
