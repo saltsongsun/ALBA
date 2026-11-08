@@ -1,5 +1,4 @@
 // 묶음 128 (정기 개선 2026-11-07 23:35)
-// · 서류(서명) 화면을 여는 동안 빈 화면 대신 서류 종이·서명란 모양 자리 (DocSkeleton)
 // · 외주 업체 계좌 칸도 '국민 123456-01-123456'을 붙여 넣으면 은행은 고르고 계좌번호만 (묶음 127과 같게)
 // node scripts/qa/batch128.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
@@ -27,32 +26,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     return p
   }
 
-  // ── 1. 서류 화면 불러오는 동안 서류 모양 자리 ──
-  const doc = (await rest(`signed_docs?user_id=eq.${W}`)).find((d) => d.status === 'pending' && d.job_id === J)
-  ok('준비: 서명할 서류', !!doc)
-  const w = await pg(W)
-  await w.goto(`${D}/me`)
-  await w.locator('main').waitFor()
-  // 서류 화면 응답을 잠깐 늦춰서 불러오는 동안의 화면을 봄 (RSC 요청만)
-  // (미리 받기 요청은 그대로 두어 '불러오는 중' 모양을 먼저 받게 하고, 실제 화면 요청만 늦춤)
-  await w.route((u) => u.pathname === `/docs/${doc.id}`, async (route) => {
-    if (!route.request().headers()['next-router-prefetch']) await new Promise((r) => setTimeout(r, 1500))
-    await route.continue()
-  })
-  // 내 근무의 서명 카드 링크를 눌러 앱 안에서 이동
-  const link = w.locator(`a[href="/docs/${doc.id}"]`).first()
-  await link.waitFor({ timeout: 15000 }).catch(() => {})
-  await w.waitForTimeout(1200)
-  await link.click()
-  const sk = w.locator('[data-skeleton="doc"]')
-  const seen = await sk.waitFor({ timeout: 3000 }).then(() => true, () => false)
-  ok('여는 동안: 서류 종이·서명란 모양 자리', seen)
-  if (seen && SHOTS) await w.screenshot({ path: `${SHOTS}/doc-skeleton.png` }).catch(() => {})
-  if (seen) ok('360px: 옆으로 안 밀림 (서류 자리)', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
-  await w.locator('[data-sign-pad]').waitFor({ timeout: 15000 }).catch(() => {})
-  ok('다 열리면 진짜 서명란', (await w.locator('[data-sign-pad]').count()) === 1 && (await sk.count()) === 0)
-
-  // ── 2. 외주 업체 계좌 칸 붙여 넣기 ──
+  // (서류 화면 불러오는 자리(loading.tsx)는 넣지 않음: 넣으면 다른 회사 서류 주소가 404 대신 200으로 응답됨 — companies 테스트)
+  // ── 1. 외주 업체 계좌 칸 붙여 넣기 ──
   const a = await pg(A)
   await a.goto(`${D}/admin/vendors?tab=list`)
   const f = a.locator('form', { hasText: '외주사 등록' })
