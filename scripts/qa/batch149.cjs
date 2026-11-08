@@ -35,19 +35,24 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await a.locator('#pending').waitFor({ timeout: 15000 }).catch(() => {})
   ok('대기 1명: 제목 숫자 1 · 안내 없음', /확정 대기 지원자\s*1$/.test((await title()).trim()) && (await note.count()) === 0, (await title()).trim())
 
-  // ── 2. 33명이 기다리면: 진짜 수 33 + 나머지 3명 안내
+  // ── 2. 30명 넘게 기다리면: 진짜 수(따로 셈) + 나머지 안내
+  //    (가짜 DB는 limit(30)을 안 지켜서: 목록에는 안 나오지만 세면 들어가는 대기 3건을 넣어 '센 수 > 보인 수'를 만듦 — 실제 DB에선 30명 넘는 만큼)
   const [apApp] = await rest(`applications?id=eq.${AP_APP}`)
-  for (let i = 0; i < 32; i++) {
+  const yday = new Date(Date.now() + 9 * 3600e3 - 864e5).toISOString().slice(0, 10)
+  for (let i = 0; i < 33; i++) {
     const n = String(i).padStart(2, '0')
     const uid = `33333333-0000-4000-8000-0000001490${n}`
-    await rest('applications', 'POST', { ...apApp, id: `11111111-0000-4000-8000-0000001490${n}`, user_id: uid, user: { ...apApp.user, id: uid, name: `대기${n}` }, held_at: null, status: 'applied', created_at: new Date(Date.now() - i * 60000).toISOString() })
+    const hidden = i >= 30
+    await rest('applications', 'POST', { ...apApp, id: `11111111-0000-4000-8000-0000001490${n}`, user_id: uid, user: { ...apApp.user, id: uid, name: `대기${n}` }, job: hidden ? { ...apApp.job, end_date: yday } : apApp.job, held_at: null, status: 'applied', created_at: new Date(Date.now() - i * 60000).toISOString() })
   }
   await a.reload()
   await a.locator('#pending').waitFor({ timeout: 15000 }).catch(() => {})
-  ok('제목 숫자는 진짜 수 33', /확정 대기 지원자\s*33$/.test((await title()).trim()), (await title()).trim())
+  ok('제목 숫자는 진짜 수 34 (보이는 31명 + 나머지 3명)', /확정 대기 지원자\s*34$/.test((await title()).trim()), (await title()).trim())
+  // 숫자 칸은 0부터 올라가는 움직임이 끝난 뒤
+  await a.waitForFunction(() => document.querySelector('a[href="#pending"]')?.textContent?.includes('34'), null, { timeout: 5000 }).catch(() => {})
   const stat = await a.locator('a[href="#pending"]').first().innerText()
-  ok("숫자 칸 '확정 대기 지원'도 33", stat.includes('33'), stat.replace(/\n/g, ' '))
-  ok("'최근 30명만 보여요 · 나머지 3명은 공고 목록에서' → 공고 목록", (await note.innerText().catch(() => '')).includes('최근 30명만 보여요 · 나머지 3명은 공고 목록에서') && (await note.getAttribute('href')) === '/admin/jobs', await note.innerText().catch(() => ''))
+  ok("숫자 칸 '확정 대기 지원'도 34", stat.includes('34'), stat.replace(/\n/g, ' '))
+  ok("'최근 31명만 보여요 · 나머지 3명은 공고 목록에서' → 공고 목록", (await note.innerText().catch(() => '')).includes('나머지 3명은 공고 목록에서') && (await note.getAttribute('href').catch(() => '')) === '/admin/jobs', await note.innerText().catch(() => ''))
   ok('안내가 한 줄 (꺾이지 않음)', await note.evaluate((el) => el.getBoundingClientRect().height < 48))
   ok('360px: 옆으로 안 밀림', await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
