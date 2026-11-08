@@ -32,6 +32,15 @@ export default async function ProMoney() {
         <p className="mt-1 text-sm text-sub">여러 회사에서 받은 견적 요청과 대금을 한곳에서 봐요.</p>
       </div>
 
+      {/* 견적도 대금도 아직 없으면: 0원 칸 두 개와 빈 칸 두 개 대신 안내 하나만 (같은 '아직 없어요'를 여러 번 보이지 않게) */}
+      {quotes.length === 0 && pays.length === 0 ? (
+        <div data-pro-money-empty>
+          <Empty icon="📄" title="아직 받은 견적·대금이 없어요">
+            회사가 이 휴대폰 번호(업체는 사업자등록번호)로 외주사를 등록하면 견적 요청이 여기로 와요. 견적이 선정되면 대금도 지급 예정일과 함께 여기에 보여요.
+          </Empty>
+        </div>
+      ) : (
+      <>
       <section className="grid grid-cols-2 gap-2">
         <div className="rounded-2xl bg-brand-50 px-4 py-3">
           <p className="text-xs font-semibold text-brand-700">받을 대금 {unpaid.length}건</p>
@@ -109,6 +118,8 @@ export default async function ProMoney() {
           </div>
         )}
       </section>
+      </>
+      )}
 
       {user.memberType === 'expert' && (
         <Link href="/me/history" className="card-link flex items-center justify-between p-4 text-sm font-semibold">

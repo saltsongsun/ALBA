@@ -158,7 +158,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .eq('status', 'applied')
       .is('held_at', null) // 보류한 지원자는 '확정 대기'에서 빼고 공고의 지원자 탭 '보류'에서
       .order('created_at', { ascending: false })
-      .limit(30)
+      .limit(30) // PENDING_LIMIT (아래)
       .then(
         (r) =>
           must(r) as unknown as {
@@ -419,6 +419,24 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...vendorTodos,
   ]
   const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
+  // 확정 대기는 최근 30명까지만 불러옴 → 더 있으면 진짜 수를 따로 세어 '나머지 n명'을 알려 줌 (빠뜨리지 않게)
+  const PENDING_LIMIT = 30
+  const pendingTotal =
+    pending.length >= PENDING_LIMIT && activeJobs.length
+      ? Math.max(
+          pendingApps.length,
+          (
+            await db()
+              .from('applications')
+              .select('id', { count: 'exact', head: true })
+              .eq('company_id', admin.companyId)
+              .eq('status', 'applied')
+              .is('held_at', null)
+              .in('job_id', activeJobs.map((j) => j.id))
+          ).count ?? 0,
+        )
+      : pendingApps.length
+  const pendingMore = pendingTotal - pendingApps.length
   // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
   const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
   const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
@@ -842,7 +860,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {!fresh && (
       <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4" data-dash-stats>
         <Stat label="지금 근무 중" value={working.length} href="/admin/jobs" icon="working" tone="bg-emerald-50 text-emerald-600" />
-        <Stat label="확정 대기 지원" value={pendingApps.length} href="#pending" icon="pending" tone="bg-amber-50 text-amber-600" />
+        <Stat label="확정 대기 지원" value={pendingTotal} href="#pending" icon="pending" tone="bg-amber-50 text-amber-600" />
         <Stat label="서명 대기 서류" value={pendingDocs.count ?? 0} href="/admin/jobs" icon="docs" tone="bg-brand-50 text-brand-600" />
         <Stat label={admin.companyVerified ? '가입 근무자' : '우리 지원자'} value={workerCount.count ?? 0} href="/admin/workers" icon="people" tone="bg-gray-100 text-sub" />
       </div>
@@ -904,7 +922,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <section id="pending">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="section-title mb-0">
-            확정 대기 지원자{pendingApps.length > 0 && <span className="ml-1.5 text-brand-600 tabular-nums">{pendingApps.length}</span>}
+            확정 대기 지원자{pendingTotal > 0 && <span className="ml-1.5 text-brand-600 tabular-nums">{pendingTotal}</span>}
           </h2>
           {/* 여러 명을 한 번에: 보이는 지원자를 모두 고른 뒤 아래 막대에서 확정·미선발 */}
           {pendingApps.length > 1 && <PickAll label="모두 고르기" />}
@@ -953,6 +971,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
               </details>
             )}
             {/* 감싸지 않고 바로 (감싸면 막대가 화면 아래에 붙지 못함) */}
+            {/* 30명 넘게 기다리면: 여기엔 최근 30명만 · 나머지는 공고 목록(공고마다 '대기 n명')에서 */}
+            {pendingMore > 0 && (
+              <Link href="/admin/jobs" className="mt-2 flex items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-pending-more-total>
+                <span className="min-w-0 flex-1 truncate">
+                  최근 {pendingApps.length}명만 보여요 · 나머지 <b>{pendingMore}명</b>은 공고 목록에서
+                </span>
+                <span aria-hidden className="shrink-0">›</span>
+              </Link>
+            )}
             {pendingApps.length > 1 && (
               <BulkApproveBar
                 className="mt-2"
