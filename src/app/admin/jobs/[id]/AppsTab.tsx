@@ -429,7 +429,8 @@ export default async function AppsTab({
             // 가끔 쓰는 '번호로 직접 추가'는 접어 둠 (누르면 칸이 한 줄로 열림 · 화면을 덜 차지하게)
             <details className="group open:basis-full" data-direct-add>
               <summary className="btn-gray btn-sm cursor-pointer list-none before:hidden group-open:bg-line [&::-webkit-details-marker]:hidden">＋ 번호로 추가</summary>
-              <form action={addWorkerToJob.bind(null, job.id)} className="mt-2 flex animate-pop gap-1.5">
+              {/* 접혀 있을 때는 아예 숨김 (좁은 버튼 폭에 맞춰 칸이 꺾여 그려지지 않게) */}
+              <form action={addWorkerToJob.bind(null, job.id)} className="mt-2 hidden animate-pop gap-1.5 group-open:flex">
                 <input name="phone" className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" inputMode="tel" aria-label="가입자 휴대폰 번호" />
                 <SubmitButton className="btn-primary btn-sm shrink-0">직접 추가</SubmitButton>
               </form>
