@@ -244,9 +244,10 @@ async function ChatList({
               <path d="M3 19.5a6 6 0 0 1 12 0M15.5 5.2a3.2 3.2 0 0 1 0 5.6M17.5 13.6a6 6 0 0 1 3.5 5.9" />
             </svg>
           ) : r.icon === 'support' ? (
-            '🎧'
+            <Icon name="help" className="!size-6 text-amber-600" />
           ) : (
-            '🏢'
+            // 회사 문의도 단체방처럼 선 아이콘 (이모지 대신 · 다른 화면과 같은 모양)
+            <Icon name="building" className="!size-6 text-brand-600" />
           )}
         </span>
         <span className="min-w-0 flex-1">
