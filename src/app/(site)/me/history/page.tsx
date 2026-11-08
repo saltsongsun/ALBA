@@ -165,6 +165,12 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
               <p className="text-2xl font-extrabold tracking-tight whitespace-nowrap tabular-nums" data-summary="실수령">
                 <LiveNumber value={Math.round(total.net)} countUp />원
               </p>
+              {/* 오늘 근무 중이면 '0원'이 틀린 것처럼 보이지 않게: 끝나면 더해진다고 한 줄 */}
+              {items.some((it) => it.live > 0) && (
+                <p className="text-xs font-semibold whitespace-nowrap text-emerald-600" data-hero-live>
+                  오늘 근무는 끝나면 더해져요
+                </p>
+              )}
             </div>
             <p className="shrink-0 pb-0.5 text-right text-sm text-sub">
               <span className="block whitespace-nowrap" data-summary="근무">
@@ -227,7 +233,15 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                 <h2 className="text-[17px] font-bold">
                   {Number(ym.slice(0, 4))}년 {Number(ym.slice(5))}월
                 </h2>
-                <span className="text-sm text-mute tabular-nums">{won(list.reduce((n, it) => n + it.s.net, 0))}</span>
+                {(() => {
+                  const net = list.reduce((n, it) => n + it.s.net, 0)
+                  // 이 달이 오늘 근무뿐이면 '0원' 대신 '계산 전'
+                  return (
+                    <span className="text-sm text-mute tabular-nums" data-month-net>
+                      {net === 0 && list.some((it) => it.live > 0) ? '계산 전' : won(net)}
+                    </span>
+                  )
+                })()}
               </div>
               <div className="stagger space-y-2">
                 {list.map(({ job, s, paid, live, worked, first, last }) => (
