@@ -10,6 +10,7 @@ import { companyDocs, DOC_KIND_LABEL, DOC_LIMIT, filterQuery, parseDocFilter, ty
 import { requireAdmin } from '@/lib/session'
 import { fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { DocTemplate } from '@/lib/types'
+import SearchInput from '@/components/SearchInput'
 
 export const metadata: Metadata = { title: '서류' }
 
@@ -81,7 +82,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
       <form className="space-y-2" role="search" data-docs-search>
         {f.status && <input type="hidden" name="status" value={f.status} />}
         <div className="flex gap-1.5">
-          <input name="q" defaultValue={f.q} enterKeyHint="search" className="input min-w-0 flex-1 py-2 text-sm" placeholder="이름·번호·서류·공고로 찾기" />
+          <SearchInput name="q" enterKeyHint="search" defaultValue={f.q} className="input min-w-0 flex-1 py-2 text-sm" placeholder="이름·번호·서류·공고로 찾기" />
           <button className="btn-gray btn-sm shrink-0">찾기</button>
         </div>
         <div className="grid grid-cols-2 gap-1.5">

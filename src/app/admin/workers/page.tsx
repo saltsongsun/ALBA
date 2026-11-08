@@ -17,6 +17,7 @@ import { ageOn, fmtDate, kstDate } from '@/lib/time'
 import Flash from '@/components/Flash'
 import { ONLINE_MS, phoneFmt } from '@/lib/format'
 import Presence from '@/components/Presence'
+import SearchInput from '@/components/SearchInput'
 
 export const metadata: Metadata = { title: '근무자' }
 
@@ -166,7 +167,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         <h1 className="text-2xl font-extrabold">근무자 {users.length}명</h1>
         <div className="flex w-full gap-2 sm:w-auto">
           <form className="flex min-w-0 flex-1 gap-1 sm:flex-none">
-            <input name="q" defaultValue={q} className="input py-2 text-sm sm:w-48" placeholder="이름 또는 번호 검색" />
+            <SearchInput name="q" enterKeyHint="search" defaultValue={q} className="input py-2 text-sm sm:w-48" placeholder="이름 또는 번호 검색" />
             <button className="btn-gray btn-sm">검색</button>
           </form>
           <a href="/admin/export/workers" className="btn-soft btn-sm">
