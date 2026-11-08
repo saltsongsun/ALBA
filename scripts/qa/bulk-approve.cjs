@@ -63,7 +63,7 @@ const extra = [
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)
   await box('김지원').check()
   await p.getByRole('button', { name: '선택 1명 확정' }).click()
-  ok('연소자 포함이면 그 내용으로 확인', await see(p, '연소자 1명 포함 · 1명 확정?'))
+  ok('연소자 포함이면 그 내용으로 확인 (휴대폰 한 줄에 들어가게 짧게)', await see(p, '연소자 1명 · 확정?'))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
