@@ -5,6 +5,12 @@ import { ConfirmSubmit } from './ui'
 
 export const BULK_FORM = 'bulk-approve'
 
+// 고른 칸 모두 풀기 (막대의 '선택 해제' · Esc)
+const clearPicked = (form: string) => {
+  document.querySelectorAll<HTMLInputElement>(`input[form="${form}"]:checked`).forEach((e) => (e.checked = false))
+  document.dispatchEvent(new Event('change'))
+}
+
 // 화면에 보이는 체크칸만 (휴대폰 카드와 PC 표에 같은 사람이 두 번 있어서, 접힌 '더보기' 안은 빼고)
 const shownBoxes = (form: string) =>
   [...document.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][form="${form}"]`)].filter((e) =>
@@ -20,12 +26,15 @@ const shownBoxes = (form: string) =>
 export function BulkApproveBar({
   approve,
   reject,
+  hold,
   headcount,
   approved = 0,
   className = '',
 }: {
   approve: (form: FormData) => Promise<void>
   reject: (form: FormData) => Promise<void>
+  /** 보류 (근무자에게 알리지 않음 · 두 번 묻지 않음) */
+  hold?: (form: FormData) => Promise<void>
   /** 한 공고일 때만: 확정 후 인원 / 모집 인원 */
   headcount?: number
   approved?: number
@@ -46,7 +55,15 @@ export function BulkApproveBar({
     }
     read()
     document.addEventListener('change', read)
-    return () => document.removeEventListener('change', read)
+    // Esc: 고른 것 모두 풀기
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearPicked(BULK_FORM)
+    }
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('change', read)
+      document.removeEventListener('keydown', esc)
+    }
   }, [])
   if (!picked.n) return null
   const total = approved + picked.n
@@ -68,7 +85,7 @@ export function BulkApproveBar({
     <form
       id={BULK_FORM}
       action={approve}
-      className={`sticky bottom-[calc(var(--tabbar-space)+8px)] z-20 animate-pop space-y-2.5 rounded-2xl bg-ink px-4 py-3 text-white shadow-xl sm:bottom-4 ${className}`}
+      className={`sticky bottom-[calc(var(--tabbar-space)+8px)] z-20 animate-slide-up space-y-2.5 [animation-duration:.25s] rounded-2xl bg-ink px-4 py-3 text-white shadow-xl sm:bottom-4 ${className}`}
       data-bulk-bar
     >
       <div className="flex items-center gap-2">
@@ -84,14 +101,13 @@ export function BulkApproveBar({
             </span>
           )}
         </p>
-        <button
-          type="button"
-          className="shrink-0 px-1 py-1 text-xs font-semibold opacity-80"
-          onClick={() => {
-            document.querySelectorAll<HTMLInputElement>(`input[form="${BULK_FORM}"]:checked`).forEach((e) => (e.checked = false))
-            document.dispatchEvent(new Event('change'))
-          }}
-        >
+        {/* 보류: 근무자에게 알림이 가지 않아 바로 (지원자 탭 '보류' 칸으로) */}
+        {hold && (
+          <button type="submit" formAction={hold} className="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold" data-bulk-hold>
+            보류
+          </button>
+        )}
+        <button type="button" className="shrink-0 px-1 py-1 text-xs font-semibold opacity-80" onClick={() => clearPicked(BULK_FORM)}>
           선택 해제
         </button>
       </div>
@@ -187,7 +203,14 @@ export function PickBar({
     }
     read()
     document.addEventListener('change', read)
-    return () => document.removeEventListener('change', read)
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') clearPicked(formId)
+    }
+    document.addEventListener('keydown', esc)
+    return () => {
+      document.removeEventListener('change', read)
+      document.removeEventListener('keydown', esc)
+    }
   }, [formId])
   if (!picked.n) return null
   const fill = (t: string) => t.replaceAll('{n}', String(picked.n))
@@ -197,7 +220,7 @@ export function PickBar({
     <form
       id={formId}
       action={action}
-      className={`sticky bottom-[calc(var(--tabbar-space)+8px)] z-20 flex animate-pop items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-white shadow-xl sm:bottom-4 ${className}`}
+      className={`sticky bottom-[calc(var(--tabbar-space)+8px)] z-20 flex animate-slide-up items-center [animation-duration:.25s] gap-2 rounded-2xl bg-ink px-4 py-3 text-white shadow-xl sm:bottom-4 ${className}`}
       data-pick-bar={formId}
     >
       <p className="min-w-0 flex-1 truncate text-sm font-semibold">
@@ -209,10 +232,7 @@ export function PickBar({
       <button
         type="button"
         className="shrink-0 px-1 py-1 text-xs font-semibold opacity-80"
-        onClick={() => {
-          document.querySelectorAll<HTMLInputElement>(`input[form="${formId}"]:checked`).forEach((e) => (e.checked = false))
-          document.dispatchEvent(new Event('change'))
-        }}
+        onClick={() => clearPicked(formId)}
       >
         선택 해제
       </button>

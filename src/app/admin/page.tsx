@@ -5,7 +5,7 @@ import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
-import { decideApplication, decideSelected, holdApplication, setJobStatus } from '@/app/actions/admin'
+import { decideApplication, decideSelected, holdApplication, holdSelected, setJobStatus } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -954,7 +954,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             )}
             {/* 감싸지 않고 바로 (감싸면 막대가 화면 아래에 붙지 못함) */}
             {pendingApps.length > 1 && (
-              <BulkApproveBar className="mt-2" approve={decideSelected.bind(null, 'dashboard', 'approved')} reject={decideSelected.bind(null, 'dashboard', 'rejected')} />
+              <BulkApproveBar
+                className="mt-2"
+                approve={decideSelected.bind(null, 'dashboard', 'approved')}
+                reject={decideSelected.bind(null, 'dashboard', 'rejected')}
+                hold={holdSelected.bind(null, 'dashboard')}
+              />
             )}
           </>
         )}

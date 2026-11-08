@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, holdApplication, rejectWaiting } from '@/app/actions/admin'
+import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
@@ -628,6 +628,7 @@ export default async function AppsTab({
         <BulkApproveBar
           approve={decideSelected.bind(null, job.id, 'approved')}
           reject={decideSelected.bind(null, job.id, 'rejected')}
+          hold={holdSelected.bind(null, job.id)}
           headcount={job.headcount}
           approved={approved.length}
         />

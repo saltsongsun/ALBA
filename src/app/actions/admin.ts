@@ -626,6 +626,36 @@ export async function decideSelected(scope: string, status: 'approved' | 'reject
 }
 
 /**
+ * 고른 지원자를 한 번에 보류 (근무자에게는 알리지 않음 · 상태는 그대로 대기 — 하나씩 보류와 같게).
+ * scope: 공고 id(지원자 탭) 또는 'dashboard'. 이 회사의 대기 중인 지원만
+ */
+export async function holdSelected(scope: string, form: FormData) {
+  const admin = await requireAdmin()
+  const onJob = scope !== 'dashboard'
+  if (onJob && !isUuid(scope)) return
+  const path = onJob ? `/admin/jobs/${scope}?tab=apps` : '/admin'
+  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))].slice(0, 200)
+  if (!ids.length) back(path, '보류할 지원자를 골라 주세요.')
+  let q = db().from('applications').select('id, job_id, status, company_id, held_at').in('id', ids).eq('company_id', admin.companyId).eq('status', 'applied')
+  if (onJob) q = q.eq('job_id', scope)
+  const apps = (must(await q) as { id: string; job_id: string; status: string; company_id: string; held_at: string | null }[]).filter(
+    (a) => a.status === 'applied' && a.company_id === admin.companyId && !a.held_at && ids.includes(a.id) && (!onJob || a.job_id === scope),
+  )
+  if (!apps.length) back(path, '이미 처리된 지원이에요.')
+  must(
+    await db()
+      .from('applications')
+      .update({ held_at: new Date().toISOString() })
+      .in('id', apps.map((a) => a.id))
+      .eq('status', 'applied'),
+  )
+  await audit(admin.id, 'application.hold_selected', null, `${[...new Set(apps.map((a) => a.job_id))].join(',')} ${apps.length}명`, admin.companyId)
+  for (const jid of new Set(apps.map((a) => a.job_id))) revalidatePath(`/admin/jobs/${jid}`)
+  revalidatePath('/admin')
+  back(path, `${apps.length}명 보류 · 근무자에게는 알리지 않았어요`)
+}
+
+/**
  * 모집이 끝났는데 남은 대기 지원자: 한 번에 미선발로 정리하고 '이번엔 함께하지 못해요' 알림
  * (결과를 몰라 계속 기다리거나 "확정됐나요?" 문의하지 않게)
  */
