@@ -29,7 +29,8 @@ import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 /** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
 function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어요 · 확정?' }: { a: AppRow; wide?: boolean; full?: boolean; fullText?: string }) {
   const btn = (primary: boolean) => `${primary ? 'btn-primary' : 'btn-gray'} ${wide ? 'w-full' : 'btn-sm'}`
-  const form = wide ? 'flex-1' : ''
+  // 휴대폰 카드: 확인 문구가 뜬 버튼이 넓어져서(짧게 늘어나는 움직임) 문구가 두 줄로 꺾이지 않게
+  const form = wide ? 'flex-1 transition-[flex-grow] duration-200 has-[[data-confirm=armed]]:grow-[3]' : ''
   return (
     <div className={`flex ${wide ? 'gap-2' : 'gap-1'}`}>
       {a.status !== 'approved' && a.status !== 'cancelled' && (
@@ -255,7 +256,7 @@ export default async function AppsTab({
       text: warn
         ? `연소자 ${minorLimits.join('·')} · 확정?`
         : clash
-          ? '근무 겹쳐요 · 확정?'
+          ? '겹쳐요 · 확정?'
           : weekly && over.length === 0
           ? '주휴 대상이 돼요 · 확정?'
           : !multi

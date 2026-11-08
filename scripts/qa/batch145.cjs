@@ -1,6 +1,6 @@
 // 묶음 145 (정기 개선 2026-11-08 18:35)
 // · 지원자 확정: 같은 회사의 다른 공고에 같은 날 이미 확정된 사람이면 한 번 더 물어봄 (한 사람을 두 현장에 보내지 않게)
-//   하나씩 '확정' → '근무 겹쳐요 · 확정?' · 여러 명 고르면 막대 확인 문구 '근무 겹침 1명 · 확정?'
+//   하나씩 '확정' → '겹쳐요 · 확정?' (누른 버튼이 넓어져 한 줄) · 여러 명 고르면 막대 확인 문구 '근무 겹침 1명 · 확정?'
 // · 관리자 목록 검색 칸(공고·문의·서류·근무자): 따로 '찾기' 버튼 없이 칸 안 왼쪽에 돋보기 (쓰는 대로 찾음)
 // node scripts/qa/batch145.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
@@ -42,8 +42,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const confirm = card.getByRole('button', { name: '확정', exact: true })
   await confirm.click()
   const armed = card.locator('button[data-confirm="armed"]')
-  ok("'확정' 첫 누름: '근무 겹쳐요 · 확정?' (아직 대기)", (await armed.innerText().catch(() => '')) === '근무 겹쳐요 · 확정?' && (await rest(`applications?id=eq.${AP_APP}`))[0].status === 'applied', await armed.innerText().catch(() => ''))
-  ok('확인 문구가 한 줄', await armed.evaluate((el) => el.getBoundingClientRect().height < 50))
+  ok("'확정' 첫 누름: '겹쳐요 · 확정?' (아직 대기)", (await armed.innerText().catch(() => '')) === '겹쳐요 · 확정?' && (await rest(`applications?id=eq.${AP_APP}`))[0].status === 'applied', await armed.innerText().catch(() => ''))
+  await a.waitForTimeout(300)
+  ok('확인 문구가 한 줄 (누른 버튼이 넓어짐)', await armed.evaluate((el) => el.getBoundingClientRect().height < 50 && el.getBoundingClientRect().width > el.closest('.flex').querySelectorAll('button')[1].getBoundingClientRect().width), await armed.evaluate((el) => `${Math.round(el.getBoundingClientRect().width)}x${Math.round(el.getBoundingClientRect().height)}`))
   const other = a.locator('[data-app-group="대기"] .card').filter({ hasText: '겹침없음' }).first()
   ok('겹치지 않는 사람은 겹침 표시 없음', !(await other.innerText()).includes('다른 근무와 겹침'))
 
