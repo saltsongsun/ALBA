@@ -1,6 +1,7 @@
 'use client'
 
-import { useActionState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
+import { useActionState, useEffect, useRef, useState } from 'react'
 import { lockRoster, unlockRoster } from '@/app/actions/roster'
 import { FormMessage, SubmitButton } from './ui'
 
@@ -56,10 +57,28 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
 
 /** 명단이 열려 있는 동안: 남은 시간 + 바로 잠그기 */
 export function RosterOpenBar({ seconds }: { seconds: number }) {
-  const min = Math.max(1, Math.ceil(seconds / 60))
+  const router = useRouter()
+  // 열어 둔 채로 두면 남은 시간이 그대로 멈춰 있고, 시간이 지나도 명단이 계속 보이던 것
+  // → 30초마다 줄어들고, 0이 되면 화면을 새로 받아 잠금 화면으로 (잠금 자체는 서버가 그대로 확인)
+  const [left, setLeft] = useState(seconds)
+  useEffect(() => {
+    const end = Date.now() + seconds * 1000
+    const tick = () => {
+      const s = Math.round((end - Date.now()) / 1000)
+      setLeft(s)
+      if (s <= 0) router.refresh()
+    }
+    const id = setInterval(tick, 30_000)
+    const done = setTimeout(tick, Math.max(0, seconds * 1000 + 500))
+    return () => {
+      clearInterval(id)
+      clearTimeout(done)
+    }
+  }, [seconds, router])
+  const min = Math.max(1, Math.ceil(left / 60))
   return (
-    <form action={lockRoster} className="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3.5 py-2 text-sm" data-roster-open>
-      <span className="truncate font-semibold text-emerald-800">🔓 명단 열림 · {min}분 뒤 잠김</span>
+    <form action={lockRoster} className="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3.5 py-2 text-sm" data-roster-open data-roster-left={Math.max(0, left)}>
+      <span className="truncate font-semibold text-emerald-800">🔓 명단 열림 · {left <= 0 ? '곧 잠겨요' : `${min}분 뒤 잠김`}</span>
       <button type="submit" className="shrink-0 rounded-lg px-2 py-1 font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95">
         지금 잠그기
       </button>
