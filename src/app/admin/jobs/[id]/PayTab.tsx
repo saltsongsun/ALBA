@@ -202,8 +202,9 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
       </div>
       {noAccount.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          <p className="min-w-0 flex-1">
-            계좌 미등록 <b>{noAccount.length}명</b>: {noAccount.map((r) => r.user?.name ?? '알 수 없음').join(', ')}
+          {/* 휴대폰: 이름은 한 줄 전체로 (버튼 옆에 세로로 좁게 꺾이지 않게) · 많으면 두 줄까지 */}
+          <p className="line-clamp-2 min-w-0 basis-full sm:flex-1 sm:basis-auto" data-no-account>
+            계좌 미등록 <b>{noAccount.length}명</b> · {noAccount.map((r) => r.user?.name ?? '알 수 없음').join(', ')}
           </p>
           <GroupContact
             copy={false}

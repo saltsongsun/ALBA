@@ -543,6 +543,10 @@
 .table-pin tr.bg-bg td:first-child {
   --pin-bg: var(--color-bg);
 }
+/* 고른 줄(체크칸)은 고정된 이름 칸까지 파랗게 */
+.table-pin tbody tr:has(:checked) td:first-child {
+  --pin-bg: var(--color-brand-50);
+}
 :root[data-theme='dark']:not(:has(.print-sheet)) .table-pin td:first-child {
   --pin-bg: var(--dk-surface);
 }
@@ -552,6 +556,9 @@
 }
 :root[data-theme='dark']:not(:has(.print-sheet)) .table-pin tr.bg-bg td:first-child {
   --pin-bg: var(--color-bg);
+}
+:root[data-theme='dark']:not(:has(.print-sheet)) .table-pin tbody tr:has(:checked) td:first-child {
+  --pin-bg: var(--dk-brand-bg);
 }
 
 /* 불러오는 중 회색 자리: 전체가 천천히 숨 쉬듯 밝아졌다 흐려짐 (투명도만 바꿔 그리기를 다시 하지 않음 — 휴대폰에서 끊기지 않게) */
