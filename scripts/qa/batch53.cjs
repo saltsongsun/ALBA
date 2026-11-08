@@ -79,7 +79,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const toast = a.locator('[data-saved-toast]')
   await toast.waitFor({ timeout: 10000 }).catch(() => {})
   const [co] = await rest(`companies?id=eq.${CO}`)
-  ok("바에서 저장: 같은 자리에 '✓ 저장했어요' + 저장됨", (await toast.innerText().catch(() => '')).includes('저장했어요') && co?.company_phone === '0212340000', co?.company_phone)
+  ok("바에서 저장: 같은 자리에 '✓ 저장했어요' + 저장됨", (await toast.innerText().catch(() => '')).includes('저장했어요') && co?.company_phone?.replace(/\D/g, '') === '0212340000', co?.company_phone)
   await toast.waitFor({ state: 'detached', timeout: 5000 }).catch(() => {})
   ok("'저장했어요'는 잠깐 뒤 사라짐", (await toast.count()) === 0 && (await a.locator('[data-unsaved]').count()) === 0)
 

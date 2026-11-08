@@ -390,7 +390,7 @@ export function SettingsForm({ s }: { s: Settings }) {
           </label>
           <label>
             <span className="label">문의 연락처</span>
-            <input name="contact_phone" className="input" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={phoneShown(s.contact_phone)} />
+            <input name="contact_phone" className="input px-3" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={phoneShown(s.contact_phone)} />
             <span className="hint">비밀번호 분실 안내에 보여요</span>
           </label>
           <WageDefault value={s.default_hourly_wage} />
