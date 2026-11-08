@@ -348,9 +348,19 @@ export function NicknameForm({ current }: { current: string }) {
   return (
     <form action={action} className="space-y-2" data-nickname-form>
       <div className="flex gap-2">
-        <input name="nickname" value={val} onChange={(e) => setVal(e.target.value.trim())} maxLength={12} required className="input min-w-0 flex-1" aria-label="별명" />
-        <SubmitButton className="btn-primary btn-sm shrink-0" pendingText="바꾸는 중…">
-          바꾸기
+        {/* 아직 별명이 없으면 빈 칸에 예시 · 버튼도 '정하기' (없는데 '바꾸기'라 헷갈리던 것) */}
+        <input
+          name="nickname"
+          value={val}
+          onChange={(e) => setVal(e.target.value.trim())}
+          maxLength={12}
+          required
+          className="input min-w-0 flex-1"
+          aria-label="별명"
+          placeholder="예: 주차왕 (2~12자)"
+        />
+        <SubmitButton className="btn-primary btn-sm shrink-0" pendingText={current ? '바꾸는 중…' : '정하는 중…'}>
+          {current ? '바꾸기' : '정하기'}
         </SubmitButton>
       </div>
       {hint && (
