@@ -332,6 +332,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {(job.location_name || job.address) && (
             <Row k="장소">
               {[job.location_name, job.address].filter(Boolean).join('\n')}
+              {/* 지도는 설명 아래 멀리 있어서: 장소 옆에서 바로 내려가기 */}
+              {' '}
+              <a href="#venue" className="text-sm font-semibold whitespace-nowrap text-brand-600" data-venue-link>
+                지도 ↓
+              </a>
               {/* 모이는 곳은 장소 아래 작은 글씨로 (따로 한 줄을 차지하지 않게) */}
               {job.meeting_point && (
                 <span className="mt-1 block rounded-lg bg-bg px-2.5 py-1.5 text-[13px] text-sub" data-meeting-point>
@@ -394,7 +399,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         </dl>
         {job.description && <p className="mt-3 rounded-xl bg-bg p-4 text-[15px] whitespace-pre-wrap text-sub">{job.description}</p>}
         {(job.location_name || job.address || job.lat != null) && (
-          <div className="mt-4">
+          <div id="venue" className="mt-4 scroll-mt-24 rounded-2xl" data-target-flash>
             <h2 className="mb-2 text-sm font-bold text-sub">찾아오는 길</h2>
             <VenueMap name={job.location_name} address={job.address} lat={job.lat} lng={job.lng} />
           </div>
