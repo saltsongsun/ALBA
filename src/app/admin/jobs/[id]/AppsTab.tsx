@@ -1,6 +1,6 @@
 import Link from 'next/link'
-import { addWorkerToJob, approveAllApplied, approveSelected, decideApplication, holdApplication, rejectWaiting } from '@/app/actions/admin'
-import { BULK_FORM, BulkApproveBar } from '@/components/BulkApprove'
+import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, holdApplication, rejectWaiting } from '@/app/actions/admin'
+import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
@@ -291,11 +291,18 @@ export default async function AppsTab({
     .sort((a, b) => order[a.status] - order[b.status] || cmp(a, b))
 
   // 휴대폰: 대기는 펼쳐 두고, 확정은 대기가 있으면 접어 둠, 미선발·취소는 접어 둠 (카드가 길어서)
-  // 여러 명 골라 한 번에 확정 (대기 중인 지원자만)
+  // 여러 명 골라 한 번에 확정·미선발 (대기 중인 지원자만) · data-warn: 확정 전에 한 번 더 물어볼 까닭
   const pickBox = (a: AppRow) =>
     a.status === 'applied' && !a.held_at && waiting > 1 ? (
       <label className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg active:bg-bg" aria-label={`${a.user.name} 고르기`}>
-        <input type="checkbox" name="app" value={a.id} form={BULK_FORM} data-minor={minorWarn(a) ? '1' : undefined} className="size-5 accent-brand-600" />
+        <input
+          type="checkbox"
+          name="app"
+          value={a.id}
+          form={BULK_FORM}
+          data-warn={minorWarn(a) ? '연소자' : becomes(a) ? '주휴 대상' : undefined}
+          className="size-5 accent-brand-600"
+        />
       </label>
     ) : null
   const mobileCard = (a: AppRow) => {
@@ -492,7 +499,17 @@ export default async function AppsTab({
             {groups.map(([label, list, open]) =>
               list.length === 0 ? null : open ? (
                 <div key={label} className="stagger space-y-2" data-app-group={label}>
-                  {label !== '대기' && <h3 className="pt-2 text-sm font-bold text-sub">{label} {list.length}명</h3>}
+                  {label !== '대기' ? (
+                    <h3 className="pt-2 text-sm font-bold text-sub">{label} {list.length}명</h3>
+                  ) : (
+                    waiting > 1 && (
+                      // 여러 명을 한 번에: 모두 고른 뒤 아래 막대에서 확정·미선발
+                      <div className="flex items-center justify-between gap-2 pl-1">
+                        <h3 className="text-sm font-bold text-sub">대기 {list.length}명</h3>
+                        <PickAll label="모두 고르기" />
+                      </div>
+                    )
+                  )}
                   {list.map(mobileCard)}
                 </div>
               ) : (
@@ -510,7 +527,14 @@ export default async function AppsTab({
             <table className="table">
               <thead>
                 <tr>
-                  <th>이름</th>
+                  <th className="whitespace-nowrap">
+                    {waiting > 1 && (
+                      <span className="mr-1 inline-block align-middle">
+                        <PickAll />
+                      </span>
+                    )}
+                    이름
+                  </th>
                   <th>연락처</th>
                   <th>가능일 · 한마디</th>
                   <th>이력</th>
@@ -588,8 +612,15 @@ export default async function AppsTab({
           있습니다.
         </p>
       )}
-      {/* 고른 지원자가 있으면 아래에 붙는 '선택 n명 확정' */}
-      {waiting > 1 && <BulkApproveBar action={approveSelected.bind(null, job.id)} headcount={job.headcount} approved={approved.length} />}
+      {/* 고른 지원자가 있으면 아래에 붙는 '미선발 n명 · 선택 n명 확정' */}
+      {waiting > 1 && (
+        <BulkApproveBar
+          approve={decideSelected.bind(null, job.id, 'approved')}
+          reject={decideSelected.bind(null, job.id, 'rejected')}
+          headcount={job.headcount}
+          approved={approved.length}
+        />
+      )}
     </div>
   )
 }

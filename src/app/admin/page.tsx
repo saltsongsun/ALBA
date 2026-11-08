@@ -5,7 +5,8 @@ import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
-import { decideApplication, holdApplication, setJobStatus } from '@/app/actions/admin'
+import { decideApplication, decideSelected, holdApplication, setJobStatus } from '@/app/actions/admin'
+import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -451,11 +452,28 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   }
   // 확정 대기 지원자: 5명까지 바로, 나머지는 '더보기'
   const PENDING_SHOW = 5
+  // 여러 명 골라 한 번에 확정·미선발 (공고가 달라도) · 공고별 남은 자리와 주휴 대상은 확정 전에 한 번 더
+  const pickBox = (p: (typeof pendingApps)[number]) =>
+    pendingApps.length > 1 ? (
+      <label className="grid size-9 shrink-0 cursor-pointer place-items-center rounded-lg active:bg-bg" aria-label={`${p.user.name} 고르기`}>
+        <input
+          type="checkbox"
+          name="app"
+          value={p.id}
+          form={BULK_FORM}
+          data-job={p.job.id}
+          data-left={headOf.has(p.job.id) ? Math.max(0, headOf.get(p.job.id)! - (counts[p.job.id] ?? 0)) : undefined}
+          data-warn={weeklyFor(p) ? '주휴 대상' : undefined}
+          className="size-5 accent-brand-600"
+        />
+      </label>
+    ) : null
   const pendingFirst = pendingApps.slice(0, PENDING_SHOW)
   const pendingRest = pendingApps.slice(PENDING_SHOW)
   const pendingCard = (p: (typeof pendingApps)[number]) => (
     <div key={p.id} className="card space-y-2.5 p-4">
       <div className="flex items-center gap-3">
+        {pickBox(p)}
         <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="lg" />
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-1.5">
           <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
@@ -506,6 +524,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const pendingRow = (p: (typeof pendingApps)[number]) => (
     <tr key={p.id}>
       <td className="whitespace-nowrap">
+        <span className="mr-1 inline-block align-middle">{pickBox(p)}</span>
         <span className="mr-2 inline-block align-middle">
           <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="sm" />
         </span>
@@ -835,9 +854,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       </section>
 
       <section id="pending">
-        <h2 className="section-title">
-          확정 대기 지원자{pendingApps.length > 0 && <span className="ml-1.5 text-brand-600 tabular-nums">{pendingApps.length}</span>}
-        </h2>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="section-title mb-0">
+            확정 대기 지원자{pendingApps.length > 0 && <span className="ml-1.5 text-brand-600 tabular-nums">{pendingApps.length}</span>}
+          </h2>
+          {/* 여러 명을 한 번에: 보이는 지원자를 모두 고른 뒤 아래 막대에서 확정·미선발 */}
+          {pendingApps.length > 1 && <PickAll label="모두 고르기" />}
+        </div>
         {pendingApps.length === 0 ? (
           <Empty icon="📭" title="확정을 기다리는 지원자가 없어요">
             <Link href="/admin/jobs" className="font-semibold text-brand-600">
@@ -880,6 +903,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   </table>
                 </div>
               </details>
+            )}
+            {/* 감싸지 않고 바로 (감싸면 막대가 화면 아래에 붙지 못함) */}
+            {pendingApps.length > 1 && (
+              <BulkApproveBar className="mt-2" approve={decideSelected.bind(null, 'dashboard', 'approved')} reject={decideSelected.bind(null, 'dashboard', 'rejected')} />
             )}
           </>
         )}

@@ -58,6 +58,7 @@ export function ConfirmSubmit({
   value,
   track: label = '',
   disabled = false,
+  formAction,
 }: {
   children: React.ReactNode
   confirmText?: string
@@ -68,11 +69,19 @@ export function ConfirmSubmit({
   track?: string
   /** 아직 누를 수 없을 때 (예: 고른 사람이 없음) */
   disabled?: boolean
+  /** 같은 폼의 다른 버튼과 다른 일을 할 때 (예: 고른 사람 확정 / 미선발) */
+  formAction?: (form: FormData) => void | Promise<void>
 }) {
   const [armed, setArmed] = useState(false)
+  // 한 폼에 버튼이 둘이면 누른 버튼에만 '처리 중…'
+  const [sent, setSent] = useState(false)
   const { pending } = useFormStatus()
+  useEffect(() => {
+    if (!pending) setSent(false)
+  }, [pending])
   return (
     <button
+      formAction={formAction}
       // 첫 번째 누름은 제출을 막고 확인 문구만 띄움.
       // (type을 button→submit으로 바꾸는 방식은 같은 누름 안에서 바뀐 type으로 바로 제출돼 버림)
       type="submit"
@@ -90,10 +99,10 @@ export function ConfirmSubmit({
           haptic(10)
           setArmed(true)
           setTimeout(() => setArmed(false), 4000)
-        }
+        } else setSent(true)
       }}
     >
-      {pending ? '처리 중…' : armed ? confirmText : children}
+      {pending && sent ? '처리 중…' : armed ? confirmText : children}
     </button>
   )
 }

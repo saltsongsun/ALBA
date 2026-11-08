@@ -577,33 +577,52 @@ export async function holdApplication(appId: string, hold: boolean, from?: 'dash
   back(path, hold ? `${name}님 보류 · 근무자에게는 알리지 않았어요` : `${name}님 보류를 풀었어요 · 다시 대기`)
 }
 
-export async function approveSelected(jobId: string, form: FormData) {
+/**
+ * 고른 지원자를 한 번에 확정 또는 미선발 (사용자 요청 2026-11-08 "반복적인 일을 해야할 때 한 번에").
+ * scope: 공고 id(지원자 탭) 또는 'dashboard'(대시보드 · 여러 공고에 걸쳐).
+ * 이 회사의 대기 중인 지원만 처리하고, 공고마다 확정 알림·서류 / 미선발 알림을 보냄
+ */
+export async function decideSelected(scope: string, status: 'approved' | 'rejected', form: FormData) {
   const admin = await requireAdmin()
-  const job = await companyJob(admin, jobId)
-  if (!job) return
-  const path = `/admin/jobs/${jobId}?tab=apps`
-  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))]
-  if (!ids.length) back(path, '확정할 지원자를 골라 주세요.')
-  const apps = (
-    must(await db().from('applications').select('id, user_id, status, job_id').in('id', ids).eq('job_id', jobId).eq('status', 'applied')) as {
-      id: string
-      user_id: string
-      status: string
-      job_id: string
-    }[]
-  ).filter((a) => a.status === 'applied' && a.job_id === jobId && ids.includes(a.id))
+  if (status !== 'approved' && status !== 'rejected') return
+  const onJob = scope !== 'dashboard'
+  if (onJob && !isUuid(scope)) return
+  const path = onJob ? `/admin/jobs/${scope}?tab=apps` : '/admin'
+  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))].slice(0, 200)
+  if (!ids.length) back(path, '지원자를 골라 주세요.')
+  let q = db().from('applications').select('id, user_id, job_id, status, company_id').in('id', ids).eq('company_id', admin.companyId).eq('status', 'applied')
+  if (onJob) q = q.eq('job_id', scope)
+  const rows = (must(await q) as { id: string; user_id: string; job_id: string; status: string; company_id: string }[]).filter(
+    (a) => a.status === 'applied' && a.company_id === admin.companyId && ids.includes(a.id) && (!onJob || a.job_id === scope),
+  )
+  // 공고도 이 회사 것인지 한 번 더 (공고별로 알림을 보내므로)
+  const jobs = new Map<string, Job>()
+  for (const jid of new Set(rows.map((a) => a.job_id))) {
+    const job = await companyJob(admin, jid)
+    if (job) jobs.set(jid, job)
+  }
+  const apps = rows.filter((a) => jobs.has(a.job_id))
   if (!apps.length) back(path, '이미 처리된 지원이에요.')
   must(
     await db()
       .from('applications')
-      .update({ status: 'approved', decided_at: new Date().toISOString() })
-      .in('id', apps.map((a) => a.id)),
+      .update({ status, decided_at: new Date().toISOString(), held_at: null })
+      .in('id', apps.map((a) => a.id))
+      .eq('status', 'applied'),
   )
-  for (const a of apps) await ensurePendingDocs(job, a.user_id)
-  await tellApproved(job, apps.map((a) => a.user_id), admin.id)
-  revalidatePath(`/admin/jobs/${jobId}`)
+  let told = 0
+  for (const [jid, job] of jobs) {
+    const users = apps.filter((a) => a.job_id === jid).map((a) => a.user_id)
+    if (!users.length) continue
+    if (status === 'approved') {
+      for (const u of users) await ensurePendingDocs(job, u)
+      await tellApproved(job, users, admin.id)
+    } else told += await tellNotSelected(job, users, admin.id, false)
+    revalidatePath(`/admin/jobs/${jid}`)
+  }
+  await audit(admin.id, status === 'approved' ? 'app.approve_selected' : 'app.reject_selected', null, `${[...jobs.keys()].join(',')} ${apps.length}명`, admin.companyId)
   revalidatePath('/admin')
-  back(path, `${apps.length}명을 확정했어요. 근무자에게 알렸어요.`)
+  back(path, status === 'approved' ? `${apps.length}명을 확정했어요. 근무자에게 알렸어요.` : `${apps.length}명을 미선발로 정하고 ${told}명에게 알렸어요.`)
 }
 
 /**
