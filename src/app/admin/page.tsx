@@ -16,6 +16,7 @@ import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
+import { overlapDay } from '@/lib/overlap'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
@@ -153,7 +154,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .then((r) => must(r) as JobWithAppStatus[]),
     db()
       .from('applications')
-      .select('id, created_at, message, available_dates, job:jobs(id, title, end_date), user:users(id, name, phone, birth_date, photo_at)').eq('company_id', admin.companyId)
+      .select('id, created_at, message, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time), user:users(id, name, phone, birth_date, photo_at)').eq('company_id', admin.companyId)
       .eq('status', 'applied')
       .is('held_at', null) // 보류한 지원자는 '확정 대기'에서 빼고 공고의 지원자 탭 '보류'에서
       .order('created_at', { ascending: false })
@@ -165,7 +166,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             created_at: string
             message: string | null
             available_dates: string[] | null
-            job: { id: string; title: string; end_date: string }
+            job: { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string }
             user: { id: string; name: string; phone: string; birth_date: string | null; photo_at: string | null }
           }[],
       ),
@@ -435,7 +436,42 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     }),
   )
   const weeklyFor = (p: (typeof pendingApps)[number]) => weeklyOf.get(`${p.job.id}|${p.user.id}`)
-  const confirmText = (p: (typeof pendingApps)[number]) => (isFull(p.job.id) ? '인원 다 찼어요 · 확정?' : weeklyFor(p) ? '주휴 대상이 돼요 · 확정?' : null)
+  // 같은 사람이 같은 날 다른 공고에 이미 확정돼 있으면 (이 회사 안에서만) 확정 전에 한 번 더 — 지원자 탭과 같게
+  type Other = { user_id: string; available_dates: string[] | null; job: { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string } | null }
+  const others: Other[] = pendingApps.length
+    ? await db()
+        .from('applications')
+        .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+        .eq('company_id', admin.companyId)
+        .in('user_id', [...new Set(pendingApps.map((p) => p.user.id))])
+        .eq('status', 'approved')
+        .then(
+          (r) => ((r.data ?? []) as unknown as Other[]).filter((o) => o.job && o.job.end_date >= today && o.job.status !== 'cancelled'),
+          () => [],
+        )
+    : []
+  const clashOf = new Map<string, { id: string; title: string; at: string }>()
+  for (const p of pendingApps) {
+    for (const o of others) {
+      if (o.user_id !== p.user.id || !o.job || o.job.id === p.job.id) continue
+      const at = overlapDay({ ...p.job, dates: p.available_dates }, { ...o.job, dates: o.available_dates })
+      if (at) {
+        clashOf.set(p.id, { id: o.job.id, title: o.job.title, at })
+        break
+      }
+    }
+  }
+  const Clash = ({ p }: { p: (typeof pendingApps)[number] }) => {
+    const c = clashOf.get(p.id)
+    if (!c) return null
+    return (
+      <Link href={`/admin/jobs/${c.id}`} className="block truncate rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200" data-dash-clash>
+        ⚠️ {fmtDate(kstDate(c.at))} 다른 근무와 겹침 · {c.title}
+      </Link>
+    )
+  }
+  const confirmText = (p: (typeof pendingApps)[number]) =>
+    clashOf.has(p.id) ? '겹쳐요 · 확정?' : isFull(p.job.id) ? '인원 다 찼어요 · 확정?' : weeklyFor(p) ? '주휴 대상이 돼요 · 확정?' : null
   const WeeklyNote = ({ p }: { p: (typeof pendingApps)[number] }) => {
     const w = weeklyFor(p)
     if (!w) return null
@@ -463,13 +499,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           form={BULK_FORM}
           data-job={p.job.id}
           data-left={headOf.has(p.job.id) ? Math.max(0, headOf.get(p.job.id)! - (counts[p.job.id] ?? 0)) : undefined}
-          data-warn={weeklyFor(p) ? '주휴 대상' : undefined}
+          data-warn={clashOf.has(p.id) ? '근무 겹침' : weeklyFor(p) ? '주휴 대상' : undefined}
           className="size-5 accent-brand-600"
         />
       </label>
     ) : null
   const pendingFirst = pendingApps.slice(0, PENDING_SHOW)
   const pendingRest = pendingApps.slice(PENDING_SHOW)
+  const GROW = 'flex-1 transition-[flex-grow] duration-200 has-[[data-confirm=armed]]:grow-[3]'
   const pendingCard = (p: (typeof pendingApps)[number]) => (
     <div key={p.id} className="card space-y-2.5 p-4 transition-shadow duration-200 has-checked:ring-2 has-checked:ring-brand-400">
       <div className="flex items-center gap-3">
@@ -492,10 +529,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           {p.message && <p>“{p.message}”</p>}
         </div>
       )}
+      <Clash p={p} />
       <WeeklyNote p={p} />
       <ContactButtons phone={p.user.phone} name={p.user.name} />
-      <div className="grid grid-cols-3 gap-2">
-        <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
+      {/* 확인 문구가 뜬 버튼이 넓어짐 (문구가 두 줄로 꺾이지 않게 · 지원자 탭과 같게) */}
+      <div className="flex gap-2" data-dash-decide>
+        <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')} className={GROW}>
           {confirmText(p) ? (
             <ConfirmSubmit className="btn-primary w-full" confirmText={confirmText(p)!}>
               확정
@@ -507,12 +546,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           )}
         </form>
         {/* 보류: 근무자에게 알림 없이 따로 (공고의 지원자 탭 '보류'로) */}
-        <form action={holdApplication.bind(null, p.id, true, 'dashboard')}>
+        <form action={holdApplication.bind(null, p.id, true, 'dashboard')} className={GROW}>
           <SubmitButton className="btn-gray w-full" pendingText="…" track="보류(대시보드)">
             보류
           </SubmitButton>
         </form>
-        <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')}>
+        <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')} className={GROW}>
           {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
           <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림?">
             미선발
@@ -540,7 +579,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
           {p.job.title}
         </Link>
-        <div className="mt-1 max-w-xs">
+        <div className="mt-1 max-w-xs space-y-1">
+          <Clash p={p} />
           <WeeklyNote p={p} />
         </div>
       </td>

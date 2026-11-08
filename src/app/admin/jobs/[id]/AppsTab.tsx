@@ -426,10 +426,14 @@ export default async function AppsTab({
             </form>
           )}
           {canAddDirect && (
-            <form action={addWorkerToJob.bind(null, job.id)} className="flex gap-1">
-              <input name="phone" className="input w-40 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" inputMode="tel" />
-              <SubmitButton className="btn-gray btn-sm">직접 추가</SubmitButton>
-            </form>
+            // 가끔 쓰는 '번호로 직접 추가'는 접어 둠 (누르면 칸이 한 줄로 열림 · 화면을 덜 차지하게)
+            <details className="group open:basis-full" data-direct-add>
+              <summary className="btn-gray btn-sm cursor-pointer list-none before:hidden group-open:bg-line [&::-webkit-details-marker]:hidden">＋ 번호로 추가</summary>
+              <form action={addWorkerToJob.bind(null, job.id)} className="mt-2 flex animate-pop gap-1.5">
+                <input name="phone" className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" inputMode="tel" aria-label="가입자 휴대폰 번호" />
+                <SubmitButton className="btn-primary btn-sm shrink-0">직접 추가</SubmitButton>
+              </form>
+            </details>
           )}
         </div>
       </div>
