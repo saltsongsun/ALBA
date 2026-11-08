@@ -410,11 +410,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         </details>
       )}
 
-      <div className="flex gap-1 overflow-x-auto border-b border-line text-sm font-semibold">
+      {/* 탭을 바꾸면 맨 위(큰 제목 카드)로 올라가 매번 다시 내려야 하던 것 → 탭 줄로 바로 (#tabs) */}
+      <div id="tabs" className="flex scroll-mt-16 gap-1 overflow-x-auto border-b border-line text-sm font-semibold" data-job-tabs>
         {TABS.map(([k, label]) => (
           <Link
             key={k}
-            href={`/admin/jobs/${job.id}?tab=${k}${k === 'att' ? `&date=${date}` : ''}`}
+            href={`/admin/jobs/${job.id}?tab=${k}${k === 'att' ? `&date=${date}` : ''}#tabs`}
             className={`shrink-0 border-b-2 px-4 py-2.5 transition-colors duration-200 ${tab === k ? 'border-ink text-ink' : 'border-transparent text-mute hover:text-sub'}`}
           >
             {label}
