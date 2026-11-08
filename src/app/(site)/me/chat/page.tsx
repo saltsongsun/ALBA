@@ -27,6 +27,13 @@ const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부�
 // 해피워크 고객센터(아직 지원한 회사가 없을 때): 근무 날 문의 대신 앱 사용 문의
 const QUICK_SUPPORT = ['지원은 어떻게 하나요?', '급여는 언제 받나요?', '계좌·전화번호를 바꾸고 싶어요.', '회원 탈퇴는 어떻게 하나요?']
 
+/** 이름 + 와/과 (받침이 있으면 '과') · 한글이 아니면 '와(과)' */
+function withWa(name: string) {
+  const c = name.trim().charCodeAt(name.trim().length - 1)
+  if (c >= 0xac00 && c <= 0xd7a3) return `${name}${(c - 0xac00) % 28 ? '과' : '와'}`
+  return `${name}와(과)`
+}
+
 export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const sp = await props.searchParams
   const user = await requireUser('/me/chat')
@@ -112,8 +119,13 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
             </a>
           )}
         </div>
-        <p className="mt-1 text-sm text-sub">
-          궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.
+        {/* 대화가 이어지는 중이면 설명 대신 누구와의 대화인지만 한 줄 (설명은 첫 문의 때만 · 화면을 덜 차지하게) */}
+        <p className="mt-1 truncate text-sm text-sub" data-chat-intro>
+          {messages.length === 0 ? (
+            <>궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.</>
+          ) : (
+            <>{withWa(support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자'))}의 대화</>
+          )}
         </p>
         {settings?.contact_phone && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
