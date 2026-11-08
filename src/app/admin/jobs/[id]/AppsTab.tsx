@@ -7,6 +7,9 @@ import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
 import { APP_STATUS } from '@/components/JobCard'
+
+/** 관리자 화면 배지: 근무자 화면 말('지원완료')이 아니라 관리자가 할 일 기준 ('대기' 목록과 같은 말) */
+const adminLabel = (status: keyof typeof APP_STATUS) => (status === 'applied' ? '확정 대기' : APP_STATUS[status].label)
 import { scoresByUser, StarAvg } from '@/components/Stars'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
@@ -321,7 +324,7 @@ export default async function AppsTab({
                 보류
               </span>
             ) : (
-              <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>
+              <span className={`badge ml-auto ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>
             )}
           </div>
         </div>
@@ -566,7 +569,7 @@ export default async function AppsTab({
                       </td>
                       <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
                       <td>
-                        {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{APP_STATUS[a.status].label}</span>}
+                        {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>}
                       </td>
                       <td className="whitespace-nowrap">
                         <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />
