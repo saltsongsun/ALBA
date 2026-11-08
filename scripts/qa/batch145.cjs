@@ -54,9 +54,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await card.locator('input[name="app"]').check()
   const bar = a.locator('[data-bulk-bar]')
   await bar.waitFor({ timeout: 5000 }).catch(() => {})
-  await bar.locator('button[type="submit"]').nth(1).click()
+  await bar.locator('button[data-confirm]').nth(1).click()
   ok("막대: '근무 겹침 1명 · 확정?'", (await bar.locator('button[data-confirm="armed"]').innerText().catch(() => '')) === '근무 겹침 1명 · 확정?', await bar.locator('button[data-confirm="armed"]').innerText().catch(() => ''))
-  ok('막대 버튼 한 줄', await bar.locator('button[type="submit"]').evaluateAll((bs) => bs.every((x) => x.getBoundingClientRect().height < 40)))
+  ok('막대 버튼 한 줄', await bar.locator('button[data-confirm]').evaluateAll((bs) => bs.every((x) => x.getBoundingClientRect().height < 40)))
   if (SHOTS) await a.screenshot({ path: `${SHOTS}/clash-bulk.png` })
 
   // ── 3. 검색 칸: 돋보기가 칸 안에 · 따로 '찾기'·'검색' 버튼 없음

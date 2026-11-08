@@ -56,7 +56,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await card.locator('input[name="app"]').check()
   const bar = a.locator('[data-bulk-bar]')
   await bar.waitFor({ timeout: 5000 }).catch(() => {})
-  await bar.locator('button[type="submit"]').nth(1).click()
+  await bar.locator('button[data-confirm]').nth(1).click()
   ok("막대: '근무 겹침 1명 · 확정?'", (await bar.locator('button[data-confirm="armed"]').innerText().catch(() => '')) === '근무 겹침 1명 · 확정?', await bar.locator('button[data-confirm="armed"]').innerText().catch(() => ''))
 
   // ── 3. 지원자 탭: '번호로 직접 추가'는 접혀 있다가 누르면 한 줄로

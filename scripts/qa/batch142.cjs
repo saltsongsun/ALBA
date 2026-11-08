@@ -71,6 +71,7 @@ const statusOf = async (id) => (await rest(`applications?id=eq.${id}`))[0]?.stat
   ok('아무도 안 고르면 막대 없음', (await bar.count()) === 0)
   await group.locator('[data-pick-all] input').check()
   await bar.waitFor({ timeout: 5000 }).catch(() => {})
+  await a.waitForTimeout(350) // 아래에서 올라오는 움직임이 끝난 뒤
   const t1 = await bar.innerText().catch(() => '')
   ok("모두 고르기 → '3명 골랐어요 · 확정 후 4/2명'", t1.includes('3명 골랐어요') && t1.includes('확정 후 4/2명'), t1.replace(/\n/g, ' / '))
   // 휴대폰 아래 탭(떠 있는 유리 막대)에 가리지 않게 그 위에 붙음
@@ -87,7 +88,7 @@ const statusOf = async (id) => (await rest(`applications?id=eq.${id}`))[0]?.stat
   const rej = bar.getByRole('button', { name: /^미선발 2명$/ })
   ok("'미선발 2명' · '선택 2명 확정' 두 버튼", (await rej.count()) === 1 && (await bar.getByRole('button', { name: '선택 2명 확정' }).count()) === 1)
   // 360px: 막대 버튼이 한 줄 (확인 문구일 때도)
-  const oneLine = async () => bar.locator('button[type="submit"]').evaluateAll((bs) => bs.every((b) => b.getBoundingClientRect().height < 40) && bs[0].getBoundingClientRect().top === bs[1].getBoundingClientRect().top)
+  const oneLine = async () => bar.locator('button[data-confirm]').evaluateAll((bs) => bs.every((b) => b.getBoundingClientRect().height < 40) && bs[0].getBoundingClientRect().top === bs[1].getBoundingClientRect().top)
   ok('막대 버튼 한 줄', await oneLine())
   await rej.click()
   ok("첫 누름: '미선발 알림 보낼까요?' (아직 처리 안 됨)", (await bar.locator('button[data-confirm="armed"]').innerText()) === '미선발 알림 보낼까요?' && (await statusOf(XA)) === 'applied')
@@ -115,6 +116,7 @@ const statusOf = async (id) => (await rest(`applications?id=eq.${id}`))[0]?.stat
   await pick.locator('input').check()
   const dbar = a.locator('[data-bulk-bar]')
   await dbar.waitFor({ timeout: 5000 }).catch(() => {})
+  await a.waitForTimeout(350)
   const shown = await pend.locator('input[name="app"]').evaluateAll((els) => els.filter((e) => e.checkVisibility()).length)
   ok(`대시보드: 보이는 ${shown}명 모두 골라짐`, (await dbar.innerText()).includes(`${shown}명 골랐어요`), (await dbar.innerText()).replace(/\n/g, ' / '))
   ok('대시보드 막대도 아래 탭 위에 보임', await aboveTabs(dbar))
@@ -122,10 +124,10 @@ const statusOf = async (id) => (await rest(`applications?id=eq.${id}`))[0]?.stat
   // 다른 회사 지원 id를 몰래 끼워 넣음
   await a.evaluate((id) => { const i = document.createElement('input'); i.type = 'checkbox'; i.name = 'app'; i.value = id; i.checked = true; i.setAttribute('form', 'bulk-approve'); i.hidden = true; document.body.append(i) }, OX)
   if (SHOTS) await a.screenshot({ path: `${SHOTS}/dash-bulk.png` })
-  const conf = dbar.locator('button[type="submit"]').nth(1)
+  const conf = dbar.locator('button[data-confirm]').nth(1)
   await conf.click()
   ok("모집 2명 공고에 3명 → '인원 넘는 공고 · 확정?'", (await dbar.locator('button[data-confirm="armed"]').innerText()) === '인원 넘는 공고 · 확정?', await dbar.locator('button[data-confirm="armed"]').innerText().catch(() => ''))
-  ok('확인 문구일 때도 한 줄', await dbar.locator('button[type="submit"]').evaluateAll((bs) => bs.every((b) => b.getBoundingClientRect().height < 40)))
+  ok('확인 문구일 때도 한 줄', await dbar.locator('button[data-confirm]').evaluateAll((bs) => bs.every((b) => b.getBoundingClientRect().height < 40)))
   await Promise.all([a.waitForURL(/m=/, { timeout: 15000 }).catch(() => {}), dbar.locator('button[data-confirm="armed"]').click()])
   const m2 = decodeURIComponent(new URL(a.url()).searchParams.get('m') ?? '')
   ok(`'${shown}명을 확정했어요. 근무자에게 알렸어요.' (대시보드로 돌아옴)`, m2 === `${shown}명을 확정했어요. 근무자에게 알렸어요.` && new URL(a.url()).pathname === '/admin', `${a.url()} ${m2}`)
