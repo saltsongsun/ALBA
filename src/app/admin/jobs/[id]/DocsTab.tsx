@@ -1,11 +1,15 @@
 import Link from 'next/link'
-import { nudgeWorkers, rerequestDoc, setContractReceived, voidDoc } from '@/app/actions/admin'
+import { nudgeWorkers, rerequestDoc, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
+import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import type { Job, SignedDoc } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 import { contractNameOf } from '@/lib/members'
+
+// 계약서 '받음' 여러 명 한 번에 표시하는 폼 (체크칸이 form 속성으로 묶임)
+const RCV_FORM = 'rcv-pick'
 
 type DocLite = Pick<SignedDoc, 'id' | 'user_id' | 'template_id' | 'title' | 'status' | 'signed_at' | 'created_at'>
 
@@ -37,10 +41,13 @@ export default function DocsTab({
   const outside = job.contract_method !== 'app'
   const contractName = contractNameOf(job.audience)
   const notReceived = approved.filter((a) => !a.contract_received_at)
+  // 안 받은 사람이 둘 이상이면 골라서 한 번에 '받음'
+  const pickRcv = notReceived.length > 1
 
   return (
     <div className="space-y-4">
       {outside && (
+        <>
         <section className="card space-y-3 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -82,9 +89,22 @@ export default function DocsTab({
             <p className="text-sm text-mute">확정된 사람이 없어요.</p>
           ) : (
             <ul className="divide-y divide-line">
+              {pickRcv && (
+                <li className="flex items-center justify-between gap-2 pb-1.5 text-sm font-bold text-sub">
+                  안 받은 {notReceived.length}명
+                  <PickAll form={RCV_FORM} label="모두 고르기" />
+                </li>
+              )}
               {approved.map((a) => (
-                <li key={a.id} className="flex items-center justify-between gap-2 py-2.5">
-                  <span className="min-w-0">
+                // 고르면 줄이 파랗게
+                <li key={a.id} className="-mx-2 flex items-center justify-between gap-2 rounded-lg px-2 py-2.5 transition-colors has-checked:bg-brand-50" data-rcv-row>
+                  <span className="flex min-w-0 items-center">
+                    {pickRcv && !a.contract_received_at && (
+                      <label className="mr-1 grid size-8 shrink-0 cursor-pointer place-items-center rounded-lg" aria-label={`${a.user.name} 고르기`}>
+                        <input type="checkbox" name="rcv" value={a.id} form={RCV_FORM} className="size-[18px] accent-brand-600" />
+                      </label>
+                    )}
+                    <span className="min-w-0">
                     <span className="font-semibold">{a.user.name}</span>
                     {a.contract_received_at && <span className="ml-2 text-xs text-mute">{kstDateTime(a.contract_received_at)} 받음</span>}
                     {job.contract_method === 'paper' && !a.contract_received_at && (
@@ -92,6 +112,7 @@ export default function DocsTab({
                         출력
                       </Link>
                     )}
+                    </span>
                   </span>
                   <form action={setContractReceived.bind(null, a.id, !a.contract_received_at)}>
                     <SubmitButton className={a.contract_received_at ? 'badge bg-emerald-50 text-emerald-700' : 'chip-primary h-8 px-3 text-xs'} pendingText="…">
@@ -108,6 +129,11 @@ export default function DocsTab({
               : '근로계약서는 근무 시작 전에 줘야 해요(근로기준법 제17조). 받은 계약서는 3년 동안 보관해 주세요.'}
           </p>
         </section>
+        {/* 고른 사람을 한 번에 '받음'으로 */}
+        {pickRcv && (
+          <PickBar formId={RCV_FORM} action={setContractReceivedSelected.bind(null, job.id)} label="선택 {n}명 받음으로" confirm="{n}명 받음으로 표시할까요?" short="받음" />
+        )}
+        </>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-sub">

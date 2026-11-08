@@ -1579,6 +1579,41 @@ export async function setContractReceived(appId: string, received: boolean) {
   revalidatePath(`/admin/jobs/${app.job_id}`)
 }
 
+/**
+ * 종이·다른 서비스로 받은 계약서: 고른 사람을 한 번에 '받음'으로 (사용자 요청 2026-11-08 "반복적인 일은 한 번에").
+ * 이 회사 공고의 확정자 중 아직 안 받은 사람만
+ */
+export async function setContractReceivedSelected(jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  if (!(await companyJob(admin, jobId))) return
+  const path = `/admin/jobs/${jobId}?tab=docs`
+  const ids = [...new Set(form.getAll('rcv').map(String).filter(isUuid))].slice(0, 300)
+  if (!ids.length) back(path, '받음으로 표시할 사람을 골라 주세요.')
+  const apps = (
+    must(
+      await db()
+        .from('applications')
+        .select('id, user_id, job_id, company_id, status, contract_received_at')
+        .in('id', ids)
+        .eq('job_id', jobId)
+        .eq('company_id', admin.companyId)
+        .eq('status', 'approved')
+        .is('contract_received_at', null),
+    ) as { id: string; user_id: string; job_id: string; company_id: string; status: string; contract_received_at: string | null }[]
+  ).filter((a) => a.job_id === jobId && a.company_id === admin.companyId && a.status === 'approved' && !a.contract_received_at && ids.includes(a.id))
+  if (!apps.length) back(path, '이미 받음으로 표시돼 있어요.')
+  must(
+    await db()
+      .from('applications')
+      .update({ contract_received_at: new Date().toISOString() })
+      .in('id', apps.map((a) => a.id))
+      .is('contract_received_at', null),
+  )
+  await audit(admin.id, 'contract.received_selected', null, `${jobId} ${apps.length}명`, admin.companyId)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back(path, `${apps.length}명을 받음으로 표시했어요.`)
+}
+
 /** 무효 처리 후 같은 서식으로 다시 서명 요청 */
 export async function rerequestDoc(docId: string) {
   const admin = await requireAdmin()

@@ -587,6 +587,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const shareNow = showStart && jobsEver > 0 && appsEver === 0
   const companyLink = shareNow ? `${await siteOrigin()}/?co=${admin.companyId}` : ''
   const startDone = startSteps.filter((st) => st.done).length
+  // 공고를 한 번도 안 올린 새 회사: 0만 있는 숫자 칸과 '오늘 행사 없음'·'확정 대기 없음' 빈 칸은 빼고 '시작하기'에 집중
+  // (같은 '아직 없어요'를 여러 번 보여 주지 않게 · 공고 칸의 '새 공고 등록' 하나만 남김)
+  const fresh = jobsEver === 0
 
   return (
     <div className="space-y-5">
@@ -612,7 +615,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </Link>
       </div>
       {/* 새 소식 한 줄 (회사마다 바뀐 규칙 알리기 · 닫으면 다시 안 보임 · 이달 말까지) */}
-      {today <= '2026-11-30' && (
+      {today <= '2026-11-30' && !fresh && (
         <NewsNote id="weekly-pay-2026-11" href="/admin/weekly">
           주휴수당이 정산에 자동으로 들어가요 ›
         </NewsNote>
@@ -796,13 +799,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           )}
         </section>
       )}
-      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {!fresh && (
+      <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4" data-dash-stats>
         <Stat label="지금 근무 중" value={working.length} href="/admin/jobs" icon="working" tone="bg-emerald-50 text-emerald-600" />
         <Stat label="확정 대기 지원" value={pendingApps.length} href="#pending" icon="pending" tone="bg-amber-50 text-amber-600" />
         <Stat label="서명 대기 서류" value={pendingDocs.count ?? 0} href="/admin/jobs" icon="docs" tone="bg-brand-50 text-brand-600" />
         <Stat label={admin.companyVerified ? '가입 근무자' : '우리 지원자'} value={workerCount.count ?? 0} href="/admin/workers" icon="people" tone="bg-gray-100 text-sub" />
       </div>
+      )}
 
+      {!fresh && (
       <section>
         <h2 className="section-title">오늘 진행 행사</h2>
         {todayJobs.length === 0 ? (
@@ -852,7 +858,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </div>
         )}
       </section>
+      )}
 
+      {!fresh && (
       <section id="pending">
         <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="section-title mb-0">
@@ -911,6 +919,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </>
         )}
       </section>
+      )}
 
       <section>
         <h2 className="section-title">진행·예정 공고</h2>
