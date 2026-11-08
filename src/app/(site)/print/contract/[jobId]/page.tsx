@@ -102,7 +102,7 @@ export default async function PaperContractPage(props: PageProps<'/print/contrac
                   <p>상호: {settings.company_name}</p>
                   {settings.business_no && <p>사업자등록번호: {settings.business_no}</p>}
                   {settings.company_address && <p>주소: {settings.company_address}</p>}
-                  {settings.company_phone && <p>전화: {settings.company_phone}</p>}
+                  {settings.company_phone && <p>전화: {phoneFmt(settings.company_phone)}</p>}
                   <p>
                     대표자: {settings.ceo_name ?? ''} <SealMark seal={settings.seal_image} />
                   </p>

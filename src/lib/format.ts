@@ -6,9 +6,16 @@ export function num(n: number | null | undefined): string {
   return Math.round(n ?? 0).toLocaleString('ko-KR')
 }
 
+/**
+ * 저장된 번호를 보기 좋게 (휴대폰 010-1234-5678 · 서울 02-1234-5678 / 02-123-4567 · 지역 055-123-4567 · 대표번호 1588-1234).
+ * 숫자·'-'·빈칸 말고 다른 글자(예: 내선)가 있으면 그대로 (번호 칸에 쓸 때와 같은 모양)
+ */
 export function phoneFmt(p: string | null | undefined): string {
   if (!p) return ''
+  if (!/^[\d\s-]+$/.test(p)) return p
   const d = p.replace(/\D/g, '')
+  if (/^1[5-9]\d{6}$/.test(d)) return `${d.slice(0, 4)}-${d.slice(4)}`
+  if (/^02\d{7,8}$/.test(d)) return `02-${d.slice(2, -4)}-${d.slice(-4)}`
   if (d.length === 11) return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
   if (d.length === 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`
   return p

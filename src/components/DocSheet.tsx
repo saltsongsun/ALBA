@@ -1,3 +1,4 @@
+import { phoneFmt } from '@/lib/format'
 import { fmtDateLong, kstDate, kstDateTime } from '@/lib/time'
 import type { CompanySnapshot } from '@/lib/types'
 import Watermark from './Watermark'
@@ -87,7 +88,7 @@ export default function DocSheet({
           <p>상호: {company.company_name}</p>
           {company.business_no && <p>사업자등록번호: {company.business_no}</p>}
           {company.company_address && <p>주소: {company.company_address}</p>}
-          {company.company_phone && <p>전화: {company.company_phone}</p>}
+          {company.company_phone && <p>전화: {phoneFmt(company.company_phone)}</p>}
           <p>
             대표자: {company.ceo_name ?? ''} <SealMark seal={seal} />
           </p>
@@ -96,7 +97,7 @@ export default function DocSheet({
           <p className="mb-1 font-bold">{b}</p>
           <p>성명: {worker.name}</p>
           {worker.birth_date && <p>생년월일: {fmtDateLong(worker.birth_date)}</p>}
-          <p>연락처: {worker.phone}</p>
+          <p>연락처: {phoneFmt(worker.phone)}</p>
           <p className="relative">
             서명: <span className="text-mute">{signature ? '' : '(서명 전)'}</span>
             {signature && (

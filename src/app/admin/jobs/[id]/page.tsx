@@ -121,6 +121,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 근로계약서를 종이·다른 서비스로 받으면 앱 서명 서류에서 계약서 서식은 뺌
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
+  // 아직 모집 중인 공고 (마감·종료·취소·지난 행사가 아님)
+  const recruiting = job.status === 'open' && job.end_date >= today
   // 근로계약서를 받지 않는 공고는 위에 경고 (지난 공고·종료한 공고는 제외)
   // 전문가 의뢰는 근로계약서가 아니라 용역계약서(service)로 계약 (저장할 때 근로계약서는 빠지고 용역계약서가 들어감)
   const expertJob = job.audience === 'expert'
@@ -195,7 +197,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         ← 공고 목록
       </Link>
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_380px]">
+      {/* 모집 문구 칸은 모집 중일 때만 (마감·종료·취소된 공고를 단톡방에 다시 올리는 실수를 막고 화면도 짧게) */}
+      <div className={`grid gap-4 ${recruiting ? 'lg:grid-cols-[1fr_380px]' : ''}`}>
         {/* min-w-0: 긴 행사 이름이 칸을 넓혀 좁은 휴대폰(320px)에서 화면이 밀리지 않게 */}
         <div className="card min-w-0">
           <div className="flex items-center gap-2">
@@ -366,7 +369,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           )}
         </div>
 
-        <div className="card min-w-0 space-y-2">
+        {recruiting && (
+        <div className="card min-w-0 space-y-2" data-recruit-text>
           <div className="flex items-center justify-between">
             <h2 className="font-bold">단톡방 모집 문구</h2>
             <div className="flex gap-1">
@@ -380,6 +384,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             <textarea readOnly value={text} rows={9} className="input mt-2 resize-none bg-bg text-[13px] leading-relaxed" />
           </details>
         </div>
+        )}
       </div>
 
       {approved.length > 0 && !['done', 'cancelled'].includes(job.status) && (
