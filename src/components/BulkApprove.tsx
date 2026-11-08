@@ -14,7 +14,7 @@ const shownBoxes = (form: string) =>
 /**
  * 고른 지원자를 한 번에 확정 / 미선발 (지원자 탭 · 대시보드). 카드의 체크칸은 form 속성으로 이 폼에 묶임 (카드 안 다른 폼과 겹치지 않게).
  * 고른 사람이 있을 때만 화면 아래에 붙어 나타나고, 두 번 눌러야 진행 (연소자·인원 초과·주휴 대상이면 그 내용으로 물어봄).
- * 체크칸의 data-warn: 한 번 더 물어볼 까닭 ('연소자' · '주휴 대상'),
+ * 체크칸의 data-warn: 한 번 더 물어볼 까닭 ('연소자' · '근무 겹침' · '주휴 대상'),
  * data-job · data-left: 여러 공고에 걸칠 때(대시보드) 공고와 남은 자리 → 고른 사람이 남은 자리보다 많으면 한 번 더
  */
 export function BulkApproveBar({
@@ -52,10 +52,12 @@ export function BulkApproveBar({
   const total = approved + picked.n
   const over = headcount != null && total > headcount
   const count = (w: string) => picked.warns.filter((x) => x === w).length
-  // 연소자 → 인원 초과 → 주휴 대상 순으로 먼저 물어봄 (휴대폰 한 줄에 들어가게 짧게)
+  // 연소자 → 다른 근무와 겹침 → 인원 초과 → 주휴 대상 순으로 먼저 물어봄 (휴대폰 한 줄에 들어가게 짧게)
   const confirmText = count('연소자')
     ? `연소자 ${count('연소자')}명 · 확정?`
-    : picked.overJob
+    : count('근무 겹침')
+      ? `근무 겹침 ${count('근무 겹침')}명 · 확정?`
+      : picked.overJob
       ? '인원 넘는 공고 · 확정?'
       : over
         ? `모집 ${headcount}명 → ${total}명 · 확정?`

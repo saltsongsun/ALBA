@@ -248,11 +248,15 @@ export default async function AppsTab({
     const warn = minorWarn(a)
     // 확정하면 주휴수당이 생기는 사람도 한 번 더 (관리자에게만 보임)
     const weekly = becomes(a)
+    // 같은 날 이미 확정된 다른 근무가 있으면 한 번 더 (한 사람을 두 현장에 보내지 않게)
+    const clash = a.status === 'applied' && clashOf.has(a.user_id)
     return {
-      full: over.length > 0 || !!warn || weekly,
+      full: over.length > 0 || !!warn || weekly || clash,
       text: warn
         ? `연소자 ${minorLimits.join('·')} · 확정?`
-        : weekly && over.length === 0
+        : clash
+          ? '근무 겹쳐요 · 확정?'
+          : weekly && over.length === 0
           ? '주휴 대상이 돼요 · 확정?'
           : !multi
           ? '인원 다 찼어요 · 확정?'
@@ -300,7 +304,7 @@ export default async function AppsTab({
           name="app"
           value={a.id}
           form={BULK_FORM}
-          data-warn={minorWarn(a) ? '연소자' : becomes(a) ? '주휴 대상' : undefined}
+          data-warn={minorWarn(a) ? '연소자' : clashOf.has(a.user_id) ? '근무 겹침' : becomes(a) ? '주휴 대상' : undefined}
           className="size-5 accent-brand-600"
         />
       </label>

@@ -95,8 +95,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       {/* 검색 (공고 화면과 같은 모양): 이름·번호·메시지 내용 · 단체방 이름 */}
       <form className="flex gap-1.5" role="search" data-chat-search>
         {onlyUnread && <input type="hidden" name="unread" value="1" />}
-        <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input min-w-0 flex-1 py-2 text-sm" placeholder="이름·번호·메시지 내용·단체방으로 찾기" />
-        <button className="btn-gray btn-sm shrink-0">찾기</button>
+        <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input py-2 text-sm" placeholder="이름·번호·메시지 내용·단체방으로 찾기" aria-label="문의 찾기" />
         {term && (
           <Link href={onlyUnread ? '/admin/chat?unread=1' : '/admin/chat'} className="btn-gray btn-sm shrink-0">
             지우기

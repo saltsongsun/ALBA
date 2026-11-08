@@ -82,8 +82,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
       <form className="space-y-2" role="search" data-docs-search>
         {f.status && <input type="hidden" name="status" value={f.status} />}
         <div className="flex gap-1.5">
-          <SearchInput name="q" enterKeyHint="search" defaultValue={f.q} className="input min-w-0 flex-1 py-2 text-sm" placeholder="이름·번호·서류·공고로 찾기" />
-          <button className="btn-gray btn-sm shrink-0">찾기</button>
+          <SearchInput name="q" enterKeyHint="search" defaultValue={f.q} className="input py-2 text-sm" placeholder="이름·번호·서류·공고로 찾기" aria-label="서류 찾기" />
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           <select name="job" defaultValue={f.job ?? ''} className="input min-w-0 py-2 text-sm" aria-label="공고">

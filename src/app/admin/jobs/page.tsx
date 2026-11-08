@@ -111,8 +111,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       </div>
       <form className="flex gap-1.5" role="search">
         <input type="hidden" name="tab" value={tab} />
-        <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input min-w-0 flex-1 py-2 text-sm" placeholder="공고 제목·행사명·장소로 찾기" />
-        <button className="btn-gray btn-sm shrink-0">찾기</button>
+        <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input py-2 text-sm" placeholder="공고 제목·행사명·장소로 찾기" aria-label="공고 찾기" />
         {term && (
           <Link href={`/admin/jobs?tab=${tab}`} className="btn-gray btn-sm shrink-0">
             지우기
