@@ -22,6 +22,7 @@ import { fixTime } from '@/lib/signals'
 import { kstTime } from '@/lib/time'
 import AccountDigits from './AccountDigits'
 import { onAccountPaste } from './accountPaste'
+import { onPhoneInput } from './phoneTyping'
 import Fold from './Fold'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 
@@ -1135,6 +1136,7 @@ export function ProfileForm({
             className="input"
             inputMode="tel"
             placeholder="가족 번호"
+            onInput={onPhoneInput}
             title="현장에서 연락이 안 될 때 담당자가 걸어요"
             defaultValue={initial.emergency_phone}
             data-missing={missing('emergency_phone', initial.emergency_phone)}

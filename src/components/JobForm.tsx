@@ -9,6 +9,7 @@ import { JOB_FIELDS } from '@/lib/jobFields'
 import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
 import Fold from './Fold'
+import { onPhoneInput } from './phoneTyping'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 import UnsavedBar from './UnsavedBar'
 
@@ -643,7 +644,7 @@ export default function JobForm({
             <input name="manager_name" className="input" defaultValue={job?.manager_name ?? ''} />
           </Field>
           <Field label="담당자 연락처">
-            <input name="manager_phone" className="input" inputMode="tel" defaultValue={job?.manager_phone ?? ''} />
+            <input name="manager_phone" className="input" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={job?.manager_phone ?? ''} />
           </Field>
         </div>
       </Fold>
