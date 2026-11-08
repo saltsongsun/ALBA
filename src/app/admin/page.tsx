@@ -471,7 +471,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const pendingFirst = pendingApps.slice(0, PENDING_SHOW)
   const pendingRest = pendingApps.slice(PENDING_SHOW)
   const pendingCard = (p: (typeof pendingApps)[number]) => (
-    <div key={p.id} className="card space-y-2.5 p-4">
+    <div key={p.id} className="card space-y-2.5 p-4 transition-shadow duration-200 has-checked:ring-2 has-checked:ring-brand-400">
       <div className="flex items-center gap-3">
         {pickBox(p)}
         <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="lg" />
@@ -522,7 +522,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     </div>
   )
   const pendingRow = (p: (typeof pendingApps)[number]) => (
-    <tr key={p.id}>
+    <tr key={p.id} className="[&:has(:checked)>td]:bg-brand-50">
       <td className="whitespace-nowrap">
         <span className="mr-1 inline-block align-middle">{pickBox(p)}</span>
         <span className="mr-2 inline-block align-middle">

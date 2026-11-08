@@ -1527,6 +1527,36 @@ export async function setAllPaid(jobId: string) {
   if (paidTo.length) back(`/admin/jobs/${jobId}?tab=pay`, `${paidTo.length}명을 지급 완료로 바꾸고 알렸어요.`)
 }
 
+/**
+ * 정산 탭에서 고른 사람만 한 번에 지급 완료 + 급여 알림 (나눠서 보낼 때 · 사용자 요청 2026-11-08 "반복적인 일은 한 번에").
+ * 이 회사 공고인지 확인하고, 그 공고의 퇴근까지 끝난 근무만 바꿈
+ */
+export async function setPaidSelected(jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  if (!(await companyJob(admin, jobId))) return
+  const path = `/admin/jobs/${jobId}?tab=pay`
+  const ids = [...new Set(form.getAll('pay').map(String).filter(isUuid))].slice(0, 300)
+  if (!ids.length) back(path, '지급 완료로 바꿀 사람을 골라 주세요.')
+  const unpaid = must(
+    await db().from('attendance').select('user_id').eq('job_id', jobId).in('user_id', ids).eq('paid', false).not('clock_out', 'is', null),
+  ) as { user_id: string }[]
+  const paidTo = [...new Set(unpaid.map((r) => r.user_id))].filter((u) => ids.includes(u))
+  if (!paidTo.length) back(path, '이미 지급 완료예요.')
+  must(
+    await db()
+      .from('attendance')
+      .update({ paid: true, paid_at: new Date().toISOString(), confirmed: true })
+      .eq('job_id', jobId)
+      .in('user_id', paidTo)
+      .eq('paid', false)
+      .not('clock_out', 'is', null),
+  )
+  await audit(admin.id, 'pay.mark_paid_selected', null, `${jobId} ${paidTo.length}명`, admin.companyId)
+  await tellPaid(admin.id, jobId, paidTo)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back(path, `${paidTo.length}명을 지급 완료로 바꾸고 알렸어요.`)
+}
+
 // ───────────── 서류 ─────────────
 
 export async function voidDoc(docId: string) {

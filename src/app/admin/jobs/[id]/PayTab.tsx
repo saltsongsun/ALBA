@@ -1,7 +1,8 @@
 import Icon from '@/components/Icon'
 import PayTools from '@/components/PayTools'
 import Link from 'next/link'
-import { announcePayday, nudgeWorkers, setAllPaid, setPaid } from '@/app/actions/admin'
+import { announcePayday, nudgeWorkers, setAllPaid, setPaid, setPaidSelected } from '@/app/actions/admin'
+import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
@@ -16,6 +17,8 @@ import { payState } from '@/lib/vendors'
 import { weeklyPayMap } from '@/lib/weekly'
 
 /** 정산 탭 위 한 줄용 짧은 세금 이름 (자세한 설명은 '세금 계산 방법'에) */
+// 정산 탭 '골라서 지급 완료' 폼 (체크칸이 form 속성으로 묶임)
+const PAY_FORM = 'pay-pick'
 const TAX_SHORT: Record<Job['tax_type'], string> = { daily: '일용근로 2.7%', business: '사업소득 3.3%', other: '기타소득 8.8%', none: '공제 없음' }
 import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
@@ -250,7 +253,15 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
           <table className="table table-pin text-[13px]">
             <thead>
               <tr>
-                <th>이름</th>
+                <th className="whitespace-nowrap">
+                  {/* 미지급이 둘 이상이면 골라서 한 번에 지급 완료 (나눠서 보낼 때) */}
+                  {unpaid.length > 1 && (
+                    <span className="mr-1 inline-block align-middle">
+                      <PickAll form={PAY_FORM} />
+                    </span>
+                  )}
+                  이름
+                </th>
                 <th>일수</th>
                 <th>인정시간</th>
                 <th className="text-right">지급총액</th>
@@ -266,8 +277,20 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.uid}>
+                <tr key={r.uid} className="[&:has(:checked)>td]:bg-brand-50" data-pay-row>
                   <td className="font-semibold whitespace-nowrap">
+                    {unpaid.length > 1 && r.done > 0 && !r.paid && (
+                      <label className="mr-1 inline-grid size-8 cursor-pointer place-items-center rounded-lg align-middle active:bg-bg" aria-label={`${r.user?.name ?? ''} 고르기`}>
+                        <input
+                          type="checkbox"
+                          name="pay"
+                          value={r.uid}
+                          form={PAY_FORM}
+                          data-warn={r.user?.bank_account_enc ? undefined : '계좌 없음'}
+                          className="size-[18px] accent-brand-600"
+                        />
+                      </label>
+                    )}
                     <Link href={`/admin/workers/${r.uid}`}>{r.user?.name}</Link>
                     {/* 지난 정산도 출근·퇴근 시각·휴게·추가 지급·공제를 고칠 수 있게: 그날 기록 수정 칸으로 (저장하면 정산 탭으로 돌아옴) */}
                     <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs font-semibold" data-pay-edit>
@@ -342,6 +365,10 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             </tbody>
           </table>
         </div>
+        {/* 고른 사람만 한 번에 지급 완료 + 급여 알림 (계좌 없는 사람이 섞이면 한 번 더) */}
+        {unpaid.length > 1 && (
+          <PickBar formId={PAY_FORM} action={setPaidSelected.bind(null, job.id)} label="선택 {n}명 지급 완료" confirm="{n}명 지급 완료 · 알릴까요?" short="지급 완료" />
+        )}
         </>
       )}
       {/* 행사 비용 합계: 알바 인건비(세전 지급총액) + 외주 대금 — 외주가 없으면 한 줄로 */}

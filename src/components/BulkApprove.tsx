@@ -6,8 +6,8 @@ import { ConfirmSubmit } from './ui'
 export const BULK_FORM = 'bulk-approve'
 
 // 화면에 보이는 체크칸만 (휴대폰 카드와 PC 표에 같은 사람이 두 번 있어서, 접힌 '더보기' 안은 빼고)
-const shownBoxes = () =>
-  [...document.querySelectorAll<HTMLInputElement>(`input[form="${BULK_FORM}"][name="app"]`)].filter((e) =>
+const shownBoxes = (form: string) =>
+  [...document.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][form="${form}"]`)].filter((e) =>
     typeof e.checkVisibility === 'function' ? e.checkVisibility() : e.offsetParent !== null,
   )
 
@@ -71,7 +71,11 @@ export function BulkApproveBar({
     >
       <div className="flex items-center gap-2">
         <p className="min-w-0 flex-1 truncate text-sm font-semibold">
-          <b className="text-lg tabular-nums">{picked.n}</b>명 골랐어요
+          {/* 고른 수가 바뀌면 숫자가 톡 튐 */}
+          <b key={picked.n} className="inline-block animate-pop text-lg tabular-nums" data-bulk-n>
+            {picked.n}
+          </b>
+          명 골랐어요
           {headcount != null && (
             <span className={`ml-1.5 text-xs font-medium ${over ? 'text-amber-300' : 'opacity-70'}`} data-bulk-after>
               확정 후 {total}/{headcount}명
@@ -107,13 +111,13 @@ export function BulkApproveBar({
   )
 }
 
-/** 보이는 대기 지원자를 한 번에 고르기 / 모두 풀기 (일부만 골랐으면 '-' 표시) */
-export function PickAll({ label }: { label?: string }) {
+/** 보이는 칸을 한 번에 고르기 / 모두 풀기 (일부만 골랐으면 '-' 표시) · form: 어느 묶음 폼의 칸인지 */
+export function PickAll({ label, form = BULK_FORM }: { label?: string; form?: string }) {
   const ref = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<'none' | 'some' | 'all'>('none')
   useEffect(() => {
     const read = () => {
-      const b = shownBoxes()
+      const b = shownBoxes(form)
       const k = b.filter((e) => e.checked).length
       setState(k === 0 ? 'none' : k === b.length ? 'all' : 'some')
     }
@@ -124,14 +128,14 @@ export function PickAll({ label }: { label?: string }) {
       document.removeEventListener('change', read)
       window.removeEventListener('resize', read)
     }
-  }, [])
+  }, [form])
   useEffect(() => {
     if (ref.current) ref.current.indeterminate = state === 'some'
   }, [state])
   return (
     <label
       className={`flex shrink-0 cursor-pointer items-center gap-2 text-sm font-semibold text-sub ${label ? 'rounded-lg py-1 pl-1' : 'size-9 justify-center rounded-lg active:bg-bg'}`}
-      aria-label={label ? undefined : '대기 모두 고르기'}
+      aria-label={label ? undefined : '모두 고르기'}
       data-pick-all
     >
       {label && <span>{state === 'all' ? '모두 풀기' : label}</span>}
@@ -141,11 +145,78 @@ export function PickAll({ label }: { label?: string }) {
         checked={state === 'all'}
         onChange={(e) => {
           const on = e.currentTarget.checked
-          shownBoxes().forEach((b) => (b.checked = on))
+          shownBoxes(form).forEach((b) => (b.checked = on))
           document.dispatchEvent(new Event('change'))
         }}
         className="size-5 accent-brand-600"
       />
     </label>
+  )
+}
+
+/**
+ * 고른 사람에게 한 가지 일을 한 번에 (예: 정산 탭 '선택 n명 지급 완료'). 체크칸은 form={formId}로 이 폼에 묶임.
+ * 고른 사람이 있을 때만 아래에 붙어 나타나고 두 번 눌러야 진행. 문구의 {n}은 고른 수.
+ * 체크칸의 data-warn이 있으면 확인 문구를 '{data-warn} k명 · {short}?'로 (예: '계좌 없음 1명 · 지급 완료?')
+ */
+export function PickBar({
+  formId,
+  action,
+  label,
+  confirm,
+  short,
+  className = '',
+}: {
+  formId: string
+  action: (form: FormData) => Promise<void>
+  /** 버튼 글자 (예: '선택 {n}명 지급 완료') */
+  label: string
+  /** 확인 문구 (예: '{n}명 지급 완료로 바꾸고 알릴까요?') */
+  confirm: string
+  /** 주의할 사람이 섞였을 때 확인 문구 뒤쪽 (예: '지급 완료') */
+  short: string
+  className?: string
+}) {
+  const [picked, setPicked] = useState<{ n: number; warns: string[] }>({ n: 0, warns: [] })
+  useEffect(() => {
+    const read = () => {
+      const els = [...document.querySelectorAll<HTMLInputElement>(`input[form="${formId}"]:checked`)]
+      setPicked({ n: els.length, warns: els.map((e) => e.dataset.warn ?? '').filter(Boolean) })
+    }
+    read()
+    document.addEventListener('change', read)
+    return () => document.removeEventListener('change', read)
+  }, [formId])
+  if (!picked.n) return null
+  const fill = (t: string) => t.replaceAll('{n}', String(picked.n))
+  const warn = picked.warns[0]
+  const confirmText = warn ? `${warn} ${picked.warns.filter((w) => w === warn).length}명 · ${short}?` : fill(confirm)
+  return (
+    <form
+      id={formId}
+      action={action}
+      className={`sticky bottom-[calc(var(--tabbar-space)+8px)] z-20 flex animate-pop items-center gap-2 rounded-2xl bg-ink px-4 py-3 text-white shadow-xl sm:bottom-4 ${className}`}
+      data-pick-bar={formId}
+    >
+      <p className="min-w-0 flex-1 truncate text-sm font-semibold">
+        <b key={picked.n} className="inline-block animate-pop text-lg tabular-nums">
+          {picked.n}
+        </b>
+        명
+      </p>
+      <button
+        type="button"
+        className="shrink-0 px-1 py-1 text-xs font-semibold opacity-80"
+        onClick={() => {
+          document.querySelectorAll<HTMLInputElement>(`input[form="${formId}"]:checked`).forEach((e) => (e.checked = false))
+          document.dispatchEvent(new Event('change'))
+        }}
+      >
+        선택 해제
+      </button>
+      <ConfirmSubmit className="btn-primary btn-sm shrink-0" confirmText={confirmText}>
+        {fill(label)}
+      </ConfirmSubmit>
+    </form>
   )
 }

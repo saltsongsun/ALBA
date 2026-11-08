@@ -308,7 +308,8 @@ export default async function AppsTab({
   const mobileCard = (a: AppRow) => {
     const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
     return (
-      <div key={a.id} className={`card space-y-2.5 p-4 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
+      // 고르면 카드 테두리가 파랗게 (어떤 사람을 골랐는지 한눈에)
+      <div key={a.id} className={`card space-y-2.5 p-4 transition-shadow duration-200 has-checked:ring-2 has-checked:ring-brand-400 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-3">
           {pickBox(a)}
           <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="lg" />
@@ -547,7 +548,7 @@ export default async function AppsTab({
                 {sorted.map((a) => {
                   const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
                   return (
-                    <tr key={a.id} className={a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}>
+                    <tr key={a.id} className={`[&:has(:checked)>td]:bg-brand-50 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
                       <td className="whitespace-nowrap">
                         <span className="mr-1 inline-block align-middle">{pickBox(a)}</span>
                         <span className="mr-2 inline-block align-middle">
