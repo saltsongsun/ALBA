@@ -135,7 +135,10 @@ export function ClockPanel({
   endText,
   serverNow,
   askedAt = null,
+  startAt,
 }: {
+  /** 오늘 근무 시작 시각(ISO): 한 시간도 더 전에 '근무 시작'을 누르면 한 번 더 묻기 (집에서 실수로 누르지 않게) */
+  startAt?: string
   jobId: string
   open: { id: string; clock_in: string; startText: string } | null
   useLocation: boolean
@@ -155,6 +158,8 @@ export function ClockPanel({
   const [step, setStep] = useState('')
   // 시작 직후 같은 자리의 버튼이 '근무 종료'로 바뀌므로, 두 번 눌러야 종료되게 해서 실수를 막음
   const [confirmOut, setConfirmOut] = useState(false)
+  // 시작 한 시간도 더 전에 '근무 시작'을 누르면: 남은 시간 문구 (한 번 더 눌러야 시작)
+  const [early, setEarly] = useState<string | null>(null)
   const [celebrate, setCelebrate] = useState(0)
   const [geo, setGeo] = useState<GeoProblem | null>(null)
   // 인터넷이 끊겨 기록하지 못했으면 연결되는 대로 다시 시도 (지하 행사장 등)
@@ -226,6 +231,13 @@ export function ClockPanel({
     const t = setTimeout(() => setConfirmOut(false), 4000)
     return () => clearTimeout(t)
   }, [confirmOut])
+  useEffect(() => {
+    if (!early) return
+    // 버튼이 화면 아래(탭 줄 근처)에 있어도 아래 안내가 가려지지 않게
+    mainBtn.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const t = setTimeout(() => setEarly(null), 5000)
+    return () => clearTimeout(t)
+  }, [early])
 
   useEffect(() => {
     if (!open) return
@@ -240,7 +252,17 @@ export function ClockPanel({
       setConfirmOut(true)
       return
     }
+    // 시작 한 시간도 더 전: 한 번 더 눌러야 시작 (현장에 일찍 온 거면 그대로 한 번 더)
+    if (!open && startAt && !early) {
+      const left = Math.round((Date.parse(startAt) - Date.now()) / 60_000)
+      if (left > 60) {
+        haptic(10)
+        setEarly(`${Math.floor(left / 60)}시간${left % 60 ? ` ${left % 60}분` : ''}`)
+        return
+      }
+    }
     setConfirmOut(false)
+    setEarly(null)
     run()
   }
 
@@ -414,10 +436,16 @@ export function ClockPanel({
               : 'bg-rose-500 hover:bg-rose-600'
         }`}
       >
-        {pending ? step || '처리 중…' : !open ? '근무 시작' : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}
+        {pending ? step || '처리 중…' : !open ? (early ? '한 번 더 누르면 시작' : '근무 시작') : confirmOut ? '한 번 더 누르면 종료' : '근무 종료'}
       </button>
       )}
       {confirmOut && !pending && <p className="text-center text-sm font-semibold text-rose-600">실수로 끝나지 않도록 한 번 더 눌러야 종료돼요.</p>}
+      {early && !pending && !open && (
+        <p className="text-center text-sm text-amber-700" data-early-start>
+          <b className="block font-semibold">시작까지 {early} 남았어요</b>
+          <span className="block text-xs">현장에 왔으면 한 번 더 눌러 주세요</span>
+        </p>
+      )}
       {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치도 함께 기록돼요.</p>}
       <FormMessage state={result} />
       {offline && !pending && (

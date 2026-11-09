@@ -739,7 +739,14 @@ export default async function MePage(props: PageProps<'/me'>) {
                         startText={hhmm(todayShift(job).start_time)}
                         serverNow={Date.now()}
                       />}
-                      <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} />
+                      <ClockPanel
+                        jobId={job.id}
+                        open={null}
+                        useLocation={job.lat != null}
+                        gpsRequired={job.gps_required}
+                        askedAt={arriveSent.get(job.id)}
+                        startAt={kstAt(today, todayShift(job).start_time).toISOString()}
+                      />
                     </div>
                   )}
                   {/* 출근 전이고 근무가 끝나기 전: 늦으면 담당자에게 알리기 */}

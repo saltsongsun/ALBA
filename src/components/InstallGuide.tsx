@@ -145,7 +145,7 @@ export function InstallBanner() {
   )
 }
 
-export default function InstallGuide() {
+export default function InstallGuide({ auto = true }: { auto?: boolean }) {
   const pathname = usePathname()
   const [env, setEnv] = useState<Env | null>(null)
   const [open, setOpen] = useState(false)
@@ -167,13 +167,13 @@ export default function InstallGuide() {
     }
   }, [])
 
-  // 홈·내 근무 화면에서 한 번만 저절로 (컴퓨터는 브라우저가 설치를 지원할 때만)
+  // 로그인한 사람에게 홈 화면에서 한 번만 저절로 (컴퓨터는 브라우저가 설치를 지원할 때만)
   useEffect(() => {
-    if (!env || autoShown.current || !AUTO_PATHS.includes(pathname)) return
+    if (!auto || !env || autoShown.current || !AUTO_PATHS.includes(pathname)) return
     if (env === 'desktop' && !prompt) return
     autoShown.current = true
     if (!snoozed()) setOpen(true)
-  }, [env, pathname, prompt])
+  }, [auto, env, pathname, prompt])
 
   if (!open || !env) return null
 

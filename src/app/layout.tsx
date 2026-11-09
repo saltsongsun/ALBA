@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { Suspense } from 'react'
 import { ErrorToast } from '@/components/ErrorCopy'
 import InstallGuide from '@/components/InstallGuide'
@@ -45,6 +45,8 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // 보안 규칙(CSP): 이 화면에 허락된 스크립트만 실행되도록 요청마다 새로 만든 값 (src/proxy.ts)
   const nonce = (await headers()).get('x-nonce') ?? undefined
+  // 앱 설치 안내는 로그인한 사람에게만 저절로 (처음 온 사람은 공고부터 보게)
+  const signedIn = (await cookies()).has('alba_session')
   return (
     <html lang="ko" suppressHydrationWarning>
       <head>
@@ -61,7 +63,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <NavProgress />
         </Suspense>
         {children}
-        <InstallGuide />
+        <InstallGuide auto={signedIn} />
         {/* 휴대폰 키보드가 올라와 있는 동안 아래 탭을 숨김 (html[data-kb]) */}
         <KeyboardWatch />
         {/* 뒤에서 난 오류도 바로 복사해 보낼 수 있게 */}
