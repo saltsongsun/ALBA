@@ -5,7 +5,7 @@ import LiveNumber from '@/components/LiveNumber'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { won } from '@/lib/format'
-import { calcDay, settle, workingToday } from '@/lib/pay'
+import { calcDay, settle, workingToday, roundCut } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
 import { fmtDateRange, kstDate, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
@@ -82,6 +82,8 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     job,
     rows,
     s: settle(job, rows.map((r) => calcDay(job, r))),
+    // 30분 단위 등으로 인정시간에서 빠진 분 (보여 주기만)
+    cut: rows.reduce((t, r) => t + roundCut(calcDay(job, r)), 0),
     paid: rows.every((r) => r.paid),
     // 오늘 아직 근무 중 (퇴근 전) — '종료 기록 없음'이 아니라 '오늘 근무 중'으로
     live: workingToday(rows, kstDate()),
@@ -244,7 +246,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                 })()}
               </div>
               <div className="stagger space-y-2">
-                {list.map(({ job, s, paid, live, worked, first, last }) => (
+                {list.map(({ job, s, cut, paid, live, worked, first, last }) => (
                   <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -258,6 +260,11 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                           {fmtDateRange(first, last)}
                           {!(live > 0 && s.days === 0) && ` · ${s.days}일 · ${minutesText(s.paidMin)}`}
                         </p>
+                        {cut > 0 && (
+                          <p className="text-xs text-mute" data-round-cut>
+                            {job.round_unit}분 단위 계산 · {minutesText(cut)} 빠짐
+                          </p>
+                        )}
                         {/* 여러 날 근무 중 오늘 몫 (첫날 근무 중이면 오른쪽에 한 번만) */}
                         {live > 0 && s.days > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
                         {/* 정산 예정일: 담당자가 알린 날짜, 없으면 공고의 지급일 */}

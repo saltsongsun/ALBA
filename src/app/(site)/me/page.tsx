@@ -4,6 +4,7 @@ import LevelCard from '@/components/LevelCard'
 import { computeXp, shiftFacts } from '@/lib/xp'
 import { cookies } from 'next/headers'
 import Link from 'next/link'
+import LiveNumber from '@/components/LiveNumber'
 import { redirect } from 'next/navigation'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
@@ -25,7 +26,7 @@ import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
 import { won } from '@/lib/format'
 import { answerOvertime, answerShift } from '@/app/actions/worker'
-import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
+import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
@@ -714,10 +715,16 @@ export default async function MePage(props: PageProps<'/me'>) {
                           {kstTime(todayAtt.adj_in ?? todayAtt.clock_in)} ~ {kstTime(todayAtt.adj_out ?? todayAtt.clock_out)} (
                           {minutesText(calcDay(job, todayAtt).paidMin)} 인정)
                         </p>
-                        {/* 오늘 번 돈 (세금 떼기 전, 연장은 서로 확인한 만큼만) */}
+                        {/* 30분 단위 등으로 빠진 시간이 있으면 한 줄로 (왜 덜 인정됐는지 바로 알 수 있게) */}
+                        {roundCut(calcDay(job, todayAtt)) > 0 && (
+                          <p className="text-xs text-mute" data-round-cut>
+                            {job.round_unit}분 단위 계산이라 {minutesText(roundCut(calcDay(job, todayAtt)))}은 빠졌어요
+                          </p>
+                        )}
+                        {/* 오늘 번 돈 (세금 떼기 전, 연장은 서로 확인한 만큼만) · 0에서 올라가며 보임 */}
                         {calcDay(job, todayAtt).gross > 0 && (
-                          <p className="mt-1 text-lg font-extrabold text-brand-700 tabular-nums">
-                            오늘 약 {won(calcDay(job, todayAtt).gross)} <span className="text-xs font-semibold text-mute">세전</span>
+                          <p className="mt-1 text-lg font-extrabold text-brand-700 tabular-nums" data-today-gross>
+                            오늘 약 <LiveNumber value={calcDay(job, todayAtt).gross} countUp />원 <span className="text-xs font-semibold text-mute">세전</span>
                           </p>
                         )}
                       </div>

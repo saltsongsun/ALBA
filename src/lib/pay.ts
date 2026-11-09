@@ -236,6 +236,11 @@ export const workingToday = (rows: Pick<Attendance, 'clock_in' | 'clock_out' | '
   rows.filter((r) => !!r.clock_in && !r.clock_out && r.work_date === today).length
 
 /** 한 사람·한 공고의 정산 (지급 1회 기준으로 소액부징수 판단) */
+/** 절사 단위(예: 30분) 때문에 인정시간에서 빠진 분 — 휴게 뺀 실제 근무 − 인정시간 (화면에 보여 주기만 · 금액 계산과 별개) */
+export function roundCut(d: Pick<DayPay, 'spanMin' | 'breakMin' | 'paidMin'>): number {
+  return Math.max(0, Math.max(0, d.spanMin - d.breakMin) - d.paidMin)
+}
+
 export function settle(rule: PayRule, days: DayPay[]): Settlement {
   const sum = (k: keyof DayPay) => days.reduce((s, d) => s + (d[k] as number), 0)
   const gross = sum('gross')
