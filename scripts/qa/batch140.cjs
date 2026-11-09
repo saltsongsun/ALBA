@@ -29,7 +29,7 @@ const until = async (fn, ms = 8000) => { for (let t = 0; t < ms; t += 200) { con
   }
 
   // ── 1. 위치에 막힌 횟수 기억 (fresh: 출근 전 · 현장 확인 필요 · 먼 곳) ──
-  await rest(MF, `jobs?id=eq.${J}`, 'PATCH', { gps_required: true, lat: 37.5, lng: 127.0, end_time: '23:59:00' })
+  await rest(MF, `jobs?id=eq.${J}`, 'PATCH', { gps_required: true, lat: 37.5, lng: 127.0, start_time: '00:00:00', end_time: '23:59:00' })
   const w = await pg(F, W, { geolocation: { latitude: 35.1, longitude: 129.0 }, permissions: ['geolocation'] })
   await w.goto(`${F}/me`)
   const main = w.locator('#today-work button[data-track]').first()

@@ -52,7 +52,8 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   ok('S1 늦는다고 알린 사람은 미출근 앱 알림 대상에서 빠짐', (await af.getByRole('button', { name: /미출근 \d+명 · 근무 시작 버튼/ }).count()) === 0)
 
   // S2 위치 확인 실패 → 출근 확인 요청 → 관리자 출근 처리
-  await rest(MF, `jobs?id=eq.${J}`, 'PATCH', { gps_required: true })
+  // 시작 시각이 지난 상태에서 (새벽에 돌리면 '시작까지 n시간 · 한 번 더 누르면 시작'이 먼저 뜸 — 묶음 153)
+  await rest(MF, `jobs?id=eq.${J}`, 'PATCH', { gps_required: true, start_time: '00:00:00' })
   await wf.reload()
   await wf.getByRole('button', { name: '근무 시작' }).click()
   ok('S2 멀리서 누르면 거리 안내', await see(wf, /떨어져 있어요/, 15000))
