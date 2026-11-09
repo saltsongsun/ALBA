@@ -13,7 +13,7 @@ import ShiftChange from '@/components/ShiftChange'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
-import { calcDay, OT_ASK_MIN, shiftOf } from '@/lib/pay'
+import { calcDay, OT_ASK_MIN, shiftOf, workOver } from '@/lib/pay'
 import { DISMISS_NOTE, DISMISS_REASONS, FULL_TIME_MARK, isFullTimeAsk, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
@@ -148,7 +148,8 @@ export default async function AttTab({
   const notYet = !started
   // 날짜별 확정 인원 → 모집 인원보다 모자란 날 (지난 날은 빼고)
   const byDay = staffByDay(dates, apps)
-  const shortOn = (d: string) => d >= today && byDay[d] < job.headcount
+  // 이날 근무가 아직 안 끝났을 때만 (끝난 날은 더 채울 수 없으니 '부족'·'대기자 →'를 안 띄움)
+  const shortOn = (d: string) => d >= today && !workOver(job, d) && byDay[d] < job.headcount
   const waitToday = waiting.filter((a) => !a.available_dates || a.available_dates.includes(date)).length
   const working = dayAtts.filter((a) => !a.clock_out).length
   const done = dayAtts.filter((a) => a.clock_out).length

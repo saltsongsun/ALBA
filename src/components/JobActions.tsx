@@ -149,7 +149,11 @@ export default function JobActions({ job, today, working, finished = 0, absent =
           </form>
           {!compact && (
             <p className="text-center text-xs text-sub" data-job-end-hint>
-              {working > 0 ? `근무 중 ${working}명은 종료 시각(${endText})으로 함께 근무 종료돼요` : '모두 퇴근했어요 · 누르면 행사가 끝나고 정산으로 넘어가요'}
+              {working > 0
+                ? `근무 중 ${working}명은 종료 시각(${endText})으로 함께 근무 종료돼요`
+                : absent > 0
+                  ? `미출근 ${absent}명은 기록 없이 끝나요 · 누르면 정산으로 넘어가요`
+                  : '모두 퇴근했어요 · 누르면 행사가 끝나고 정산으로 넘어가요'}
             </p>
           )}
         </>

@@ -3,6 +3,7 @@ import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
+import { workOver } from '@/lib/pay'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
 import { decideApplication, decideSelected, holdApplication, holdSelected, setJobStatus } from '@/app/actions/admin'
@@ -184,7 +185,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 곧(모레까지) 시작하거나 진행 중인데 확정 인원이 모자란 행사: 취소로 빈자리가 생겼을 때 바로 보이게
   const soon = kstDate(new Date(Date.now() + 2 * 86_400_000))
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
-  const short = activeJobs.filter((j) => j.start_date <= soon && (counts[j.id] ?? 0) < j.headcount)
+  // 마지막 날 근무까지 다 끝난 행사는 빼요 (밤에 '진행 중인데 인원이 모자라요 · 대기 1명 확정하러 가기'가 남지 않게)
+  const short = activeJobs.filter((j) => j.start_date <= soon && (counts[j.id] ?? 0) < j.headcount && !workOver(j, j.end_date))
   // 이미 시작한 행사 (어제 이전 시작 · 오늘 시작 시각이 지남): '오늘 09:00 시작' 대신 '진행 중'
   const nowAt = Date.now()
   const begun = (j: { start_date: string; start_time: string }) => j.start_date < today || (j.start_date === today && kstAt(today, hhmm(j.start_time)).getTime() <= nowAt)

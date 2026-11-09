@@ -14,6 +14,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 
 ;(async () => {
+  // 근무 시간 안에서 확인 (마지막 날 근무가 끝난 행사는 '인원이 모자라요'에서 빠짐 — 2026-11-09)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
   const [c1] = await rest(`companies?id=eq.${C1}`)
   await rest('companies', 'POST', { ...c1, id: C2, company_name: '새내기행사', seal_image: null, business_no: null, company_address: null, contact_phone: null, created_at: '2026-10-15T00:00:00Z' })
   const [admin1] = await rest(`users?id=eq.${A}`)
