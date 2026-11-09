@@ -37,11 +37,20 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await rest(`jobs?id=eq.${J}`, 'PATCH', { round_unit: 30 })
   await w.reload()
   await more.waitFor({ timeout: 15000 }).catch(() => {})
-  await more.evaluate((el) => { el.open = true })
+  // 화면이 다 그려진 뒤 펼침 (처음 그려지는 중에 펼치면 다시 그려지며 접힐 수 있음) · 펼쳐진 줄이 보일 때까지
+  await w.waitForLoadState('networkidle').catch(() => {})
+  await w.waitForFunction(() => {
+    const d = document.querySelector('[data-pay-more]')
+    if (!d) return false
+    if (!d.open) d.open = true
+    const r = [...d.querySelectorAll('dl > div')].find((x) => x.textContent.includes('계산'))
+    return !!r && r.getBoundingClientRect().height > 0
+  }, null, { timeout: 8000 }).catch(() => {})
   const row = more.locator('dl > div', { hasText: '계산' })
   const rt = await row.evaluate((el) => [...el.children].map((c) => c.textContent.trim()).join(' | ')).catch((e) => 'ERR ' + e.message.slice(0, 200))
   ok("30분 단위 공고: '계산 | 30분 단위 (30분 미만은 빼요)'", rt === '계산 | 30분 단위 (30분 미만은 빼요)', JSON.stringify(rt))
-  ok('그 줄은 한 줄 · 요약 줄도 한 줄', (await row.locator('dd').evaluate((el) => { const h = el.getBoundingClientRect().height; return h > 0 && h < 24 })) && (await more.locator('summary').evaluate((el) => el.getBoundingClientRect().height < 24)))
+  const hs = await more.evaluate((el) => ({ open: el.open, dd: Math.round(el.querySelector('dl > div:nth-child(2) dd, dl dd')?.getBoundingClientRect().height ?? -1), rowDd: Math.round([...el.querySelectorAll('dl > div')].find((d) => d.textContent.includes('계산'))?.querySelector('dd')?.getBoundingClientRect().height ?? -1), sum: Math.round(el.querySelector('summary').getBoundingClientRect().height), sumText: el.querySelector('summary').textContent }))
+  ok('그 줄은 한 줄 · 요약 줄도 한 줄', hs.rowDd > 0 && hs.rowDd < 24 && hs.sum < 24, JSON.stringify(hs))
   ok('360px 옆으로 안 밀림 (공고)', await wide(w))
   if (SHOTS) await w.locator('[data-wage-box]').screenshot({ path: `${SHOTS}/job-round.png` }).catch(() => {})
 
