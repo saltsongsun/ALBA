@@ -5,6 +5,8 @@ import Empty from '@/components/Empty'
 import { ReportButton } from '@/components/community'
 import { ago, companyReviews } from '@/lib/community'
 import { db } from '@/lib/db'
+import { replyMinutes, replySpan } from '@/lib/data'
+import { kstDate } from '@/lib/time'
 import { requireUser } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 
@@ -20,7 +22,19 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
   const { data: co } = await db().from('companies').select('id, company_name, verified').eq('id', id).maybeSingle()
   const company = co as { id: string; company_name: string; verified: boolean | null } | null
   if (!company) notFound()
-  const { avg, count, recent } = await companyReviews(id, 50)
+  // 후기와 함께: 지금 모집 중인 공고 수 · 지원에 보통 얼마 만에 답하는지 (회사를 고를 때 한눈에)
+  const [{ avg, count, recent }, openN, replyMin] = await Promise.all([
+    companyReviews(id, 50),
+    db()
+      .from('jobs')
+      .select('id', { count: 'exact', head: true })
+      .eq('company_id', id)
+      .eq('audience', 'worker')
+      .eq('status', 'open')
+      .gte('end_date', kstDate())
+      .then((r) => r.count ?? 0),
+    replyMinutes(id).catch(() => null),
+  ])
   const dist = [5, 4, 3, 2, 1].map((n) => ({ n, k: recent.filter((r) => r.rating === n).length }))
   // 정렬: 최신 · 별점 높은 · 별점 낮은 (같으면 최신 먼저)
   const shown = [...recent].sort((a, b) => (sort === 'high' ? b.rating - a.rating : sort === 'low' ? a.rating - b.rating : 0) || b.created_at.localeCompare(a.created_at))
@@ -37,12 +51,27 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
           </span>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-xl font-extrabold">{company.company_name}</h1>
-            {company.verified === true && <p className="text-xs font-semibold text-emerald-600">✓ 확인된 회사</p>}
           </div>
           <Link href={`/?co=${company.id}`} className="shrink-0 text-sm font-semibold text-brand-600">
             공고 보기
           </Link>
         </div>
+        {/* 회사를 고를 때 한눈에: 짧은 칩 한 줄 (확인된 회사 · 모집 중 n개 · 보통 n시간 내 답변) — 360px에서 한 줄에 들어가게 짧게 */}
+        {(company.verified === true || openN > 0 || replyMin != null) && (
+          <div className="-mt-1 flex flex-wrap gap-1.5" data-company-facts>
+            {company.verified === true && <span className="badge bg-emerald-50 text-emerald-700">✓ 확인된 회사</span>}
+            {openN > 0 && (
+              <Link href={`/?co=${company.id}`} className="badge bg-brand-50 text-brand-700" data-company-open>
+                모집 중 {openN}개
+              </Link>
+            )}
+            {replyMin != null && (
+              <span className="badge bg-bg text-sub" data-company-reply title="지원하면 결과를 알려 주기까지 보통 걸린 시간 (최근 90일)">
+                보통 {replySpan(replyMin)} 내 답변
+              </span>
+            )}
+          </div>
+        )}
         {count > 0 && (
           <div className="flex items-center gap-5">
             <div className="shrink-0 text-center">

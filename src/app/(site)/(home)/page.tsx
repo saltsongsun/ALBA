@@ -108,14 +108,15 @@ export default async function HomePage(props: PageProps<'/'>) {
   const sat = dow === 0 ? today : plus(6 - dow)
   const sun = dow === 0 ? today : plus(7 - dow)
   const overlaps = (j: JobWithAppStatus, from: string, to: string) => j.start_date <= to && j.end_date >= from
-  const listed = jobs.filter((j) => {
-    if (when === 'soon' && !overlaps(j, today, plus(1))) return false
-    if (when === 'weekend' && !overlaps(j, dow === 0 ? today : sat, sun)) return false
-    if (when === 'week' && !overlaps(j, today, plus(7))) return false
-    if (avail && (j.status !== 'open' || (counts[j.id] ?? 0) >= j.headcount || (mine[j.id] && mine[j.id] !== 'cancelled') || (j.end_date === today && workOver(j, j.end_date)))) return false
-    if (good && !((ratings[j.company_id]?.avg ?? 0) >= 4)) return false
+  const matches = (j: JobWithAppStatus, w: typeof when, a: boolean, g: boolean) => {
+    if (w === 'soon' && !overlaps(j, today, plus(1))) return false
+    if (w === 'weekend' && !overlaps(j, dow === 0 ? today : sat, sun)) return false
+    if (w === 'week' && !overlaps(j, today, plus(7))) return false
+    if (a && (j.status !== 'open' || (counts[j.id] ?? 0) >= j.headcount || (mine[j.id] && mine[j.id] !== 'cancelled') || (j.end_date === today && workOver(j, j.end_date)))) return false
+    if (g && !((ratings[j.company_id]?.avg ?? 0) >= 4)) return false
     return true
-  })
+  }
+  const listed = jobs.filter((j) => matches(j, when, avail, good))
   const filterHref = (w: string | null, a: boolean, g: boolean = good) => {
     const q = new URLSearchParams()
     if (company) q.set('co', company.id)
@@ -124,6 +125,23 @@ export default async function HomePage(props: PageProps<'/'>) {
     if (g) q.set('good', '1')
     const s = q.toString()
     return s ? `/?${s}#jobs` : '/#jobs'
+  }
+  // 거른 결과가 없을 때: 조건을 하나 풀면 몇 개가 있는지 (빈 화면에서 막히지 않게 · 최대 2개)
+  const loosen: { label: string; n: number; href: string }[] = []
+  if (listed.length === 0 && jobs.length > 0) {
+    const count = (w: typeof when, a: boolean, g: boolean) => jobs.filter((j) => matches(j, w, a, g)).length
+    if (when) {
+      for (const w2 of when === 'week' ? [null] : (['week', null] as const)) {
+        const n = count(w2, avail, good)
+        if (n > 0) {
+          loosen.push({ label: w2 === 'week' ? '7일 안' : '날짜 전체', n, href: filterHref(w2, avail) })
+          break
+        }
+      }
+    }
+    if (avail && count(when, false, good) > 0) loosen.push({ label: '마감 포함', n: count(when, false, good), href: filterHref(when, false) })
+    if (good && count(when, avail, false) > 0) loosen.push({ label: '후기 조건 빼고', n: count(when, avail, false), href: filterHref(when, avail, false) })
+    loosen.splice(2)
   }
   // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
   const todayJob = jobs.find((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
@@ -365,9 +383,27 @@ export default async function HomePage(props: PageProps<'/'>) {
         </Empty>
       ) : listed.length === 0 ? (
         <Empty icon="🗓️" title="조건에 맞는 공고가 없어요">
-          <Link href={company ? `/?co=${company.id}#jobs` : '/#jobs'} className="font-semibold text-brand-600">
-            전체 공고 보기 →
-          </Link>
+          {loosen.length > 0 ? (
+            // 조건을 하나 풀면 있는 곳으로 바로 (몇 개인지 함께)
+            <span className="mt-1 flex flex-wrap justify-center gap-2" data-loosen>
+              {loosen.map((l, i) => (
+                <Link
+                  key={l.label}
+                  href={l.href}
+                  scroll={false}
+                  className="chip-primary animate-pop whitespace-nowrap tabular-nums"
+                  style={{ animationDelay: `${i * 80}ms` }}
+                  data-track={`홈 빈 결과: ${l.label}`}
+                >
+                  {l.label} · {l.n}개 →
+                </Link>
+              ))}
+            </span>
+          ) : (
+            <Link href={company ? `/?co=${company.id}#jobs` : '/#jobs'} className="font-semibold text-brand-600">
+              전체 공고 보기 →
+            </Link>
+          )}
         </Empty>
       ) : (
         <>
