@@ -9,6 +9,7 @@ import { onAccountPaste } from './accountPaste'
 import { onPhoneInput, phoneShown } from './phoneTyping'
 import BizNoField from './BizNoField'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
+import Link from 'next/link'
 
 type Opt = { id: string; label: string }
 
@@ -61,11 +62,16 @@ function VatChoice({ included = true }: { included?: boolean }) {
 }
 
 /** 외주사 등록·수정 */
+/** 이미 등록된 업체 (같은 연락처·사업자등록번호를 쓰는 대로 알려 주려고) */
+type ExistingVendor = { id: string; name: string; phone: string | null; business_no: string | null }
+
 export function VendorForm({
   id = null,
   initial,
+  existing = [],
 }: {
   id?: string | null
+  existing?: ExistingVendor[]
   initial?: {
     name: string
     category: string | null
@@ -81,8 +87,27 @@ export function VendorForm({
   }
 }) {
   const [state, action] = useActionState(saveVendor.bind(null, id), null)
+  // 같은 업체를 두 번 등록하지 않게: 연락처·사업자등록번호를 쓰는 대로 이미 있는 업체를 알려 줌 (저장할 때 서버도 막음)
+  const [dup, setDup] = useState<{ v: ExistingVendor; why: string } | null>(null)
+  const digits = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
+  const check = (form: HTMLFormElement) => {
+    const phone = digits((form.elements.namedItem('phone') as HTMLInputElement | null)?.value)
+    const biz = digits((form.elements.namedItem('business_no') as HTMLInputElement | null)?.value)
+    const others = existing.filter((v) => v.id !== id)
+    const byPhone = phone.length >= 9 ? others.find((v) => digits(v.phone) === phone) : undefined
+    const byBiz = biz.length === 10 ? others.find((v) => digits(v.business_no) === biz) : undefined
+    setDup(byPhone ? { v: byPhone, why: '연락처' } : byBiz ? { v: byBiz, why: '사업자등록번호' } : null)
+  }
   return (
-    <form action={action} onReset={keepInputs} className="space-y-3">
+    <form
+      action={action}
+      onReset={keepInputs}
+      onInput={(e) => {
+        const n = (e.target as HTMLInputElement).name
+        if (n === 'phone' || n === 'business_no') check(e.currentTarget)
+      }}
+      className="space-y-3"
+    >
       <div className="grid gap-3 sm:grid-cols-2">
         <label>
           <span className="label">상호 *</span>
@@ -116,6 +141,14 @@ export function VendorForm({
           <BizNoField id="vendor_business_no" defaultValue={initial?.business_no ?? ''} placeholder="000-00-00000" />
         </div>
       </div>
+      {dup && (
+        <Link href={`/admin/vendors/${dup.v.id}`} className="flex animate-pop items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-vendor-dup>
+          <span className="min-w-0 flex-1 truncate">
+            이미 등록된 외주사예요 · <b>{dup.v.name}</b> (같은 {dup.why})
+          </span>
+          <span aria-hidden className="shrink-0">›</span>
+        </Link>
+      )}
       <fieldset className="space-y-2 rounded-xl bg-bg p-3">
         <legend className="label">대금 받을 계좌</legend>
         {initial?.account_masked && (

@@ -98,6 +98,20 @@ export async function saveVendor(id: string | null, _: FormState, form: FormData
     row.bank_name = null
     row.bank_account_enc = null
   }
+  // 같은 업체를 두 번 등록하지 않게 (같은 연락처·사업자등록번호) — 견적·대금이 두 곳으로 나뉘지 않게
+  const digits = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '')
+  const phoneD = digits(row.phone)
+  const bizD = digits(row.business_no)
+  if (phoneD.length >= 9 || bizD.length === 10) {
+    const others = (must(await db().from('vendors').select('id, name, phone, business_no').eq('company_id', admin.companyId)) as Pick<Vendor, 'id' | 'name' | 'phone' | 'business_no'>[]).filter(
+      (v) => v.id !== id,
+    )
+    const dup = others.find((v) => (phoneD.length >= 9 && digits(v.phone) === phoneD) || (bizD.length === 10 && digits(v.business_no) === bizD))
+    if (dup) {
+      const why = phoneD.length >= 9 && digits(dup.phone) === phoneD ? '연락처' : '사업자등록번호'
+      return { error: `이미 등록된 외주사예요 · ${dup.name} (같은 ${why}). 업체 탭에서 그 업체를 고쳐 주세요.` }
+    }
+  }
   // 가입한 전문가·외주 업체 계정과 이어 두면 견적 요청·대금이 그 사람 앱으로 감 (같은 휴대폰·사업자번호)
   row.user_id = await findPartnerAccount(row.phone ?? null, row.business_no ?? null)
   if (id) {

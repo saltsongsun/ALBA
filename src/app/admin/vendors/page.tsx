@@ -324,7 +324,7 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
       {tab === 'list' && (
         <div className="space-y-3">
           <Fold title="＋ 외주사 등록" summary="상호·분야·담당자·연락처·대금 받을 계좌" open={vendors.length === 0} className="space-y-4">
-            <VendorForm />
+            <VendorForm existing={vendors.map((v) => ({ id: v.id, name: v.name, phone: v.phone, business_no: v.business_no }))} />
           </Fold>
           {vendors.length === 0 ? (
             <Empty icon="🏢" title="등록된 외주사가 없어요">
