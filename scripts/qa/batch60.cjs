@@ -45,7 +45,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     await rest('applications', 'POST', { id: `11111111-0000-4000-8000-0000000d${String(i).padStart(4, '0')}`, job_id: J, user_id: id, status: 'approved', position: i % 2 ? 'A게이트' : 'B게이트', available_dates: null, created_at: new Date().toISOString(), user: { id, name, phone: '01012345678', birth_date: '1990-01-01', address: '서울', bank_name: '국민', bank_account_enc: null, account_holder: name, photo_at: null } })
   }
   const ASK = ids[2], DONE = ids[4]
-  await rest('messages', 'POST', { thread_user_id: ASK, sender_id: ASK, from_admin: false, company_id: CO, job_id: J, body: '📍 출근 확인 요청\n현장에 도착했는데 위치 확인이 안 돼요. (현장에서 약 450m)', read_at: null, created_at: new Date(Date.now() - 5 * 60e3).toISOString() })
+  await rest('messages', 'POST', { thread_user_id: ASK, sender_id: ASK, from_admin: false, company_id: CO, job_id: J, body: '📍 출근 확인 요청\n현장에 도착했는데 위치 확인이 안 돼요. (현장에서 약 450m)', read_at: null, created_at: new Date().toISOString() }) // 자정 직후에 돌려도 '오늘' 요청이 되게 (5분 전이면 어제가 될 수 있음)
   await rest('attendance', 'POST', { job_id: J, user_id: DONE, work_date: today, clock_in: new Date(Date.now() - 5 * 3600e3).toISOString(), clock_out: new Date(Date.now() - 600e3).toISOString(), source: 'app', note: null, confirmed: false, paid: false })
 
   await att()
