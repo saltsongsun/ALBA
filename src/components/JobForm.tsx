@@ -168,7 +168,7 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
 /** 분 → '8시간' · '7.5시간' */
 const hoursOf = (m: number) => `${Number((m / 60).toFixed(1))}시간`
 
-function Field({ label, children, hint, warn, className = '' }: { label: string; children: React.ReactNode; hint?: string; warn?: boolean; className?: string }) {
+function Field({ label, children, hint, warn, className = '' }: { label: string; children: React.ReactNode; hint?: React.ReactNode; warn?: boolean; className?: string }) {
   return (
     <div className={className}>
       <label className="label">{label}</label>
@@ -232,6 +232,14 @@ export default function JobForm({
   const [est, setEst] = useState(() => (job ? estimateDay(job) : null))
   const [payType, setPayType] = useState(job?.pay_type ?? 'hourly')
   const [breakMode, setBreakMode] = useState(job?.break_mode ?? 'auto')
+  // 근무시간 절사: 고르는 대로 예시가 바뀜 (8시간 25분 일하면 몇 시간으로 인정되는지)
+  const [roundUnit, setRoundUnit] = useState(job?.round_unit ?? 30)
+  const roundHint = (
+    <span data-round-example>
+      8시간 25분 일하면
+      <br />→ <b className="font-semibold text-sub">{roundUnit <= 1 ? '그대로' : minutesText(Math.floor(505 / roundUnit) * roundUnit)} 인정</b>
+    </span>
+  )
   const [taxType, setTaxType] = useState(job?.tax_type ?? 'daily')
   // 실수 막기: 모집 인원을 이미 확정한 인원보다 적게 고치면 바로 안내 (확정은 그대로라 인원이 넘침)
   const [headcount, setHeadcount] = useState(job?.headcount ?? 10)
@@ -526,8 +534,8 @@ export default function JobForm({
               <input type="number" name="break_minutes" className="input" defaultValue={job?.break_minutes || 60} min={0} max={240} step={10} />
             </Field>
           ) : (
-            <Field label="근무시간 절사" hint="단위 미만은 버림 (1분이면 그대로)">
-              <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 30}>
+            <Field label="근무시간 절사" hint={roundHint}>
+              <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 30} onChange={(e) => setRoundUnit(Number(e.target.value))}>
                 <option value={1}>1분 단위</option>
                 <option value={10}>10분 단위</option>
                 <option value={15}>15분 단위</option>
@@ -537,8 +545,8 @@ export default function JobForm({
           )}
         </div>
         {breakMode === 'fixed' && (
-          <Field label="근무시간 절사" hint="단위 미만은 버림 (1분이면 그대로)" className="sm:w-1/4">
-            <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 30}>
+          <Field label="근무시간 절사" hint={roundHint} className="sm:w-1/4">
+            <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 30} onChange={(e) => setRoundUnit(Number(e.target.value))}>
               <option value={1}>1분 단위</option>
               <option value={10}>10분 단위</option>
               <option value={15}>15분 단위</option>

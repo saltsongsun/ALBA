@@ -195,6 +195,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const payMore = (
     [
       shows(job, 'break') && ['휴게', breakDescription(job)],
+      // 시급 공고가 분 단위로 다 쳐 주지 않으면 미리 알려 줌 (지원 전에 알 수 있게)
+      job.pay_type === 'hourly' && job.round_unit > 1 && ['계산', `${job.round_unit}분 단위 (${job.round_unit}분 미만은 빼요)`],
       job.allowance > 0 && ['수당', `${job.allowance_label || '수당'} 1일 ${won(job.allowance)}`],
       job.premium_enabled && shows(job, 'premium') && ['가산', '8시간 초과·야간(22~06시) 근무 50% 가산'],
       shows(job, 'tax') && ['공제', `${TAX_LABEL[job.tax_type]}${job.tax_type === 'daily' && job.employment_insurance ? ' · 고용보험 0.9%' : ''}`],
