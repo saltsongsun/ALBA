@@ -815,7 +815,7 @@ export async function signDocument(docId: string, _: FormState, form: FormData):
     getSettings(d.company_id, { seal: true }),
     db().from('doc_templates').select('*').eq('id', d.template_id).maybeSingle(),
     db().from('users').select('name, phone, birth_date, address').eq('id', user.id).single(),
-    db().from('applications').select('status').eq('job_id', d.job_id).eq('user_id', user.id).maybeSingle(),
+    db().from('applications').select('status, available_dates').eq('job_id', d.job_id).eq('user_id', user.id).maybeSingle(),
   ])
   // 지원 취소·확정 되돌림 뒤에는 서명할 수 없음 (화면을 열어 둔 채로 취소된 경우)
   if (!canOpenJobDocs((app as { status: string } | null)?.status)) return { error: '근무가 취소된 서류예요. 관리자에게 문의해 주세요.' }
@@ -855,6 +855,13 @@ export async function signDocument(docId: string, _: FormState, form: FormData):
   ) as { id: string; job_id: string }[]
   const next = rest.find((r) => r.job_id === d.job_id) ?? rest[0]
   if (next) redirect(`/docs/${next.id}?m=${encodeURIComponent(`서명했어요. 남은 서류 ${rest.length}건도 이어서 서명해 주세요.`)}`)
+  // 오늘 이 공고 근무일이고 아직 시작 전이면: 바로 '근무 시작' 버튼으로 (현장에서 서명하고 위로 올라가 찾지 않게)
+  const a2 = app as { status: string; available_dates?: string[] | null } | null
+  const workToday = a2?.status === 'approved' && job.start_date <= today && job.end_date >= today && (!a2.available_dates?.length || a2.available_dates.includes(today))
+  if (workToday) {
+    const { data: att } = await db().from('attendance').select('id').eq('job_id', d.job_id).eq('user_id', user.id).eq('work_date', today).maybeSingle()
+    if (!att) redirect(`/me?m=${encodeURIComponent('서명을 모두 마쳤어요. 이제 근무를 시작할 수 있어요.')}#clock`)
+  }
   redirect(`/me?m=${encodeURIComponent('서류 서명을 모두 마쳤어요.')}`)
 }
 

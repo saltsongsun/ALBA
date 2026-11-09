@@ -120,8 +120,15 @@ export function StartCountdown({ startAt, endAt, startText, serverNow }: { start
       <span aria-hidden>⏱</span> {startText} 시작까지 {span(diff)}
     </p>
   ) : (
-    <p className="flex items-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700">
-      <span aria-hidden>⚠️</span> 시작 시각({startText})이 {diff === 0 ? '됐어요' : `${span(-diff)} 지났어요`}. 도착했다면 근무 시작을 눌러 주세요.
+    // 두 줄로 나눠 짧게: 굵게 '얼마나 지났는지' · 아래 작게 '할 일' (360px에서 세 줄로 들쭉날쭉 꺾이던 것)
+    <p className="flex items-center gap-2.5 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700" data-start-late>
+      <span aria-hidden>⚠️</span>
+      <span className="min-w-0">
+        <b className="block font-semibold">
+          시작 시각({startText})이 {diff === 0 ? '됐어요' : `${span(-diff)} 지났어요`}
+        </b>
+        <span className="block text-xs">도착했다면 근무 시작을 눌러 주세요</span>
+      </span>
     </p>
   )
 }
@@ -191,12 +198,15 @@ export function ClockPanel({
   // '근무 종료하러 가기'(/me#clock)로 왔으면 버튼을 화면 가운데로 (위에 카드가 많으면 영역 머리만 보이고 버튼은 화면 밖이던 것)
   // 문의 채팅의 '근무 시작하러 가기' 버튼으로 와도 같음 · 버튼 둘레가 몇 번 번쩍여서 어디를 누를지 바로 보이게
   const mainBtn = useRef<HTMLButtonElement>(null)
+  // 근무 시작 전에도 (문의 채팅 '근무 시작하러 가기' · 마지막 서류 서명 뒤) — 화면에 보이는 첫 근무 버튼 하나만
   useEffect(() => {
-    if (!open || location.hash !== '#clock') return
+    if (location.hash !== '#clock') return
     let off = 0
     const t = setTimeout(() => {
       const el = mainBtn.current
-      if (!el) return
+      // 접힌 칸 안(오늘 근무일이 아닌 사람의 '담당자가 오늘 나와 달라고 했나요?') 버튼은 건너뜀
+      const first = [...document.querySelectorAll<HTMLElement>('[data-clock-main]')].find((b) => b.checkVisibility?.() ?? true)
+      if (!el || first !== el) return
       el.scrollIntoView({ block: 'center' })
       el.setAttribute('data-flash', '')
       off = window.setTimeout(() => el.removeAttribute('data-flash'), 3200)
@@ -406,6 +416,7 @@ export function ClockPanel({
         <div className="space-y-2" data-clock-stuck>
           <button
             ref={mainBtn}
+            data-clock-main
             type="button"
             onClick={ask}
             disabled={asking}
@@ -423,6 +434,7 @@ export function ClockPanel({
       ) : (
       <button
         ref={mainBtn}
+        data-clock-main
         type="button"
         onClick={press}
         disabled={pending}
