@@ -384,6 +384,32 @@
   }
 }
 
+/* 넓은 표(정산·신고자료·서류): 옆으로 더 있으면 오른쪽 끝이 살짝 흐려져 밀 수 있다는 걸 보여 줌 · 끝까지 밀면 사라짐.
+   왼쪽은 이름 칸이 고정이라 흐리지 않음 · 스크롤 애니메이션을 못 쓰는 브라우저나 넘치지 않는 표는 그대로(흐림 없음) */
+@property --fade-r {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+.fade-r {
+  mask-image: linear-gradient(to left, transparent, #000 var(--fade-r));
+}
+@supports (animation-timeline: scroll()) {
+  .fade-r {
+    animation: fade-r-edge linear both;
+    animation-timeline: scroll(self inline);
+  }
+  @keyframes fade-r-edge {
+    0%,
+    90% {
+      --fade-r: 32px;
+    }
+    100% {
+      --fade-r: 0px;
+    }
+  }
+}
+
 /* 서명할 서류 읽는 정도 (components/worker.tsx ReadProgress): 머리글 바로 아래 얇은 막대가 스크롤만큼 채워짐.
    위치(transform)만 바뀌고 스크롤에 붙어 움직여 끊김 없음 · 스크롤 애니메이션을 못 쓰는 브라우저에선 숨김 */
 .read-progress {

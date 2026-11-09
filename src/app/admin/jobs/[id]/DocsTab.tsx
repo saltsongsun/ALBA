@@ -166,7 +166,8 @@ export default function DocsTab({
       {cols.length === 0 ? (
         <div className="card py-10 text-center text-mute">이 공고에는 서명받을 서류가 지정되어 있지 않습니다.</div>
       ) : (
-        <div className="card overflow-x-auto p-0">
+        <div className="card overflow-hidden p-0">
+        <div className="fade-r overflow-x-auto">
           <table className="table">
             <thead>
               <tr>
@@ -216,6 +217,7 @@ export default function DocsTab({
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
       {voided.length > 0 && (

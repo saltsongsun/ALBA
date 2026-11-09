@@ -194,7 +194,8 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         {rows.length === 0 ? (
           <div className="card py-10 text-center text-mute">이 달의 근무 기록이 없어요.</div>
         ) : (
-          <div className="card overflow-x-auto p-0" data-report-table>
+          <div className="card overflow-hidden p-0">
+          <div className="fade-r overflow-x-auto" data-report-table>
             {/* 옆으로 밀어도 성명 칸은 왼쪽에 남게 */}
             <table className="table table-pin text-[13px]">
               <thead>
@@ -244,6 +245,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
               </tbody>
             </table>
           </div>
+          </div>
         )}
       </section>
 
@@ -252,7 +254,8 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         <summary className="section-title cursor-pointer">
           개인정보 처리 기록 <span className="text-xs font-semibold text-mute">· 최근 {logs.length}건</span>
         </summary>
-        <div className="card overflow-x-auto p-0">
+        <div className="card overflow-hidden p-0">
+        <div className="fade-r overflow-x-auto">
           <table className="table text-[13px]">
             <thead>
               <tr>
@@ -285,6 +288,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
         <p className="hint">개인정보의 안전성 확보조치 기준에 따라 접속·처리 기록은 1년 이상 보관하세요.</p>
       </details>

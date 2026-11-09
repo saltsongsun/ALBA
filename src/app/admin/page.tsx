@@ -18,7 +18,7 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { overlapDay } from '@/lib/overlap'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnread, replyMinutes, replySpan, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -460,6 +460,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           ),
       ])
     : Promise.resolve([{}, {}])
+  // 우리 회사가 지원에 보통 얼마 만에 답하는지 (근무자 공고 화면에 보이는 것과 같은 값)
+  const replyP: Promise<number | null> = pendingApps.length ? replyMinutes(admin.companyId).catch(() => null) : Promise.resolve(null)
   // 추가 근로 → 주휴수당 (관리자에게만): 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 지원자
   const weeklyOf = new Map<string, WeekImpact>()
   await Promise.all(
@@ -488,7 +490,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           () => [],
         )
     : []
-  const [rel, scores] = await relP
+  const [[rel, scores], replyMin] = await Promise.all([relP, replyP])
+  // '보통 3시간 내 답변 · 가장 오래 기다린 지원 2일째' (한 시간 넘게 기다린 지원자가 있을 때만 뒤쪽)
+  const oldestMin = pendingApps.length ? (Date.now() - Math.min(...pendingApps.map((p) => Date.parse(p.created_at)))) / 60_000 : 0
+  const waitLine = [
+    replyMin != null ? `보통 ${replySpan(replyMin)} 내 답변` : null,
+    oldestMin >= 60 ? `가장 오래 기다린 지원 ${oldestMin < 24 * 60 ? `${Math.floor(oldestMin / 60)}시간째` : `${Math.floor(oldestMin / (24 * 60))}일째`}` : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
   // '★ 4.0 (1) · 근무 3일 · 지각 1 · 노쇼 1' (처음이면 '첫 근무') — 지원자 탭과 같은 말
   const RelLine = ({ uid }: { uid: string }) => {
     const r = rel[uid]
@@ -983,6 +993,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           {/* 여러 명을 한 번에: 보이는 지원자를 모두 고른 뒤 아래 막대에서 확정·미선발 */}
           {pendingApps.length > 1 && <PickAll label="모두 고르기" />}
         </div>
+        {/* 우리 회사 답변 시간(근무자 공고 화면에도 보임) · 가장 오래 기다린 지원자 — 빨리 답하게 */}
+        {waitLine && (
+          <p className="-mt-2 mb-3 truncate text-xs text-mute" title="'보통 n시간 내 답변'은 지원한 근무자의 공고 화면에도 보여요" data-dash-wait>
+            {waitLine}
+          </p>
+        )}
         {pendingApps.length === 0 ? (
           <Empty icon="📭" title="확정을 기다리는 지원자가 없어요">
             <Link href="/admin/jobs" className="font-semibold text-brand-600">

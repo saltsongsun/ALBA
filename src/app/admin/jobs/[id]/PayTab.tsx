@@ -253,7 +253,8 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
         <p className="-mb-1 text-xs text-mute sm:hidden" data-swipe-hint>
           이름은 그대로 두고 옆으로 밀면 공제·계좌·지급이 보여요 →
         </p>
-        <div className="card overflow-x-auto p-0" data-pay-table>
+        <div className="card overflow-hidden p-0">
+        <div className="fade-r overflow-x-auto" data-pay-table>
           <table className="table table-pin text-[13px]">
             <thead>
               <tr>
@@ -375,6 +376,7 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
               </tr>
             </tbody>
           </table>
+        </div>
         </div>
         {/* 고른 사람만 한 번에 지급 완료 + 급여 알림 (계좌 없는 사람이 섞이면 한 번 더) */}
         {unpaid.length > 1 && (
