@@ -311,8 +311,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {payMore.length > 0 && (
             <details className="group mt-2 border-t border-brand-100/70 pt-2" data-pay-more>
               <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-brand-700 [&::-webkit-details-marker]:hidden">
+                {/* 펼침 표시는 앞의 화살표 하나만 (뒤에 ⌄까지 있어 두 개였음) */}
                 {payMore.map(([k]) => k).join(' · ')} 자세히
-                <span aria-hidden className="transition group-open:rotate-180">⌄</span>
               </summary>
               <dl className="mt-2 space-y-1 text-[13px] leading-snug">
                 {payMore.map(([k, v]) => (

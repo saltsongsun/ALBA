@@ -46,10 +46,13 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
     .map((uid) => {
       const mine = atts.filter((a) => a.user_id === uid)
       const done = mine.filter((a) => a.clock_out)
+      const days = mine.map((a) => calcDay(job, wk(a)))
       return {
         uid,
         user: users.get(uid),
-        s: settle(job, mine.map((a) => calcDay(job, wk(a)))),
+        s: settle(job, days),
+        // 절사 단위(예: 30분) 때문에 인정시간에서 빠진 분 (휴게 뺀 실제 근무 − 인정시간 · 보여 주기만)
+        cut: days.reduce((t, d) => t + Math.max(0, Math.max(0, d.spanMin - d.breakMin) - d.paidMin), 0),
         paid: done.length > 0 && done.every((a) => a.paid),
         done: done.length,
         unconfirmed: done.filter((a) => !a.confirmed).length,
@@ -306,7 +309,14 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
                     </span>
                   </td>
                   <td>{r.s.days}</td>
-                  <td className="whitespace-nowrap">{minutesText(r.s.paidMin)}</td>
+                  <td className="whitespace-nowrap">
+                    {minutesText(r.s.paidMin)}
+                    {r.cut > 0 && (
+                      <span className="block text-[11px] font-semibold text-mute" data-round-cut title={`근무시간 ${job.round_unit}분 단위 절사`}>
+                        −{minutesText(r.cut)} 절사
+                      </span>
+                    )}
+                  </td>
                   <td className="text-right">
                     {won(r.s.gross)}
                     {r.s.weeklyPay > 0 && (
