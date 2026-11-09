@@ -754,16 +754,16 @@ export default async function MePage(props: PageProps<'/me'>) {
                     // 근무 시간이 다 지났는데 출근 기록이 없음: 큰 '근무 시작' 대신 안내 + 담당자에게 알리기
                     // (끝난 뒤에 근무 시작을 누르면 금액이 0인 기록이 생김) · 정말 지금 시작해야 하면 접힌 칸에서
                     <div className="space-y-2 rounded-xl bg-bg px-4 py-3" data-shift-over>
-                      <p className="font-bold">
-                        오늘 근무 시간({hhmm(todayShift(job).start_time)}~{hhmm(todayShift(job).end_time)})이 지났어요
+                      <p className="font-bold">오늘 근무 시간이 지났어요</p>
+                      <p className="text-sm text-sub">
+                        {hhmm(todayShift(job).start_time)}~{hhmm(todayShift(job).end_time)} · 출근 기록이 없어요
                       </p>
-                      <p className="text-sm text-sub">출근했는데 근무 시작을 못 눌렀다면 담당자에게 알려 주세요.</p>
                       <Link
                         href={`/me/chat?co=${job.company_id}&ask=missed`}
                         className="flex items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-bold text-brand-700 ring-1 ring-line transition active:scale-[0.98]"
                         data-shift-over-ask
                       >
-                        담당자에게 알리기 →
+                        출근했다면 담당자에게 알리기 →
                       </Link>
                       <details className="text-sm">
                         <summary className="cursor-pointer py-1 font-semibold text-sub">지금 근무를 시작해야 하나요?</summary>

@@ -54,8 +54,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('360px: 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   if (SHOTS) await hero.screenshot({ path: `${SHOTS}/done.png` }).catch(() => {})
 
-  // ── 4. 출근 전 ──
+  // ── 4. 출근 전 ── (근무 시간 안에서: 끝난 뒤엔 '오늘 근무 시간이 지났어요' — batch160)
   await rest(`attendance?id=eq.${att.id}`, 'PATCH', { clock_in: null, clock_out: null })
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
   await open()
   ok("출근 전: '오늘 근무가 있어요' · '출퇴근 →'", (await hero.getAttribute('data-today-state')) === 'before' && (await label()) === '오늘 근무가 있어요' && (await hero.innerText()).includes('출퇴근 →'), await label())
 

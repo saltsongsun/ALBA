@@ -36,7 +36,7 @@ const errs = []
     ok('1. 시작까지 남은 시간', await see(w, /시작까지 (1시간|59분|1시간 1분)/))
     await rest(MF, `jobs?id=eq.${J}`, 'PATCH', { start_time: `${hm(now - 30 * 60e3)}:00`, end_time: `${hm(now + 120 * 60e3)}:00` })
     await w.goto(`${F}/me`)
-    ok('1. 시작 시각 지나면 근무 시작 안내', await see(w, /이 (29|30|31)분 지났어요[\s\S]*도착했다면 근무 시작을 눌러 주세요/))
+    ok('1. 시작 시각 지나면 근무 시작 안내', await see(w, /(29|30|31)분 지났어요[\s\S]*도착했다면 근무 시작을 눌러 주세요/))
 
     // ── 3. 내 근무 자동 새로고침: 담당자가 출근 처리하면 새로 고치지 않아도 근무 중으로 ──
     await rest(MF, 'attendance', 'POST', { id: 'eeeeeeee-0000-4000-8000-0000000000a1', job_id: J, user_id: WK, work_date: today, clock_in: new Date(now - 20 * 60e3).toISOString(), clock_out: null, adj_in: null, adj_out: null, break_override: null, extra_pay: 0, deduction: 0, note: null, source: 'admin', confirmed: false, paid: false, ot_minutes: 0, ot_status: null, ot_by: null, sched_start: null, sched_end: null })

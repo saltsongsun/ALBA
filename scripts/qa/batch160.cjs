@@ -41,12 +41,15 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     await w.goto(`${D}/me`)
     const over = w.locator('[data-shift-over]')
     await over.waitFor({ timeout: 15000 }).catch(() => {})
-    ok("'오늘 근무 시간(00:00~00:30)이 지났어요'", (await over.innerText().catch(() => '')).includes('오늘 근무 시간(00:00~00:30)이 지났어요'), await over.innerText().catch(() => ''))
+    const ot = (await over.innerText().catch(() => '')).replace(/\n+/g, ' / ')
+    ok("'오늘 근무 시간이 지났어요 / 00:00~00:30 · 출근 기록이 없어요'", ot.startsWith('오늘 근무 시간이 지났어요 / 00:00~00:30 · 출근 기록이 없어요 / 출근했다면 담당자에게 알리기 →'), ot)
     ok("큰 '근무 시작' 버튼은 안 보임 (접힌 칸 안)", (await visibleMain()) === 0 && (await over.locator('summary').innerText()).includes('지금 근무를 시작해야 하나요?'))
-    ok('제목 줄 한 줄 · 360px 옆으로 안 밀림', (await over.locator('p.font-bold').evaluate((el) => el.getBoundingClientRect().height < 28)) && (await wide()))
+    ok('제목·설명·알리기 각각 한 줄 · 360px 옆으로 안 밀림', (await over.evaluate((el) => [el.querySelector('p.font-bold'), el.querySelector('p.text-sm'), el.querySelector('[data-shift-over-ask]')].every((x) => x.getBoundingClientRect().height < 44 && x.scrollWidth <= x.clientWidth + 1) && el.querySelector('p.font-bold').getBoundingClientRect().height < 28)) && (await wide()))
     if (SHOTS) await w.locator('#today-work').screenshot({ path: `${SHOTS}/shift-over.png` }).catch(() => {})
     // 접힌 칸을 펼치면 근무 시작 그대로 있음
-    await over.locator('summary').click()
+    await w.waitForLoadState('networkidle').catch(() => {})
+    await over.locator('details').evaluate((el) => { el.open = true })
+    await w.waitForTimeout(200)
     ok('펼치면 근무 시작 버튼', (await visibleMain()) === 1)
     // 담당자에게 알리기 → 문의 창 빠른 답장
     const ask = w.locator('[data-shift-over-ask]')

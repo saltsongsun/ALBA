@@ -30,7 +30,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   // 준비: 출근 전 · 현장 위치 확인 없음 · 오늘 근무일 (가짜 DB 근무자는 이미 근무 중이라 기록을 지움)
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
-  await rest(`jobs?id=eq.${J}`, 'PATCH', { lat: null, lng: null, gps_required: false })
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { lat: null, lng: null, gps_required: false, end_time: '23:59:00' })
 
   // ── 1. 마지막 서류에 서명 → 근무 시작 버튼으로 바로
   await p.goto(`${D}/docs/${DOC}`)

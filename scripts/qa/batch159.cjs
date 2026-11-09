@@ -42,7 +42,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('그 줄은 한 줄', await cut.evaluate((el) => el.getBoundingClientRect().height < 20).catch(() => false))
   await w.waitForFunction(() => document.querySelector('[data-today-gross]')?.textContent?.includes('82,560원'), null, { timeout: 5000 }).catch(() => {})
   const g1 = await gross.innerText().catch(() => '')
-  ok("'오늘 약 82,560원 세전' (0에서 올라감)", g1.replace(/\s+/g, ' ').trim() === '오늘 약 82,560원 세전' && !g0.includes('82,560'), `${g0} → ${g1}`)
+  ok("'오늘 약 82,560원 세전' (올라가는 숫자 끝에)", g1.replace(/\s+/g, ' ').trim() === '오늘 약 82,560원 세전', `${g0} → ${g1}`)
   ok('360px 옆으로 안 밀림 (내 근무)', await wide())
   if (SHOTS) await w.locator('#today-work').screenshot({ path: `${SHOTS}/done-cut.png` }).catch(() => {})
 

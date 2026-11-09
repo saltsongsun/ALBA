@@ -125,7 +125,7 @@ export function StartCountdown({ startAt, endAt, startText, serverNow }: { start
       <span aria-hidden>⚠️</span>
       <span className="min-w-0">
         <b className="block font-semibold">
-          시작 시각({startText})이 {diff === 0 ? '됐어요' : `${span(-diff)} 지났어요`}
+          {diff === 0 ? `${startText} 시작 시각이에요` : `${startText} 시작 · ${span(-diff)} 지났어요`}
         </b>
         <span className="block text-xs">도착했다면 근무 시작을 눌러 주세요</span>
       </span>
