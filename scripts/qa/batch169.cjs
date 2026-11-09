@@ -1,7 +1,7 @@
 // 묶음 169 (정기 개선 2026-11-10 05:35 KST)
 // · 예금주가 본인 이름과 다르면 바로 아래 두 줄 '예금주가 본인 이름과 달라요 / 다른 사람 계좌면 지급이 늦어질 수 있어요'
 //   (내 정보 · 알바 가입) · 띄어쓰기 무시 · 비우면 안 보임 · 전문가·업체 가입은 상호 계좌도 써서 안 봄
-// · 서류 서명 화면 불러오는 동안: 서류 모양 회색 자리 (제목·본문 줄·서명 칸·버튼)
+// · 계좌번호: 모자라다가 맞는 자리(10~16)가 되는 순간 '✓ 계좌번호 n자리'가 한 번 톡 (숫자마다는 아님)
 // node scripts/qa/batch169.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
 const fs = require('node:fs')
@@ -10,7 +10,7 @@ const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
 const [D, MD, SHOTS] = process.argv.slice(2)
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true })
-const W = 'bbbbbbbb-0000-4000-8000-000000000002', DOC = 'dddddddd-0000-4000-8000-000000000004'
+const W = 'bbbbbbbb-0000-4000-8000-000000000002'
 let fails = 0
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 
@@ -64,28 +64,23 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   await g.waitForTimeout(300)
   ok('전문가 가입: 예금주가 상호여도 안내 없음', (await g.locator('[data-holder-diff]').count()) === 0)
 
-  // ── 3. 서류 서명 화면을 여는 동안 서류 모양 회색 자리 (느린 연결처럼 늦춤)
-  await w.goto(`${D}/me`)
-  const link = w.locator(`a[href="/docs/${DOC}"]`).first()
-  await link.waitFor({ timeout: 15000 }).catch(() => {})
-  // 링크가 보이면 미리 받아 둔 '불러오는 중' 모양을 쓰므로, 화면에 보이게 하고 잠깐 기다린 뒤 본문만 늦춤
-  await link.scrollIntoViewIfNeeded().catch(() => {})
-  await w.waitForTimeout(1500)
-  await w.route('**/docs/**', async (route) => {
-    const h = route.request().headers()
-    if (h['rsc'] && !h['next-router-prefetch']) await new Promise((r) => setTimeout(r, 2500))
-    await route.continue().catch(() => {})
-  })
-  await link.click()
-  const sk = w.locator('[data-skeleton=doc]')
-  const shown = await sk.waitFor({ timeout: 2000 }).then(() => true, () => false)
-  ok('누르면 바로 서류 모양 회색 자리 (제목·본문·서명 칸·버튼)', shown)
-  if (shown) {
-    ok('회색 자리도 360px 옆으로 안 밀림', await wide(w))
-    if (SHOTS) await w.screenshot({ path: `${SHOTS}/doc-skeleton.png` }).catch(() => {})
-  }
-  ok('불러오면 서명 화면 (서명 칸)', await w.locator('[data-sign-pad]').waitFor({ timeout: 15000 }).then(() => true, () => false))
-  ok('다 불러오면 회색 자리 사라짐', (await sk.count()) === 0)
+  // ── 3. 계좌번호: 맞는 자리가 되는 순간 ✓ 한 번 톡
+  await w.goto(`${D}/me/profile`)
+  const acct = w.locator('#bank_account')
+  await acct.waitFor({ timeout: 15000 }).catch(() => {})
+  const dg = w.locator('[data-account-digits]')
+  await acct.fill('123456789')
+  ok("9자리: '9자리 · 계좌번호는 숫자 10~16자리예요' (톡 없음)", (await dg.getAttribute('data-account-digits').catch(() => '')) === 'bad' && !(await dg.getAttribute('class')).includes('animate-pop'))
+  await acct.pressSequentially('0')
+  const popped = await dg.evaluate((el) => el.classList.contains('animate-pop') && getComputedStyle(el).animationName === 'pop').catch(() => false)
+  ok("10자리가 되는 순간 '✓ 계좌번호 10자리'가 톡", (await dg.innerText()) === '✓ 계좌번호 10자리' && popped, await dg.innerText())
+  await acct.pressSequentially('1')
+  ok('11자리: ✓ 그대로 · 다시 톡 하지 않음 (숫자마다는 아님)', (await dg.innerText()) === '✓ 계좌번호 11자리' && !(await dg.getAttribute('class')).includes('animate-pop'))
+  await acct.press('Backspace')
+  await acct.press('Backspace')
+  await acct.pressSequentially('7')
+  ok('9자리로 줄였다가 다시 10자리면 다시 톡', await dg.evaluate((el) => el.classList.contains('animate-pop')).catch(() => false))
+  ok('360px 옆으로 안 밀림', await wide(w))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
