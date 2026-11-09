@@ -143,8 +143,12 @@ export function VendorForm({
       </div>
       {dup && (
         <Link href={`/admin/vendors/${dup.v.id}`} className="flex animate-pop items-center gap-2 rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-vendor-dup>
-          <span className="min-w-0 flex-1 truncate">
-            이미 등록된 외주사예요 · <b>{dup.v.name}</b> (같은 {dup.why})
+          {/* 두 줄: 무엇이 문제인지 / 어떤 업체인지·왜 (휴대폰에서 잘리지 않게) */}
+          <span className="min-w-0 flex-1 leading-snug">
+            <span className="block font-semibold">이미 등록된 외주사예요</span>
+            <span className="block truncate text-xs">
+              {dup.v.name} · {dup.why}가 같아요
+            </span>
           </span>
           <span aria-hidden className="shrink-0">›</span>
         </Link>

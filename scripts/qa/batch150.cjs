@@ -1,5 +1,5 @@
 // 묶음 150 (정기 개선 2026-11-09 00:35)
-// · 외주사를 두 번 등록하지 않게: 같은 연락처·사업자등록번호면 쓰는 대로 '이미 등록된 외주사예요 · ○○ (같은 연락처) ›'
+// · 외주사를 두 번 등록하지 않게: 같은 연락처·사업자등록번호면 쓰는 대로 '이미 등록된 외주사예요 / ○○ · 연락처가 같아요 ›'
 //   저장을 눌러도 서버가 막음 (견적·대금이 두 업체로 나뉘지 않게) · 다른 번호면 그대로 등록
 // node scripts/qa/batch150.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
@@ -34,9 +34,9 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   // 하이픈 없이 써도 같은 번호면
   await f.locator('input[name=phone]').pressSequentially('01011112222')
   await hint.waitFor({ timeout: 3000 }).catch(() => {})
-  ok("같은 연락처: '이미 등록된 외주사예요 · 한빛음향 (같은 연락처)'", (await hint.innerText().catch(() => '')).includes('이미 등록된 외주사예요 · 한빛음향 (같은 연락처)'), await hint.innerText().catch(() => ''))
+  ok("같은 연락처: '이미 등록된 외주사예요' / '한빛음향 · 연락처가 같아요'", (await hint.innerText().catch(() => '')).replace(/\n/g, ' / ').includes('이미 등록된 외주사예요 / 한빛음향 · 연락처가 같아요'), await hint.innerText().catch(() => ''))
   ok('안내를 누르면 그 업체 화면', ((await hint.getAttribute('href')) ?? '').startsWith('/admin/vendors/77777777'))
-  ok('안내 한 줄 · 360px 옆으로 안 밀림', (await hint.evaluate((el) => el.getBoundingClientRect().height < 48)) && (await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)))
+  ok('안내 두 줄로 잘리지 않음 · 360px 옆으로 안 밀림', (await hint.evaluate((el) => { const t = el.querySelector('span span:last-child'); return t.scrollWidth <= t.clientWidth + 1 && el.getBoundingClientRect().height < 70 })) && (await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)))
   if (SHOTS) await hint.scrollIntoViewIfNeeded().then(() => a.screenshot({ path: `${SHOTS}/vendor-dup.png` })).catch(() => {})
   // 그래도 누르면 서버가 막음
   await f.getByRole('button', { name: '외주사 등록' }).click()
@@ -50,7 +50,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('다른 번호면 안내 사라짐', (await hint.count()) === 0)
   await f.locator('input[name=business_no]').pressSequentially('1234567890')
   await hint.waitFor({ timeout: 3000 }).catch(() => {})
-  ok("같은 사업자등록번호: '… (같은 사업자등록번호)'", (await hint.innerText().catch(() => '')).includes('(같은 사업자등록번호)'), await hint.innerText().catch(() => ''))
+  ok("같은 사업자등록번호: '한빛음향 · 사업자등록번호가 같아요'", (await hint.innerText().catch(() => '')).includes('한빛음향 · 사업자등록번호가 같아요'), await hint.innerText().catch(() => ''))
   await f.locator('input[name=business_no]').fill('')
   await a.waitForTimeout(150)
   // 다른 번호·사업자번호 없음 → 그대로 등록
