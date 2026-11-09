@@ -32,6 +32,8 @@ import StartsIn from '@/components/StartsIn'
 import NewsNote from '@/components/NewsNote'
 import { won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
+import { reliabilityFor, type Reliability } from '@/lib/reliability'
+import { StarAvg, scoresByUser } from '@/components/Stars'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
 
 const ICONS = {
@@ -442,6 +444,22 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
   const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
   const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
+  // 지원자마다 이 회사에서의 근무·지각·노쇼와 관리자 평가 (공고의 지원자 탭과 같은 내용 · 대시보드에서 바로 정하게)
+  const pendUids = [...new Set(pendingApps.map((p) => p.user.id))]
+  const relP: Promise<[Record<string, Reliability>, Record<string, number[]>]> = pendUids.length
+    ? Promise.all([
+        reliabilityFor(admin.companyId, pendUids).catch(() => ({}) as Record<string, Reliability>),
+        db()
+          .from('worker_ratings')
+          .select('user_id, score')
+          .eq('company_id', admin.companyId)
+          .in('user_id', pendUids)
+          .then(
+            (r) => scoresByUser((r.data ?? []) as { user_id: string; score: number }[]),
+            () => ({}) as Record<string, number[]>,
+          ),
+      ])
+    : Promise.resolve([{}, {}])
   // 추가 근로 → 주휴수당 (관리자에게만): 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 지원자
   const weeklyOf = new Map<string, WeekImpact>()
   await Promise.all(
@@ -470,6 +488,27 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           () => [],
         )
     : []
+  const [rel, scores] = await relP
+  // '★ 4.0 (1) · 근무 3일 · 지각 1 · 노쇼 1' (처음이면 '첫 근무') — 지원자 탭과 같은 말
+  const RelLine = ({ uid }: { uid: string }) => {
+    const r = rel[uid]
+    return (
+      <span className="flex min-w-0 items-center gap-1.5 text-xs text-mute" data-pending-rel>
+        {scores[uid] && <StarAvg scores={scores[uid]} />}
+        <span className="min-w-0 truncate">
+          {!r || (r.days === 0 && r.noShow === 0) ? (
+            '첫 근무'
+          ) : (
+            <>
+              근무 {r.days}일{r.late > 0 && ` · 지각 ${r.late}`}
+              {r.noShow > 0 && <b className="text-rose-600"> · 노쇼 {r.noShow}</b>}
+              {r.dismissed > 0 && <b className="text-rose-600"> · 귀가 조치 {r.dismissed}</b>}
+            </>
+          )}
+        </span>
+      </span>
+    )
+  }
   const clashOf = new Map<string, { id: string; title: string; at: string }>()
   for (const p of pendingApps) {
     for (const o of others) {
@@ -534,12 +573,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <div className="flex items-center gap-3">
         {pickBox(p)}
         <Avatar id={p.user.id} name={p.user.name} photoAt={p.user.photo_at} size="lg" />
-        <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-1.5">
-          <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
-            {p.user.name}
-          </Link>
-          {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-          <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+        <div className="min-w-0 flex-1 space-y-1">
+          <div className="flex flex-wrap items-baseline gap-1.5">
+            <Link href={`/admin/workers/${p.user.id}`} className="text-[17px] font-bold">
+              {p.user.name}
+            </Link>
+            {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+            <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+          </div>
+          <RelLine uid={p.user.id} />
         </div>
       </div>
       <div className="flex min-w-0 items-center gap-1.5">
@@ -600,6 +642,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           {p.user.name}
         </Link>
         {p.user.birth_date && <span className="ml-1 text-xs text-mute">만 {ageOn(p.user.birth_date)}세</span>}
+        <div className="mt-1">
+          <RelLine uid={p.user.id} />
+        </div>
         <div className="mt-1">
           <ContactButtons phone={p.user.phone} name={p.user.name} />
         </div>

@@ -209,7 +209,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     <span className="inline-flex shrink-0 items-center gap-1 tabular-nums" title="공고를 확인한 인원 (가입자 + 로그인 안 한 사람)" data-views>
                       <Icon name="eye" className="text-mute" /> {views[j.id]?.total ?? 0}
                       {(views[j.id]?.total ?? 0) > 0 && <span className="text-mute">(가입 {views[j.id]?.members ?? 0})</span>}
-                      {(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
+                      {(views[j.id]?.live ?? 0) > 0 && (
+                        // 초록 점만 있으면 뜻을 몰라서 '지금 n' (지금 이 공고를 보고 있는 사람)
+                        <b className="ml-1 whitespace-nowrap text-emerald-600" title="지금 이 공고를 보고 있는 사람" data-views-live>
+                          ● 지금 {views[j.id].live}
+                        </b>
+                      )}
                     </span>
                   </div>
                 </Link>
@@ -249,7 +254,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     </td>
                     <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
                     <td className="whitespace-nowrap tabular-nums" data-views-cell>
-                      {views[j.id]?.total ?? 0}명{(views[j.id]?.live ?? 0) > 0 && <b className="ml-1 text-emerald-600">● {views[j.id].live}</b>}
+                      {views[j.id]?.total ?? 0}명
+                      {(views[j.id]?.live ?? 0) > 0 && (
+                        <b className="ml-1 text-emerald-600" title="지금 이 공고를 보고 있는 사람" data-views-live>
+                          ● 지금 {views[j.id].live}
+                        </b>
+                      )}
                       {/* 확인 = 가입자 + 로그인 안 하고 본 사람 (카톡 링크로 보고 가입은 안 한 사람 등) */}
                       {(views[j.id]?.total ?? 0) > 0 && (
                         <div className="text-xs text-mute">
