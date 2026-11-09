@@ -45,9 +45,9 @@ const MORE: { href: string; label: string; icon: IconName }[] = [
   { href: '/admin/docs', label: '서류', icon: 'file' },
   { href: '/admin/settings', label: '회사 설정', icon: 'gear' },
 ]
-/** 최상위 관리자만: '운영' 묶음 (운영 센터가 먼저 · 더보기 안에서 이름표 아래 따로) */
+/** 최상위 관리자만: '운영' 묶음 (더보기 안에서 이름표 아래 따로) · 운영센터(/ops)는 주인 한 사람만 맨 앞에 */
+const OPS: { href: string; label: string; icon: IconName } = { href: '/ops', label: '운영센터 ↗', icon: 'flag' }
 const SUPER: { href: string; label: string; icon: IconName }[] = [
-  { href: '/admin/ops', label: '운영 센터', icon: 'flag' },
   { href: '/admin/companies', label: '회사 관리', icon: 'building' },
   { href: '/admin/insights', label: '인사이트', icon: 'eye' },
   { href: '/admin/community', label: '커뮤니티 관리', icon: 'shield' },
@@ -57,7 +57,7 @@ const SUPER: { href: string; label: string; icon: IconName }[] = [
  * 관리자 휴대폰 아래 탭 (근무자 화면과 같은 떠 있는 유리 탭): 홈 · 공고 · 근무자 · 문의 · 더보기
  * 넓은 화면은 위쪽 메뉴(AdminNav)를 그대로 씀
  */
-export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false, reports = 0 }: { unread?: number; joinWait?: number; isSuper?: boolean; reports?: number }) {
+export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false, ops = false, reports = 0 }: { unread?: number; joinWait?: number; isSuper?: boolean; ops?: boolean; reports?: number }) {
   const path = usePathname()
   const [open, setOpen] = useState(false)
   // 화면을 옮기면 '더보기'를 닫음
@@ -69,7 +69,7 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  const more = isSuper ? [...MORE, ...SUPER] : MORE
+  const more = isSuper ? [...MORE, ...(ops ? [OPS] : []), ...SUPER] : MORE
   // 표시는 누른 순간 옮겨 감 (shown), 화면 읽어 주기(aria-current)는 실제 주소 기준
   const [shown, onTap] = useTabTarget(path)
   const tabAt = (p: string) => (more.some((m) => p.startsWith(m.href)) ? 4 : MAIN.findIndex((t) => (t.exact ? p === t.href : p.startsWith(t.href))))

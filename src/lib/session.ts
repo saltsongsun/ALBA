@@ -1,7 +1,8 @@
 import 'server-only'
+import { isOpsOwner } from './owner'
 import { createHmac, timingSafeEqual } from 'node:crypto'
 import { cookies, headers } from 'next/headers'
-import { redirect } from 'next/navigation'
+import { redirect, notFound } from 'next/navigation'
 import { cache } from 'react'
 import { db } from './db'
 import type { MemberType, Role } from './types'
@@ -149,6 +150,14 @@ export async function requireAdmin(): Promise<AdminUser> {
   const cur = companies.find((c) => c.id === want) ?? companies[0]
   // 최고 관리자는 어느 회사를 보든 확인된 것으로
   return { ...user, companyId: cur.id, companyName: cur.name, companyVerified: user.isSuper || cur.verified, companies }
+}
+
+/** 운영센터(/ops)는 최상위 관리자 한 사람만 (lib/owner) · 다른 사람에겐 없는 화면처럼 404 */
+export async function requireOpsOwner(): Promise<AdminUser> {
+  const user = await getUser()
+  if (!user) redirect('/login?next=/ops')
+  if (!isOpsOwner(user)) notFound()
+  return requireAdmin()
 }
 
 /** 최고 관리자만 (회사 만들기·관리자 초대) */

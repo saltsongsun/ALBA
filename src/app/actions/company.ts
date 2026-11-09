@@ -245,8 +245,8 @@ export async function setCompanyVerified(companyId: string, verified: boolean, f
   must(await db().from('companies').update({ verified }).eq('id', companyId))
   await audit(admin.id, verified ? 'company.verify' : 'company.unverify', null, null, companyId)
   revalidatePath('/admin/companies')
-  revalidatePath('/admin/ops')
+  revalidatePath('/ops')
   // 운영 센터에서 눌렀으면 운영 센터로 돌아감 (그 밖은 회사 관리)
-  const to = form instanceof FormData && form.get('back') === '/admin/ops' ? '/admin/ops' : '/admin/companies'
+  const to = form instanceof FormData && form.get('back') === '/ops' ? '/ops' : '/admin/companies'
   back(to, verified ? '회사를 확인했어요. 이제 전체 회원 명단이 열려요.' : '확인을 취소했어요. 다시 우리 회사 지원자만 보여요.')
 }

@@ -10,7 +10,8 @@ LAT=5 node scripts/qa/mock-supabase.mjs &
 # 2) 앱 (비밀 값은 아무 값이나: 실제 데이터에 접근하지 않음)
 export SUPABASE_URL=http://127.0.0.1:54321 SUPABASE_SERVICE_ROLE_KEY=dummy \
   SESSION_SECRET=0123456789abcdef0123456789abcdef0123 \
-  ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ADMIN_SETUP_CODE=x
+  ENCRYPTION_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA= ADMIN_SETUP_CODE=x \
+  OPS_OWNER_IDS=aaaaaaaa-0000-4000-8000-000000000001  # 운영센터(/ops) 주인 = 가짜 관리자 (실제는 lib/owner의 최상위 관리자)
 npm run build && npx next start -p 3002 &
 
 # 3) 점검 (Playwright 필요)

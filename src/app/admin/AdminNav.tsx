@@ -17,14 +17,15 @@ const ITEMS: NavItem[] = [
   { href: '/admin/settings', label: '회사 설정' },
 ]
 
-export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false, reports = 0 }: { unread?: number; joinWait?: number; isSuper?: boolean; reports?: number }) {
+export default function AdminNav({ unread = 0, joinWait = 0, isSuper = false, ops = false, reports = 0 }: { unread?: number; joinWait?: number; isSuper?: boolean; ops?: boolean; reports?: number }) {
   const path = usePathname()
   // 최상위 관리자는 '운영' 묶음을 칸막이 뒤에 따로 (운영 센터가 먼저)
   const items: NavItem[] = isSuper
     ? [
         ...ITEMS,
-        { href: '/admin/ops', label: '운영 센터', group: true },
-        { href: '/admin/companies', label: '회사 관리' },
+        // 운영센터는 관리자 화면 밖 따로 (/ops · 최상위 관리자 한 사람만)
+        ...(ops ? [{ href: '/ops', label: '운영센터 ↗', group: true }] : []),
+        { href: '/admin/companies', label: '회사 관리', group: !ops },
         { href: '/admin/insights', label: '인사이트' },
         { href: '/admin/community', label: '커뮤니티 관리' },
       ]

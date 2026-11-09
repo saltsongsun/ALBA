@@ -7,6 +7,7 @@ import { otherCompaniesUnread, unreadForAdmins } from '@/lib/data'
 import { db } from '@/lib/db'
 import { adminRoomUnreadTotal } from '@/lib/room'
 import { requireAdmin } from '@/lib/session'
+import { isOpsOwner } from '@/lib/owner'
 import AdminNav from './AdminNav'
 import { CompanySwitcher } from '@/components/company'
 import Logo from '@/components/Logo'
@@ -73,12 +74,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </div>
         {/* 넓은 화면은 위쪽 메뉴, 휴대폰은 아래 탭 (AdminTabBar) */}
-        <AdminNav unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
+        <AdminNav unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} ops={isOpsOwner(admin)} reports={reports} />
         <AppBadge count={unread + roomUnread} />
       </header>
       {/* 아래 여백 = 아래 탭 높이 + 16px (키보드가 올라와 탭이 숨으면 함께 줄어 입력칸이 키보드 바로 위에) */}
       <main className="mx-auto max-w-6xl px-4 pt-5 pb-[calc(var(--tabbar-space)+16px)] sm:pb-20">{children}</main>
-      <AdminTabBar unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} reports={reports} />
+      <AdminTabBar unread={unread + roomUnread} joinWait={joinWait} isSuper={admin.isSuper} ops={isOpsOwner(admin)} reports={reports} />
     </>
   )
 }

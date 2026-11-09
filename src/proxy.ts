@@ -11,7 +11,7 @@ const AI_BOTS =
   /GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|Claude-Web|anthropic-ai|CCBot|PerplexityBot|Perplexity-User|Bytespider|Amazonbot|cohere-ai|cohere-training|Diffbot|meta-externalagent|meta-externalfetcher|ImagesiftBot|Omgilibot|omgili|YouBot|Timpibot|AI2Bot|Ai2Bot|DuckAssistBot|MistralAI|iaskspider|Kangaroo Bot|PanguBot|img2dataset|FriendlyCrawler|Webzio-Extended|Google-CloudVertexBot|GoogleOther|Applebot-Extended|PetalBot|SemrushBot-OCOB|Scrapy|Crawl4AI|FirecrawlAgent|Jina|Manus|Devin/i
 const SCRIPTS = /python-requests|python-urllib|python-httpx|aiohttp|Go-http-client|^curl\/|Wget|libwww-perl|okhttp|HTTrack|^Java\/|node-fetch|axios\/|PostmanRuntime|httpie/i
 // 로그인 뒤 화면·개인정보가 오가는 주소 (예약 작업 /api/cron은 Vercel이 부름)
-const PRIVATE = /^\/(admin|me|docs|print|photo|pro|quote|api\/(?!cron\/))/
+const PRIVATE = /^\/(admin|ops|me|docs|print|photo|pro|quote|api\/(?!cron\/))/
 
 function blocked(msg: string) {
   return new NextResponse(msg, { status: 403, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } })

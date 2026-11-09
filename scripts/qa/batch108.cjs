@@ -43,7 +43,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   // ── 1. 운영 센터에서 바로 회사 확인 ──
   const ap = await pg(A)
-  await ap.goto(`${D}/admin/ops`)
+  await ap.goto(`${D}/ops`)
   const box = ap.locator('[data-ops-waiting]')
   await box.waitFor({ timeout: 10000 }).catch(() => {})
   const rows = box.locator('[data-ops-waiting-row]')
@@ -59,7 +59,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('누른 상태도 360px 안에', await wide(ap))
   await r1.locator('button').click()
   const said = await ap.getByText('회사를 확인했어요').first().waitFor({ timeout: 10000 }).then(() => true, () => false)
-  ok('운영 센터로 돌아옴', new URL(ap.url()).pathname === '/admin/ops', ap.url())
+  ok('운영 센터로 돌아옴', new URL(ap.url()).pathname === '/ops', ap.url())
   ok("'회사를 확인했어요' 안내", said)
   await ap.waitForTimeout(500)
   ok('회사가 확인됨 · 기록 company.verify', (await rest(`companies?id=eq.${N1}`))[0].verified === true && (await rest('audit_logs')).some((x) => x.action === 'company.verify' && x.company_id === N1))
@@ -73,7 +73,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await btn.click()
   await ap.getByText('회사를 확인했어요').first().waitFor({ timeout: 10000 }).catch(() => {})
   ok('회사 관리에서 확인하면 회사 관리로 돌아감', new URL(ap.url()).pathname === '/admin/companies' && (await rest(`companies?id=eq.${N2}`))[0].verified === true, ap.url())
-  await ap.goto(`${D}/admin/ops`)
+  await ap.goto(`${D}/ops`)
   await ap.locator('[data-ops]').waitFor({ timeout: 10000 }).catch(() => {})
   ok('다 확인하면 칸이 사라짐', (await ap.locator('[data-ops-waiting]').count()) === 0)
 
