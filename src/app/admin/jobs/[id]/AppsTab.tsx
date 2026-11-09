@@ -15,7 +15,7 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
-import { estimateDay } from '@/lib/pay'
+import { estimateDay, workOver } from '@/lib/pay'
 import { staffByDay, fullDays } from '@/lib/staffing'
 import { ageOn, dateList, fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
@@ -244,7 +244,10 @@ export default async function AppsTab({
   const minorLimits = [est.nightMin > 0 && '야간', est.paidMin > 420 && '7시간 초과'].filter((x): x is string => !!x)
   const isMinor = (a: AppRow) => !!a.user.birth_date && ageOn(a.user.birth_date, job.start_date) < 18
   const minorWarn = (a: AppRow) => (isMinor(a) && minorLimits.length ? `${minorLimits.join('·')} 근무 제한` : null)
+  // 마지막 날 근무까지 끝난 행사: 확정은 한 번 더 (밤에 끝난 행사를 확정하는 실수 막기 · 대시보드와 같게)
+  const jobEnded = workOver(job, job.end_date)
   const fullOf = (a: AppRow) => {
+    if (jobEnded && a.status === 'applied') return { full: true, text: '끝난 행사 · 확정?' }
     const over = fullDays(a, dates, byDay, job.headcount)
     const warn = minorWarn(a)
     // 확정하면 주휴수당이 생기는 사람도 한 번 더 (관리자에게만 보임)
@@ -269,7 +272,7 @@ export default async function AppsTab({
   const minorsWaiting = minorLimits.length ? apps.filter((a) => a.status === 'applied' && isMinor(a)).length : 0
   // 확정하면 주휴수당이 생기는 대기 지원자 (관리자에게만 · 모두 확정 전에 한 번 더)
   const weeklyWaiting = apps.filter((a) => becomes(a) && !a.held_at).length
-  const allOver = dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0 || weeklyWaiting > 0
+  const allOver = jobEnded || dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0 || weeklyWaiting > 0
   // 모집이 끝났는데(마감·종료·지난 행사·남은 날 인원 다 참) 대기자가 남아 있으면: 미선발로 정리하고 결과 알리기
   const recruitDone =
     job.status !== 'open' || job.end_date < today || dates.filter((d) => d >= today).every((d) => byDay[d] >= job.headcount)
@@ -305,7 +308,7 @@ export default async function AppsTab({
           name="app"
           value={a.id}
           form={BULK_FORM}
-          data-warn={minorWarn(a) ? '연소자' : clashOf.has(a.user_id) ? '근무 겹침' : becomes(a) ? '주휴 대상' : undefined}
+          data-warn={jobEnded ? '끝난 행사' : minorWarn(a) ? '연소자' : clashOf.has(a.user_id) ? '근무 겹침' : becomes(a) ? '주휴 대상' : undefined}
           className="size-5 accent-brand-600"
         />
       </label>
@@ -392,6 +395,12 @@ export default async function AppsTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
           확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
+          {/* 끝난 행사에 대기자가 남았으면: 확정 대신 미선발로 정리할 때 (대시보드의 '끝난 행사'와 같은 표시) */}
+          {jobEnded && waiting > 0 && (
+            <span className="badge ml-1.5 bg-bg text-mute" data-apps-ended>
+              끝난 행사
+            </span>
+          )}
         </p>
         <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`[${job.title}] `} />
         <div className="flex flex-wrap gap-2">
@@ -402,7 +411,9 @@ export default async function AppsTab({
                 <ConfirmSubmit
                   className="btn-primary btn-sm"
                   confirmText={
-                    minorsWaiting
+                    jobEnded
+                      ? `끝난 행사 · ${waiting}명 모두 확정?`
+                      : minorsWaiting
                       ? `연소자 ${minorsWaiting}명(${minorLimits.join('·')}) 포함 · 확정?`
                       : weeklyWaiting && !dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
                         ? `주휴 대상 ${weeklyWaiting}명 생겨요 · 모두 확정?`
