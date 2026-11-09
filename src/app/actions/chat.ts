@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
+import { redirect } from 'next/navigation'
 import { audit, getJob, isSupportThread, SUPPORT_NAME } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary } from '@/lib/docs'
@@ -72,6 +73,30 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
   revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/admin/chat')
   return { ok: '보냈어요' }
+}
+
+/**
+ * 이 회사로 온 근무자 문의를 모두 읽음으로 (사용자 요청 2026-11-08 "반복적인 일은 한 번에" — 하나씩 열지 않아도 됨).
+ * 이 회사 문의만 · 출근 확인·기록 정정 같은 처리할 요청은 읽음과 상관없이 대시보드 '확인할 일'에 그대로 남음
+ */
+export async function markAllInquiriesRead() {
+  const admin = await requireAdmin()
+  const rows = must(
+    await db().from('messages').select('id').eq('company_id', admin.companyId).eq('from_admin', false).is('read_at', null).limit(2000),
+  ) as { id: number }[]
+  if (rows.length) {
+    must(
+      await db()
+        .from('messages')
+        .update({ read_at: new Date().toISOString() })
+        .eq('company_id', admin.companyId)
+        .eq('from_admin', false)
+        .is('read_at', null),
+    )
+  }
+  revalidatePath('/admin/chat')
+  revalidatePath('/admin')
+  redirect(`/admin/chat?m=${encodeURIComponent(rows.length ? `안 읽은 문의 ${rows.length}개를 모두 읽음으로 했어요.` : '안 읽은 문의가 없어요.')}`)
 }
 
 /**

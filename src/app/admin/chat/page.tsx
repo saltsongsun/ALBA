@@ -14,6 +14,8 @@ import { fmtDateRange } from '@/lib/time'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
+import { ConfirmSubmit } from '@/components/ui'
+import { markAllInquiriesRead } from '@/app/actions/chat'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -173,6 +175,14 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         <Link href={qs(true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
           안 읽음 {term ? found.filter((t) => t.unread > 0).length : unreadCount}
         </Link>
+        {/* 안 읽은 대화가 둘 이상이면 하나씩 열지 않고 한 번에 읽음 (두 번 눌러야) */}
+        {unreadCount > 1 && !term && (
+          <form action={markAllInquiriesRead} className="ml-auto">
+            <ConfirmSubmit className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line active:scale-95" confirmText="모두 읽음으로?" track="문의 모두 읽음">
+              모두 읽음
+            </ConfirmSubmit>
+          </form>
+        )}
       </div>
       {list.length === 0 ? (
         term ? (

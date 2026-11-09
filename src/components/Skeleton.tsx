@@ -314,3 +314,78 @@ export function AdminJobSkeleton() {
     </div>
   )
 }
+
+/** 관리자 문의 목록: 제목 · 찾기 칸 · 단체방 카드 · 전체/안 읽음 칩 · 대화 줄 */
+export function AdminInboxSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="문의 불러오는 중" className="skeleton space-y-4" data-skeleton="admin-inbox">
+      <div className="flex items-center justify-between">
+        <div className={`h-7 w-16 ${bar}`} />
+        <div className="h-8 w-28 rounded-full bg-line/70" />
+      </div>
+      <div className="h-11 rounded-2xl bg-line/60" />
+      <div className="card flex items-center gap-3 py-3.5">
+        <div className="size-11 shrink-0 rounded-full bg-line/70" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className={`h-4 w-3/4 ${bar}`} />
+          <div className={`h-3.5 w-1/3 ${bar}`} />
+        </div>
+      </div>
+      <div className="flex gap-1.5">
+        <div className="h-8 w-16 rounded-full bg-line/70" />
+        <div className="h-8 w-20 rounded-full bg-line/60" />
+      </div>
+      <div className="space-y-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card flex items-center gap-3 py-3.5">
+            <div className="size-11 shrink-0 rounded-full bg-line/70" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="flex justify-between gap-3">
+                <div className={`h-4 w-32 ${bar}`} />
+                <div className={`h-3.5 w-10 ${bar}`} />
+              </div>
+              <div className={`h-4 w-4/5 ${bar}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 관리자 근무자 명단: 명단 탭 · 제목 · 찾기 칸 · 칩 · 사람 카드 (동그란 사진 + 이름·번호·한 줄) */
+export function RosterSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="명단 불러오는 중" className="skeleton space-y-4" data-skeleton="roster">
+      <div className="h-12 rounded-2xl bg-line/60" />
+      <div className={`h-7 w-28 ${bar}`} />
+      <div className="flex gap-2">
+        <div className="h-11 flex-1 rounded-2xl bg-line/60" />
+        <div className="h-11 w-24 rounded-2xl bg-line/70" />
+      </div>
+      <div className="flex gap-2 overflow-hidden">
+        {['w-14', 'w-20', 'w-28', 'w-14'].map((w, i) => (
+          <div key={i} className={`h-8 ${w} shrink-0 rounded-full bg-line/70`} />
+        ))}
+      </div>
+      <div className="space-y-2">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card space-y-3 p-4">
+            <div className="flex items-center gap-3">
+              <div className="size-14 shrink-0 rounded-full bg-line/70" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className={`h-5 w-28 ${bar}`} />
+                <div className={`h-3.5 w-16 ${bar}`} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className={`h-8 w-28 ${bar}`} />
+              <div className="h-8 w-16 rounded-lg bg-line/60" />
+              <div className="h-8 w-16 rounded-lg bg-line/60" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
