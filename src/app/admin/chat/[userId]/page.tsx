@@ -13,9 +13,10 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_MISSED, parsePayday, SIGNAL } from '@/lib/signals'
 import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
+import { kstDate } from '@/lib/time'
 
 export const metadata: Metadata = { title: '문의 대화' }
 
@@ -30,6 +31,7 @@ function repliesFor(last: ChatMessage | undefined): string[] {
   if (head.startsWith('⚠️ 근무일 취소') || head.startsWith('⚠️ 확정 취소')) return ['알려 줘서 고마워요. 다음에 또 함께해요.', '혹시 일정이 되면 다시 알려 주세요.']
   if (head.startsWith('⚠️ 근무시간')) return ['알겠어요. 원래 시간에 마쳐 주세요.', '괜찮아요. 일정은 따로 상의해요.']
   if (head.startsWith('🕒 근무 종료 늦게 입력')) return ['확인했어요. 다음엔 근무 종료를 꼭 눌러 주세요.']
+  if (head.startsWith(ASK_MISSED.slice(0, 20))) return ['출근 기록을 넣었어요. 확인해 주세요.', '몇 시에 도착했는지 알려 주세요.']
   return []
 }
 
@@ -74,6 +76,25 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     }
   }
 
+  // '오늘 출근했는데 근무 시작을 못 눌렀어요' → 이 회사 오늘 근무에 출근 기록이 없으면 바로 '기록 넣기' (출퇴근 탭의 그 사람 · 수기 등록 칸 펼침)
+  let missed: { jobId: string; title: string } | null = null
+  if (lastAsk?.body.startsWith(ASK_MISSED.slice(0, 20))) {
+    const today = kstDate()
+    const { data: apps } = await db()
+      .from('applications')
+      .select('job_id, job:jobs(id, title, start_date, end_date, company_id)')
+      .eq('company_id', admin.companyId)
+      .eq('user_id', userId)
+      .eq('status', 'approved')
+    const job = ((apps ?? []) as unknown as { job: { id: string; title: string; start_date: string; end_date: string; company_id: string } | null }[])
+      .map((r) => r.job)
+      .find((j) => j && j.company_id === admin.companyId && j.start_date <= today && j.end_date >= today)
+    if (job) {
+      const { data: att } = await db().from('attendance').select('id').eq('company_id', admin.companyId).eq('job_id', job.id).eq('user_id', userId).eq('work_date', today).maybeSingle()
+      if (!att) missed = { jobId: job.id, title: job.title }
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <AutoRefresh seconds={5} quiet pulse="/api/pulse?s=admin-chat" />
@@ -104,6 +125,19 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         </Empty>
       ) : (
         <ChatMessages messages={messages} viewer="admin" viewerId={admin.id} />
+      )}
+      {missed && (
+        <Link
+          href={`/admin/jobs/${missed.jobId}?tab=att&date=${kstDate()}&fix=${worker.id}#att-${worker.id}`}
+          className="card flex animate-pop items-center gap-3 px-4 py-3 ring-1 ring-amber-200 transition active:scale-[0.98]"
+          data-missed-fix
+        >
+          <span className="min-w-0 flex-1">
+            <b className="block text-sm">오늘 출근 기록이 없어요</b>
+            <span className="block truncate text-xs text-sub">{missed.title}</span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-600">기록 넣기 →</span>
+        </Link>
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         <ChatComposer buttons={CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}

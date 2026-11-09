@@ -797,7 +797,8 @@ export default async function AttTab({
                       </form>
                     </details>
                   ) : (
-                    <details className="mt-3 border-t border-line pt-2.5">
+                    // 문의 화면 '기록 넣기'로 왔으면 펼친 채로
+                    <details open={fix === uid ? true : undefined} className="mt-3 border-t border-line pt-2.5" data-att-add={fix === uid ? 'open' : undefined}>
                       <summary className="cursor-pointer text-sm font-semibold text-sub">수기로 출퇴근 등록</summary>
                       <form action={addAttendance.bind(null, job.id)} className="mt-2 flex flex-wrap items-end gap-2">
                         <input type="hidden" name="user_id" value={uid} />
