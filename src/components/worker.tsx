@@ -1,5 +1,6 @@
 'use client'
 
+import HolderHint from './HolderHint'
 import UnsavedBar from '@/components/UnsavedBar'
 import { useActionState, useEffect, useRef, useState, useSyncExternalStore, useTransition } from 'react'
 import { createPortal } from 'react-dom'
@@ -1106,9 +1107,12 @@ type ProfileField = (typeof PROFILE_FIELDS)[number]
 export function ProfileForm({
   initial,
   need = [],
+  ownName,
 }: {
   initial: { address: string; emergency_phone: string; bank_name: string; bank_account: string; account_holder: string }
   need?: ProfileField[]
+  /** 알바: 예금주가 이 이름과 다르면 바로 알려 줌 (전문가·업체는 상호 계좌도 써서 안 봄) */
+  ownName?: string
 }) {
   const [state, action] = useActionState(updateProfile, null)
   const ref = useRef<HTMLFormElement>(null)
@@ -1201,6 +1205,7 @@ export function ProfileForm({
           />
         </div>
       </div>
+      {ownName && <HolderHint ownName={ownName} />}
       <div>
         <label className="label" htmlFor="address">
           주소

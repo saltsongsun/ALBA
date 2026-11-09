@@ -1,6 +1,7 @@
 'use client'
 
 import AccountDigits from './AccountDigits'
+import HolderHint from './HolderHint'
 import BizNoField from './BizNoField'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -635,6 +636,8 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
           </label>
           <input id="account_holder" name="account_holder" className="input" placeholder={vendor ? '비우면 상호' : '비우면 본인 이름'} />
         </div>
+        {/* 알바: 위에 쓴 이름과 예금주가 다르면 바로 한 줄 (전문가·업체는 상호 계좌도 써서 안 봄) */}
+        {!vendor && !pro && <HolderHint />}
         {!vendor && (
           <div>
             <label className="label" htmlFor="address">

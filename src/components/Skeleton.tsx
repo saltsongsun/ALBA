@@ -389,3 +389,31 @@ export function RosterSkeleton() {
     </div>
   )
 }
+
+/** 서류 서명 화면: '← 돌아가기' 줄 · 서류(제목·본문 줄) · 서명 칸 · 제출 버튼 (알림·링크로 바로 열어도 눌린 게 보이게) */
+export function DocSkeleton() {
+  const lines = ['w-full', 'w-11/12', 'w-4/5', 'w-full', 'w-2/3', 'w-5/6', 'w-3/4']
+  return (
+    <div aria-busy="true" aria-label="서류 불러오는 중" className="skeleton space-y-4" data-skeleton="doc">
+      <div className="flex items-center justify-between">
+        <div className={`h-4 w-20 ${bar}`} />
+        <div className="h-5 w-16 rounded-full bg-line/60" />
+      </div>
+      <div className="card space-y-3 px-5 py-6">
+        <div className={`mx-auto h-7 w-28 ${bar}`} />
+        <div className={`mx-auto h-4 w-36 ${bar}`} />
+        <div className="space-y-2.5 pt-2">
+          {lines.map((w, i) => (
+            <div key={i} className={`h-4 ${w} rounded bg-line/60`} />
+          ))}
+        </div>
+      </div>
+      <div className="card space-y-3">
+        <div className={`h-5 w-24 ${bar}`} />
+        <div className="h-40 rounded-2xl border-2 border-dashed border-line" />
+        <div className={`h-4 w-4/5 ${bar}`} />
+        <div className="h-12 rounded-2xl bg-line/70" />
+      </div>
+    </div>
+  )
+}

@@ -202,6 +202,8 @@ export default async function ProfilePage() {
         }}
         // 급여·계약서에 꼭 필요한 칸 — 비어 있는 동안 노란 테두리 (비상연락처는 선택이라 빼고, 주소는 알바만 계약서에 들어감)
         need={type === 'worker' ? ['bank_account', 'address'] : ['bank_account']}
+        // 알바는 본인 명의 계좌로 지급 (예금주가 다른 이름이면 바로 한 줄)
+        ownName={type === 'worker' ? me.name : undefined}
       />
       </div>
       {!vendor && (
