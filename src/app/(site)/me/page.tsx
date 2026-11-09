@@ -554,7 +554,8 @@ export default async function MePage(props: PageProps<'/me'>) {
               const job = a.job
               const todayAtt = atts.find((t) => t.job_id === job.id && t.work_date === today)
               const open = openAtt?.job_id === job.id ? openAtt : null
-              const docsLeft = pendingDocs.filter((d) => d.job_id === job.id).length
+              const jobDocs = pendingDocs.filter((d) => d.job_id === job.id)
+              const docsLeft = jobDocs.length
               const notChosen = a.available_dates && !a.available_dates.includes(today)
               const map = mapLinks({ name: job.location_name, address: job.address, lat: job.lat, lng: job.lng })
               // 지난 근무를 종료하지 않고 그 근무 시간도 끝났으면: 끝난 시각을 따로 받음 (지금 누르면 다음 날 시각이 찍힘)
@@ -672,10 +673,15 @@ export default async function MePage(props: PageProps<'/me'>) {
                       endText={hhmm(shiftOf(job, forgot).end_time)}
                     />
                   ) : docsLeft > 0 ? (
-                    // 두 줄을 고르게 ('…시작할 / 수 있어요.'처럼 끝에 한두 낱말만 남지 않게)
-                    <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-balance text-amber-800" data-sign-before-start>
-                      위의 서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요.
-                    </p>
+                    // 누르면 바로 그 서류 서명 화면 (위로 올라가 찾지 않게) · 여러 건이면 서명 뒤 다음 서류로 이어짐
+                    <Link
+                      href={`/docs/${jobDocs[0].id}`}
+                      className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 transition active:scale-[0.98]"
+                      data-sign-before-start
+                    >
+                      <span className="min-w-0 flex-1 font-semibold text-balance">서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요</span>
+                      <span className="shrink-0 font-bold whitespace-nowrap">서명 ›</span>
+                    </Link>
                   ) : open ? (
                     <ClockPanel
                       jobId={job.id}

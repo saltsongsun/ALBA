@@ -84,7 +84,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await sign.waitFor({ timeout: 10000 }).catch(() => {})
   const yOf = (l) => l.evaluate((el) => el.getBoundingClientRect().top + scrollY)
   ok('서명할 서류 카드가 병아리 레벨 카드보다 위', (await yOf(sign)) < (await yOf(wk.locator('[data-xp-card]'))))
-  const note = wk.locator('[data-sign-before-start]')
+  // 안내 글자 칸 (2026-11-09부터 안내 전체가 서명 화면으로 가는 링크 · 글자는 그 안의 첫 칸)
+  const note = wk.locator('[data-sign-before-start] > span').first()
   const lines = await note.evaluate((el) => {
     const r = document.createRange()
     r.selectNodeContents(el)
