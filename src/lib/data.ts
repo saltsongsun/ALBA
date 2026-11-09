@@ -257,3 +257,37 @@ export const overdueShiftFor = cache(async (userId: string): Promise<{ endText: 
   if (scheduledEnd(shift, a.work_date).getTime() > Date.now()) return null
   return { endText: shift.end_time.slice(0, 5), title: a.job.title }
 })
+
+/**
+ * 회사가 지원에 답하는 데 보통 걸리는 시간(분) — 최근 90일 확정·미선발된 지원의 중간값.
+ * 지원하고 기다리는 근무자에게 '이 회사는 보통 3시간 안에 답해요'로 (회사마다 다름).
+ * 관리자가 직접 추가했거나 바로 확정된 것(1분 안)은 빼고, 3건이 안 되면 null (몇 건으로는 믿기 어려워서)
+ */
+export async function replyMinutes(companyId: string): Promise<number | null> {
+  const since = new Date(Date.now() - 90 * 86_400_000).toISOString()
+  const rows = ((
+    await db()
+      .from('applications')
+      .select('created_at, decided_at, status')
+      .eq('company_id', companyId)
+      .in('status', ['approved', 'rejected'])
+      .gte('created_at', since)
+      .order('created_at', { ascending: false })
+      .limit(200)
+  ).data ?? []) as { created_at: string; decided_at: string | null; status: string }[]
+  const mins = rows
+    .filter((r) => r.decided_at && (r.status === 'approved' || r.status === 'rejected') && r.created_at >= since)
+    .map((r) => (Date.parse(r.decided_at!) - Date.parse(r.created_at)) / 60_000)
+    .filter((m) => m >= 1)
+    .sort((a, b) => a - b)
+  if (mins.length < 3) return null
+  const mid = Math.floor(mins.length / 2)
+  return mins.length % 2 ? mins[mid] : (mins[mid - 1] + mins[mid]) / 2
+}
+
+/** 120 → '2시간', 30 → '1시간', 2000 → '2일' (넉넉히 올려서) */
+export function replySpan(min: number): string {
+  if (min <= 60) return '1시간'
+  if (min < 24 * 60) return `${Math.ceil(min / 60)}시간`
+  return `${Math.ceil(min / (24 * 60))}일`
+}

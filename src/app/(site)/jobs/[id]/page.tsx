@@ -15,7 +15,7 @@ import PhotoDoneNote from '@/components/PhotoDoneNote'
 import { PHOTO_DONE_KEY } from '@/lib/photoDone'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
-import { approvedCounts, countApps, getJob, getSettings, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
+import { approvedCounts, countApps, getJob, getSettings, JOB_WITH_APP_STATUS, replyMinutes, replySpan, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
@@ -183,6 +183,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
   const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
+  // 지원하고 기다리는 중이면: 이 회사가 보통 얼마 만에 답하는지 (회사마다 달라서 · 기록이 적으면 안 보임)
+  const replyMin = app?.status === 'applied' && !ended && job.status !== 'cancelled' ? await replyMinutes(job.company_id).catch(() => null) : null
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
     canApply && (!app || app.status === 'cancelled')
@@ -492,6 +494,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   ? '지원이 접수됐어요. 확정되면 알려 드릴게요.'
                   : '이번에는 함께하지 못하게 됐어요.'}
             </p>
+            {replyMin != null && (
+              <p className="flex items-center gap-1.5 text-sm text-sub" data-reply-time>
+                <Icon name="clock" className="shrink-0 text-mute" /> 이 회사는 보통 {replySpan(replyMin)} 안에 답해요
+              </p>
+            )}
             {app.available_dates && <p className="text-sm text-sub">가능한 날: {app.available_dates.map(fmtDate).join(', ')}</p>}
             {app.status === 'approved' && (
               <div className="flex flex-wrap items-center gap-2 text-sm">
