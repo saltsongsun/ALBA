@@ -155,6 +155,8 @@ export default async function HomePage(props: PageProps<'/'>) {
         ])
       : [null, null]
   const todayState: 'before' | 'working' | 'done' = todayAtt?.clock_out ? 'done' : todayAtt?.clock_in ? 'working' : 'before'
+  // 출근 기록 없이 오늘 근무 시간이 다 지났으면 '근무가 있어요'가 아니라 '지났어요' (내 근무에서 담당자에게 알리기)
+  const shiftOver = !!todayJob && todayState === 'before' && workOver(todayJob, today)
   const todayLabel = todaySignId
     ? todayState === 'before'
       ? '출퇴근 전 서명이 남았어요'
@@ -163,7 +165,9 @@ export default async function HomePage(props: PageProps<'/'>) {
         : '근무 끝 · 서명이 남았어요'
     : todayState === 'working'
       ? '지금 근무 중이에요'
-      : '오늘 근무가 있어요'
+      : shiftOver
+        ? '오늘 근무 시간이 지났어요'
+        : '오늘 근무가 있어요'
   // 로그인한 근무자: 소개 배너 대신 한 줄 인사 + 내 근무 현황 (공고 목록이 첫 화면에 보이게)
   const upcomingCount = jobs.filter((j) => mine[j.id] === 'approved' && j.id !== todayJob?.id).length
   const waitingCount = jobs.filter((j) => mine[j.id] === 'applied').length
@@ -209,7 +213,7 @@ export default async function HomePage(props: PageProps<'/'>) {
             </span>
             {/* 서명이 먼저면 버튼이 한 번 톡 튀어 눈에 띄게 (움직임 줄이기면 그대로) */}
             <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 ${todaySignId ? 'animate-bump [animation-delay:450ms]' : ''}`}>
-              {todaySignId ? '서명 →' : '출퇴근 →'}
+              {todaySignId ? '서명 →' : shiftOver ? '확인 →' : '출퇴근 →'}
             </span>
           </Link>
         )
