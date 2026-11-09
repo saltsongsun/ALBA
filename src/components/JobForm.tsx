@@ -202,7 +202,7 @@ function preview(form: HTMLFormElement | null) {
     daily_wage: n('daily_wage'),
     break_mode: (g('break_mode') as Job['break_mode']) || 'auto',
     break_minutes: n('break_minutes'),
-    round_unit: n('round_unit') || 1,
+    round_unit: n('round_unit') || 30,
     early_clamp: f.get('early_clamp') === 'on',
     premium_enabled: f.get('premium_enabled') === 'on',
     allowance: n('allowance'),
@@ -527,7 +527,7 @@ export default function JobForm({
             </Field>
           ) : (
             <Field label="근무시간 절사" hint="단위 미만은 버림 (1분이면 그대로)">
-              <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 1}>
+              <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 30}>
                 <option value={1}>1분 단위</option>
                 <option value={10}>10분 단위</option>
                 <option value={15}>15분 단위</option>
@@ -538,7 +538,7 @@ export default function JobForm({
         </div>
         {breakMode === 'fixed' && (
           <Field label="근무시간 절사" hint="단위 미만은 버림 (1분이면 그대로)" className="sm:w-1/4">
-            <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 1}>
+            <select name="round_unit" className="input" defaultValue={job?.round_unit ?? 30}>
               <option value={1}>1분 단위</option>
               <option value={10}>10분 단위</option>
               <option value={15}>15분 단위</option>

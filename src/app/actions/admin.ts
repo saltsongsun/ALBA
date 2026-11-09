@@ -90,7 +90,8 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
   // 모집 대상: 전문가 의뢰는 사업소득 3.3%로만 (근로계약이 아니므로 고용보험도 없음)
   const audience = str(form, 'audience') === 'expert' ? 'expert' : 'worker'
   const tax_type = audience === 'expert' ? 'business' : ((['daily', 'business', 'other', 'none'] as const).find((m) => m === str(form, 'tax_type')) ?? 'daily')
-  const round = int(form, 'round_unit', 1)
+  // 근무시간 절사: 새 공고 기본은 30분 단위 (사용자 지시 2026-11-09 '분 단위 인정은 기본이 안 되게 · 30분 단위가 기본')
+  const round = int(form, 'round_unit', 30)
   const status = (['draft', 'open', 'closed', 'done', 'cancelled'] as const).find((m) => m === str(form, 'status')) ?? 'open'
   const conditions = parseConditions(str(form, 'conditions', 5000))
   if (!conditions) return { error: '근무 조건을 다시 입력해 주세요.' }
@@ -119,7 +120,7 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
     daily_wage: clamp(int(form, 'daily_wage', 0), 0, 10_000_000),
     break_mode,
     break_minutes: clamp(int(form, 'break_minutes', 0), 0, 240),
-    round_unit: [1, 5, 10, 15, 30].includes(round) ? round : 1,
+    round_unit: [1, 5, 10, 15, 30].includes(round) ? round : 30,
     early_clamp: bool(form, 'early_clamp'),
     premium_enabled: bool(form, 'premium_enabled'),
     allowance: clamp(int(form, 'allowance', 0), 0, 1_000_000),
