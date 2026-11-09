@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import LiveNumber from '@/components/LiveNumber'
 import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
 import Link from 'next/link'
@@ -292,7 +293,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 {wageBadge(job)}
                 {expert && ' · 용역 대금'}
               </p>
-              <p className="mt-0.5 text-2xl font-extrabold">하루 약 {won(est.gross)}</p>
+              {/* 처음 열면 0에서 금액까지 빠르게 올라감 ('움직임 줄이기' 설정이면 바로) */}
+              <p className="mt-0.5 text-2xl font-extrabold" data-day-est>
+                하루 약 <LiveNumber value={est.gross} countUp />원
+              </p>
               <p className="mt-1 text-xs text-mute">
                 <span className="whitespace-nowrap">{scheduleText(job)} 기준</span> · <span className="whitespace-nowrap">휴게 {est.breakMin}분 제외</span>{' '}
                 <span className="whitespace-nowrap">{minutesText(est.paidMin)} · 세전</span>

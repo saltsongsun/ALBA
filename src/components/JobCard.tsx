@@ -4,7 +4,7 @@ import { NewBadge } from './NewJobs'
 import { scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
-import { workOver } from '@/lib/pay'
+import { estimateDay, workOver } from '@/lib/pay'
 import { fmtDateRange, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
 
@@ -58,6 +58,7 @@ export default function JobCard({
   // 오늘이 마지막 날이고 근무 시간까지 끝났으면 '오늘 근무 종료' (지원 버튼이 없는 공고)
   const over = job.status === 'open' && job.end_date === kstDate() && workOver(job, job.end_date)
   const showCount = shows(job, 'headcount')
+  const dayEst = job.pay_type !== 'daily' && job.hourly_wage > 0 && shows(job, 'estimate') ? estimateDay(job).gross : null
   return (
     <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']} data-track={track}>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
@@ -111,14 +112,22 @@ export default function JobCard({
         {job.location_name && <span className="text-mute"> · {job.location_name}</span>}
       </p>
       <div className="mt-3 flex items-end justify-between gap-3">
-        <p className="text-lg font-extrabold tracking-tight">
-          {wageBadge(job)}
-          {job.allowance > 0 && (
-            <span className="ml-1.5 text-xs font-semibold text-sub">
-              + {job.allowance_label || '수당'} {won(job.allowance)}
-            </span>
+        <div className="min-w-0">
+          <p className="text-lg font-extrabold tracking-tight">
+            {wageBadge(job)}
+            {job.allowance > 0 && (
+              <span className="ml-1.5 text-xs font-semibold text-sub">
+                + {job.allowance_label || '수당'} {won(job.allowance)}
+              </span>
+            )}
+          </p>
+          {/* 시급 공고: 하루에 얼마인지 카드에서 바로 (공고 화면의 '하루 약 ○○원'과 같은 계산 · 일급은 이미 하루 금액) */}
+          {dayEst != null && (
+            <p className="text-xs text-sub tabular-nums" data-card-day>
+              하루 약 <b className="font-semibold text-ink">{won(dayEst)}</b>
+            </p>
           )}
-        </p>
+        </div>
         {showCount &&
           (job.status === 'open' && !full && !over ? (
             // 남은 자리: 2자리 이하면 마감 임박으로 눈에 띄게 (오늘 끝난 근무는 'n/n명 확정'으로)
