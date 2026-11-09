@@ -672,6 +672,29 @@ export default async function MePage(props: PageProps<'/me'>) {
                       startText={kstTime(forgot.clock_in)}
                       endText={hhmm(shiftOf(job, forgot).end_time)}
                     />
+                  ) : open ? (
+                    // 이미 근무 중이면 (담당자가 출석 체크로 시작해 줬거나, 시작한 뒤 서류가 새로 왔으면) 서류가 남아도 '근무 종료'는 그대로
+                    <div className="space-y-2">
+                      <ClockPanel
+                        jobId={job.id}
+                        open={{ id: open.id, clock_in: open.clock_in, startText: kstTime(open.clock_in) }}
+                        endAt={scheduledEnd(todayShift(job, open), open.work_date).toISOString()}
+                        endText={hhmm(todayShift(job, open).end_time)}
+                        useLocation={job.lat != null}
+                        gpsRequired={job.gps_required}
+                        serverNow={Date.now()}
+                      />
+                      {docsLeft > 0 && (
+                        <Link
+                          href={`/docs/${jobDocs[0].id}`}
+                          className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 transition active:scale-[0.98]"
+                          data-sign-left
+                        >
+                          <span className="min-w-0 flex-1 truncate font-semibold">서명할 서류 {docsLeft}건이 남았어요</span>
+                          <span className="shrink-0 font-bold whitespace-nowrap">서명 ›</span>
+                        </Link>
+                      )}
+                    </div>
                   ) : docsLeft > 0 ? (
                     // 누르면 바로 그 서류 서명 화면 (위로 올라가 찾지 않게) · 여러 건이면 서명 뒤 다음 서류로 이어짐
                     <Link
@@ -682,16 +705,6 @@ export default async function MePage(props: PageProps<'/me'>) {
                       <span className="min-w-0 flex-1 font-semibold text-balance">서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요</span>
                       <span className="shrink-0 font-bold whitespace-nowrap">서명 ›</span>
                     </Link>
-                  ) : open ? (
-                    <ClockPanel
-                      jobId={job.id}
-                      open={{ id: open.id, clock_in: open.clock_in, startText: kstTime(open.clock_in) }}
-                      endAt={scheduledEnd(todayShift(job, open), open.work_date).toISOString()}
-                      endText={hhmm(todayShift(job, open).end_time)}
-                      useLocation={job.lat != null}
-                      gpsRequired={job.gps_required}
-                      serverNow={Date.now()}
-                    />
                   ) : todayAtt?.clock_out ? (
                     <div className="space-y-3">
                       <div className="rounded-xl bg-bg px-4 py-3 text-center">

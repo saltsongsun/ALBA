@@ -10,12 +10,14 @@ import { addDays, hoursText, plannedPay, WEEKLY_PAY_FROM, weekStart, weeklyCheck
 
 export const metadata: Metadata = { title: '주간 근무 · 주휴' }
 
-const STATUS: Record<WeekCheck['status'], { label: string; tone: string; order: number }> = {
-  eligible: { label: '주휴 대상', tone: 'bg-emerald-50 text-emerald-700', order: 0 },
-  pending: { label: '개근하면 대상', tone: 'bg-brand-50 text-brand-700', order: 1 },
-  absent: { label: '결근', tone: 'bg-rose-50 text-rose-700', order: 2 },
-  short: { label: '15시간 미만', tone: 'bg-bg text-sub', order: 3 },
+const STATUS: Record<WeekCheck['status'], { label: string; tone: string; bar: string; order: number }> = {
+  eligible: { label: '주휴 대상', tone: 'bg-emerald-50 text-emerald-700', bar: 'bg-emerald-500', order: 0 },
+  pending: { label: '개근하면 대상', tone: 'bg-brand-50 text-brand-700', bar: 'bg-brand-500', order: 1 },
+  absent: { label: '결근', tone: 'bg-rose-50 text-rose-700', bar: 'bg-rose-400', order: 2 },
+  short: { label: '15시간 미만', tone: 'bg-bg text-sub', bar: 'bg-brand-300', order: 3 },
 }
+// 주휴 기준 시간 (한 주 15시간) — 근무자 줄의 막대가 여기까지 차면 시간 요건은 채운 것
+const WEEK_MIN = 15 * 60
 
 type WApp = { job_id: string; user_id: string; status: string; available_dates: string[] | null; held_at?: string | null }
 
@@ -109,7 +111,7 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
   const sub = (c: WeekCheck) => {
     const jobsN = new Set(c.days.map((d) => d.jobId)).size
     if (c.status === 'absent') return `${hoursText(c.minutes)} · ${c.reason}`
-    if (c.status === 'short') return `${hoursText(c.minutes)}`
+    if (c.status === 'short') return `${hoursText(c.minutes)} · 15시간까지 ${hoursText(WEEK_MIN - c.minutes)}`
     return `${hoursText(c.minutes)}${jobsN > 1 ? ` · 공고 ${jobsN}개` : ''}${c.status === 'pending' ? ` · 남은 ${new Set(c.days.filter((d) => !d.done).map((d) => d.date)).size}일` : ''}`
   }
   const Row = ({ href, title, sub: s2, right, data }: { href: string; title: string; sub: string; right: React.ReactNode; data: Record<string, string> }) => (
@@ -199,6 +201,13 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
                     <span className="min-w-0 flex-1">
                       <b className="block truncate text-sm">{names.get(c.userId) ?? '근무자'}</b>
                       <span className="block truncate text-xs text-sub">{sub(c)}</span>
+                      {/* 15시간까지 얼마나 찼는지 (꽉 차면 시간 요건 충족) */}
+                      <span aria-hidden className="mt-1.5 block h-1 overflow-hidden rounded-full bg-line" data-weekly-bar>
+                        <span
+                          className={`block h-full origin-left animate-grow rounded-full ${st.bar}`}
+                          style={{ width: `${Math.min(100, Math.round((c.minutes / WEEK_MIN) * 100))}%` }}
+                        />
+                      </span>
                     </span>
                     <span className="shrink-0 text-right">
                       <span className={`block rounded-full px-2 py-0.5 text-[11px] font-bold ${st.tone}`}>{st.label}</span>

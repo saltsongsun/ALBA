@@ -8,6 +8,7 @@ const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
 const [D, MD] = process.argv.slice(2)
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', DOC = 'dddddddd-0000-4000-8000-000000000004'
+const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 let fails = 0
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 
@@ -19,6 +20,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   await ctx.addCookies([{ name: 'alba_session', value: cookie(W), url: D }])
   const w = await ctx.newPage()
   w.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
+  // 출근 전 상태로 (가짜 DB의 근무자는 이미 근무 중 · 근무 중이면 '근무 종료'가 먼저 — batch154)
+  await rest(`attendance?user_id=eq.${W}`, 'DELETE')
   await w.goto(`${D}/me`)
   const note = w.locator('[data-sign-before-start]')
   await note.waitFor({ timeout: 15000 }).catch(() => {})

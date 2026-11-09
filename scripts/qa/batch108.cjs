@@ -79,6 +79,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   // ── 2. 내 근무: 할 일이 레벨 카드보다 먼저 ──
   const wk = await pg(W)
+  // 출근 전 상태로 (근무 중이면 '근무 종료'가 먼저 나오고 서명 안내는 짧은 한 줄 — batch154)
+  await rest(`attendance?user_id=eq.${W}`, 'DELETE')
   await wk.goto(`${D}/me`)
   const sign = wk.locator('section', { hasText: '서명할 서류가' }).first()
   await sign.waitFor({ timeout: 10000 }).catch(() => {})
