@@ -490,8 +490,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       </Link>
     )
   }
+  // 마지막 날 근무까지 끝난 행사의 지원자: 확정은 한 번 더 묻고 '끝난 행사' 표시 (밤에 끝난 행사를 확정하는 실수 막기 · 미선발·보류는 그대로)
+  const ended = (p: (typeof pendingApps)[number]) => workOver(p.job, p.job.end_date)
   const confirmText = (p: (typeof pendingApps)[number]) =>
-    clashOf.has(p.id) ? '겹쳐요 · 확정?' : isFull(p.job.id) ? '인원 다 찼어요 · 확정?' : weeklyFor(p) ? '주휴 대상이 돼요 · 확정?' : null
+    ended(p) ? '끝난 행사 · 확정?' : clashOf.has(p.id) ? '겹쳐요 · 확정?' : isFull(p.job.id) ? '인원 다 찼어요 · 확정?' : weeklyFor(p) ? '주휴 대상이 돼요 · 확정?' : null
   const WeeklyNote = ({ p }: { p: (typeof pendingApps)[number] }) => {
     const w = weeklyFor(p)
     if (!w) return null
@@ -519,7 +521,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           form={BULK_FORM}
           data-job={p.job.id}
           data-left={headOf.has(p.job.id) ? Math.max(0, headOf.get(p.job.id)! - (counts[p.job.id] ?? 0)) : undefined}
-          data-warn={clashOf.has(p.id) ? '근무 겹침' : weeklyFor(p) ? '주휴 대상' : undefined}
+          data-warn={ended(p) ? '끝난 행사' : clashOf.has(p.id) ? '근무 겹침' : weeklyFor(p) ? '주휴 대상' : undefined}
           className="size-5 accent-brand-600"
         />
       </label>
@@ -540,9 +542,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
         </div>
       </div>
-      <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block truncate text-sm font-semibold text-sub">
-        <Icon name="pin" className="text-mute" /> {p.job.title}
-      </Link>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="block min-w-0 truncate text-sm font-semibold text-sub">
+          <Icon name="pin" className="text-mute" /> {p.job.title}
+        </Link>
+        {ended(p) && (
+          <span className="badge shrink-0 bg-bg text-mute" data-pending-ended>
+            끝난 행사
+          </span>
+        )}
+      </div>
       {(p.available_dates || p.message) && (
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           {p.available_dates && <p>가능일 {p.available_dates.map(fmtDate).join(', ')}</p>}

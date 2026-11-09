@@ -24,7 +24,8 @@ const errs = []
 
   // ── 1. 업체 등록 ──
   await a.goto(`${D}/admin/vendors?tab=list`)
-  ok('외주 메뉴 · 업체 없음 안내', await see(a, '등록된 외주사가 없어요'))
+  // 업체가 없으면 등록 칸이 펼쳐진 채 '아직 없어요' 표시 (따로 '없어요' 카드는 두지 않음 — 2026-11-10)
+  ok('외주 메뉴 · 업체 없음 안내', await see(a, '아직 없어요'))
   const addVendor = async (v) => {
     const f = a.locator('form', { hasText: '외주사 등록' })
     await f.locator('input[name=name]').fill(v.name)

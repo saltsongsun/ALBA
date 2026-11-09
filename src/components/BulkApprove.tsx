@@ -69,8 +69,10 @@ export function BulkApproveBar({
   const total = approved + picked.n
   const over = headcount != null && total > headcount
   const count = (w: string) => picked.warns.filter((x) => x === w).length
-  // 연소자 → 다른 근무와 겹침 → 인원 초과 → 주휴 대상 순으로 먼저 물어봄 (휴대폰 한 줄에 들어가게 짧게)
-  const confirmText = count('연소자')
+  // 끝난 행사 → 연소자 → 다른 근무와 겹침 → 인원 초과 → 주휴 대상 순으로 먼저 물어봄 (휴대폰 한 줄에 들어가게 짧게)
+  const confirmText = count('끝난 행사')
+    ? `끝난 행사 ${count('끝난 행사')}명 · 확정?`
+    : count('연소자')
     ? `연소자 ${count('연소자')}명 · 확정?`
     : count('근무 겹침')
       ? `근무 겹침 ${count('근무 겹침')}명 · 확정?`
