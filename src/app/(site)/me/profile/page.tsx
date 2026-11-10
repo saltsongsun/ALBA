@@ -77,9 +77,18 @@ export default async function ProfilePage() {
             </h2>
             <span className="text-xs text-mute">다 채우면 확정·급여가 빨라져요</span>
           </div>
-          <div className="flex gap-1" aria-hidden>
+          {/* 채운 칸이 왼쪽부터 차례로 차오름 (짧게 · '움직임 줄이기'면 바로) */}
+          <div className="flex gap-1" aria-hidden data-profile-bar>
             {checks.map((c, i) => (
-              <span key={c.key} className={`h-1.5 flex-1 rounded-full ${i < doneN ? 'bg-brand-600' : 'bg-bg'}`} />
+              <span key={c.key} className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-bg">
+                {i < doneN && (
+                  <span
+                    className="absolute inset-0 origin-left animate-[grow_0.26s_var(--ease-spring)_both] rounded-full bg-brand-600"
+                    style={{ animationDelay: `${i * 80}ms` }}
+                    data-profile-fill
+                  />
+                )}
+              </span>
             ))}
           </div>
           {/* 빈 항목은 두 칸씩 (위아래로 덜 길게) — 누르면 그 칸으로 */}

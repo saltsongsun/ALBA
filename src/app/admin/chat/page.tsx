@@ -54,6 +54,24 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   }
   const today = kstDate()
   const all = [...threads.values()].filter((t) => t.last.user)
+  // 지금 이 회사에서 근무 중인 사람 (사진 옆 초록 점 — 현장에서 온 문의를 먼저 보게)
+  const workingNow = new Set(
+    all.length
+      ? (
+          ((
+            await db()
+              .from('attendance')
+              .select('user_id, clock_out')
+              .eq('company_id', admin.companyId)
+              .eq('work_date', today)
+              .is('clock_out', null)
+              .in('user_id', all.map((t) => t.last.thread_user_id))
+          ).data ?? []) as { user_id: string; clock_out: string | null }[]
+        )
+          .filter((a) => !a.clock_out)
+          .map((a) => a.user_id)
+      : [],
+  )
   const unreadCount = all.filter((t) => t.unread > 0).length
   // 검색: 근무자 이름 · 전화번호(숫자 3자리 이상) · 주고받은 메시지 내용 / 단체방은 공고 이름
   const term = typeof sp.q === 'string' ? sp.q.trim().slice(0, 50) : ''
@@ -199,7 +217,12 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         <div className="stagger space-y-2">
           {list.map(({ last, unread }) => (
             <Link key={last.thread_user_id} href={`/admin/chat/${last.thread_user_id}`} className="card-link flex items-center gap-3 p-4">
-              <Avatar id={last.user!.id} name={last.user!.name} photoAt={last.user!.photo_at} zoom={false} />
+              <span className="relative shrink-0">
+                <Avatar id={last.user!.id} name={last.user!.name} photoAt={last.user!.photo_at} zoom={false} />
+                {workingNow.has(last.thread_user_id) && (
+                  <span role="img" aria-label="지금 근무 중" title="지금 근무 중" className="absolute right-0 bottom-0 size-3 rounded-full bg-emerald-500 ring-2 ring-white" data-inbox-working />
+                )}
+              </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="truncate font-bold">
