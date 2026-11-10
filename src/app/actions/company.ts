@@ -30,15 +30,25 @@ function switchTarget(path: string): string {
 }
 
 /**
- * 회사를 바꾸면서 바로 열 화면: 그 회사의 공고·단체방 주소일 때만 (알림·공유 링크로 다른 회사 공고를 열었을 때).
- * 주소 모양이 다르거나 그 회사 공고가 아니면 null → 평소처럼 메뉴 목록으로
+ * 회사를 바꾸면서 바로 열 화면: 그 회사의 공고·단체방·문의 대화 주소일 때만 (알림·공유 링크로 다른 회사 것을 열었을 때).
+ * 주소 모양이 다르거나 그 회사 것이 아니면 null → 평소처럼 메뉴 목록으로
  */
-const OPEN_JOB = /^\/admin\/(?:jobs|chat\/room)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?[A-Za-z0-9=&_.-]{1,120})?$/
+const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
+const OPEN_JOB = new RegExp(`^/admin/(?:jobs|chat/room)/(${ID})(?:\\?[A-Za-z0-9=&_.-]{1,120})?$`)
+const OPEN_THREAD = new RegExp(`^/admin/chat/(${ID})$`)
 async function openTarget(path: string, companyId: string): Promise<string | null> {
   const jobId = OPEN_JOB.exec(path)?.[1]
-  if (!jobId) return null
-  const { data } = await db().from('jobs').select('company_id').eq('id', jobId).maybeSingle()
-  return (data as { company_id: string } | null)?.company_id === companyId ? path : null
+  if (jobId) {
+    const { data } = await db().from('jobs').select('company_id').eq('id', jobId).maybeSingle()
+    return (data as { company_id: string } | null)?.company_id === companyId ? path : null
+  }
+  // 문의 대화: 그 회사와 주고받은 글이 있는 사람일 때만
+  const userId = OPEN_THREAD.exec(path)?.[1]
+  if (userId) {
+    const { count } = await db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('thread_user_id', userId)
+    return count ? path : null
+  }
+  return null
 }
 
 /** 관리자 화면에서 볼 회사 바꾸기 (들어갈 수 있는 회사만). 보던 메뉴에 그대로 남고, 어느 회사로 바꿨는지 안내 */

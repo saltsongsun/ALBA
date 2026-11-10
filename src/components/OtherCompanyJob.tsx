@@ -4,10 +4,22 @@ import Icon from './Icon'
 import { SubmitButton } from './ui'
 
 /**
- * 지금 보는 회사가 아닌, 내가 맡은 다른 회사의 공고·단체방 주소를 열었을 때 (알림·공유 링크).
+ * 지금 보는 회사가 아닌, 내가 맡은 다른 회사의 공고·단체방·문의 대화 주소를 열었을 때 (알림·공유 링크).
  * '찾는 화면이 없어요' 대신: 어느 회사 것인지 알려 주고, 그 회사로 바꿔서 보려던 화면을 바로 엶
  */
-export default function OtherCompanyJob({ title, company, now, open }: { title: string; company: { id: string; name: string }; now: string; open: string }) {
+export default function OtherCompanyJob({
+  title,
+  company,
+  now,
+  open,
+  back = { href: '/admin/jobs', label: '지금 회사 공고 목록으로' },
+}: {
+  title: string
+  company: { id: string; name: string }
+  now: string
+  open: string
+  back?: { href: string; label: string }
+}) {
   return (
     <div className="mx-auto max-w-md py-6" data-other-company-job>
       <div className="card animate-pop space-y-4 text-center">
@@ -28,8 +40,8 @@ export default function OtherCompanyJob({ title, company, now, open }: { title: 
             <span className="shrink-0 whitespace-nowrap">화면에서 열기</span>
           </SubmitButton>
         </form>
-        <Link href="/admin/jobs" className="inline-block text-sm font-semibold text-sub">
-          지금 회사 공고 목록으로
+        <Link href={back.href} className="inline-block text-sm font-semibold text-sub">
+          {back.label}
         </Link>
       </div>
     </div>

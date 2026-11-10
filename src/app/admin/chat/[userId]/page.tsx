@@ -2,6 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { replyInquiry } from '@/app/actions/chat'
+import { switchCompany } from '@/app/actions/company'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
+import { SubmitButton } from '@/components/ui'
 import { CHAT_BUTTONS } from '@/lib/chatButtons'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -9,6 +12,8 @@ import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
+import Flash from '@/components/Flash'
+import Icon from '@/components/Icon'
 import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
@@ -37,7 +42,7 @@ function repliesFor(last: ChatMessage | undefined): string[] {
 
 export default async function AdminChatThread(props: PageProps<'/admin/chat/[userId]'>) {
   const admin = await requireAdmin()
-  const { userId } = await props.params
+  const [{ userId }, sp] = await Promise.all([props.params, props.searchParams])
   if (!isUuid(userId)) notFound()
   const today = kstDate()
   type WorkJob = { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string }
@@ -68,8 +73,37 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
       .eq('work_date', today)
       .then((r) => (r.data ?? []) as { job_id: string; clock_in: string; clock_out: string | null }[]),
   ])
+  // 내가 맡은 다른 회사로 이 사람이 보낸 문의 (알림을 눌러 왔는데 지금 보는 회사가 다를 때: 그 회사로 바꿔서 열게)
+  const otherIds = admin.companies.filter((c) => c.id !== admin.companyId).map((c) => c.id)
+  const otherMsgs = worker && otherIds.length
+    ? await db()
+        .from('messages')
+        .select('company_id, from_admin, read_at, created_at')
+        .eq('thread_user_id', userId)
+        .in('company_id', otherIds)
+        .limit(300)
+        .then((r) => ((r.data ?? []) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string }[]).filter((m) => otherIds.includes(m.company_id)))
+    : []
+  const otherUnread = admin.companies
+    .filter((c) => c.id !== admin.companyId)
+    .map((c) => ({ id: c.id, name: c.name, n: otherMsgs.filter((m) => m.company_id === c.id && !m.from_admin && !m.read_at).length }))
+    .filter((c) => c.n > 0)
   // 이 회사에 문의했거나 지원한 근무자만
-  if (!worker || (!messages.length && !(await workerInCompany(admin.companyId, userId)))) notFound()
+  if (!worker || (!messages.length && !(await workerInCompany(admin.companyId, userId)))) {
+    // 다른 회사(내가 맡은)와 주고받은 글이 있으면: 없는 화면 대신 그 회사로 — 안 읽은 글이 있는 회사 먼저, 없으면 가장 최근에 주고받은 회사
+    const latest = [...otherMsgs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    const target = otherUnread[0] ?? admin.companies.find((c) => c.id === latest?.company_id)
+    if (!worker || !target) notFound()
+    return (
+      <OtherCompanyJob
+        title="다른 회사로 온 문의예요"
+        company={{ id: target.id, name: target.name }}
+        now={admin.companyName}
+        open={`/admin/chat/${userId}`}
+        back={{ href: '/admin/chat', label: '지금 회사 문의 목록으로' }}
+      />
+    )
+  }
 
   // 시나리오: '돈 언제 들어와요?' 문의 → 가장 최근 일한 공고의 정산 예정일로 답장 제안 (알린 날짜가 있으면 그것, 없으면 공고의 지급일)
   const lastAsk = messages.filter((m) => !m.from_admin).at(-1)
@@ -137,6 +171,8 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
+      {/* 회사를 바꿔서 이 대화를 열었을 때: '○○ 화면으로 바꿨어요' */}
+      <Flash m={sp.m} />
       <AutoRefresh seconds={5} quiet pulse="/api/pulse?s=admin-chat" />
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`chat-${worker.id}`} />
@@ -150,6 +186,24 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           </a>
         )}
       </div>
+      {/* 이 사람이 내가 맡은 다른 회사로 보낸 새 문의: 누르면 그 회사로 바꿔 이 대화를 엶 (알림을 눌렀는데 새 글이 안 보일 때) */}
+      {otherUnread.length > 0 && (
+        <div className="flex animate-pop flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-2.5 text-sm" data-thread-other>
+          <span className="font-semibold text-brand-700">
+            <Icon name="building" /> 다른 회사로 온 새 문의
+          </span>
+          {otherUnread.map((c) => (
+            <form key={c.id} action={switchCompany} className="max-w-full">
+              <input type="hidden" name="company" value={c.id} />
+              <input type="hidden" name="open" value={`/admin/chat/${worker.id}`} />
+              <SubmitButton className="chip max-w-full" pendingText="바꾸는 중…" track="다른 회사 문의 대화 열기">
+                <span className="min-w-0 truncate">{c.name}</span>
+                <b className="shrink-0 text-rose-600">{c.n}</b>
+              </SubmitButton>
+            </form>
+          ))}
+        </div>
+      )}
       <div className="card flex flex-wrap items-center justify-between gap-2 p-4">
         <div className="flex min-w-0 items-center gap-3">
           <Avatar id={worker.id} name={worker.name} photoAt={worker.photo_at} />
