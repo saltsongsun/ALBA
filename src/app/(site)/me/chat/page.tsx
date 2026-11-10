@@ -23,6 +23,8 @@ export const metadata: Metadata = { title: '문의' }
 // 휴대폰으로 자주 보내는 문의 (누르면 입력칸에 채워짐, 고쳐서 보낼 수 있음)
 /** 내 정보에서 '문의하기'로 왔을 때 맨 앞 빠른 답장 */
 const ASK_INFO = '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.'
+/** 지원했는데 근무가 곧 시작인데도 확정 전일 때 (내 근무 '확정 대기' 칸의 '담당자에게 문의'로 들어옴) */
+const ASK_CONFIRM = '지원했는데 확정 여부가 궁금해요.'
 const QUICK_DAY = ['조금 늦을 것 같아요. 죄송합니다.', '집결 장소가 어디인가요?', '근무 시작 버튼이 안 눌려요.', '급여 지급일이 언제인가요?']
 const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부만 가능해요.', '식사가 제공되나요?', '주차할 수 있나요?']
 // 해피워크 고객센터(아직 지원한 회사가 없을 때): 근무 날 문의 대신 앱 사용 문의
@@ -43,6 +45,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   // 내 정보에서 '이름·번호 바꾸기' 문의로 왔는지 (회사를 고르는 동안에도 이어짐)
   const askInfo = sp.ask === 'info'
   const askMissed = sp.ask === 'missed'
+  const askConfirm = sp.ask === 'confirm'
   // 문의함은 회사마다 따로: 지원했거나 문의를 주고받은 회사들 (처음이면 기본 회사)
   // 단체방 목록(여러 번 읽음)은 먼저 출발시키고, 회사 이름 읽기와 함께 기다림
   const roomsP = workerRooms(user.id)
@@ -156,7 +159,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : QUICK_DAY}
+          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? [ASK_CONFIRM, ...QUICK_JOB.filter((q) => q !== '아직 지원할 수 있나요?')] : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : QUICK_DAY}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">

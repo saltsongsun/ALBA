@@ -282,6 +282,48 @@ export default async function MePage(props: PageProps<'/me'>) {
           profileComplete: !!(me?.photo_at && me.bank_account_enc && me.emergency_phone && me.address && Array.isArray(me.careers) && me.careers.length > 0),
         })
       : null
+  // 확정 대기 (지원하고 결과를 기다리는 공고). 오늘·다음 근무가 없으면 이 칸이 가장 궁금한 것이라 '오늘의 근무' 위로 올림
+  // 곧 시작(하루 안)인데 아직 확정 전이면: 그 줄에서 바로 담당자에게 문의 (확정된 줄 알고 가거나, 안 된 줄 알고 안 가는 일을 막음)
+  const waitingFirst = todayApps.length === 0 && !nextApp && waiting.length > 0
+  const soonMs = Date.now() + 24 * 3600_000
+  const waitingSection = waiting.length > 0 && (
+    <section data-waiting={waitingFirst ? 'first' : 'below'}>
+      <h2 className="section-title">확정 대기</h2>
+      <div className="stagger space-y-2">
+        {waiting.map((a) => {
+          const day = (a.available_dates ?? []).filter((d) => d >= today).sort()[0] ?? (a.job.start_date >= today ? a.job.start_date : today)
+          const startMs = kstAt(day, a.job.start_time).getTime()
+          // 마지막 날 근무 시간까지 끝났으면 물어볼 것이 없음 (밤을 넘기는 근무는 끝 시각이 다음 날)
+          const endMs = kstAt(a.job.end_date, a.job.end_time).getTime() + (a.job.end_time <= a.job.start_time ? 86_400_000 : 0)
+          const soon = a.job.status !== 'cancelled' && startMs <= soonMs && Date.now() < endMs
+          const started = startMs <= Date.now()
+          return (
+            <div key={a.id} className="card-link py-4" data-waiting-app={a.job_id}>
+              <Link href={`/jobs/${a.job_id}`} className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-bold">{a.job.title}</p>
+                  <CompanyName job={a.job} />
+                  <p className="text-sm text-sub">{fmtDateRange(a.job.start_date, a.job.end_date)}</p>
+                  {/* 모집이 마감됐으면 결과를 기다리는 중이라고 (계속 지원 중인 줄 알지 않게) */}
+                  {a.job.status === 'closed' && <p className="text-xs font-semibold text-amber-700">모집 마감 · 결과를 곧 알려 드려요</p>}
+                </div>
+                <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
+              </Link>
+              {soon && (
+                <p className="mt-2.5 flex items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px]" data-waiting-soon={started ? 'started' : 'soon'}>
+                  <span className="min-w-0 font-semibold text-amber-900">{started ? '시작했는데 아직 확정 전이에요' : '곧 시작인데 아직 확정 전이에요'}</span>
+                  <Link href={`/me/chat?job=${a.job_id}&ask=confirm`} className="shrink-0 font-bold whitespace-nowrap text-brand-700">
+                    담당자에게 문의 →
+                  </Link>
+                </p>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+
   // 레벨 카드 · 이번 주 내 근무 · 새 댓글 · 후기 권유: 근무가 없는 날엔 위쪽, 근무 날엔 '오늘의 근무' 아래 (출퇴근 버튼을 밀어내지 않게)
   const extras = (
     <>
@@ -517,6 +559,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       {todayApps.length === 0 && profileNags}
       {/* 근무가 없는 날: 레벨 카드·이번 주·새 댓글·후기 권유가 먼저 */}
       {todayApps.length === 0 && extras}
+      {/* 지원하고 결과를 기다리는 중이면(오늘·다음 근무 없음) 그 공고부터 */}
+      {waitingFirst && waitingSection}
 
       <section id="today-work" className="scroll-mt-20">
         <h2 className="section-title">오늘의 {pro ? '일' : '근무'}</h2>
@@ -548,6 +592,14 @@ export default async function MePage(props: PageProps<'/me'>) {
               })()}
               <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
             </div>
+          ) : waitingFirst ? (
+            // 확정을 기다리는 지원이 위에 있으면 한 줄로만 (큰 빈 화면 안내가 그 칸을 아래로 밀지 않게)
+            <p className="card flex items-center justify-between gap-3 py-3.5 text-sm" data-today-empty="compact">
+              <span className="min-w-0 text-sub">{pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}</span>
+              <Link href={pro ? '/pro' : '/'} className="shrink-0 font-semibold whitespace-nowrap text-brand-600">
+                {pro ? '다른 의뢰 보기 →' : '다른 알바 보기 →'}
+              </Link>
+            </p>
           ) : (
             <Empty icon="🌤️" sticker="schedule" title={pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}>
               {/* 전문가는 알바 공고가 아닌 전문가 의뢰 목록으로 */}
@@ -851,25 +903,7 @@ export default async function MePage(props: PageProps<'/me'>) {
         </section>
       )}
 
-      {waiting.length > 0 && (
-        <section>
-          <h2 className="section-title">확정 대기</h2>
-          <div className="stagger space-y-2">
-            {waiting.map((a) => (
-              <Link key={a.id} href={`/jobs/${a.job_id}`} className="card-link flex items-center justify-between py-4">
-                <div className="min-w-0">
-                  <p className="font-bold">{a.job.title}</p>
-                  <CompanyName job={a.job} />
-                  <p className="text-sm text-sub">{fmtDateRange(a.job.start_date, a.job.end_date)}</p>
-                  {/* 모집이 마감됐으면 결과를 기다리는 중이라고 (계속 지원 중인 줄 알지 않게) */}
-                  {a.job.status === 'closed' && <p className="text-xs font-semibold text-amber-700">모집 마감 · 결과를 곧 알려 드려요</p>}
-                </div>
-                <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
+      {!waitingFirst && waitingSection}
 
       {history.length > 0 && (
         <section>
