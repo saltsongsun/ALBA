@@ -246,6 +246,8 @@ export default function JobForm({
   // 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서, 화면 색도 보라로)
   const [audience, setAudience] = useState<'worker' | 'expert'>(job?.audience ?? 'worker')
   const [locMsg, setLocMsg] = useState('')
+  // '현재 위치로': 찾는 동안 버튼이 '찾는 중…' (길면 10초) · 좌표가 들어오면 두 칸이 잠깐 초록 테두리
+  const [locating, setLocating] = useState(false)
   const [mapSrc, setMapSrc] = useState<string | null>(null)
   const latRef = useRef<HTMLInputElement>(null)
   const lngRef = useRef<HTMLInputElement>(null)
@@ -292,14 +294,53 @@ export default function JobForm({
     .map((t) => t.title)
   const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
 
+  // 좌표를 코드로 채운 뒤: 요약·안내를 지금 값으로 맞추고, 두 칸이 채워졌다는 걸 잠깐 보여 줌 ('움직임 줄이기'면 표시만)
+  const coordsFilled = () => {
+    setEst(preview(formRef.current))
+    setFd(new FormData(formRef.current!))
+    for (const el of [latRef.current, lngRef.current]) {
+      if (!el) continue
+      el.dataset.filled = String(Date.now())
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        el.animate?.([{ boxShadow: '0 0 0 3px rgb(16 185 129 / 0.5)' }, { boxShadow: '0 0 0 3px rgb(16 185 129 / 0)' }], { duration: 700, easing: 'ease-out' })
+      }
+    }
+  }
   const pasteCoords = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const m = e.clipboardData.getData('text').match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/)
     if (m) {
       e.preventDefault()
       latRef.current!.value = m[1]
       lngRef.current!.value = m[2]
+      coordsFilled()
     }
   }
+  const fillHere = () => {
+    if (!navigator.geolocation) {
+      setLocMsg('이 기기에서는 위치를 쓸 수 없어요. 좌표를 직접 넣어 주세요.')
+      return
+    }
+    setLocating(true)
+    setLocMsg('위치 확인 중…')
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        latRef.current!.value = p.coords.latitude.toFixed(6)
+        lngRef.current!.value = p.coords.longitude.toFixed(6)
+        setLocating(false)
+        setLocMsg('현재 위치를 넣었습니다.')
+        coordsFilled()
+      },
+      () => {
+        setLocating(false)
+        setLocMsg('위치를 가져오지 못했습니다. 권한을 확인해 주세요.')
+      },
+      { enableHighAccuracy: true, timeout: 10_000 },
+    )
+  }
+  // 실수 막기: '현장에서만 근무 시작'을 켰는데 행사장 좌표가 없으면 저장할 때 막힘 → 켜는 순간 알려 줌
+  const gpsOn = fd ? !!fd.get('gps_required') : !!job?.gps_required
+  const hasPoint = fd ? !!(v('lat') && v('lng')) : job?.lat != null && job?.lng != null
+  const gpsNoPoint = gpsOn && !hasPoint
 
   return (
     <form
@@ -440,23 +481,8 @@ export default function JobForm({
             <input type="number" name="gps_radius_m" className="input" defaultValue={job?.gps_radius_m ?? 300} min={50} max={5000} />
           </Field>
           <div className="flex items-end">
-            <button
-              type="button"
-              className="btn-soft w-full"
-              onClick={() => {
-                setLocMsg('위치 확인 중…')
-                navigator.geolocation?.getCurrentPosition(
-                  (p) => {
-                    latRef.current!.value = p.coords.latitude.toFixed(6)
-                    lngRef.current!.value = p.coords.longitude.toFixed(6)
-                    setLocMsg('현재 위치를 넣었습니다.')
-                  },
-                  () => setLocMsg('위치를 가져오지 못했습니다. 권한을 확인해 주세요.'),
-                  { enableHighAccuracy: true, timeout: 10_000 },
-                )
-              }}
-            >
-              현재 위치로
+            <button type="button" className="btn-soft w-full" disabled={locating} aria-busy={locating} data-loc-here onClick={fillHere}>
+              {locating ? '찾는 중…' : '현재 위치로'}
             </button>
           </div>
         </div>
@@ -489,6 +515,17 @@ export default function JobForm({
           defaultChecked={job?.gps_required}
           hint="근무 시작 버튼을 누를 때 휴대폰 위치가 허용 반경 안이어야 합니다. 꺼 두면 위치만 기록합니다."
         />
+        {gpsNoPoint && (
+          <div className="flex animate-pop items-center justify-between gap-3 rounded-xl bg-amber-50 px-3 py-2 text-amber-800" role="status" data-gps-need>
+            <p className="min-w-0 text-xs">
+              <b className="block text-[13px]">행사장 위치가 비어 있어요</b>
+              <span className="block">위도·경도가 있어야 저장돼요</span>
+            </p>
+            <button type="button" className="btn btn-sm shrink-0 bg-white text-amber-800" disabled={locating} onClick={fillHere}>
+              {locating ? '찾는 중…' : '현재 위치로'}
+            </button>
+          </div>
+        )}
       </Fold>
 
       <Fold

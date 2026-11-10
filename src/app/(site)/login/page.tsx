@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { LoginForm } from '@/components/AuthForms'
+import { returnJob, ReturnJobChip } from '@/components/ReturnJob'
 import { getPlatformSettings, SUPPORT_NAME } from '@/lib/data'
 import { phoneFmt } from '@/lib/format'
 import { getUser } from '@/lib/session'
@@ -11,12 +12,14 @@ export const metadata: Metadata = { title: '로그인' }
 export default async function LoginPage(props: PageProps<'/login'>) {
   const sp = await props.searchParams
   const next = safePath(sp.next, '')
-  const [user, settings] = await Promise.all([getUser(), getPlatformSettings()])
+  // forJob: 공고를 보다가 온 로그인이면 그 공고 (로그인하면 거기로 돌아감)
+  const [user, settings, forJob] = await Promise.all([getUser(), getPlatformSettings(), returnJob(next)])
   if (user) redirect(next || '/me')
   return (
     <div className="pt-6">
       <h1 className="mb-1 text-2xl font-extrabold">로그인</h1>
-      <p className="mb-6 text-sub">가입할 때 쓴 휴대폰 번호로 로그인하세요.</p>
+      <p className={`text-sub ${forJob ? 'mb-3' : 'mb-6'}`}>가입할 때 쓴 휴대폰 번호로 로그인하세요.</p>
+      {forJob && <ReturnJobChip job={forJob} text="로그인하면 이 공고로 돌아가요" name="login" />}
       <div className="card">
         <LoginForm next={next} help={{ name: SUPPORT_NAME, phone: settings.contact_phone ?? null }} />
       </div>
