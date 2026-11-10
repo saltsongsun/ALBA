@@ -7,7 +7,7 @@ import { audit, getJob, isSupportThread, SUPPORT_NAME } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleSummary } from '@/lib/docs'
 import { won } from '@/lib/format'
-import { adminIds, sendPush } from '@/lib/push'
+import { sendAdminPush, sendPush } from '@/lib/push'
 import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
 import { signalOf } from '@/lib/signals'
@@ -50,7 +50,7 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   const cid = job?.company_id ?? (company as { id: string } | null)?.id
   if (!cid) return { error: '문의할 회사를 골라 주세요.' }
   must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: cid, job_id: job?.id ?? null, body }))
-  after(async () => sendPush(await adminIds(cid), { title: `💬 ${user.name} 문의`, body: plainBody(body), url: `/admin/chat/${user.id}`, tag: `chat-${user.id}` }))
+  after(async () => sendAdminPush(cid, { title: `💬 ${user.name} 문의`, body: plainBody(body), url: `/admin/chat/${user.id}`, tag: `chat-${user.id}` }))
   revalidatePath('/me/chat')
   return { ok: '보냈어요' }
 }

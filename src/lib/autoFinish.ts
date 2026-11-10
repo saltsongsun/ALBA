@@ -2,7 +2,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { db } from './db'
 import { scheduledEnd, shiftOf } from './pay'
-import { adminIds, sendPush } from './push'
+import { sendAdminPush } from './push'
 import { tellWorkers } from './notify'
 import { paydayLabel } from './payday'
 import { SIGNAL } from './signals'
@@ -47,7 +47,7 @@ export async function finishIfAllOut(jobId: string, workDate: string): Promise<b
   // 일한 근무자 모두에게 정산 예정일 안내 (지급일을 정해 둔 공고만)
   await tellPaydayOnEnd(job, null)
   after(async () =>
-    sendPush(await adminIds(job.company_id), {
+    sendAdminPush(job.company_id, {
       title: '🏁 행사 종료 · 전원 퇴근',
       body: `${job.title} · 근무자 ${n}명이 모두 퇴근해서 행사를 종료했어요. 정산 탭에서 확인해 주세요.`,
       url: `/admin/jobs/${jobId}?tab=pay`,

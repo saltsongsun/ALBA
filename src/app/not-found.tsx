@@ -12,7 +12,7 @@ export default function NotFound() {
         <Link href="/" className="btn-primary flex-1">
           모집 중인 알바
         </Link>
-        <Link href="/me" className="btn-gray flex-1">
+        <Link href="/me" className="btn-white flex-1">
           내 근무
         </Link>
       </div>

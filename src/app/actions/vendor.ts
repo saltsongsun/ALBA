@@ -8,7 +8,7 @@ import { encrypt } from '@/lib/crypto'
 import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
-import { adminIds, sendPush } from '@/lib/push'
+import { sendAdminPush } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import { requireAdmin, type AdminUser } from '@/lib/session'
 import { companyJob, companyRow } from '@/lib/company'
@@ -413,7 +413,7 @@ export async function submitQuote(token: string, _: FormState, form: FormData): 
   )
   const name = (vendor as { name: string } | null)?.name ?? '외주사'
   after(async () =>
-    sendPush(await adminIds(req.company_id), {
+    sendAdminPush(req.company_id, {
       title: '📄 견적 도착',
       body: `${name} · ${req.title} · ${won(amount)}`,
       url: `/admin/vendors/requests/${req.id}`,

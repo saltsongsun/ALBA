@@ -145,6 +145,7 @@ export default function DocsTab({
             phones={unsigned.map((u) => users.get(u)?.phone)}
             label={`서명 안 한 ${unsigned.length}명에게 문자`}
             body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
+            copyClassName="btn-white btn-sm"
           />
           {unsigned.length > 0 && (
             <form action={nudgeWorkers.bind(null, job.id, 'sign', null)}>
@@ -155,11 +156,11 @@ export default function DocsTab({
           )}
           {/* 이 공고의 서명 완료 서류를 한 PDF로 (인쇄·보관) · 전체 목록은 '서류' 메뉴 */}
           {signedCount > 0 && (
-            <a href={`/admin/docs/pdf?job=${job.id}&status=signed`} download className="btn-gray btn-sm" data-job-docs-pdf>
+            <a href={`/admin/docs/pdf?job=${job.id}&status=signed`} download className="btn-white btn-sm" data-job-docs-pdf>
               서명 완료 {signedCount}건 PDF
             </a>
           )}
-          <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-gray btn-sm">
+          <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-white btn-sm">
             필요 서류 바꾸기
           </Link>
         </div>

@@ -378,7 +378,7 @@ export default async function MePage(props: PageProps<'/me'>) {
           <p className="text-sm font-semibold text-brand-600">{fmtDate(today)}</p>
           <h1 className="text-[26px] leading-tight font-extrabold">{user.name}님, 안녕하세요</h1>
         </div>
-        <Link href="/me/profile" className="btn-gray btn-sm">
+        <Link href="/me/profile" className="btn-white btn-sm">
           내 정보
         </Link>
       </div>

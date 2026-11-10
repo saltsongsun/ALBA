@@ -29,7 +29,7 @@ export default async function CommunityAdminPage(props: PageProps<'/admin/commun
           <h1 className="text-2xl font-extrabold">커뮤니티 관리</h1>
           <p className="mt-0.5 text-sm text-sub">신고가 {AUTO_HIDE_REPORTS}번 쌓이면 자동으로 가려져요. 확인하고 다시 보이거나 그대로 가려 두세요.</p>
         </div>
-        <Link href="/community" className="btn-gray btn-sm shrink-0">
+        <Link href="/community" className="btn-white btn-sm shrink-0">
           커뮤니티 보기
         </Link>
       </div>

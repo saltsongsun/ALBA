@@ -8,7 +8,7 @@ import { approvedCounts, audit, ensurePendingDocs, getJob, getSettings, releaseD
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
-import { adminIds, sendPush } from '@/lib/push'
+import { sendAdminPush } from '@/lib/push'
 import { finishIfAllOut } from '@/lib/autoFinish'
 import { remindOthersToClockOut } from '@/lib/remind'
 import { parseCareers } from '@/lib/careers'
@@ -132,7 +132,7 @@ export async function applyJob(jobId: string, form: FormData) {
 
   if (status === 'approved') await ensurePendingDocs(job, user.id)
   after(async () =>
-    sendPush(await adminIds(job.company_id), {
+    sendAdminPush(job.company_id, {
       title: status === 'approved' ? '✅ 자동 확정' : '🙋 새 지원',
       body: `${user.name} · ${job.title}`,
       url: `/admin/jobs/${jobId}?tab=apps`,
@@ -197,7 +197,7 @@ export async function cancelApplication(appId: string, form?: FormData) {
         db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'applied'),
       ])
       const left = job ? job.headcount - ((await approvedCounts([jobId]))[jobId] ?? 0) : 0
-      await sendPush(await adminIds(companyId), {
+      await sendAdminPush(companyId, {
         title: `⚠️ 확정 취소${hoursLeft < 24 ? ' (24시간 안)' : ''}`,
         body: `${user.name} · ${title}${reason ? ` · ${reason}` : ''}${left > 0 ? ` · 빈자리 ${left}명, 대기 ${waiting ?? 0}명` : ''}`,
         url: `/admin/jobs/${jobId}?tab=apps`,
@@ -280,7 +280,7 @@ export async function changeDates(appId: string, form: FormData) {
     const jobId = app.job_id
     const companyId = app.company_id
     after(async () =>
-      sendPush(await adminIds(companyId), {
+      sendAdminPush(companyId, {
         title: `⚠️ 근무일 취소${soon ? ' (24시간 안)' : ''}`,
         body: `${user.name} · ${job.title} · ${days}${reason ? ` · ${reason}` : ''}`,
         url: `/admin/jobs/${jobId}?tab=att&date=${removed[0]}`,
@@ -457,7 +457,7 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
   const { job_id: jobId, work_date: date, company_id: companyId } = att
   const title = att.job.title
   after(async () =>
-    sendPush(await adminIds(companyId), {
+    sendAdminPush(companyId, {
       title: SIGNAL.fix,
       body: `${user.name} · ${title} · 실제 ${word} ${time}${reason ? ` · ${reason}` : ''}`,
       url: `/admin/jobs/${jobId}?tab=att&date=${date}`,
@@ -522,7 +522,7 @@ export async function requestFullTime(attendanceId: string, _: FormState, form: 
   const title = att.job.title
   const outText = kstTime(curOut)
   after(async () =>
-    sendPush(await adminIds(companyId), {
+    sendAdminPush(companyId, {
       title: '🙏 시간 인정 요청',
       body: `${user.name} · ${title} · ${outText}에 끝남 → ${endText}까지 인정 요청${reason ? ` · ${reason}` : ''}`,
       url: `/admin/jobs/${jobId}?tab=att&date=${date}`,
@@ -648,7 +648,7 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
   const title = r.job.title
   const companyId = r.job.company_id
   after(async () =>
-    sendPush(await adminIds(companyId), {
+    sendAdminPush(companyId, {
       title: `${SIGNAL.late} · ${minutes}분`,
       body: `${user.name} · ${title} · ${kstTime(eta)} 도착 예정${reason ? ` · ${reason}` : ''}`,
       url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
@@ -687,7 +687,7 @@ export async function requestClockIn(jobId: string, lat: number | null, lng: num
   const title = r.job.title
   const companyId = r.job.company_id
   after(async () =>
-    sendPush(await adminIds(companyId), {
+    sendAdminPush(companyId, {
       title: SIGNAL.arrive,
       body: `${user.name} · ${title} · ${kstTime(now)} 도착 · 앱에서 출근 처리해 주세요`,
       url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
@@ -746,7 +746,7 @@ export async function answerShift(changeId: string, choice: 'agree' | 'decline')
   ].join('\n')
   await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: c.company_id, job_id: c.job_id, body })
   after(async () =>
-    sendPush(await adminIds(c.company_id), {
+    sendAdminPush(c.company_id, {
       title: `⚠️ 근무시간 ${changeWord(c)} 어려움${cancelled ? ' · 확정 취소' : ''}`,
       body: `${user.name} · ${title} · ${when} ${span(c.start_time, c.end_time)}`,
       url: `/admin/jobs/${c.job_id}?tab=att${c.work_date ? `&date=${c.work_date}` : ''}`,
@@ -781,7 +781,7 @@ export async function answerOvertime(attendanceId: string, choice: 'request' | '
   if (choice === 'request') {
     const job = att.job
     after(async () =>
-      sendPush(await adminIds(job.company_id), {
+      sendAdminPush(job.company_id, {
         title: '⏱ 연장 근무 확인 요청',
         body: `${user.name} · ${job.title} · ${minutesText(afterMin)}`,
         url: `/admin/jobs/${job.id}?tab=att&date=${att.work_date}`,
@@ -921,7 +921,7 @@ export async function joinNow(jobId: string, code: string) {
     const title = job.title
     const companyId = job.company_id
     after(async () =>
-      sendPush(await adminIds(companyId), {
+      sendAdminPush(companyId, {
         title: '🚨 긴급 투입 합류',
         body: `${user.name} · ${title} · QR로 합류했어요`,
         url: `/admin/jobs/${jobId}?tab=att`,

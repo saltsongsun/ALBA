@@ -88,6 +88,37 @@ export async function adminIds(companyId: string): Promise<string[]> {
   return ((users ?? []) as { id: string }[]).map((u) => u.id)
 }
 
+/**
+ * 그 회사 관리자 전원에게 알림. 여러 회사를 맡은 관리자에게는 제목 끝에 회사 이름을 붙임 ('💬 홍길동 문의 · ○○기획')
+ * — 잠금 화면에서도 어느 회사 일인지 알 수 있게 (한 회사만 맡은 관리자에게는 예전 그대로 짧게).
+ * 회사 수·이름을 못 읽어도 알림은 그대로 보냄
+ */
+export async function sendAdminPush(companyId: string, msg: PushMessage, opts: { optional?: boolean } = {}): Promise<void> {
+  let ids: string[] = []
+  try {
+    ids = await adminIds(companyId)
+    if (!ids.length) return
+    const { data } = await db().from('company_members').select('user_id, company_id').in('user_id', ids)
+    const seen = new Map<string, Set<string>>()
+    for (const m of (data ?? []) as { user_id: string; company_id: string }[]) {
+      if (!ids.includes(m.user_id)) continue
+      if (!seen.has(m.user_id)) seen.set(m.user_id, new Set())
+      seen.get(m.user_id)!.add(m.company_id)
+    }
+    const multi = ids.filter((id) => (seen.get(id)?.size ?? 0) > 1)
+    const { data: co } = multi.length ? await db().from('companies').select('company_name').eq('id', companyId).maybeSingle() : { data: null }
+    const name = ((co as { company_name?: string | null } | null)?.company_name ?? '').trim()
+    if (!multi.length || !name) return sendPush(ids, msg, opts)
+    await Promise.all([
+      sendPush(ids.filter((id) => !multi.includes(id)), msg, opts),
+      sendPush(multi, { ...msg, title: `${msg.title} · ${name}` }, opts),
+    ])
+  } catch {
+    // 회사 이름을 붙이려다 실패해도 알림 자체는 보냄 (sendPush는 스스로 오류를 삼킴)
+    if (ids.length) await sendPush(ids, msg, opts)
+  }
+}
+
 /** 최고 관리자 (보안 경고 등 앱 전체 알림) */
 export async function superAdminIds(): Promise<string[]> {
   const { data } = await db().from('users').select('id').eq('role', 'admin').eq('is_super', true).eq('active', true)

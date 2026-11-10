@@ -660,7 +660,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <summary className="cursor-pointer py-1 font-semibold text-sub">근무를 못 하게 됐어요</summary>
                 <div className="mt-2 space-y-2 rounded-xl bg-bg p-3">
                   <p className="text-sub">근무한 기록이 있어 여기서는 취소할 수 없어요. 남은 근무를 못 하게 되면 담당자에게 알려 주세요.</p>
-                  <Link href={`/me/chat?job=${job.id}`} className="btn-gray btn-sm">
+                  <Link href={`/me/chat?job=${job.id}`} className="btn-white btn-sm">
                     <Icon name="chat" /> 담당자에게 알리기
                   </Link>
                 </div>
@@ -787,7 +787,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         <div className="flex flex-wrap justify-center gap-2">
           <Link
             href={user ? `/me/chat?job=${job.id}` : `/login?next=${encodeURIComponent(`/me/chat?job=${job.id}`)}`}
-            className="btn-gray btn-sm"
+            className="btn-white btn-sm"
           >
             <Icon name="chat" /> 이 공고 문의하기
           </Link>

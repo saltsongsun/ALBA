@@ -11,12 +11,15 @@ export function GroupContact({
   body,
   copy = true,
   className = 'btn-soft btn-sm',
+  copyClassName,
 }: {
   phones: (string | null | undefined)[]
   label: string
   body?: string
   copy?: boolean
   className?: string
+  /** 번호 복사 버튼 모양 (카드 밖, 화면 바탕 위에 놓일 땐 'btn-white btn-sm') */
+  copyClassName?: string
 }) {
   const list = [...new Set(phones.map((p) => (p ?? '').replace(/\D/g, '')).filter((p) => p.length >= 9))]
   const [ios, setIos] = useState(false)
@@ -39,7 +42,7 @@ export function GroupContact({
   return (
     <div className="flex flex-wrap gap-2">
       {sms}
-      <CopyButton text={list.map(phoneFmt).join(', ')} label={`번호 ${list.length}개 복사`} />
+      <CopyButton text={list.map(phoneFmt).join(', ')} label={`번호 ${list.length}개 복사`} {...(copyClassName ? { className: copyClassName } : {})} />
     </div>
   )
 }
