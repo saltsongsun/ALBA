@@ -18,7 +18,7 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { overlapDay } from '@/lib/overlap'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesUnread, replyMinutes, replySpan, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, otherCompaniesTodo, replyMinutes, replySpan, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -149,7 +149,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         admin.companies.map((c) => c.id),
       ).catch(() => null)
   // 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (바로 그 회사로 바꿔 보기)
-  const othersP = admin.companies.length > 1 ? otherCompaniesUnread(admin.companies, admin.companyId).catch(() => []) : Promise.resolve([])
+  // 여러 회사를 맡았으면: 다른 회사의 새 문의 + 확정을 기다리는 지원자 (회사를 바꿔 보지 않아도 알게)
+  const othersP = admin.companies.length > 1 ? otherCompaniesTodo(admin.companies, admin.companyId).catch(() => []) : Promise.resolve([])
   // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
   vendorP.catch(() => {})
   const today = kstDate()
@@ -774,14 +775,24 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {otherUnread.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
-            <Icon name="building" /> 다른 회사에 새 문의
+            <Icon name="building" /> {otherUnread.some((c) => c.waiting > 0) ? '다른 회사에 확인할 일' : '다른 회사에 새 문의'}
           </span>
           {otherUnread.map((c) => (
-            <form key={c.id} action={switchCompany}>
+            <form key={c.id} action={switchCompany} className="max-w-full">
               <input type="hidden" name="company" value={c.id} />
-              <SubmitButton className="chip max-w-[14rem]" pendingText="바꾸는 중…" track="다른 회사 문의로 바꾸기">
+              {/* 누르면 그 회사로: 새 문의 n · 확정을 기다리는 지원자 n (있는 것만) */}
+              <SubmitButton className="chip max-w-full" pendingText="바꾸는 중…" track="다른 회사 문의로 바꾸기">
                 <span className="min-w-0 truncate">{c.name}</span>
-                <b className="text-rose-600">{c.n}</b>
+                {c.n > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-unread-n>
+                    문의 <b className="text-rose-600">{c.n}</b>
+                  </span>
+                )}
+                {c.waiting > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-waiting>
+                    대기 <b className="text-amber-600">{c.waiting}</b>
+                  </span>
+                )}
               </SubmitButton>
             </form>
           ))}

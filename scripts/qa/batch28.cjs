@@ -38,7 +38,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await ad.goto(`${D}/admin`)
   const notice = ad.locator('[data-other-companies]')
   await notice.waitFor({ timeout: 10000 }).catch(() => {})
-  ok('대시보드: 다른 회사에 새 문의 (새내기행사 2)', (await notice.count()) === 1 && /새내기행사\s*2/.test(await notice.innerText()), await notice.innerText().catch(() => ''))
+  // (2026-11-10부터 칩에 '문의 n · 대기 n'으로 나눠 적음 — 확정 대기 지원자도 함께 알려 줌)
+  ok('대시보드: 다른 회사에 새 문의 (새내기행사 문의 2)', (await notice.count()) === 1 && /새내기행사\s*문의\s*2/.test(await notice.innerText()), await notice.innerText().catch(() => ''))
   ok('회사 고르기: 빨간 점', (await ad.locator('header [data-other-unread]').count()) === 1)
   const opt = await ad.locator(`header select[name=company] option[value="${C2}"]`).innerText()
   ok("회사 고르기 목록: '새내기행사 · 새 문의 2'", opt.includes('새내기행사') && opt.includes('새 문의 2'), opt)
@@ -51,7 +52,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('누르면 그 회사 화면으로', (await ad.locator('header select[name=company]').inputValue()) === C2)
   ok('그 회사 확인할 일에 새 문의 2건', /새 문의[\s\S]*2건/.test(await ad.locator('section', { hasText: '확인할 일' }).innerText().catch(() => '')))
   // 기본 회사에도 안 읽은 근무자 문의가 1건 있으므로, 이제는 기본 회사가 '다른 회사'로
-  ok("이번엔 기본 회사가 '다른 회사 새 문의'에", /주식회사 테스트\s*1/.test(await ad.locator('[data-other-companies]').innerText().catch(() => '')))
+  ok("이번엔 기본 회사가 '다른 회사'에 (문의 1)", /주식회사 테스트\s*문의\s*1/.test(await ad.locator('[data-other-companies]').innerText().catch(() => '')), await ad.locator('[data-other-companies]').innerText().catch(() => ''))
 
   // 한 회사만 맡은 관리자라면 안내 없음 (회사 하나)
   await rest(`companies?id=eq.${C2}`, 'PATCH', { active: false })

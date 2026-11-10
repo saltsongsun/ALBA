@@ -282,6 +282,86 @@ export default async function MePage(props: PageProps<'/me'>) {
           profileComplete: !!(me?.photo_at && me.bank_account_enc && me.emergency_phone && me.address && Array.isArray(me.careers) && me.careers.length > 0),
         })
       : null
+  // 레벨 카드 · 이번 주 내 근무 · 새 댓글 · 후기 권유: 근무가 없는 날엔 위쪽, 근무 날엔 '오늘의 근무' 아래 (출퇴근 버튼을 밀어내지 않게)
+  const extras = (
+    <>
+      {/* 병아리 레벨 카드는 지금 할 일(시간 변경 답·연장 확인·서명·계좌·사진) 다음에 (재미용이라 할 일을 밀어내지 않게) */}
+      {xp && <LevelCard s={xp} />}
+
+      {weekCount > 0 && (
+        <section aria-label="이번 주 내 근무" data-week>
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 className="text-[15px] font-bold">이번 주 내 {pro ? '일' : '근무'}</h2>
+            <span className="text-sm font-semibold text-brand-700">{weekCount}일</span>
+          </div>
+          <ol className="grid grid-cols-7 gap-1">
+            {week.map((d, i) => {
+              const w = weekWork[i]
+              const dow = new Date(`${d}T00:00:00Z`).getUTCDay()
+              const label = ['일', '월', '화', '수', '목', '금', '토'][dow]
+              const cls = w.length
+                ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 active:scale-95'
+                : `bg-white ring-1 ring-line ${i === 0 ? 'ring-2 ring-brand-300' : ''} ${dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-brand-500' : 'text-sub'}`
+              const inner = (
+                <>
+                  <span className="text-[11px] leading-none font-semibold opacity-80">{i === 0 ? '오늘' : label}</span>
+                  <span className="text-base leading-tight font-extrabold tabular-nums">{Number(d.slice(8))}</span>
+                  <span aria-hidden className={`size-1.5 rounded-full ${w.length ? 'bg-white' : 'bg-transparent'}`} />
+                </>
+              )
+              return (
+                <li key={d}>
+                  {w.length ? (
+                    <a
+                      href={i === 0 || todayApps.some((t) => t.id === w[0].id) ? '#today-work' : `#work-${w[0].id}`}
+                      aria-label={`${fmtDate(d)} ${w.map((x) => x.job.title).join(', ')}`}
+                      className={`flex animate-pop flex-col items-center gap-1 rounded-xl py-2 transition ${cls}`}
+                      style={{ animationDelay: `${i * 30}ms` }}
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <span className={`flex flex-col items-center gap-1 rounded-xl py-2 ${cls}`}>{inner}</span>
+                  )}
+                </li>
+              )
+            })}
+          </ol>
+        </section>
+      )}
+
+      {/* 내 커뮤니티 글에 새 댓글 */}
+      {newComments && (
+        <Link href={`/community/${newComments.postId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-new-comments>
+          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-xl text-brand-600">
+            <Icon name="chat" />
+            <span className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white tabular-nums">
+              {newComments.count > 9 ? '9+' : newComments.count}
+            </span>
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">내 글에 새 댓글이 달렸어요</b>
+            <span className="block truncate text-sm text-sub">{newComments.title}</span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-600">보기</span>
+        </Link>
+      )}
+
+      {/* 최근에 일한 공고 후기: 다음 근무자에게 도움 (일한 사람만, 별명) */}
+      {nudge && (
+        <Link href={`/me/review/${nudge.jobId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-review-nudge>
+          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-50 text-xl">
+            ⭐
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">{fmtDate(nudge.workDate)} 일, 어땠나요?</b>
+            <span className="block truncate text-sm text-sub">{nudge.title}</span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-amber-600">후기 쓰기</span>
+        </Link>
+      )}
+    </>
+  )
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
@@ -435,81 +515,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       <PushNudge publicKey={pushPublicKey()} reason="알림을 켜야 확정 소식을 놓치지 않아요" />
       {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
       {todayApps.length === 0 && profileNags}
-      {/* 병아리 레벨 카드는 지금 할 일(시간 변경 답·연장 확인·서명·계좌·사진) 다음에 (재미용이라 할 일을 밀어내지 않게) */}
-      {xp && <LevelCard s={xp} />}
-
-      {weekCount > 0 && (
-        <section aria-label="이번 주 내 근무" data-week>
-          <div className="mb-2 flex items-baseline justify-between">
-            <h2 className="text-[15px] font-bold">이번 주 내 {pro ? '일' : '근무'}</h2>
-            <span className="text-sm font-semibold text-brand-700">{weekCount}일</span>
-          </div>
-          <ol className="grid grid-cols-7 gap-1">
-            {week.map((d, i) => {
-              const w = weekWork[i]
-              const dow = new Date(`${d}T00:00:00Z`).getUTCDay()
-              const label = ['일', '월', '화', '수', '목', '금', '토'][dow]
-              const cls = w.length
-                ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 active:scale-95'
-                : `bg-white ring-1 ring-line ${i === 0 ? 'ring-2 ring-brand-300' : ''} ${dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-brand-500' : 'text-sub'}`
-              const inner = (
-                <>
-                  <span className="text-[11px] leading-none font-semibold opacity-80">{i === 0 ? '오늘' : label}</span>
-                  <span className="text-base leading-tight font-extrabold tabular-nums">{Number(d.slice(8))}</span>
-                  <span aria-hidden className={`size-1.5 rounded-full ${w.length ? 'bg-white' : 'bg-transparent'}`} />
-                </>
-              )
-              return (
-                <li key={d}>
-                  {w.length ? (
-                    <a
-                      href={i === 0 || todayApps.some((t) => t.id === w[0].id) ? '#today-work' : `#work-${w[0].id}`}
-                      aria-label={`${fmtDate(d)} ${w.map((x) => x.job.title).join(', ')}`}
-                      className={`flex animate-pop flex-col items-center gap-1 rounded-xl py-2 transition ${cls}`}
-                      style={{ animationDelay: `${i * 30}ms` }}
-                    >
-                      {inner}
-                    </a>
-                  ) : (
-                    <span className={`flex flex-col items-center gap-1 rounded-xl py-2 ${cls}`}>{inner}</span>
-                  )}
-                </li>
-              )
-            })}
-          </ol>
-        </section>
-      )}
-
-      {/* 내 커뮤니티 글에 새 댓글 */}
-      {newComments && (
-        <Link href={`/community/${newComments.postId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-new-comments>
-          <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-50 text-xl text-brand-600">
-            <Icon name="chat" />
-            <span className="absolute -top-0.5 -right-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white tabular-nums">
-              {newComments.count > 9 ? '9+' : newComments.count}
-            </span>
-          </span>
-          <span className="min-w-0 flex-1">
-            <b className="block text-[15px]">내 글에 새 댓글이 달렸어요</b>
-            <span className="block truncate text-sm text-sub">{newComments.title}</span>
-          </span>
-          <span className="shrink-0 text-sm font-bold text-brand-600">보기</span>
-        </Link>
-      )}
-
-      {/* 최근에 일한 공고 후기: 다음 근무자에게 도움 (일한 사람만, 별명) */}
-      {nudge && (
-        <Link href={`/me/review/${nudge.jobId}`} className="card-link flex animate-pop items-center gap-3 p-4" data-review-nudge>
-          <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-amber-50 text-xl">
-            ⭐
-          </span>
-          <span className="min-w-0 flex-1">
-            <b className="block text-[15px]">{fmtDate(nudge.workDate)} 일, 어땠나요?</b>
-            <span className="block truncate text-sm text-sub">{nudge.title}</span>
-          </span>
-          <span className="shrink-0 text-sm font-bold text-amber-600">후기 쓰기</span>
-        </Link>
-      )}
+      {/* 근무가 없는 날: 레벨 카드·이번 주·새 댓글·후기 권유가 먼저 */}
+      {todayApps.length === 0 && extras}
 
       <section id="today-work" className="scroll-mt-20">
         <h2 className="section-title">오늘의 {pro ? '일' : '근무'}</h2>
@@ -802,6 +809,8 @@ export default async function MePage(props: PageProps<'/me'>) {
         )}
       </section>
       {todayApps.length > 0 && profileNags}
+      {/* 근무 날: 출퇴근 버튼(오늘의 근무)과 할 일 다음에 레벨 카드·이번 주 등 (버튼이 첫 화면에 보이게) */}
+      {todayApps.length > 0 && extras}
 
       {upcoming.length > 0 && (
         <section>

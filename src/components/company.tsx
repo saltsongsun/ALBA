@@ -7,10 +7,21 @@ import BizNoField from './BizNoField'
 import { FormMessage, SubmitButton } from './ui'
 
 /** 관리자 화면 위 회사 고르기 (고르면 바로 그 회사 화면으로 — 보던 메뉴 그대로) */
-export function CompanySwitcher({ companies, current, unread = {} }: { companies: { id: string; name: string }[]; current: string; unread?: Record<string, number> }) {
+export function CompanySwitcher({
+  companies,
+  current,
+  unread = {},
+  waiting = {},
+}: {
+  companies: { id: string; name: string }[]
+  current: string
+  unread?: Record<string, number>
+  /** 다른 회사에서 확정을 기다리는 지원자 수 */
+  waiting?: Record<string, number>
+}) {
   const path = usePathname()
-  // 다른 회사에 새 문의가 있으면 점 + 고르기 목록에 '· 새 문의 N'
-  const other = Object.values(unread).reduce((n, x) => n + x, 0)
+  // 다른 회사에 새 문의·확정 대기 지원자가 있으면 점 + 고르기 목록에 '· 새 문의 N · 대기 N'
+  const other = Object.values(unread).reduce((n, x) => n + x, 0) + Object.values(waiting).reduce((n, x) => n + x, 0)
   return (
     <form action={switchCompany} className="min-w-0">
       {/* 보고 있던 메뉴에 그대로 남도록 (서버에서 정해 둔 메뉴만 받음) */}
@@ -34,6 +45,7 @@ export function CompanySwitcher({ companies, current, unread = {} }: { companies
             <option key={c.id} value={c.id}>
               {c.name}
               {c.id !== current && unread[c.id] ? ` · 새 문의 ${unread[c.id]}` : ''}
+              {c.id !== current && waiting[c.id] ? ` · 대기 ${waiting[c.id]}` : ''}
             </option>
           ))}
         </select>

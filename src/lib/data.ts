@@ -6,6 +6,7 @@ import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
 import { clientInfo } from './session'
 import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
+import { kstDate } from './time'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
 
 const COMPANY_COLS =
@@ -185,6 +186,35 @@ export async function otherCompaniesUnread(companies: { id: string; name: string
   if (!others.length) return []
   const counts = await Promise.all(others.map((c) => unreadForAdmins(c.id).catch(() => 0)))
   return others.map((c, i) => ({ id: c.id, name: c.name, n: counts[i] })).filter((c) => c.n > 0)
+}
+
+/** 그 회사에서 확정을 기다리는 지원자 수 (보류 빼고 · 모집·마감 상태이고 아직 안 끝난 공고만 — 대시보드 '확정 대기'와 같은 기준) */
+async function waitingApplicants(companyId: string, today: string): Promise<number> {
+  const jobs = ((await db().from('jobs').select('id, status, end_date').eq('company_id', companyId).in('status', ['open', 'closed']).gte('end_date', today)).data ?? []) as Pick<
+    Job,
+    'id' | 'status' | 'end_date'
+  >[]
+  const ids = jobs.filter((j) => (j.status === 'open' || j.status === 'closed') && j.end_date >= today).map((j) => j.id)
+  if (!ids.length) return 0
+  const r = await db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'applied').is('held_at', null).in('job_id', ids)
+  return r.error ? 0 : (r.count ?? 0)
+}
+
+/**
+ * 여러 회사를 맡은 관리자: 지금 보는 회사 말고 다른 회사에 쌓인 일 — 새 문의(n) + 확정을 기다리는 지원자(waiting).
+ * 회사는 이 관리자가 속한 곳(companies)만 봄 · 12곳까지 · 둘 다 없으면 뺌 (대시보드 안내·회사 고르기 표시)
+ */
+export async function otherCompaniesTodo(companies: { id: string; name: string }[], currentId: string): Promise<{ id: string; name: string; n: number; waiting: number }[]> {
+  const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
+  if (!others.length) return []
+  const today = kstDate()
+  const rows = await Promise.all(
+    others.map(async (c) => {
+      const [n, waiting] = await Promise.all([unreadForAdmins(c.id).catch(() => 0), waitingApplicants(c.id, today).catch(() => 0)])
+      return { id: c.id, name: c.name, n, waiting }
+    }),
+  )
+  return rows.filter((c) => c.n > 0 || c.waiting > 0)
 }
 
 /**

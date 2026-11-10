@@ -47,6 +47,11 @@ const plus = (d, n) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86400e3).toIS
   const widths = await cells.evaluateAll((l) => l.map((e) => Math.round(e.getBoundingClientRect().width)))
   ok('360px: 7칸이 한 줄, 같은 너비', widths.every((w) => w === widths[0] && w >= 38), JSON.stringify(widths))
   ok('360px: 옆으로 안 밀림', await p.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
+  // 사람이 하듯: 그 칸이 화면 가운데쯤 오게 내린 뒤(다 멈춘 다음) 누름
+  // (2026-11-10부터 근무 날엔 '이번 주'가 '오늘의 근무' 아래라 처음 화면 밖 — 자동 클릭이 아래 탭 줄에 가린 칸을
+  //  끌어올리느라 여러 번 스크롤하면 부드러운 스크롤과 엉켜 엉뚱한 곳에 멈췄음. 앱 동작은 그대로)
+  await cells.nth(2).evaluate((el) => window.scrollTo({ top: el.getBoundingClientRect().top + scrollY - innerHeight / 2, behavior: 'instant' }))
+  await p.waitForTimeout(400)
   await cells.nth(2).locator('a').click()
   await p.waitForTimeout(900)
   const box = await p.locator(`#work-${APP2}`).boundingBox()

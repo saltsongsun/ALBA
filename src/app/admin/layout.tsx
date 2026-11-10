@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import TopLink from '@/components/TopLink'
 import LogoutButton from '@/components/LogoutButton'
-import { otherCompaniesUnread, unreadForAdmins } from '@/lib/data'
+import { otherCompaniesTodo, unreadForAdmins } from '@/lib/data'
 import { db } from '@/lib/db'
 import { adminRoomUnreadTotal } from '@/lib/room'
 import { requireAdmin } from '@/lib/session'
@@ -40,8 +40,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           .is('resolved_at', null)
           .then((r) => (r.error ? 0 : (r.count ?? 0)))
       : 0,
-    // 여러 회사를 맡았으면 다른 회사의 새 문의 (회사 고르기에 표시)
-    admin.companies.length > 1 ? otherCompaniesUnread(admin.companies, admin.companyId) : Promise.resolve([]),
+    // 여러 회사를 맡았으면 다른 회사의 새 문의·확정 대기 지원자 (회사 고르기에 표시 · 못 읽어도 화면은 그대로)
+    admin.companies.length > 1 ? otherCompaniesTodo(admin.companies, admin.companyId).catch(() => []) : Promise.resolve([]),
   ])
   return (
     <>
@@ -56,7 +56,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               </span>
             </TopLink>
             {admin.companies.length > 1 ? (
-              <CompanySwitcher companies={admin.companies} current={admin.companyId} unread={Object.fromEntries(others.map((o) => [o.id, o.n]))} />
+              <CompanySwitcher companies={admin.companies} current={admin.companyId} unread={Object.fromEntries(others.map((o) => [o.id, o.n]))} waiting={Object.fromEntries(others.map((o) => [o.id, o.waiting]))} />
             ) : (
               <p className="min-w-0 truncate text-[15px] font-bold">
                 <Icon name="building" className="text-mute" /> {admin.companyName}
