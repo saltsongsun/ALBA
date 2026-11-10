@@ -29,6 +29,19 @@ export async function jobInMyOtherCompany(admin: Pick<AdminUser, 'companyId' | '
   return mine ? { id: mine.id, name: mine.name } : null
 }
 
+/**
+ * 회사별 표의 한 행이 지금 보는 회사 것이 아닐 때: 내가 맡은 다른 회사의 것이면 그 회사 (없는 화면 대신 회사를 바꿔 열게).
+ * 내가 맡지 않은 회사의 것은 null — 있는지도 알리지 않음
+ */
+export async function rowInMyOtherCompany(admin: Pick<AdminUser, 'companyId' | 'companies'>, table: string, id: string): Promise<{ id: string; name: string } | null> {
+  if (!isUuid(id)) return null
+  const { data } = await db().from(table).select('company_id').eq('id', id).maybeSingle()
+  const cid = (data as { company_id?: string } | null)?.company_id
+  if (!cid || cid === admin.companyId) return null
+  const mine = admin.companies.find((c) => c.id === cid)
+  return mine ? { id: mine.id, name: mine.name } : null
+}
+
 /** 회사별 표의 한 행을 읽되, 이 회사 것이 아니면 null */
 export async function companyRow<T extends { company_id: string }>(
   admin: Pick<AdminUser, 'companyId'>,

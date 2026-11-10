@@ -1,6 +1,6 @@
 // 묶음 187 (정기 개선 2026-11-11 03:35 KST)
 // · 회색 보조 버튼(btn-gray)은 화면 바탕과 같은 색이라, 카드 밖(회색 바탕 위)에 놓이면 글자처럼만 보였음
-//   → 그런 자리는 흰 버튼(btn-white: 흰 바탕 + 옅은 테두리)으로: 공고 화면 '이 공고 문의하기' · 내 근무 '내 정보' · 없는 화면 '내 근무'
+//   → 그런 자리는 흰 버튼(btn-white: 흰 바탕 + 옅은 테두리)으로: 공고 화면 '이 공고 문의하기' · 내 근무 '내 정보' (없는 화면은 묶음 188에서 흰 카드로)
 //     · 지원자 탭 '번호 복사'·'＋ 번호로 추가' · 서류 탭 'PDF'·'필요 서류 바꾸기' · 커뮤니티 관리 '커뮤니티 보기'
 //   주요 화면을 돌며 '바탕과 같은 색 버튼'이 하나도 없는지 확인 (새로 생기면 여기서 걸림) · 어두운 화면에서도 흰색으로 뜨지 않음
 // (관리자 알림 제목의 회사 이름은 push-admin-company.cjs에서 확인)
@@ -69,7 +69,9 @@ const isWhiteBtn = (s) => !!s && s.bg === WHITE && s.behind !== WHITE && s.ring 
   await w.goto(`${D}/jobs/cccccccc-0000-4000-8000-000000018799`)
   const myWork = w.getByRole('link', { name: '내 근무', exact: true })
   await myWork.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("없는 화면 '내 근무': 흰 버튼", isWhiteBtn(await look(myWork)), JSON.stringify(await look(myWork)))
+  // 없는 화면은 흰 카드 안으로 옮김 (묶음 188) → 카드 안 회색 버튼이 바탕(흰색)과 달라 버튼으로 보임
+  const sWork = await look(myWork)
+  ok("없는 화면 '내 근무': 흰 카드 안 버튼 (바탕과 다른 색)", !!sWork && sWork.behind === WHITE && sWork.bg !== sWork.behind, JSON.stringify(sWork))
   if (SHOTS) await w.screenshot({ path: `${SHOTS}/404.png` }).catch(() => {})
 
   // ── 2. 관리자 화면

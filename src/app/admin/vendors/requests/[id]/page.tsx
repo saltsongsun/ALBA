@@ -7,6 +7,8 @@ import Fold from '@/components/Fold'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { RecordQuoteForm } from '@/components/vendor'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
+import { rowInMyOtherCompany } from '@/lib/company'
 import { getJob, getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
@@ -25,7 +27,20 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
   if (!isUuid(id)) notFound()
   const { data } = await db().from('quote_requests').select('*').eq('company_id', admin.companyId).eq('id', id).maybeSingle()
   const req = data as QuoteRequest | null
-  if (!req) notFound()
+  if (!req) {
+    // 내가 맡은 다른 회사의 견적 요청이면 (업체가 견적을 냈다는 알림을 눌렀을 때): 그 회사로 바꿔서 열기
+    const other = await rowInMyOtherCompany(admin, 'quote_requests', id)
+    if (!other) notFound()
+    return (
+      <OtherCompanyJob
+        title="다른 회사 견적 요청이에요"
+        company={other}
+        now={admin.companyName}
+        open={`/admin/vendors/requests/${id}`}
+        back={{ href: '/admin/vendors', label: '지금 회사 외주 관리로' }}
+      />
+    )
+  }
   const [quotes, vendors, job, settings, origin] = await Promise.all([
     db()
       .from('quotes')
