@@ -12,7 +12,8 @@ import JobTools from '@/components/JobTools'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { getSettings, wageTotal } from '@/lib/data'
 import { won } from '@/lib/format'
-import { companyJob } from '@/lib/company'
+import { companyJob, jobInMyOtherCompany } from '@/lib/company'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { recruitText, scheduleText } from '@/lib/docs'
@@ -116,7 +117,15 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       .eq('rater_id', admin.id)
       .then((r) => must(r) as { user_id: string; score: number }[]),
   ])
-  if (!job) notFound()
+  if (!job) {
+    // 내가 맡은 다른 회사의 공고면 (알림·공유 링크): 없는 화면 대신 그 회사로 바꿔서 열기 — 보려던 탭·날짜 그대로
+    const other = await jobInMyOtherCompany(admin, id)
+    if (!other) notFound()
+    const q = new URLSearchParams()
+    if (sp.tab === 'apps' || sp.tab === 'att' || sp.tab === 'pay' || sp.tab === 'docs') q.set('tab', sp.tab)
+    if (typeof sp.date === 'string' && isDate(sp.date)) q.set('date', sp.date)
+    return <OtherCompanyJob title="다른 회사 공고예요" company={other} now={admin.companyName} open={`/admin/jobs/${id}${q.size ? `?${q}` : ''}`} />
+  }
   // 조회 현황 (관리자만): 확인한 인원·지금 보는 인원·본 가입자
   // 확인 전 회사에는 '본 가입자' 이름을 보여 주지 않음 (공고를 미끼로 회원 이름을 모으지 못하게)
   // 근로계약서를 종이·다른 서비스로 받으면 앱 서명 서류에서 계약서 서식은 뺌

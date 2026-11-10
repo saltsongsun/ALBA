@@ -8,7 +8,8 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
-import { companyJob } from '@/lib/company'
+import { companyJob, jobInMyOtherCompany } from '@/lib/company'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { adminJoined, markRoomRead, pinnedReads, roomMembers, roomMessages, roomOpen, roomPinned, roomReads } from '@/lib/room'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { requireAdmin } from '@/lib/session'
@@ -21,7 +22,12 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
   const admin = await requireAdmin()
   const [{ jobId }, sp] = await Promise.all([props.params, props.searchParams])
   const job = await companyJob(admin, jobId)
-  if (!job) notFound()
+  if (!job) {
+    // 내가 맡은 다른 회사의 단체방이면 (알림으로 열었을 때): 그 회사로 바꿔서 열기
+    const other = await jobInMyOtherCompany(admin, jobId)
+    if (!other) notFound()
+    return <OtherCompanyJob title="다른 회사 단체방이에요" company={other} now={admin.companyName} open={`/admin/chat/room/${jobId}`} />
+  }
   // 관리자는 '공고를 올린 사람 + 방에 들어온 사람'만 참여 — 참여 전에는 읽기만 (읽음 표시도 남기지 않아 참여로 치지 않음)
   const joined = await adminJoined(job, admin.id)
   const creator = job.created_by === admin.id

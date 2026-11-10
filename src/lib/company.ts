@@ -17,6 +17,18 @@ export async function companyJob(admin: Pick<AdminUser, 'companyId'>, jobId: str
   return job && job.company_id === admin.companyId ? job : null
 }
 
+/**
+ * 지금 보는 회사의 공고가 아닐 때: 내가 맡은 다른 회사의 공고면 그 회사 (알림·공유 링크로 열었을 때 '없는 화면' 대신 회사를 바꿔 열게).
+ * 내가 맡지 않은 회사의 공고는 null — 있는지도 알리지 않음
+ */
+export async function jobInMyOtherCompany(admin: Pick<AdminUser, 'companyId' | 'companies'>, jobId: string): Promise<{ id: string; name: string } | null> {
+  if (!isUuid(jobId)) return null
+  const job = await getJob(jobId)
+  if (!job || job.company_id === admin.companyId) return null
+  const mine = admin.companies.find((c) => c.id === job.company_id)
+  return mine ? { id: mine.id, name: mine.name } : null
+}
+
 /** 회사별 표의 한 행을 읽되, 이 회사 것이 아니면 null */
 export async function companyRow<T extends { company_id: string }>(
   admin: Pick<AdminUser, 'companyId'>,

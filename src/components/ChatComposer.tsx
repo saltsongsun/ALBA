@@ -152,12 +152,27 @@ export default function ChatComposer({
     }
   }
 
+  // 단체방(이모티콘 + @ 버튼 두 개): 글을 쓰기 시작하면 두 버튼을 '›' 하나로 접어 입력 칸을 넓힘 (360px에서 한 줄에 10자 → 14자쯤)
+  // '›'를 누르면 다시 펼침 · 글을 다 지우거나 보내면 처음대로
+  const [hasText, setHasText] = useState(false)
+  const [toolsOpen, setToolsOpen] = useState(false)
+  const compact = !!mentions?.length && hasText && !toolsOpen && !picker
   const fit = () => {
     const el = textRef.current
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 132)}px`
+    const filled = el.value.trim().length > 0
+    setHasText(filled)
+    if (!filled) setToolsOpen(false)
   }
+  // 버튼이 접히거나 펼쳐지면 입력 칸 너비가 달라지니 높이를 다시 맞춤
+  useEffect(() => {
+    const el = textRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, 132)}px`
+  }, [compact])
 
   useEffect(() => {
     if (!state) return
@@ -266,24 +281,40 @@ export default function ChatComposer({
         </div>
       )}
       <div className="flex items-end gap-1.5 rounded-3xl bg-white p-1.5 pl-1.5 shadow-[0_4px_20px_rgba(0,0,0,0.08)] ring-1 ring-line">
-        <StickerToggle
-          open={picker}
-          onClick={() => {
-            setPicker((v) => !v)
-            setBtnPicker(false)
-          }}
-        />
-        {!!mentions?.length && (
+        {compact ? (
           <button
             type="button"
-            aria-label="사람 부르기 (@)"
-            data-mention-toggle
+            aria-label="이모티콘·사람 부르기 펼치기"
+            data-tools-toggle
             onMouseDown={(e) => e.preventDefault()}
-            onClick={startMention}
-            className="grid size-11 shrink-0 place-items-center rounded-full text-[19px] font-bold text-sub transition active:scale-90 active:bg-bg"
+            onClick={() => setToolsOpen(true)}
+            className="grid h-11 w-7 shrink-0 animate-pop place-items-center rounded-full text-2xl leading-none font-bold text-mute transition active:scale-90 active:bg-bg"
           >
-            @
+            <span aria-hidden className="-mt-0.5">›</span>
           </button>
+        ) : (
+          <>
+            <StickerToggle
+              open={picker}
+              className={toolsOpen ? 'animate-pop' : ''}
+              onClick={() => {
+                setPicker((v) => !v)
+                setBtnPicker(false)
+              }}
+            />
+            {!!mentions?.length && (
+              <button
+                type="button"
+                aria-label="사람 부르기 (@)"
+                data-mention-toggle
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={startMention}
+                className={`grid size-11 shrink-0 place-items-center rounded-full text-[19px] font-bold text-sub transition active:scale-90 active:bg-bg ${toolsOpen ? 'animate-pop' : ''}`}
+              >
+                @
+              </button>
+            )}
+          </>
         )}
         <textarea
           ref={textRef}

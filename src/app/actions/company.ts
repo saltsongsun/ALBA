@@ -29,6 +29,18 @@ function switchTarget(path: string): string {
   return seg && SECTIONS.includes(seg) ? `/admin/${seg}` : '/admin'
 }
 
+/**
+ * 회사를 바꾸면서 바로 열 화면: 그 회사의 공고·단체방 주소일 때만 (알림·공유 링크로 다른 회사 공고를 열었을 때).
+ * 주소 모양이 다르거나 그 회사 공고가 아니면 null → 평소처럼 메뉴 목록으로
+ */
+const OPEN_JOB = /^\/admin\/(?:jobs|chat\/room)\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?:\?[A-Za-z0-9=&_.-]{1,120})?$/
+async function openTarget(path: string, companyId: string): Promise<string | null> {
+  const jobId = OPEN_JOB.exec(path)?.[1]
+  if (!jobId) return null
+  const { data } = await db().from('jobs').select('company_id').eq('id', jobId).maybeSingle()
+  return (data as { company_id: string } | null)?.company_id === companyId ? path : null
+}
+
 /** 관리자 화면에서 볼 회사 바꾸기 (들어갈 수 있는 회사만). 보던 메뉴에 그대로 남고, 어느 회사로 바꿨는지 안내 */
 export async function switchCompany(form: FormData) {
   const companyId = str(form, 'company', 40)
@@ -43,7 +55,8 @@ export async function switchCompany(form: FormData) {
     path: '/',
     maxAge: 60 * 60 * 24 * 365,
   })
-  back(switchTarget(str(form, 'back', 300)), `${target.name} 화면으로 바꿨어요`)
+  const open = await openTarget(str(form, 'open', 300), companyId)
+  back(open ?? switchTarget(str(form, 'back', 300)), `${target.name} 화면으로 바꿨어요`)
 }
 
 /**
