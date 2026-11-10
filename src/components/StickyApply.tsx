@@ -45,7 +45,7 @@ export default function StickyApply({
     return () => io.disconnect()
   }, [targetId])
 
-  if (!mounted || targetVisible) return null
+  if (!mounted) return null
 
   const goToForm = () => {
     const el = document.getElementById(targetId)
@@ -58,8 +58,12 @@ export default function StickyApply({
   }
 
   return createPortal(
+    // 지원 칸이 보이면 툭 사라지지 않고 아래로 스르륵 내려가며 숨음 (0.2초 · 다시 내리면 올라옴 · '움직임 줄이기'면 바로)
     <div
-      className={`no-print fixed inset-x-0 z-20 px-3 pb-3 sm:hidden ${aboveTabs ? 'bottom-[var(--tabbar-space)]' : 'bottom-[env(safe-area-inset-bottom)]'}`}
+      className={`no-print fixed inset-x-0 z-20 px-3 pb-3 transition-[translate,opacity] duration-200 ease-out sm:hidden ${aboveTabs ? 'bottom-[var(--tabbar-space)]' : 'bottom-[env(safe-area-inset-bottom)]'} ${targetVisible ? 'pointer-events-none translate-y-full opacity-0' : ''}`}
+      aria-hidden={targetVisible || undefined}
+      inert={targetVisible || undefined}
+      data-sticky-apply={targetVisible ? 'hidden' : 'shown'}
     >
       <div className="glass mx-auto flex max-w-md animate-slide-up items-center gap-3 rounded-[22px] p-2 pl-4">
         <div className="min-w-0 flex-1">

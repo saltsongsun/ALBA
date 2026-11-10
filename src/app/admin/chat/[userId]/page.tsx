@@ -16,7 +16,7 @@ import { workerInCompany } from '@/lib/company'
 import { ASK_MISSED, parsePayday, SIGNAL } from '@/lib/signals'
 import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
-import { kstDate } from '@/lib/time'
+import { fmtDate, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 
 export const metadata: Metadata = { title: '문의 대화' }
 
@@ -39,7 +39,9 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   const admin = await requireAdmin()
   const { userId } = await props.params
   if (!isUuid(userId)) notFound()
-  const [{ data: worker }, messages] = await Promise.all([
+  const today = kstDate()
+  type WorkJob = { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string }
+  const [{ data: worker }, messages, , myApps, todayAtts] = await Promise.all([
     db().from('users').select('id, name, phone, photo_at').eq('id', userId).maybeSingle(),
     db()
       .from('messages')
@@ -50,6 +52,21 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
       .then((r) => (must(r) as unknown as ChatMessage[]).sort((a, b) => a.created_at.localeCompare(b.created_at))),
     // 이 회사로 온 근무자 문의를 읽음으로 (이 회사 관리자 누구든 한 번 읽으면 읽음)
     db().from('messages').update({ read_at: new Date().toISOString() }).eq('company_id', admin.companyId).eq('thread_user_id', userId).eq('from_admin', false).is('read_at', null),
+    // 이름 아래 한 줄: 이 회사에서 오늘 근무 상태(근무 중·퇴근·출근 전) 또는 다음 근무 (답장할 때 상황을 바로 알게)
+    db()
+      .from('applications')
+      .select('job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+      .eq('company_id', admin.companyId)
+      .eq('user_id', userId)
+      .eq('status', 'approved')
+      .then((r) => ((r.data ?? []) as unknown as { job: WorkJob | null }[]).map((a) => a.job).filter((j): j is WorkJob => !!j && j.status !== 'cancelled' && j.end_date >= today)),
+    db()
+      .from('attendance')
+      .select('job_id, clock_in, clock_out')
+      .eq('company_id', admin.companyId)
+      .eq('user_id', userId)
+      .eq('work_date', today)
+      .then((r) => (r.data ?? []) as { job_id: string; clock_in: string; clock_out: string | null }[]),
   ])
   // 이 회사에 문의했거나 지원한 근무자만
   if (!worker || (!messages.length && !(await workerInCompany(admin.companyId, userId)))) notFound()
@@ -76,10 +93,33 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     }
   }
 
+  const upcoming = [...myApps].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.start_time.localeCompare(b.start_time))
+  const todayJob = upcoming.find((j) => j.start_date <= today)
+  const nextJob = upcoming.find((j) => j.start_date > today)
+  let workLine: { dot: string; text: string; title: string; href: string } | null = null
+  if (todayJob) {
+    const att = todayAtts.find((a) => a.job_id === todayJob.id)
+    let endAt = kstAt(today, todayJob.end_time).getTime()
+    if (todayJob.end_time <= todayJob.start_time) endAt += 86_400_000
+    workLine = {
+      dot: att ? (att.clock_out ? 'bg-gray-400' : 'bg-emerald-500') : 'bg-amber-400',
+      text: att
+        ? att.clock_out
+          ? `오늘 퇴근 ${kstTime(att.clock_out)}`
+          : `오늘 근무 중 · ${kstTime(att.clock_in)} 시작`
+        : Date.now() >= endAt
+          ? '오늘 근무 · 출근 기록 없음'
+          : `오늘 ${hhmm(todayJob.start_time)}~${hhmm(todayJob.end_time)} · 출근 전`,
+      title: todayJob.title,
+      href: `/admin/jobs/${todayJob.id}?tab=att`,
+    }
+  } else if (nextJob) {
+    workLine = { dot: 'bg-sky-400', text: `다음 근무 ${fmtDate(nextJob.start_date)} ${hhmm(nextJob.start_time)}`, title: nextJob.title, href: `/admin/jobs/${nextJob.id}` }
+  }
+
   // '오늘 출근했는데 근무 시작을 못 눌렀어요' → 이 회사 오늘 근무에 출근 기록이 없으면 바로 '기록 넣기' (출퇴근 탭의 그 사람 · 수기 등록 칸 펼침)
   let missed: { jobId: string; title: string } | null = null
   if (lastAsk?.body.startsWith(ASK_MISSED.slice(0, 20))) {
-    const today = kstDate()
     const { data: apps } = await db()
       .from('applications')
       .select('job_id, job:jobs(id, title, start_date, end_date, company_id)')
@@ -111,11 +151,22 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         )}
       </div>
       <div className="card flex flex-wrap items-center justify-between gap-2 p-4">
-        <div className="flex items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           <Avatar id={worker.id} name={worker.name} photoAt={worker.photo_at} />
-          <Link href={`/admin/workers/${worker.id}`} className="text-lg font-bold hover:text-brand-600">
-            {worker.name}
-          </Link>
+          <div className="min-w-0">
+            <Link href={`/admin/workers/${worker.id}`} className="text-lg font-bold hover:text-brand-600">
+              {worker.name}
+            </Link>
+            {/* 이 회사 오늘 근무 상태(또는 다음 근무) 한 줄 · 누르면 그 공고 */}
+            {workLine && (
+              <Link href={workLine.href} className="flex min-w-0 items-center gap-1.5 text-xs text-sub" data-chat-work>
+                <span aria-hidden className={`size-2 shrink-0 rounded-full ${workLine.dot}`} />
+                <span className="truncate">
+                  <b className="font-semibold text-ink">{workLine.text}</b> · {workLine.title}
+                </span>
+              </Link>
+            )}
+          </div>
         </div>
         <ContactButtons phone={worker.phone} name={worker.name} />
       </div>
