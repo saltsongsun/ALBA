@@ -57,16 +57,16 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   })
   ok("'확정 대기' 칸이 '오늘의 근무' 위에 · 첫 화면 안에 다 보임 (아래 메뉴 위)", (await wait.getAttribute('data-waiting')) === 'first' && order.before && order.top > 0 && order.bottom < 660, JSON.stringify(order))
   const compact = p.locator('[data-today-empty=compact]')
-  ok("'오늘의 근무'는 한 줄 안내로 (큰 빈 화면 그림 없음)", one(await compact.innerText().catch(() => '')) === '오늘 예정된 근무가 없어요 다른 알바 보기 →' && (await compact.evaluate((el) => el.getBoundingClientRect().height <= 56).catch(() => false)) && (await p.locator('[data-empty=schedule]').count()) === 0 && (await compact.getByRole('link').getAttribute('href')) === '/', one(await compact.innerText().catch(() => '')))
+  ok("'오늘의 근무'는 한 줄 안내로 (큰 빈 화면 그림 없음)", one(await compact.innerText().catch(() => '')) === '오늘 예정된 근무가 없어요 다른 알바 보기 →' && (await compact.evaluate((el) => el.getBoundingClientRect().height <= 56).catch(() => false)) && (await p.locator('[data-empty=schedule]').count()) === 0 && (await compact.getAttribute('href')) === '/', one(await compact.innerText().catch(() => '')))
   const soon = p.locator('[data-waiting-soon]')
-  ok("곧 시작(하루 안): '곧 시작인데 아직 확정 전이에요 · 담당자에게 문의 →'", (await soon.getAttribute('data-waiting-soon')) === 'soon' && one(await soon.innerText()) === '곧 시작인데 아직 확정 전이에요 담당자에게 문의 →' && (await soon.getByRole('link').getAttribute('href')) === `/me/chat?job=${J}&ask=confirm`, one(await soon.innerText().catch(() => '')))
-  ok('한 줄 · 360px 옆으로 안 밀림', (await soon.evaluate((el) => el.getBoundingClientRect().height <= 40).catch(() => false)) && (await noSide(p)), String(await soon.evaluate((el) => Math.round(el.getBoundingClientRect().height)).catch(() => '')))
+  ok("곧 시작(하루 안): '곧 시작인데 아직 확정 전이에요 · 담당자에게 문의 →'", (await soon.getAttribute('data-waiting-soon')) === 'soon' && one(await soon.innerText()) === '곧 시작인데 아직 확정 전이에요 담당자에게 문의 →' && (await soon.getAttribute('href')) === `/me/chat?job=${J}&ask=confirm`, one(await soon.innerText().catch(() => '')))
+  ok('한 줄 · 360px 옆으로 안 밀림', (await soon.evaluate((el) => el.getBoundingClientRect().height <= 44).catch(() => false)) && (await noSide(p)), String(await soon.evaluate((el) => Math.round(el.getBoundingClientRect().height)).catch(() => '')))
   if (SHOTS) { await p.waitForTimeout(500); await p.screenshot({ path: `${SHOTS}/me-waiting.png` }).catch(() => {}) }
   // 카드(제목 쪽)를 누르면 공고로
   ok('카드 제목 쪽은 그대로 공고로', (await p.locator('[data-waiting-app] > a').first().getAttribute('href')) === `/jobs/${J}`)
 
   // ── 2. '담당자에게 문의' → 확정 여부를 묻는 말이 첫 빠른 답
-  await soon.getByRole('link').click()
+  await soon.click() // 줄 전체가 누르는 곳 (묶음 192)
   await p.waitForURL((u) => u.pathname === '/me/chat' && u.searchParams.get('ask') === 'confirm', { timeout: 15000 }).catch(() => {})
   const chips = p.locator('[data-quick-replies] button')
   await chips.first().waitFor({ timeout: 15000 }).catch(() => {})

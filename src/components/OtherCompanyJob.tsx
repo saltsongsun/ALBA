@@ -40,7 +40,7 @@ export default function OtherCompanyJob({
             <span className="shrink-0 whitespace-nowrap">화면에서 열기</span>
           </SubmitButton>
         </form>
-        <Link href={back.href} className="inline-block text-sm font-semibold text-sub">
+        <Link href={back.href} className="-my-2 inline-flex min-h-10 items-center px-4 text-sm font-semibold text-sub active:opacity-60">
           {back.label}
         </Link>
       </div>

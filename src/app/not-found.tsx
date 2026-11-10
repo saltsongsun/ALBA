@@ -20,7 +20,7 @@ export default function NotFound() {
           </Link>
         </div>
         {/* 보던 화면이 있으면 그리로 (링크를 잘못 눌렀을 때) */}
-        <BackButton fallback="/" className="mt-4 inline-block text-sm font-semibold text-sub">
+        <BackButton fallback="/" className="mt-2 inline-flex min-h-10 items-center px-4 text-sm font-semibold text-sub active:opacity-60">
           ← 보던 화면으로
         </BackButton>
       </div>

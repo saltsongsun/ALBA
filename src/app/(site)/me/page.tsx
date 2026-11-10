@@ -317,12 +317,15 @@ export default async function MePage(props: PageProps<'/me'>) {
                 <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
               </Link>
               {soon && (
-                <p className="mt-2.5 flex items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px]" data-waiting-soon={started ? 'started' : 'soon'}>
+                // 줄 전체가 누르는 곳 (글자만 누르게 하면 작아서 빗나감)
+                <Link
+                  href={`/me/chat?job=${a.job_id}&ask=confirm`}
+                  className="mt-2.5 flex min-h-10 items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px] transition active:scale-[0.98]"
+                  data-waiting-soon={started ? 'started' : 'soon'}
+                >
                   <span className="min-w-0 font-semibold text-amber-900">{started ? '시작했는데 아직 확정 전이에요' : '곧 시작인데 아직 확정 전이에요'}</span>
-                  <Link href={`/me/chat?job=${a.job_id}&ask=confirm`} className="shrink-0 font-bold whitespace-nowrap text-brand-700">
-                    담당자에게 문의 →
-                  </Link>
-                </p>
+                  <span className="shrink-0 font-bold whitespace-nowrap text-brand-700">담당자에게 문의 →</span>
+                </Link>
               )}
             </div>
           )
@@ -601,12 +604,10 @@ export default async function MePage(props: PageProps<'/me'>) {
             </div>
           ) : waitingFirst ? (
             // 확정을 기다리는 지원이 위에 있으면 한 줄로만 (큰 빈 화면 안내가 그 칸을 아래로 밀지 않게)
-            <p className="card flex items-center justify-between gap-3 py-3.5 text-sm" data-today-empty="compact">
+            <Link href={pro ? '/pro' : '/'} className="card-link flex items-center justify-between gap-3 py-3.5 text-sm" data-today-empty="compact">
               <span className="min-w-0 text-sub">{pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}</span>
-              <Link href={pro ? '/pro' : '/'} className="shrink-0 font-semibold whitespace-nowrap text-brand-600">
-                {pro ? '다른 의뢰 보기 →' : '다른 알바 보기 →'}
-              </Link>
-            </p>
+              <span className="shrink-0 font-semibold whitespace-nowrap text-brand-600">{pro ? '다른 의뢰 보기 →' : '다른 알바 보기 →'}</span>
+            </Link>
           ) : (
             <Empty icon="🌤️" sticker="schedule" title={pro ? '오늘 예정된 일이 없어요' : '오늘 예정된 근무가 없어요'}>
               {/* 전문가는 알바 공고가 아닌 전문가 의뢰 목록으로 */}
