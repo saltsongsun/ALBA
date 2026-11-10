@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { bulkClockOut, duplicateJob, endEvent, setJobStatus } from '@/app/actions/admin'
 import StartsIn from '@/components/StartsIn'
+import LiveNumber from '@/components/LiveNumber'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { jobPhase } from '@/lib/jobPhase'
 import { shiftOf } from '@/lib/pay'
@@ -47,9 +48,14 @@ export default function JobActions({ job, today, working, finished = 0, absent =
     </p>
   ) : (
     <p className="flex items-center justify-center gap-3 text-sm font-semibold tabular-nums" data-job-counts>
-      <span className="text-emerald-700">근무 중 {working}</span>
+      {/* 자동 새로 고침으로 숫자가 바뀌면 톡 (LiveNumber) */}
+      <span className="text-emerald-700">
+        근무 중 <LiveNumber value={working} />
+      </span>
       <span className="text-line">|</span>
-      <span>퇴근 {finished}</span>
+      <span>
+        퇴근 <LiveNumber value={finished} />
+      </span>
       {absent > 0 && (
         <>
           <span className="text-line">|</span>

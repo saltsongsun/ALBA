@@ -76,13 +76,30 @@ export default function SealField({ current }: { current: string | null }) {
   }
 
   const shown = data ?? current
+  // 저장된 직인 그림이 깨져 있으면(불러오지 못함) 그림 대신 다시 올리라는 말 (새로 고르면 다시 보임)
+  const [brokenSrc, setBrokenSrc] = useState<string | null>(null)
+  const broken = !!shown && brokenSrc === shown
+  const imgRef = useRef<HTMLImageElement>(null)
+  // 화면이 준비되기 전에 이미 실패했을 수도 있어서 한 번 더 확인
+  useEffect(() => {
+    const el = imgRef.current
+    if (el && shown && el.complete && el.naturalWidth === 0) setBrokenSrc(shown)
+  }, [shown])
   return (
     <div className="flex flex-wrap items-center gap-4">
-      {shown ? (
+      {broken ? (
+        <div className="grid size-24 place-items-center rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 p-2 text-center text-xs font-semibold text-amber-800" data-seal-broken>
+          {/* 좁은 칸이라 두 줄로 짧게 (다시 올리기는 바로 옆 '직인 바꾸기') */}
+          <span>
+            <span className="block">직인 그림이</span>
+            <span className="block">깨졌어요</span>
+          </span>
+        </div>
+      ) : shown ? (
         // 투명한 부분이 보이게 체크무늬 위에
         <span className="grid size-24 place-items-center rounded-xl border border-line bg-[repeating-conic-gradient(#f2f4f6_0_25%,#fff_0_50%)] bg-[length:16px_16px] p-1">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={shown} alt="직인" className={`size-full object-contain ${busy ? 'animate-pulse' : ''}`} />
+          <img ref={imgRef} src={shown} alt="직인" className={`size-full object-contain ${busy ? 'animate-pulse' : ''}`} onError={() => setBrokenSrc(shown)} />
         </span>
       ) : (
         <div className="grid size-24 place-items-center rounded-xl border-2 border-dashed border-line text-xs text-mute">없음</div>

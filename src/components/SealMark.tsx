@@ -1,3 +1,5 @@
+import SealImg from './SealImg'
+
 /**
  * '(인)' 자리와 그 위에 겹쳐 찍는 직인. 직인은 항상 '(인)' 글자 한가운데에 찍힘
  * (예전처럼 줄 시작에서 고정 거리로 놓으면 대표자 이름 길이에 따라 엉뚱한 곳에 찍혀서).
@@ -8,10 +10,8 @@ export default function SealMark({ seal, size = 'md' }: { seal: string | null | 
   return (
     <span className="inline-grid place-items-center align-middle">
       <span className="text-mute [grid-area:1/1]">(인)</span>
-      {seal && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={seal} alt="직인" className={`pointer-events-none ${box} object-contain mix-blend-multiply [grid-area:1/1]`} />
-      )}
+      {/* 직인 그림이 깨져 있으면 숨기고 '(인)'만 (SealImg) */}
+      {seal && <SealImg src={seal} className={`pointer-events-none ${box} object-contain mix-blend-multiply [grid-area:1/1]`} />}
     </span>
   )
 }
