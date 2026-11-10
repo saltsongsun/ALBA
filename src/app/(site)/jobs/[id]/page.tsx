@@ -187,6 +187,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
   const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
   // 지원하고 기다리는 중이면: 이 회사가 보통 얼마 만에 답하는지 (회사마다 달라서 · 기록이 적으면 안 보임)
+  // 확정 근무를 24시간 안에(또는 이미 시작한 날) 취소하려 하면: 남은 시간 + 담당자 전화 (취소 칸 위에)
+  const nextDay = app?.status === 'approved' ? (app.available_dates ?? dates).filter((d) => d >= kstDate()).sort()[0] : undefined
+  const untilMin = nextDay ? Math.round((kstAt(nextDay, job.start_time).getTime() - Date.now()) / 60_000) : null
+  const soonCancel =
+    untilMin != null && untilMin <= 24 * 60
+      ? {
+          left: untilMin > 0 ? `시작까지 ${minutesText(untilMin)} 남았어요` : '오늘 이미 시작한 근무예요',
+          phone: job.manager_phone || company.contact_phone || company.company_phone || null,
+        }
+      : null
   const replyMin = app?.status === 'applied' && !ended && job.status !== 'cancelled' ? await replyMinutes(job.company_id).catch(() => null) : null
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
@@ -606,12 +616,24 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               <details className="text-sm">
                 <summary className="cursor-pointer py-1 font-semibold text-sub">근무를 못 하게 됐어요</summary>
                 <form action={cancelApplication.bind(null, app.id)} className="mt-2 space-y-3 rounded-xl bg-bg p-3">
+                  {/* 24시간 안에 시작하는(또는 이미 시작한) 근무: 갑자기 빠지면 대신할 사람을 못 구하니 먼저 전화하게 */}
+                  {soonCancel && (
+                    <div className="animate-pop rounded-xl bg-amber-50 px-3 py-2.5 text-amber-900" data-cancel-soon>
+                      <b className="block font-semibold">{soonCancel.left}</b>
+                      <span className="block text-xs">갑자기 빠지면 대신할 사람을 구하기 어려워요</span>
+                      {soonCancel.phone && (
+                        <a href={`tel:${soonCancel.phone.replace(/\D/g, '')}`} className="mt-2 inline-flex items-center gap-1 font-bold text-brand-700" data-cancel-call>
+                          <Icon name="phone" /> 먼저 담당자에게 전화하기
+                        </a>
+                      )}
+                    </div>
+                  )}
                   <p className="text-sub">취소하면 담당자에게 바로 알림이 가요. 사유를 고르면 담당자가 사정을 알 수 있어요.</p>
                   <div className="flex flex-wrap gap-1.5">
                     {CANCEL_REASONS.map((r) => (
                       <label key={r} className="cursor-pointer">
                         <input type="radio" name="reason" value={r} className="peer sr-only" />
-                        <span className="chip h-8 px-3 text-xs peer-checked:bg-brand-600 peer-checked:text-white">{r}</span>
+                        <span className="chip h-8 px-3 text-xs peer-checked:animate-pop peer-checked:bg-brand-600 peer-checked:text-white">{r}</span>
                       </label>
                     ))}
                   </div>

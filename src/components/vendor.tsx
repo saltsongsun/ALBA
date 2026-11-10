@@ -52,7 +52,7 @@ function VatChoice({ included = true }: { included?: boolean }) {
       ).map(([v, label]) => (
         <label key={v} className="flex-1 cursor-pointer">
           <input type="radio" name="vat" value={v} defaultChecked={(v === 'included') === included} className="peer sr-only" />
-          <span className="block rounded-xl bg-white px-3 py-2.5 text-center font-semibold text-sub ring-1 ring-line peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600">
+          <span className="block rounded-xl bg-white px-3 py-2.5 text-center font-semibold text-sub ring-1 ring-line peer-checked:animate-pop peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600">
             {label}
           </span>
         </label>

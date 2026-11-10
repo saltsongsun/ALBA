@@ -101,7 +101,7 @@ export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCateg
           {CATS.map((c) => (
             <label key={c.id} className="flex-1">
               <input type="radio" name="category" value={c.id} defaultChecked={c.id === defaultCategory} className="peer sr-only" />
-              <span className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-bold text-sub ring-1 ring-line transition peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600 active:scale-95">
+              <span className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-bold text-sub ring-1 ring-line transition peer-checked:animate-pop peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600 active:scale-95">
                 <Icon name={c.icon} /> {c.label}
               </span>
             </label>
