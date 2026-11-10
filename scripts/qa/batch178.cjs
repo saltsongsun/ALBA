@@ -36,6 +36,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const next = encodeURIComponent(`/jobs/${J}`)
 
   // ── 1. 비회원: 공고 아래 바 → 알바 가입 화면으로 바로
+  // (오후 6시 뒤엔 오늘 공고가 끝난 근무라 지원 바가 안 나옴 → 이 확인 동안만 공고 날짜를 내일로)
+  const day0 = kstDay(Date.now()), day1 = kstDay(Date.now() + 864e5)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: day1, end_date: day1 })
   const g = await pg(null)
   await g.goto(`${D}/jobs/${J}`)
   const bar = g.locator('[data-sticky-apply] a').first()
@@ -90,7 +93,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok('머리말 한 줄', await g.getByText('유형마다 화면과 계약·정산이 달라요.').evaluate((el) => el.getBoundingClientRect().height < 30).catch(() => false))
   if (SHOTS) await g.screenshot({ path: `${SHOTS}/signup-picker.png`, clip: { x: 0, y: 0, width: 360, height: 560 } }).catch(() => {})
 
-  // ── 3. 지난 근무: 날짜별 기록
+  // ── 3. 지난 근무: 날짜별 기록 (공고 날짜는 다시 오늘로)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: day0, end_date: day0 })
   const w = await pg(W)
   const [att] = await rest(`attendance?user_id=eq.${W}`)
   const today = kstDay(Date.now()), yest = kstDay(Date.now() - 864e5)

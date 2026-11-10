@@ -19,7 +19,11 @@ const errs = []
     const p = await ctx.newPage(); p.on('pageerror', (e) => errs.push(e.message.slice(0, 120))); return p
   }
   // 모집 1명인데 이미 1명 확정 → 대기자 확정은 한 번 더 물어봄
-  await send(MD, `jobs?id=eq.${J}`, 'PATCH', { headcount: 1 })
+  // (오후 6시 뒤에 돌려도 '끝난 행사 · 확정?' 확인에 걸리지 않게 공고 날짜를 내일로)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
+  await send(MD, `jobs?id=eq.${J}`, 'PATCH', { headcount: 1, start_date: tmr, end_date: tmr })
+  // (대기자의 가능일이 오늘로만 적혀 있어서, 내일 인원에도 세어지게 날짜 제한을 풂)
+  await send(MD, `applications?id=eq.${AP}`, 'PATCH', { available_dates: null })
   const a = await pg(D)
   await a.goto(`${D}/admin/jobs/${J}?tab=apps`)
   await a.getByRole('button', { name: '대기 1명 모두 확정' }).click()
