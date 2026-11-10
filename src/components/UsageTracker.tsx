@@ -116,7 +116,8 @@ export default function UsageTracker() {
         taps = []
       }
       taps = [...taps.filter((x) => now - x < 1000), now]
-      if (taps.length === 3) {
+      // 서명 칸(여러 획을 빠르게 그림)·입력 칸(커서 옮기기)은 답답해서 누르는 게 아니라서 뺌 (기록을 흐림)
+      if (taps.length === 3 && !t.closest('canvas, [data-sign-pad], input, textarea, select')) {
         // 어디인지만 (글자는 보내지 않음): 버튼 이름표가 있으면 그것, 없으면 누른 곳부터 위로 올라가며
         // 처음 만나는 data 이름·id·role (예: 'li[data-msg-id] › div') — 'div'만 남아 어디인지 모르던 것을 고침
         const name = tracked?.dataset.track || (tracked ? cleanLabel(tracked.innerText) : '')

@@ -19,7 +19,14 @@ export function RevealRrn({ userId, masked }: { userId: string; masked: string |
   const [state, action] = useActionState(revealRrn.bind(null, userId), null)
   return (
     <form action={action} onReset={keepInputs} className="flex flex-wrap items-center gap-2">
-      <span className="font-mono">{state?.ok ?? masked ?? '미등록'}</span>
+      {/* 가린 번호 자체를 눌러도 열림 (이용 기록: 가린 글자를 여러 번 누름 — 버튼과 같은 열람 · 똑같이 기록됨) */}
+      {!state?.ok && masked ? (
+        <button type="submit" className="font-mono" aria-label="주민등록번호 전체 보기 (기록됨)" data-reveal-value>
+          {masked}
+        </button>
+      ) : (
+        <span className="font-mono">{state?.ok ?? masked ?? '미등록'}</span>
+      )}
       {!state?.ok && masked && <SubmitButton className="btn-gray btn-sm">전체 보기 (기록됨)</SubmitButton>}
       {state?.error && <span className="text-xs text-rose-600">{state.error}</span>}
     </form>
@@ -69,9 +76,14 @@ export function RevealInfo({
   }
   const valuePart = (
     <>
-      <span className={value ? '' : 'tracking-wide text-sub'} data-reveal-value>
-        {value ?? masked}
-      </span>
+      {/* 가린 값 자체를 눌러도 열림 (이용 기록: 가린 글자를 여러 번 누름 — 버튼과 같은 열람 · 똑같이 기록됨) */}
+      {value ? (
+        <span data-reveal-value>{value}</span>
+      ) : (
+        <button type="button" className="tracking-wide text-sub" onClick={get} disabled={pending} aria-label="전체 보기 (기록됨)" data-reveal-value>
+          {masked}
+        </button>
+      )}
       {!value && (
         <button type="button" className="contact-btn bg-bg text-sub hover:bg-line" onClick={get} disabled={pending} data-reveal-btn>
           {pending ? '…' : '전체 보기 (기록됨)'}

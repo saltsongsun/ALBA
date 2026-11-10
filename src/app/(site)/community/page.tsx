@@ -35,6 +35,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
     reviewTab ? [] : hot && !q ? hotPosts(user.id) : listPosts({ category, viewerId: user.id, q, mine }),
     reviewTab ? recentReviews(30) : [],
   ])
+  // 글이 아직 하나도 없으면(첫 화면): 이미 있는 회사 후기를 함께 보여 줌 (이용 기록: 커뮤니티를 열고 1~2초 안에 나감 — 볼 것이 없어서)
+  const emptyBoard = posts.length === 0 && !reviewTab && !category && !mine && !hot && !q
+  const latestReviews = emptyBoard ? await recentReviews(2).catch(() => []) : []
   const writer = canWrite(user) // 내 지원 보여 주기 등 근무자끼리 기능
   const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
   // 나에게 지원 공고를 보여 주는 사람이 쓴 글에는 '🤝 동료' (상대가 고른 경우만)
@@ -182,6 +185,32 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
               </li>
             ))}
           </ul>
+          {/* 이미 올라온 회사 후기 (볼 것이 있게) */}
+          {latestReviews.length > 0 && (
+            <div className="space-y-2 border-t border-line pt-3" data-community-reviews>
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-bold">회사 후기</h3>
+                <Link href="/community?c=review" className="shrink-0 text-xs font-semibold text-brand-600">
+                  모두 보기 →
+                </Link>
+              </div>
+              <ul className="space-y-1.5">
+                {latestReviews.map((r) => (
+                  <li key={r.id}>
+                    <Link href={`/community/company/${r.company_id}`} className="block rounded-xl bg-amber-50/70 px-3 py-2 transition active:scale-[0.99]">
+                      <span className="flex items-center justify-between gap-2 text-xs">
+                        <b className="min-w-0 truncate">🏢 {r.companyName}</b>
+                        <span className="shrink-0 font-bold text-amber-500" aria-label={`별점 ${r.rating}점`}>
+                          {'★'.repeat(r.rating)}
+                        </span>
+                      </span>
+                      <span className="mt-0.5 line-clamp-2 block text-sm">{r.body}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </section>
       ) : posts.length === 0 ? (
         <Empty icon="💬" sticker="hi" title={category ? `${categoryOf(category).label} 글이 아직 없어요` : '첫 글을 남겨 주세요'}>

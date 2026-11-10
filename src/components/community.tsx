@@ -377,6 +377,9 @@ export function NicknameForm({ current }: { current: string }) {
 const RATING_WORDS: Record<number, string> = { 1: '😞 별로였어요', 2: '😕 아쉬웠어요', 3: '🙂 보통이었어요', 4: '😊 좋았어요', 5: '🤩 최고였어요!' }
 
 /** 후기: 별 다섯 개를 눌러 고르고 한 줄 이상 */
+/** 후기 칸에 눌러 넣는 한마디 (좋은 점·아쉬운 점 모두) */
+const REVIEW_PHRASES = ['담당자가 친절했어요.', '급여가 제때 들어왔어요.', '휴게 시간이 잘 지켜졌어요.', '안내가 자세했어요.', '일이 생각보다 힘들었어요.', '안내가 부족했어요.']
+
 export function ReviewForm({ jobId, rating: r0, body: b0 }: { jobId: string; rating?: number; body?: string }) {
   const [state, action] = useActionState(saveReview.bind(null, jobId), null)
   const [rating, setRating] = useState(r0 ?? 0)
@@ -413,6 +416,25 @@ export function ReviewForm({ jobId, rating: r0, body: b0 }: { jobId: string; rat
           후기
         </label>
         <textarea id="review-body" name="body" defaultValue={b0} className="input min-h-28" maxLength={500} required placeholder="일하기 어땠나요? 담당자 응대·휴게·급여 지급 등 다음 근무자에게 도움이 되는 이야기를 남겨 주세요." />
+        {/* 눌러 넣는 한마디 (이용 기록: 후기 화면에 온 사람의 절반만 남김 · '5자 이상' 오류) — 누르면 후기 칸에 이어 붙음 */}
+        <div className="fade-x mt-2 flex gap-1.5 overflow-x-auto pb-0.5" data-review-chips>
+          {REVIEW_PHRASES.map((t) => (
+            <button
+              key={t}
+              type="button"
+              className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line transition active:scale-95"
+              onClick={(e) => {
+                const el = e.currentTarget.form?.elements.namedItem('body') as HTMLTextAreaElement | null
+                if (!el || el.value.includes(t)) return
+                el.value = el.value.trim() ? `${el.value.trim()} ${t}` : t
+                el.dispatchEvent(new Event('input', { bubbles: true }))
+                haptic(8)
+              }}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
       </div>
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full py-3" pendingText="남기는 중…">

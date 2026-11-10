@@ -18,6 +18,8 @@ import { NewJobsChip } from '@/components/NewJobs'
 import { companyRating, companyRatings } from '@/lib/community'
 import { featureOn } from '@/lib/flags'
 import { coworkerCounts } from '@/lib/coworkers'
+import PushToggle from '@/components/PushToggle'
+import { pushPublicKey } from '@/lib/push'
 
 /** 회사 공고 모음 링크(/?co=회사)를 보내면: 미리보기에 회사 이름 · 모집 중 공고 수 · 그림 */
 export async function generateMetadata(props: PageProps<'/'>): Promise<Metadata> {
@@ -372,15 +374,19 @@ export default async function HomePage(props: PageProps<'/'>) {
         </p>
       )}
       {jobs.length === 0 ? (
-        <Empty icon="🔍" sticker="wait" title="지금은 모집 중인 공고가 없어요">
-          {company ? (
-            <Link href="/#jobs" className="font-semibold text-brand-600">
-              다른 회사 공고 보기 →
-            </Link>
-          ) : (
-            '새 공고가 올라오면 단톡방으로 알려 드릴게요.'
-          )}
-        </Empty>
+        <div className="space-y-3" data-home-nojobs>
+          <Empty icon="🔍" sticker="wait" title="지금은 모집 중인 공고가 없어요">
+            {company ? (
+              <Link href="/#jobs" className="font-semibold text-brand-600">
+                다른 회사 공고 보기 →
+              </Link>
+            ) : (
+              '새 공고가 올라오면 단톡방으로 알려 드릴게요.'
+            )}
+          </Empty>
+          {/* 이용 기록: 공고가 없는 날 홈에서 그대로 나가는 사람이 많음 → 알림을 안 켠 회원에게는 바로 켜는 카드 (켰으면 안 보임) */}
+          {user && <PushToggle publicKey={pushPublicKey()} variant="card" reason="모집·확정을 바로 알려요" />}
+        </div>
       ) : listed.length === 0 ? (
         <Empty icon="🗓️" title="조건에 맞는 공고가 없어요">
           {loosen.length > 0 ? (
@@ -431,8 +437,13 @@ export default async function HomePage(props: PageProps<'/'>) {
       {!user && (
         <section data-home-join className="mt-6 space-y-3 rounded-3xl bg-white p-5 shadow-sm ring-1 ring-line">
           <div>
-            <p className="font-bold">마음에 드는 공고가 있나요?</p>
-            <p className="mt-0.5 text-sm text-sub">가입은 1분이면 끝나요. 지원 뒤 확정되면 이렇게 진행돼요.</p>
+            {/* 공고가 없는 날엔 '마음에 드는 공고가 있나요?'가 맞지 않음 → 미리 가입해 둘 이유를 말함 */}
+            <p className="font-bold" data-join-title>
+              {jobs.length === 0 ? '미리 가입해 두세요' : '마음에 드는 공고가 있나요?'}
+            </p>
+            <p className="mt-0.5 text-sm text-sub">
+              {jobs.length === 0 ? '새 공고가 올라오면 바로 지원할 수 있어요. 이렇게 진행돼요.' : '가입은 1분이면 끝나요. 지원 뒤 확정되면 이렇게 진행돼요.'}
+            </p>
           </div>
           <ol className="grid grid-cols-3 gap-1.5 text-center text-xs font-semibold text-sub" data-home-steps>
             {['공고 보고 지원', '앱에서 계약서 서명', '출퇴근 누르면 급여 정산'].map((t, i) => (
