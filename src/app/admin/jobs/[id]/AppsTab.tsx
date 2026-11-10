@@ -3,6 +3,7 @@ import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, h
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
+import Empty from '@/components/Empty'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
@@ -511,9 +512,10 @@ export default async function AppsTab({
       )}
       {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} link={`${origin}/jobs/${job.id}`} workers={past} />}
       {apps.length === 0 ? (
-        <div className="card py-10 text-center text-mute">
-          아직 지원자가 없습니다. 위의 모집 문구를 단톡방에 공유해 보세요.
-        </div>
+        // 빈 화면: 다음에 할 일을 알려 줌 (모집 중일 때만 — 끝난 공고엔 권하지 않음)
+        <Empty icon="📣" title="아직 지원자가 없어요">
+          {job.status === 'open' && job.end_date >= kstDate() ? '위의 모집 문구를 단톡방에 올려 보세요' : undefined}
+        </Empty>
       ) : (
         <>
           {/* 휴대폰: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) */}

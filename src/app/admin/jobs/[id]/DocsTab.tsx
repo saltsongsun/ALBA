@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { nudgeWorkers, rerequestDoc, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
 import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
+import Empty from '@/components/Empty'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import type { Job, SignedDoc } from '@/lib/types'
@@ -164,7 +165,11 @@ export default function DocsTab({
         </div>
       </div>
       {cols.length === 0 ? (
-        <div className="card py-10 text-center text-mute">이 공고에는 서명받을 서류가 지정되어 있지 않습니다.</div>
+        <Empty icon="📄" title="서명받을 서류가 없어요">
+          <Link href={`/admin/jobs/${job.id}/edit#docs`} className="font-semibold text-brand-600" data-empty-next="docs">
+            {contractNameOf(job.audience)} 등 서류 지정하기 →
+          </Link>
+        </Empty>
       ) : (
         <div className="card overflow-hidden p-0">
         <div className="fade-r overflow-x-auto">

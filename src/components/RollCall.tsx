@@ -62,7 +62,7 @@ export default function RollCall({
     setPicked((s) => new Set([...[...s].filter((id) => !list.some((p) => p.id === id)), ...list.map((p) => p.id)]))
   }
 
-  if (!people.length) return <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>
+  if (!people.length) return <div className="card py-10 text-center text-mute">이날 근무 명단이 없어요.</div>
 
   return (
     <div className="space-y-3" data-roll-call>

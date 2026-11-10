@@ -1,5 +1,6 @@
 import Icon from '@/components/Icon'
 import PayTools from '@/components/PayTools'
+import Empty from '@/components/Empty'
 import Link from 'next/link'
 import { announcePayday, nudgeWorkers, setAllPaid, setPaid, setPaidSelected } from '@/app/actions/admin'
 import { PickAll, PickBar } from '@/components/BulkApprove'
@@ -246,7 +247,12 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
         </p>
       )}
       {rows.length === 0 ? (
-        <div className="card py-10 text-center text-mute">아직 근무 기록이 없어요.</div>
+        <Empty icon="💰" title="아직 근무 기록이 없어요">
+          <span className="block">근무를 마치면 여기서 급여를 확인해요</span>
+          <Link href={`/admin/jobs/${job.id}?tab=att`} className="mt-1 inline-block font-semibold text-brand-600" data-empty-next="att">
+            출퇴근 보기 →
+          </Link>
+        </Empty>
       ) : (
         <>
         {/* 휴대폰: 열이 많아 옆으로 밀어야 함 → 이름 칸은 고정, 밀 수 있다는 안내 */}

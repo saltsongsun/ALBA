@@ -5,6 +5,7 @@ import { won } from '@/lib/format'
 import { monthlyRows } from '@/lib/reports'
 import { requireAdmin } from '@/lib/session'
 import { kstDate, kstDateTime, minutesText } from '@/lib/time'
+import Empty from '@/components/Empty'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import ReportDownloads from '@/components/ReportDownloads'
@@ -62,6 +63,19 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
           }[],
       ),
   ])
+  // 이 달 기록이 없으면: 기록이 있는 가장 최근 달 (월초에 열면 늘 비어 있어 지난달로 넘겨야 했음)
+  const latestMonth =
+    rows.length === 0
+      ? await db()
+          .from('attendance')
+          .select('work_date').eq('company_id', admin.companyId)
+          .order('work_date', { ascending: false })
+          .limit(1)
+          .then(
+            (r) => ((r.data ?? []) as { work_date: string }[]).map((a) => a.work_date).sort().pop()?.slice(0, 7) ?? null,
+            () => null,
+          )
+      : null
   const total = rows.reduce(
     (t, r) => ({
       gross: t.gross + r.gross,
@@ -192,7 +206,16 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
       <section>
         <h2 className="section-title">근무자별 합계</h2>
         {rows.length === 0 ? (
-          <div className="card py-10 text-center text-mute">이 달의 근무 기록이 없어요.</div>
+          <Empty icon="🧾" title="이 달의 근무 기록이 없어요">
+            {latestMonth && latestMonth !== month ? (
+              <Link href={`/admin/reports?month=${latestMonth}`} className="font-semibold text-brand-600" data-report-latest>
+                기록이 있는 {latestMonth.slice(0, 4) === month.slice(0, 4) ? '' : `${Number(latestMonth.slice(0, 4))}년 `}
+                {Number(latestMonth.slice(5))}월 보기 →
+              </Link>
+            ) : (
+              '근무가 끝나면 여기에 모여요'
+            )}
+          </Empty>
         ) : (
           <div className="card overflow-hidden p-0">
           <div className="fade-r overflow-x-auto" data-report-table>

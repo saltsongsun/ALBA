@@ -105,20 +105,28 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
   // 대표 관리자: 승인을 기다리는 관리자 가입 신청
   const isOwner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  const openReqsP = db()
+    .from('quote_requests')
+    .select('id, title, due_date, status').eq('company_id', admin.companyId)
+    .eq('status', 'open')
+    .then((r) => (r.error ? [] : (r.data as { id: string; title: string; due_date: string | null; status: string }[]).filter((q) => q.status === 'open')))
   const vendorP = Promise.all([
     db()
       .from('vendor_payments')
       .select('id, due_date, paid_at, invoice_at').eq('company_id', admin.companyId)
       .then((r) => (r.error ? [] : (r.data as { id: string; due_date: string | null; paid_at: string | null; invoice_at: string | null }[]))),
-    db()
-      .from('quote_requests')
-      .select('id, title, due_date, status').eq('company_id', admin.companyId)
-      .eq('status', 'open')
-      .then((r) => (r.error ? [] : (r.data as { id: string; title: string; due_date: string | null; status: string }[]).filter((q) => q.status === 'open'))),
-    db()
-      .from('quotes')
-      .select('request_id, amount')
-      .then((r) => (r.error ? [] : (r.data as { request_id: string; amount: number | null }[]))),
+    openReqsP,
+    // 견적은 우리 회사의 열린 견적 요청에 달린 것만 읽음 (견적 표에는 회사 칸이 없어 요청 id로 좁힘 —
+    // 예전엔 모든 회사의 견적 금액을 통째로 읽어 와 여기서 골랐음: 화면엔 안 나왔지만 다른 회사 자료는 아예 읽지 않게)
+    openReqsP.then((reqs) =>
+      reqs.length
+        ? db()
+            .from('quotes')
+            .select('request_id, amount')
+            .in('request_id', reqs.map((q) => q.id))
+            .then((r) => (r.error ? [] : (r.data as { request_id: string; amount: number | null }[]).filter((q) => reqs.some((x) => x.id === q.request_id))))
+        : [],
+    ),
     isOwner
       ? db()
           .from('company_join_requests')

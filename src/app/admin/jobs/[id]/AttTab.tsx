@@ -5,6 +5,7 @@ import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import BulkAdjust from '@/components/BulkAdjust'
 import Avatar from '@/components/Avatar'
+import Empty from '@/components/Empty'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
 import LiveNumber from '@/components/LiveNumber'
@@ -463,8 +464,19 @@ export default async function AttTab({
       )}
 
       <div className={`stagger space-y-2 ${view !== 'list' ? 'hidden' : ''}`}>
-        {roster.length === 0 && <div className="card py-10 text-center text-mute">이날 근무 명단이 없습니다.</div>}
-        {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">이 배치에 해당하는 사람이 없습니다.</div>}
+        {/* 빈 화면: 다음에 할 일 (이날 가능한 대기자가 있으면 확정하러, 없으면 지원자 탭 안내) */}
+        {roster.length === 0 && (
+          <Empty icon="🗓️" title="이날 근무 명단이 없어요">
+            {waitToday > 0 ? (
+              <Link href={`/admin/jobs/${job.id}?tab=apps`} className="font-semibold text-brand-600" data-empty-next="apps">
+                대기 {waitToday}명 확정하러 가기 →
+              </Link>
+            ) : (
+              '지원자를 확정하면 여기에 보여요'
+            )}
+          </Empty>
+        )}
+        {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">이 배치에는 아직 사람이 없어요.</div>}
         {shown.map((uid) => {
           const u = users.get(uid)
           const a = byUser.get(uid)
