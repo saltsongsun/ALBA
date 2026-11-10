@@ -5,12 +5,13 @@ import { getSettings, hasSeal } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
+import { recentJobValues } from '@/lib/recent-job'
 
 export const metadata: Metadata = { title: '새 공고' }
 
 export default async function NewJobPage() {
   const admin = await requireAdmin()
-  const [settings, sealSet, templates] = await Promise.all([
+  const [settings, sealSet, templates, recent] = await Promise.all([
     getSettings(admin.companyId),
     hasSeal(admin.companyId),
     db()
@@ -19,6 +20,16 @@ export default async function NewJobPage() {
       .eq('active', true)
       .order('created_at')
       .then((r) => must(r) as { id: string; title: string; kind: string; is_default: boolean }[]),
+    // 이 회사가 지난 공고에 쓴 장소·지급일 안내·현장 담당자 (다시 치지 않고 눌러서 넣게 · 못 읽어도 등록은 그대로)
+    db()
+      .from('jobs')
+      .select('location_name, address, lat, lng, gps_radius_m, pay_day, manager_name, manager_phone, created_at').eq('company_id', admin.companyId)
+      .order('created_at', { ascending: false })
+      .limit(20)
+      .then(
+        (r) => recentJobValues((r.data ?? []) as Parameters<typeof recentJobValues>[0]),
+        () => recentJobValues([]),
+      ),
   ])
   // 이 회사의 계약서·명세서에 들어갈 정보가 비어 있으면 올리기 전에 알려 줌 (막지는 않음)
   const missing = missingSetup(settings, sealSet)
@@ -41,7 +52,7 @@ export default async function NewJobPage() {
           </Link>
         </div>
       )}
-      <JobForm job={null} templates={templates} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} />
+      <JobForm job={null} templates={templates} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} recent={recent} />
     </div>
   )
 }

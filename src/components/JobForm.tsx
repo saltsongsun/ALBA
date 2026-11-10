@@ -10,6 +10,7 @@ import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
 import Fold from './Fold'
 import { onPhoneInput, phoneShown } from './phoneTyping'
+import type { RecentJobValues } from '@/lib/recent-job'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 import UnsavedBar from './UnsavedBar'
 
@@ -190,6 +191,34 @@ function Check({ name, value, label, defaultChecked, hint }: { name: string; val
   )
 }
 
+/** '최근 값' 칩: 이 회사가 지난 공고에 쓴 값을 눌러서 넣음 (고른 칩은 ✓ · 값이 없으면 줄 자체가 없음) */
+function RecentChips({ name, label, items, onPick, className = '' }: { name: string; label: string; items: { key: string; text: string }[]; onPick: (i: number) => void; className?: string }) {
+  const [picked, setPicked] = useState<string | null>(null)
+  if (!items.length) return null
+  return (
+    <div className={`flex flex-wrap items-center gap-1.5 ${className}`} data-recent={name}>
+      <span className="shrink-0 text-xs font-semibold text-mute">{label}</span>
+      {items.map((it, i) => (
+        <button
+          key={it.key}
+          type="button"
+          aria-pressed={picked === it.key}
+          className={`max-w-[13rem] truncate rounded-full border px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${
+            picked === it.key ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-line text-sub hover:border-brand-500 hover:text-brand-700'
+          }`}
+          onClick={() => {
+            setPicked(it.key)
+            onPick(i)
+          }}
+        >
+          {picked === it.key && '✓ '}
+          {it.text}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 function preview(form: HTMLFormElement | null) {
   if (!form) return null
   const f = new FormData(form)
@@ -220,10 +249,13 @@ export default function JobForm({
   templates,
   defaults,
   approved = 0,
+  recent,
 }: {
   job: Job | null
   templates: Tpl[]
   defaults: { hourly_wage: number; premium: boolean }
+  /** 새 공고: 이 회사의 지난 공고에서 가져올 수 있는 값 (장소·지급일 안내·현장 담당자) */
+  recent?: RecentJobValues
   /** 공고 수정: 지금 확정된 인원 (모집 인원을 그보다 줄이면 안내) */
   approved?: number
 }) {
@@ -295,16 +327,32 @@ export default function JobForm({
   const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
 
   // 좌표를 코드로 채운 뒤: 요약·안내를 지금 값으로 맞추고, 두 칸이 채워졌다는 걸 잠깐 보여 줌 ('움직임 줄이기'면 표시만)
+  // 코드로 채운 칸: 채워졌다는 걸 잠깐 보여 줌 (초록 테두리 0.7초 · '움직임 줄이기'면 표시만)
+  const flash = (el: HTMLElement | null) => {
+    if (!el) return
+    el.dataset.filled = String(Date.now())
+    if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el.animate?.([{ boxShadow: '0 0 0 3px rgb(16 185 129 / 0.5)' }, { boxShadow: '0 0 0 3px rgb(16 185 129 / 0)' }], { duration: 700, easing: 'ease-out' })
+    }
+  }
   const coordsFilled = () => {
     setEst(preview(formRef.current))
     setFd(new FormData(formRef.current!))
-    for (const el of [latRef.current, lngRef.current]) {
-      if (!el) continue
-      el.dataset.filled = String(Date.now())
-      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-        el.animate?.([{ boxShadow: '0 0 0 3px rgb(16 185 129 / 0.5)' }, { boxShadow: '0 0 0 3px rgb(16 185 129 / 0)' }], { duration: 700, easing: 'ease-out' })
-      }
+    flash(latRef.current)
+    flash(lngRef.current)
+  }
+  // '최근 값' 칩: 여러 칸을 한 번에 채움 (요약·안내도 지금 값으로 · 고친 것으로 쳐서 나갈 때 한 번 멈춤)
+  const put = (pairs: Record<string, string>) => {
+    const f = formRef.current!
+    for (const [n, val] of Object.entries(pairs)) {
+      const el = f.elements.namedItem(n)
+      if (!(el instanceof HTMLInputElement)) continue
+      el.value = val
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      flash(el)
     }
+    setEst(preview(f))
+    setFd(new FormData(f))
   }
   const pasteCoords = (e: React.ClipboardEvent<HTMLInputElement>) => {
     const m = e.clipboardData.getData('text').match(/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/)
@@ -459,6 +507,24 @@ export default function JobForm({
           [v('location_name') || v('address') || '장소 미입력', fd?.get('gps_required') ? '현장에서만 근무 시작' : '위치만 기록'].join(' · '),
         )}
       >
+        {/* 지난 공고의 장소: 누르면 장소명·주소·좌표·반경이 한 번에 (좌표를 다시 찾지 않게) */}
+        {recent && (
+          <RecentChips
+            name="place"
+            label="최근 장소"
+            items={recent.places.map((pl) => ({ key: `${pl.name}|${pl.address}`, text: pl.name || pl.address }))}
+            onPick={(i) => {
+              const pl = recent.places[i]
+              put({
+                location_name: pl.name,
+                address: pl.address,
+                lat: pl.lat == null ? '' : String(pl.lat),
+                lng: pl.lng == null ? '' : String(pl.lng),
+                ...(pl.radius ? { gps_radius_m: String(pl.radius) } : {}),
+              })
+            }}
+          />
+        )}
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="장소명">
             <input name="location_name" className="input" defaultValue={job?.location_name ?? ''} placeholder="진주성 일원" />
@@ -600,6 +666,7 @@ export default function JobForm({
           </Field>
           <Field label="지급일 안내" className="col-span-2">
             <input name="pay_day" className="input" defaultValue={job?.pay_day ?? ''} placeholder="행사 종료 후 7일 이내 계좌 입금" />
+            {recent && <RecentChips name="pay_day" label="최근" items={recent.payDays.map((s) => ({ key: s, text: s }))} onPick={(i) => put({ pay_day: recent.payDays[i] })} className="mt-1.5" />}
           </Field>
         </div>
         <Check
@@ -692,6 +759,14 @@ export default function JobForm({
             <input name="manager_phone" className="input" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={phoneShown(job?.manager_phone)} />
           </Field>
         </div>
+        {recent && (
+          <RecentChips
+            name="manager"
+            label="최근 담당"
+            items={recent.managers.map((m) => ({ key: `${m.name}|${m.phone}`, text: [m.name, phoneShown(m.phone)].filter(Boolean).join(' ') }))}
+            onPick={(i) => put({ manager_name: recent.managers[i].name, manager_phone: phoneShown(recent.managers[i].phone) })}
+          />
+        )}
       </Fold>
 
       <PostingEditor initial={job?.conditions ?? []} hidden={job?.hidden_fields ?? []} />
