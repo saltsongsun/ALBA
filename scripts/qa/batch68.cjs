@@ -30,7 +30,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     await wk.goto(`${D}/jobs/${J}`)
     await wk.getByText('근무가 확정됐어요.').first().waitFor({ timeout: 10000 }).catch(() => {})
   }
-  const clockLink = () => wk.locator('a[href="/me"]', { hasText: /출퇴근하러 가기|내 근무 보기/ }).first()
+  const clockLink = () => wk.locator('a[href="/me"]', { hasText: /출퇴근하러 가기|근무 종료하러 가기|내 근무 보기/ }).first() // 근무 중이면 '근무 종료하러 가기'
 
   // ── 1. 서명 안 한 서류 1건 → '서류 서명하기' (그 서류로) ──
   await open()
