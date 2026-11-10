@@ -62,7 +62,8 @@ const isWhiteBtn = (s) => !!s && s.bg === WHITE && s.behind !== WHITE && s.ring 
   ok('공고 화면: 바탕과 같은 색 버튼 없음 · 옆으로 안 밀림', (await blended(w)).length === 0 && (await noSide(w)), JSON.stringify(await blended(w)))
   if (SHOTS) { await ask.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); await w.waitForTimeout(500); await w.screenshot({ path: `${SHOTS}/job-ask.png` }).catch(() => {}) }
   await w.goto(`${D}/me`)
-  const mine = w.getByRole('link', { name: '내 정보', exact: true }).first()
+  // 화면 위쪽 인사말 옆 버튼만 (아래 메뉴의 '내 정보'는 화면이 그려지기 전부터 있어 그걸 집으면 안 됨)
+  const mine = w.locator('a[href="/me/profile"][class*="btn-"]').first()
   await mine.waitFor({ timeout: 15000 }).catch(() => {})
   ok("내 근무 '내 정보': 흰 버튼", isWhiteBtn(await look(mine)), JSON.stringify(await look(mine)))
   if (SHOTS) await w.screenshot({ path: `${SHOTS}/me-top.png`, clip: { x: 0, y: 0, width: 360, height: 220 } }).catch(() => {})
