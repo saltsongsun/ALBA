@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ASK_MISSED } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_MISSED } from '@/lib/signals'
 import { sendInquiry } from '@/app/actions/chat'
 import AutoRefresh from '@/components/AutoRefresh'
 import Icon from '@/components/Icon'
@@ -23,8 +23,6 @@ export const metadata: Metadata = { title: '문의' }
 // 휴대폰으로 자주 보내는 문의 (누르면 입력칸에 채워짐, 고쳐서 보낼 수 있음)
 /** 내 정보에서 '문의하기'로 왔을 때 맨 앞 빠른 답장 */
 const ASK_INFO = '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.'
-/** 지원했는데 근무가 곧 시작인데도 확정 전일 때 (내 근무 '확정 대기' 칸의 '담당자에게 문의'로 들어옴) */
-const ASK_CONFIRM = '지원했는데 확정 여부가 궁금해요.'
 const QUICK_DAY = ['조금 늦을 것 같아요. 죄송합니다.', '집결 장소가 어디인가요?', '근무 시작 버튼이 안 눌려요.', '급여 지급일이 언제인가요?']
 const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부만 가능해요.', '식사가 제공되나요?', '주차할 수 있나요?']
 // 해피워크 고객센터(아직 지원한 회사가 없을 때): 근무 날 문의 대신 앱 사용 문의

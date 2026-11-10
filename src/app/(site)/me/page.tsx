@@ -30,6 +30,7 @@ import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, round
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import ApplySteps from '@/components/ApplySteps'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
@@ -290,7 +291,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     <section data-waiting={waitingFirst ? 'first' : 'below'}>
       <h2 className="section-title">확정 대기</h2>
       <div className="stagger space-y-2">
-        {waiting.map((a) => {
+        {waiting.map((a, i) => {
           const day = (a.available_dates ?? []).filter((d) => d >= today).sort()[0] ?? (a.job.start_date >= today ? a.job.start_date : today)
           const startMs = kstAt(day, a.job.start_time).getTime()
           // 마지막 날 근무 시간까지 끝났으면 물어볼 것이 없음 (밤을 넘기는 근무는 끝 시각이 다음 날)
@@ -299,6 +300,12 @@ export default async function MePage(props: PageProps<'/me'>) {
           const started = startMs <= Date.now()
           return (
             <div key={a.id} className="card-link py-4" data-waiting-app={a.job_id}>
+              {/* 맨 위로 올라온 첫 지원: 지금 어디까지 왔고 다음에 무엇을 하는지 (지원 ✓ → 확정 → 서명 → 출근) */}
+              {waitingFirst && i === 0 && (
+                <div className="mb-3">
+                  <ApplySteps step={2} />
+                </div>
+              )}
               <Link href={`/jobs/${a.job_id}`} className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="font-bold">{a.job.title}</p>

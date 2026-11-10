@@ -18,7 +18,7 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_MISSED, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_MISSED, parsePayday, SIGNAL } from '@/lib/signals'
 import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
@@ -37,6 +37,8 @@ function repliesFor(last: ChatMessage | undefined): string[] {
   if (head.startsWith('⚠️ 근무시간')) return ['알겠어요. 원래 시간에 마쳐 주세요.', '괜찮아요. 일정은 따로 상의해요.']
   if (head.startsWith('🕒 근무 종료 늦게 입력')) return ['확인했어요. 다음엔 근무 종료를 꼭 눌러 주세요.']
   if (head.startsWith(ASK_MISSED.slice(0, 20))) return ['출근 기록을 넣었어요. 확인해 주세요.', '몇 시에 도착했는지 알려 주세요.']
+  // '지원했는데 확정 여부가 궁금해요' (곧 시작인데 아직 확정 전인 지원자)
+  if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return ['확정했어요. 내 근무에서 확인해 주세요.', '검토 중이에요. 오늘 안에 알려 드릴게요.', '이번에는 인원이 다 찼어요. 다음에 꼭 함께해요.']
   return []
 }
 
@@ -169,6 +171,22 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     }
   }
 
+  // '확정 여부가 궁금해요' → 이 회사에서 확정을 기다리는 그 사람의 지원으로 바로 (물어본 공고 먼저, 없으면 가장 빨리 시작하는 것)
+  let waitingApp: { appId: string; jobId: string; title: string; start: string } | null = null
+  if (lastAsk?.body.startsWith(ASK_CONFIRM.slice(0, 12))) {
+    const { data: apps } = await db()
+      .from('applications')
+      .select('id, job_id, status, company_id, job:jobs(id, title, start_date, end_date, status)')
+      .eq('company_id', admin.companyId)
+      .eq('user_id', userId)
+      .eq('status', 'applied')
+    const rows = ((apps ?? []) as unknown as { id: string; job_id: string; status: string; company_id: string; job: { id: string; title: string; start_date: string; end_date: string; status: string } | null }[])
+      .filter((r) => r.status === 'applied' && r.company_id === admin.companyId && r.job && r.job.end_date >= today && r.job.status !== 'cancelled')
+      .sort((a, b) => a.job!.start_date.localeCompare(b.job!.start_date))
+    const pick = rows.find((r) => r.job_id === lastAsk.job?.id) ?? rows[0]
+    if (pick?.job) waitingApp = { appId: pick.id, jobId: pick.job_id, title: pick.job.title, start: pick.job.start_date }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       {/* 회사를 바꿔서 이 대화를 열었을 때: '○○ 화면으로 바꿨어요' */}
@@ -242,6 +260,22 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
             <span className="block truncate text-xs text-sub">{missed.title}</span>
           </span>
           <span className="shrink-0 text-sm font-bold text-brand-600">기록 넣기 →</span>
+        </Link>
+      )}
+      {/* 확정 여부를 물어 온 지원자: 그 공고 지원자 탭의 그 사람으로 바로 (확정·미선발을 거기서) */}
+      {waitingApp && (
+        <Link
+          href={`/admin/jobs/${waitingApp.jobId}?tab=apps#app-${waitingApp.appId}`}
+          className="card flex animate-pop items-center gap-3 px-4 py-3 ring-1 ring-amber-200 transition active:scale-[0.98]"
+          data-confirm-ask
+        >
+          <span className="min-w-0 flex-1">
+            <b className="block text-sm">확정을 기다리는 지원이 있어요</b>
+            <span className="block truncate text-xs text-sub">
+              {fmtDate(waitingApp.start)} · {waitingApp.title}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-bold text-brand-600">지원자 보기 →</span>
         </Link>
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">

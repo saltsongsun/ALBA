@@ -6,6 +6,7 @@ import Avatar from '@/components/Avatar'
 import Empty from '@/components/Empty'
 import { ContactButtons } from '@/components/Contact'
 import { GroupContact } from '@/components/GroupContact'
+import HashFocus from '@/components/HashFocus'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
 import { APP_STATUS } from '@/components/JobCard'
 
@@ -318,7 +319,8 @@ export default async function AppsTab({
     const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
     return (
       // 고르면 카드 테두리가 파랗게 (어떤 사람을 골랐는지 한눈에)
-      <div key={a.id} className={`card space-y-2.5 p-4 transition-shadow duration-200 has-checked:ring-2 has-checked:ring-brand-400 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
+      // id: 문의 화면의 '지원자 보기'가 이 사람 카드로 바로 내려옴 (#app-…) — 온 카드는 테두리로 표시
+      <div key={a.id} id={`app-${a.id}`} className={`card scroll-mt-32 space-y-2.5 p-4 transition-shadow duration-200 data-[hash-focus]:ring-2 data-[hash-focus]:ring-brand-400 has-checked:ring-2 has-checked:ring-brand-400 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
         <div className="flex items-center gap-3">
           {pickBox(a)}
           <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="lg" />
@@ -519,6 +521,8 @@ export default async function AppsTab({
       ) : (
         <>
           {/* 휴대폰: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) */}
+          {/* 문의 화면 '지원자 보기'로 왔으면 그 사람 카드로 내려가 테두리로 표시 */}
+          <HashFocus prefix="app-" />
           <div className="space-y-2 sm:hidden">
             {groups.map(([label, list, open]) =>
               list.length === 0 ? null : open ? (
