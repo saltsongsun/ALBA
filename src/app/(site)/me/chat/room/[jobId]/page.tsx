@@ -55,6 +55,8 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
           <ChatComposer
             action={sendRoom.bind(null, job.id)}
             placeholder="모두에게 보낼 메시지"
+            // 아직 대화가 없는 방: 첫 인사를 한 번에 (누르면 입력 칸에 들어가고, 고쳐서 보낼 수 있음)
+            quickReplies={messages.length === 0 ? ['안녕하세요, 잘 부탁드려요!', '처음이라 잘 부탁드립니다.', '같이 가실 분 계신가요?'] : []}
             mentions={[...members.workers.filter((w) => w.id !== user.id), ...members.admins.map((a) => ({ ...a, admin: true }))]}
           />
         ) : (

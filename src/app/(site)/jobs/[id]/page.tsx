@@ -23,7 +23,7 @@ import { phoneFmt, won } from '@/lib/format'
 import { shows } from '@/lib/jobFields'
 import { breakDescription, estimateDay, TAX_LABEL, workOver } from '@/lib/pay'
 import { adminCompanies, getUser } from '@/lib/session'
-import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, minutesText } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Job } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import JobViewBeacon from '@/components/JobViewBeacon'
@@ -59,6 +59,8 @@ export async function generateMetadata(props: PageProps<'/jobs/[id]'>): Promise<
 
 const CANCEL_REASONS = ['일정이 생겼어요', '몸이 아파요', '교통·거리 문제', '다른 일을 하게 됐어요', '기타']
 
+type MyAtt = { id: string; work_date: string; clock_in: string; clock_out: string | null; adj_in: string | null; adj_out: string | null }
+
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
     <div className="flex gap-3 py-2">
@@ -85,7 +87,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others] = await Promise.all([
+  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -159,6 +161,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       pals,
     })),
     othersP,
+    // 이 공고에서 내 출퇴근 기록 (확정된 근무: 지금 근무 중인지 · 이미 근무한 날이 있는지)
+    user
+      ? db()
+          .from('attendance')
+          .select('id, work_date, clock_in, clock_out, adj_in, adj_out')
+          .eq('job_id', job.id)
+          .eq('user_id', user.id)
+          .limit(60)
+          .then((r) => ((r.data ?? []) as MyAtt[]).sort((a, b) => a.work_date.localeCompare(b.work_date)))
+      : ([] as MyAtt[]),
   ])
   const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
@@ -197,6 +209,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           phone: job.manager_phone || company.contact_phone || company.company_phone || null,
         }
       : null
+  // 확정된 근무에서 내 기록: 지금 근무 중(종료 전 · 시작한 지 18시간 안) · 마지막으로 근무한 날
+  const myWork = app?.status === 'approved' ? myAtt : []
+  const liveAtt = myWork.find((a) => !a.clock_out && Date.now() - new Date(a.clock_in).getTime() < 18 * 3600_000) ?? null
+  const lastAtt = myWork.filter((a) => a !== liveAtt).at(-1) ?? null
+  const worked = myWork.length > 0
+  const lastOut = lastAtt ? (lastAtt.adj_out ?? lastAtt.clock_out) : null
   const replyMin = app?.status === 'applied' && !ended && job.status !== 'cancelled' ? await replyMinutes(job.company_id).catch(() => null) : null
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
@@ -500,7 +518,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           )
         ) : app && app.status !== 'cancelled' ? (
           <div className="card space-y-3">
-            {app.status !== 'rejected' && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : 4} />}
+            {app.status !== 'rejected' && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : worked ? 5 : 4} />}
             <p className="font-semibold">
               {app.status === 'approved'
                 ? '근무가 확정됐어요.'
@@ -508,6 +526,29 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   ? '지원이 접수됐어요. 확정되면 알려 드릴게요.'
                   : '이번에는 함께하지 못하게 됐어요.'}
             </p>
+            {/* 이미 출근했으면: 지금 근무 중인지 · 마지막으로 근무한 날과 시간 (확정만 보이던 칸에 내 진행 상태) */}
+            {liveAtt ? (
+              <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700" data-my-work="working">
+                <span aria-hidden className="relative flex size-2 shrink-0">
+                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                </span>
+                지금 근무 중 · {kstTime(liveAtt.adj_in ?? liveAtt.clock_in)} 시작
+              </p>
+            ) : lastAtt ? (
+              <p className="text-sm text-sub" data-my-work={lastOut ? 'done' : 'open'}>
+                {lastOut ? (
+                  <>
+                    <span className="font-semibold text-ink">✓ {fmtDate(lastAtt.work_date)} 근무</span> {kstTime(lastAtt.adj_in ?? lastAtt.clock_in)}~{kstTime(lastOut)}
+                  </>
+                ) : (
+                  <>
+                    {fmtDate(lastAtt.work_date)} {kstTime(lastAtt.adj_in ?? lastAtt.clock_in)} 시작 · <span className="font-semibold text-amber-700">종료 기록 없음</span>
+                  </>
+                )}
+                {myWork.length > 1 && ` · 모두 ${myWork.length}일`}
+              </p>
+            ) : null}
             {replyMin != null && (
               <p className="flex items-center gap-1.5 text-sm text-sub" data-reply-time>
                 <Icon name="clock" className="shrink-0 text-mute" /> 이 회사는 보통 {replySpan(replyMin)} 안에 답해요
@@ -562,7 +603,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 </Link>
               ) : (
                 <Link href="/me" className={`${app.status === 'approved' && unsignedHere && !ended ? 'btn-gray' : 'btn-primary'} flex-1`}>
-                  {app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
+                  {liveAtt ? '근무 종료하러 가기' : app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
                 </Link>
               )}
               {/* 확정되면 같은 근무 단체방 */}
@@ -613,7 +654,19 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               </details>
             )}
             {/* 확정된 근무 취소: 담당자에게 바로 알림이 가고, 사유를 고를 수 있음 */}
-            {app.status === 'approved' && !ended && (
+            {/* 이미 근무한 기록이 있으면 취소는 안 됨 (눌러도 거절됨) → 취소 칸 대신 담당자에게 알리는 길만 */}
+            {app.status === 'approved' && !ended && worked && (
+              <details className="text-sm" data-cancel-worked>
+                <summary className="cursor-pointer py-1 font-semibold text-sub">근무를 못 하게 됐어요</summary>
+                <div className="mt-2 space-y-2 rounded-xl bg-bg p-3">
+                  <p className="text-sub">근무한 기록이 있어 여기서는 취소할 수 없어요. 남은 근무를 못 하게 되면 담당자에게 알려 주세요.</p>
+                  <Link href={`/me/chat?job=${job.id}`} className="btn-gray btn-sm">
+                    <Icon name="chat" /> 담당자에게 알리기
+                  </Link>
+                </div>
+              </details>
+            )}
+            {app.status === 'approved' && !ended && !worked && (
               <details className="text-sm">
                 <summary className="cursor-pointer py-1 font-semibold text-sub">근무를 못 하게 됐어요</summary>
                 <form action={cancelApplication.bind(null, app.id)} className="mt-2 space-y-3 rounded-xl bg-bg p-3">

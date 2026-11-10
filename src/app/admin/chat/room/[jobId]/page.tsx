@@ -12,7 +12,7 @@ import { companyJob } from '@/lib/company'
 import { adminJoined, markRoomRead, pinnedReads, roomMembers, roomMessages, roomOpen, roomPinned, roomReads } from '@/lib/room'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { requireAdmin } from '@/lib/session'
-import { fmtDateRange } from '@/lib/time'
+import { fmtDate, fmtDateRange, hhmm, kstAt } from '@/lib/time'
 
 export const metadata: Metadata = { title: '단체방' }
 
@@ -28,6 +28,15 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
   const [messages, members, pinned, readMap] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), roomReads(job.id), joined ? markRoomRead(job.id, admin.id) : null])
   const open = roomOpen(job)
   const reads = pinned?.pinned_at ? await pinnedReads(job.id, pinned.pinned_at, members.workers) : undefined
+  // 아직 대화가 없는 방: 첫 안내를 눌러서 채움 (여러 개를 이어 누르면 한 메시지로 · 고쳐서 보낼 수 있음) — 시작 전일 때만 집합 시각
+  const firstNotes =
+    messages.length === 0
+      ? [
+          `안녕하세요, 담당자 ${admin.name}입니다.`,
+          ...(kstAt(job.start_date, job.start_time).getTime() > Date.now() ? [`${fmtDate(job.start_date)} ${hhmm(job.start_time)}까지 와 주세요.`] : []),
+          '궁금한 점은 여기에 남겨 주세요.',
+        ]
+      : []
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -90,6 +99,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
           <ChatComposer
             action={sendRoom.bind(null, job.id)}
             placeholder="모두에게 보낼 메시지"
+            quickReplies={firstNotes}
             mentions={[...members.workers, ...members.admins.filter((p) => p.id !== admin.id).map((p) => ({ ...p, admin: true }))]}
             extra={
               <label className="flex items-center gap-2 px-2 text-sm text-sub">
