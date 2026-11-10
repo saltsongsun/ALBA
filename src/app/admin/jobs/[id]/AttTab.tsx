@@ -32,6 +32,7 @@ export default async function AttTab({
   dates,
   myScores,
   pos,
+  st = null,
   openShift = false,
   faces = false,
   check = false,
@@ -49,6 +50,8 @@ export default async function AttTab({
   myScores: Record<string, number>
   /** 배치로 거르기 ('-'는 미배치, null이면 전체) */
   pos: string | null
+  /** 상태로 거르기 (위 숫자 칸을 누름): 근무 중 · 종료 · 미출근 — 한 번 더 누르면 전체 */
+  st?: 'working' | 'done' | 'absent' | null
   /** 근무시간 변경 칸을 펼쳐서 보여 줌 */
   openShift?: boolean
   /** 얼굴 명단으로 보기 (현장 입구에서 얼굴 확인용) */
@@ -159,15 +162,25 @@ export default async function AttTab({
   const posOf = (uid: string) => appOf.get(uid)?.position ?? ''
   const positions = [...new Set(apps.map((a) => a.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, 'ko'))
   const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
-  const shown = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
+  const byPos = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
+  // 상태로 거르기: 위 숫자 칸(근무 중·종료·미출근)을 누르면 그 사람들만 (사람이 많은 날 미출근자만 골라 연락하기 쉽게)
+  const stOf = (uid: string) => {
+    const a = byUser.get(uid)
+    return !a ? 'absent' : !a.clock_out ? 'working' : 'done'
+  }
+  const shown = st ? byPos.filter((u) => stOf(u) === st) : byPos
   // 사람이 많으면(9명 이상) 자세히 목록을 한 줄씩 접어 둠 (위아래로 너무 길어지지 않게)
   const compact = roster.length > 8
   // 출석 체크는 오늘(진행 중인 공고)만
   const canCheck = date === today && !['cancelled', 'draft'].includes(job.status)
   const view: 'list' | 'faces' | 'check' = check && canCheck ? 'check' : faces ? 'faces' : 'list'
-  const posHref = (p: string | null) =>
-    `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}${view === 'list' ? '' : `&view=${view}`}`
-  const viewHref = (v: 'list' | 'faces' | 'check') => `/admin/jobs/${job.id}?tab=att&date=${date}${pos === null ? '' : `&pos=${encodeURIComponent(pos)}`}${v === 'list' ? '' : `&view=${v}`}`
+  // 배치·보기·상태를 함께 들고 다니는 주소 (하나를 바꿔도 나머지는 그대로)
+  const hrefOf = (p: string | null, v: 'list' | 'faces' | 'check', s: typeof st) =>
+    `/admin/jobs/${job.id}?tab=att&date=${date}${p === null ? '' : `&pos=${encodeURIComponent(p)}`}${v === 'list' ? '' : `&view=${v}`}${s ? `&st=${s}` : ''}`
+  const posHref = (p: string | null) => hrefOf(p, view, st)
+  const viewHref = (v: 'list' | 'faces' | 'check') => hrefOf(pos, v, st)
+  const stHref = (s: NonNullable<typeof st>) => hrefOf(pos, view, st === s ? null : s)
+  const ST_LABEL = { working: date < today ? '퇴근 기록 없음' : '근무 중', done: '종료', absent: notYet ? '출근 전' : '미출근' } as const
 
   return (
     <div className="space-y-4">
@@ -226,18 +239,40 @@ export default async function AttTab({
           {(
             [
               // 지난 날짜에 퇴근이 없으면 '근무 중'이 아니라 '퇴근 기록 없음'
-              [date < today ? '퇴근 기록 없음' : '근무 중', working, date < today ? (working ? 'text-amber-600' : 'text-mute') : 'text-emerald-600'],
-              ['종료', done, 'text-ink'],
-              [notYet ? '출근 전' : '미출근', absent.length, absent.length && !notYet ? 'text-rose-500' : 'text-mute'],
+              ['working', working, date < today ? (working ? 'text-amber-600' : 'text-mute') : 'text-emerald-600'],
+              ['done', done, 'text-ink'],
+              ['absent', absent.length, absent.length && !notYet ? 'text-rose-500' : 'text-mute'],
             ] as const
-          ).map(([label, n, tone]) => (
-            <div key={label}>
-              <p className="text-xs font-semibold text-mute">{label}</p>
-              <p className={`mt-0.5 text-2xl font-extrabold ${tone}`}>
-                <LiveNumber value={n} />
-              </p>
-            </div>
-          ))}
+          ).map(([key, n, tone]) => {
+            const inner = (
+              <>
+                <p className="text-xs font-semibold text-mute">{ST_LABEL[key]}</p>
+                <p className={`mt-0.5 text-2xl font-extrabold ${tone}`}>
+                  <LiveNumber value={n} />
+                </p>
+              </>
+            )
+            // 명단이 있으면 누를 수 있음: 그 상태인 사람만 보기 (한 번 더 누르면 전체)
+            // (칸 사이 세로줄은 바깥 칸에 그대로 두고, 누르는 부분만 둥글게)
+            return (
+              <div key={key} className="px-1">
+                {roster.length > 0 ? (
+                  <Link
+                    href={stHref(key)}
+                    scroll={false}
+                    data-att-stat={key}
+                    aria-current={st === key ? 'true' : undefined}
+                    aria-label={`${ST_LABEL[key]} ${n}명${st === key ? ' · 전체 보기' : '만 보기'}`}
+                    className={`block rounded-xl py-1 transition active:scale-95 ${st === key ? 'bg-bg ring-1 ring-line' : ''}`}
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  inner
+                )}
+              </div>
+            )
+          })}
         </div>
         <div className="mt-3 flex h-1.5 overflow-hidden rounded-full bg-bg">
           <div className="bg-emerald-500 transition-[width] duration-500" style={{ width: `${(working / Math.max(roster.length, 1)) * 100}%` }} />
@@ -413,6 +448,17 @@ export default async function AttTab({
           ))}
         </div>
       )}
+      {/* 상태로 거르는 중이면: 무엇만 보는 중인지 + 전체로 돌아가기 */}
+      {st && roster.length > 0 && (
+        <p className="flex animate-pop items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-sm ring-1 ring-line" data-att-stat-on={st}>
+          <span className="min-w-0 truncate">
+            <b>{ST_LABEL[st]}</b> {shown.length}명만 보는 중
+          </span>
+          <Link href={hrefOf(pos, view, null)} scroll={false} className="shrink-0 font-semibold text-brand-600">
+            전체 보기
+          </Link>
+        </p>
+      )}
       {view === 'check' && (
         <RollCall
           people={shown.map((uid) => {
@@ -476,7 +522,7 @@ export default async function AttTab({
             )}
           </Empty>
         )}
-        {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">이 배치에는 아직 사람이 없어요.</div>}
+        {roster.length > 0 && shown.length === 0 && <div className="card py-8 text-center text-mute">{st ? `${ST_LABEL[st]}인 사람이 없어요.` : '이 배치에는 아직 사람이 없어요.'}</div>}
         {shown.map((uid) => {
           const u = users.get(uid)
           const a = byUser.get(uid)

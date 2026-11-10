@@ -1,6 +1,7 @@
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import RevealTabs from '@/components/RevealTabs'
 import { notFound } from 'next/navigation'
 import { cancelEvent, deleteJob, duplicateJob, setJobStatus } from '@/app/actions/admin'
 import Announce from '@/components/Announce'
@@ -416,7 +417,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       )}
 
       {/* 탭을 바꾸면 맨 위(큰 제목 카드)로 올라가 매번 다시 내려야 하던 것 → 탭 줄로 바로 (#tabs) */}
-      <div id="tabs" className="flex scroll-mt-16 gap-1 overflow-x-auto border-b border-line text-sm font-semibold" data-job-tabs>
+      {/* 한참 내려가 있어도 위로 살짝 올리면 머리글 아래에 다시 나타남 (탭을 바꾸려고 맨 위까지 올라가지 않게) */}
+      <RevealTabs id="tabs" className="flex scroll-mt-16 gap-1 overflow-x-auto border-b border-line text-sm font-semibold" data-job-tabs>
         {TABS.map(([k, label]) => (
           <Link
             key={k}
@@ -426,7 +428,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {label}
           </Link>
         ))}
-      </div>
+      </RevealTabs>
 
       {tab === 'apps' && (
         <AppsTab
@@ -438,7 +440,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           canAddDirect={admin.companyVerified}
         />
       )}
-      {tab === 'att' && <AttTab job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
+      {tab === 'att' && <AttTab job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
       {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
     </div>
