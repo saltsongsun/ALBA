@@ -16,6 +16,9 @@ const extra = [
   { uid: '44444444-0000-4000-8000-000000000022', app: '55555555-0000-4000-8000-000000000022', name: '최수아', phone: '01012120002' },
 ]
 ;(async () => {
+  // (오후 6시 뒤에 돌려도 '끝난 행사 · 확정?' 확인에 걸리지 않게 공고 날짜를 내일로)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   // 지원자 2명 더 (모두 대기)
   for (const e of extra) {
     const user = { id: e.uid, name: e.name, phone: e.phone, birth_date: '1995-05-05', photo_at: null, careers: [], role: 'worker', active: true }

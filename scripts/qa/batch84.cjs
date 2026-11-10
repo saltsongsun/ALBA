@@ -24,7 +24,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
   const flash = p.locator('[role=status]').filter({ hasText: '알림을 보냈어요' })
 
-  // ── 1. 확정 ──
+  // ── 1. 확정 ── (오후 6시 뒤에 돌려도 '끝난 행사 · 확정?' 확인에 걸리지 않게 공고 날짜를 내일로)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   await p.goto(`${D}/admin`)
   const card = (name) => p.locator('div.card', { hasText: name }).filter({ has: p.getByRole('button', { name: /미선발/ }) }).first()
   await card('김지원').waitFor({ timeout: 10000 }).catch(() => {})

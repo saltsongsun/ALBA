@@ -22,7 +22,9 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   const card = () => p.locator('.sm\\:hidden .card', { hasText: '김지원' })
   const status = async () => (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`))[0].status
 
-  // 만 16세 지원자 · 09~18시(휴게 빼고 8시간)
+  // 만 16세 지원자 · 09~18시(휴게 빼고 8시간) (오후 6시 뒤에 돌려도 '끝난 행사 · 확정?' 확인에 걸리지 않게 공고 날짜를 내일로)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   await rest(`users?id=eq.${AP}`, 'PATCH', { birth_date: teen })
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)
   ok('연소자 · 7시간 초과 표시', await see(p, '🌙 7시간 초과 근무 제한'))
@@ -47,8 +49,6 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
 
   // 연소자라도 낮 6시간 근무면 바로 확정
   await rest(`users?id=eq.${AP}`, 'PATCH', { birth_date: teen })
-  // (날짜는 내일로 — 오후 4시가 지난 뒤에 돌려도 '끝난 근무 확정 확인'에 걸리지 않게)
-  const tmr = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
   await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr, start_time: '10:00:00', end_time: '16:00:00' })
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)
   ok('낮 6시간: 연소자 표시만, 제한 없음', (await see(p, '연소자')) && !(await see(p, '근무 제한', 1000)))

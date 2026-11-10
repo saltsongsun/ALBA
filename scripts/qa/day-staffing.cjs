@@ -57,8 +57,10 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('첫 누름엔 확정 안 됨', ap.status === 'applied', ap.status)
 
   // 하루짜리 공고: 날짜별 칸 없음, 확인 문구는 예전 그대로
-  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: d0, end_date: d0 })
+  // (날짜는 내일 하루 — 오늘로 두면 오후 6시 뒤엔 '끝난 행사 · 확정?' 확인이 먼저 나옴)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: d1, end_date: d1 })
   await rest(`applications?job_id=eq.${J}&user_id=eq.${WK}`, 'PATCH', { available_dates: null })
+  await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`, 'PATCH', { available_dates: null })
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)
   ok('하루짜리: 날짜별 칸 없음', (await see(p, '지원순')) && !(await see(p, /확정 \d\/\d$/, 800)))
   await card('김지원').getByRole('button', { name: '확정', exact: true }).click()

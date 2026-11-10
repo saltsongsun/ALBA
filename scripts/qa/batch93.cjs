@@ -68,7 +68,9 @@ const app = async () => (await rest(`applications?id=eq.${APP}`))[0]
   await a.waitForTimeout(500)
   ok('대시보드에서 보류하면 확정 대기 카드에서 빠짐', (await a.locator('div.card', { hasText: '김지원' }).filter({ has: a.getByRole('button', { name: '보류', exact: true }) }).count()) === 0 && !!(await app()).held_at)
 
-  // ── 5. 보류에서 바로 확정 ──
+  // ── 5. 보류에서 바로 확정 ── (오후 6시 뒤에 돌려도 '끝난 행사 · 확정?' 확인에 걸리지 않게 공고 날짜를 내일로)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   await a.goto(`${D}/admin/jobs/${J}?tab=apps`)
   await a.locator('[data-app-group=보류] summary').click().catch(() => {})
   await a.waitForTimeout(400)
