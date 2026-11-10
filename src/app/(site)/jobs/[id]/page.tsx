@@ -435,7 +435,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           targetId="apply"
           title={job.title}
           summary={shows(job, 'estimate') ? `하루 약 ${won(est.gross)}` : wageBadge(job)}
-          href={user ? undefined : `/signup?next=${encodeURIComponent(path)}`}
+          // 비회원: 공고 종류에 맞는 가입 화면으로 바로 ('어떤 분이세요?' 고르기는 건너뜀 — 공고가 이미 알려 줌)
+          href={user ? undefined : `/signup?type=${job.audience === 'expert' ? 'expert' : 'worker'}&next=${encodeURIComponent(path)}`}
           aboveTabs={!!user}
           // 얼굴 사진이 없으면 아래 칸이 '사진 올리기'라서, 바도 그대로 말해 줌 (눌렀는데 지원이 아니라 놀라지 않게)
           note={needPhoto ? '지원 전에 얼굴 사진 1장이 필요해요' : needIdentity ? '처음 한 번 근무자 정보가 필요해요' : undefined}

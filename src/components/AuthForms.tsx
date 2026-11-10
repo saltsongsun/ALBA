@@ -185,7 +185,13 @@ export function SignupTypePicker({ next }: { next: string }) {
             </span>
             <span className="min-w-0 flex-1">
               <span className="block text-lg font-extrabold">{m.label}</span>
-              <span className="mt-0.5 block text-sm text-sub">{m.desc}</span>
+              {/* 두 줄로 짧게: 누가 고르는지 / 앱으로 하는 일 (긴 설명이 세 줄로 접히던 것) */}
+              <span className="mt-0.5 block text-sm text-ink" data-pick-who>
+                {m.pick[0]}
+              </span>
+              <span className="block text-sm text-sub" data-pick-what>
+                {m.pick[1]}
+              </span>
             </span>
             <span aria-hidden className="shrink-0 text-xl font-bold text-brand-600">
               ›

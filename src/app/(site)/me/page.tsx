@@ -879,7 +879,11 @@ export default async function MePage(props: PageProps<'/me'>) {
               <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-bold">{job.title}</p>
+                    {/* 제목을 누르면 공고 ('지난 근무' 화면과 같게 — 이용 기록: 제목을 눌러도 반응이 없어 여러 번 누름) */}
+                    <Link href={`/jobs/${job.id}`} className="block font-bold transition-opacity active:opacity-60" data-history-title>
+                      {job.title}
+                      <span aria-hidden className="whitespace-nowrap text-sm font-semibold text-mute">{'\u00a0'}›</span>
+                    </Link>
                     <CompanyName job={job} />
                     {(!firstLive || miss > 0) && (
                       <p className="text-sm text-sub">

@@ -5,9 +5,9 @@ import LiveNumber from '@/components/LiveNumber'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { won } from '@/lib/format'
-import { calcDay, settle, workingToday, roundCut } from '@/lib/pay'
+import { calcDay, effectiveTimes, settle, workingToday, roundCut } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
-import { fmtDateRange, kstDate, minutesText } from '@/lib/time'
+import { fmtDate, fmtDateRange, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { canWrite, myReviewedJobs } from '@/lib/community'
@@ -90,6 +90,20 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     worked: rows.some((r) => !!r.clock_in),
     first: rows[rows.length - 1].work_date,
     last: rows[0].work_date,
+    // 날짜별 기록 (오래된 날부터): 시작~종료 시각과 그날 인정된 시간 — 금액은 위 합계·명세서에서
+    days: [...rows]
+      .sort((a, b) => a.work_date.localeCompare(b.work_date))
+      .map((r) => {
+        const t = effectiveTimes(r)
+        return {
+          id: r.id,
+          date: r.work_date,
+          in: kstTime(t.start),
+          out: t.end ? kstTime(t.end) : '',
+          paidMin: calcDay(job, r).paidMin,
+          live: !t.end && r.work_date === kstDate(),
+        }
+      }),
   }))
 
   // 여러 회사 일을 했으면 회사별로 골라 보기 (합계·월별도 그 회사만)
@@ -246,7 +260,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                 })()}
               </div>
               <div className="stagger space-y-2">
-                {list.map(({ job, s, cut, paid, live, worked, first, last }) => (
+                {list.map(({ job, s, cut, paid, live, worked, first, last, days }) => (
                   <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -291,6 +305,26 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                         )}
                       </div>
                     </div>
+                    {/* 날짜별 기록: 접어 둠 (며칠·몇 시간이 어떻게 나왔는지 눌러서 확인) */}
+                    <details className="group border-t border-line pt-2" data-history-days>
+                      <summary className="cursor-pointer text-xs font-semibold text-sub">날짜별 기록 {days.length}일</summary>
+                      <ul className="mt-1.5 space-y-1 text-[13px] tabular-nums">
+                        {days.map((d) => (
+                          <li key={d.id} className="flex items-baseline justify-between gap-3">
+                            <span className="min-w-0 truncate">
+                              <b className="font-semibold">{fmtDate(d.date)}</b>
+                              <span className="text-sub">
+                                {' '}
+                                {d.in}~{d.out}
+                              </span>
+                            </span>
+                            <span className={`shrink-0 font-semibold ${d.live ? 'text-emerald-600' : d.out ? '' : 'text-amber-600'}`}>
+                              {d.live ? '오늘 근무 중' : d.out ? minutesText(d.paidMin) : '종료 기록 없음'}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
                     <div className="flex flex-wrap gap-2">
                       {/* 첫 근무가 아직 진행 중이면 명세서·확인서·후기는 끝난 뒤에 (0원 명세서·일하기 전 후기 막기) */}
                       {!(live > 0 && s.days === 0) && (

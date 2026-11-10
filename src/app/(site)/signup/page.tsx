@@ -3,6 +3,8 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { SignupForm, SignupTypePicker } from '@/components/AuthForms'
 import ProMode from '@/components/ProMode'
+import Icon from '@/components/Icon'
+import { getJob } from '@/lib/data'
 import { isMemberType, MEMBER_TYPES } from '@/lib/members'
 import { getUser } from '@/lib/session'
 import { safePath } from '@/lib/validate'
@@ -19,12 +21,15 @@ export default async function SignupPage(props: PageProps<'/signup'>) {
     return (
       <div className="pt-2">
         <h1 className="mb-1 text-2xl font-extrabold">어떤 분이세요?</h1>
-        <p className="mb-5 text-sub">가입 유형에 따라 보는 화면과 계약·정산 방식이 달라요.</p>
+        <p className="mb-5 text-sub">유형마다 화면과 계약·정산이 달라요.</p>
         <SignupTypePicker next={next} />
       </div>
     )
   }
   const m = MEMBER_TYPES[type]
+  // 공고를 보다가 온 가입: 가입하면 그 공고로 돌아간다는 걸 보여 줌 (왜 가입하는지 잊지 않게) · 공개된 공고만
+  const jobId = /^\/jobs\/([0-9a-f-]{36})(?:[?#]|$)/i.exec(next)?.[1]
+  const forJob = jobId ? await getJob(jobId).then((j) => (j && j.status !== 'draft' ? j : null), () => null) : null
   return (
     <div className="pt-2" data-mode={type === 'worker' ? undefined : 'pro'}>
       {type !== 'worker' && <ProMode />}
@@ -35,13 +40,23 @@ export default async function SignupPage(props: PageProps<'/signup'>) {
         {m.emoji} {m.label}
       </p>
       <h1 className="mt-2 mb-1 text-2xl font-extrabold">{type === 'worker' ? '간편 가입' : type === 'expert' ? '전문가 가입' : '외주 업체 가입'}</h1>
-      <p className="mb-5 text-sub">
-        {type === 'worker'
-          ? '한 번만 가입하면 다음 행사부터는 버튼 하나로 지원할 수 있어요.'
-          : type === 'expert'
-            ? '전문가 의뢰에 지원하고, 용역계약·대금을 앱에서 관리해요.'
-            : '견적 요청을 앱으로 받고, 대금·세금계산서 현황을 한눈에 봐요.'}
-      </p>
+      {forJob ? (
+        <p className="mb-5 flex items-center gap-2.5 rounded-2xl bg-brand-50 px-3.5 py-2.5 text-brand-800" data-signup-for={forJob.id}>
+          <Icon name="bag" className="shrink-0 text-brand-600" />
+          <span className="min-w-0">
+            <b className="block truncate text-sm">{forJob.title}</b>
+            <span className="block text-xs text-brand-700">가입하면 이 공고로 돌아가요</span>
+          </span>
+        </p>
+      ) : (
+        <p className="mb-5 text-sub">
+          {type === 'worker'
+            ? '한 번만 가입하면 다음 행사부터는 버튼 하나로 지원할 수 있어요.'
+            : type === 'expert'
+              ? '전문가 의뢰에 지원하고, 용역계약·대금을 앱에서 관리해요.'
+              : '견적 요청을 앱으로 받고, 대금·세금계산서 현황을 한눈에 봐요.'}
+        </p>
+      )}
       <SignupForm next={next} type={type} />
     </div>
   )

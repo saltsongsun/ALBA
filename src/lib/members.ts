@@ -1,12 +1,14 @@
 import type { Audience, MemberType } from './types'
 
 /** 가입 유형 이름·설명 (가입 화면·배지) */
-export const MEMBER_TYPES: Record<MemberType, { label: string; short: string; emoji: string; desc: string; badge: string }> = {
+/** pick: 가입 유형 고르기 카드의 두 줄 (360px에서 한 줄씩 — 누가 고르는지 / 앱으로 하는 일) */
+export const MEMBER_TYPES: Record<MemberType, { label: string; short: string; emoji: string; desc: string; pick: [string, string]; badge: string }> = {
   worker: {
     label: '아르바이트',
     short: '알바',
     emoji: '🙋',
     desc: '행사 스태프·안내·진행 보조 등 단기 알바. 출퇴근·근로계약·급여를 앱으로',
+    pick: ['행사 스태프·안내·진행 보조', '출퇴근·계약·급여를 앱으로'],
     badge: 'bg-brand-50 text-brand-700',
   },
   expert: {
@@ -14,6 +16,7 @@ export const MEMBER_TYPES: Record<MemberType, { label: string; short: string; em
     short: '전문가',
     emoji: '🎛️',
     desc: '음향·조명·영상·MC·사진 등 기술·전문 인력 (개인). 용역계약 · 사업소득 3.3%',
+    pick: ['음향·조명·영상·MC·사진', '용역계약 · 사업소득 3.3%'],
     badge: 'bg-violet-50 text-violet-700',
   },
   vendor: {
@@ -21,6 +24,7 @@ export const MEMBER_TYPES: Record<MemberType, { label: string; short: string; em
     short: '업체',
     emoji: '🏢',
     desc: '장비·인력·설치 등을 맡는 사업자. 견적 요청을 받고 대금·세금계산서를 앱에서 확인',
+    pick: ['장비·인력·설치 사업자', '견적·대금·세금계산서 확인'],
     badge: 'bg-emerald-50 text-emerald-700',
   },
 }
