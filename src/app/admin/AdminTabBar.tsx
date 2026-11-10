@@ -139,8 +139,9 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
                 className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
               >
                 <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">
+                  {/* 숫자가 바뀌면(새 문의) 배지가 다시 톡 — key로 새로 그림 */}
                   {t.href === '/admin/chat' && unread > 0 && (
-                    <span className="absolute -top-1.5 right-0 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 text-[10px] leading-none font-bold text-white ring-2 ring-white">
+                    <span key={`u${unread}`} data-nav-badge="chat" className="absolute -top-1.5 right-0 grid h-4 min-w-4 animate-pop place-items-center rounded-full bg-rose-500 px-1 text-[10px] leading-none font-bold text-white ring-2 ring-white">
                       {unread > 9 ? '9+' : unread}
                     </span>
                   )}

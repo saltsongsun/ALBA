@@ -171,6 +171,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const canApply = job.status === 'open' && !ended && !overToday
   // 하루짜리 근무가 이미 시작했으면 지원 칸에 한 줄 안내 (지원은 받음: 급히 사람을 구하는 경우)
   const startedToday = canApply && job.start_date === job.end_date && job.start_date === kstDate() && Date.now() >= kstAt(job.start_date, job.start_time).getTime()
+  // 오늘 3시간 안에 시작하는 근무: 지원 칸에 '곧 시작' 한 줄 (늦지 않게 갈 수 있을 때만 지원하게 — 지각·노쇼 막기)
+  const soonMin = canApply && job.start_date === kstDate() ? Math.ceil((kstAt(job.start_date, job.start_time).getTime() - Date.now()) / 60_000) : 0
+  const startsSoon = soonMin > 0 && soonMin <= 180
   const path = `/jobs/${job.id}`
   // 전문가 의뢰는 전문가 화면(보라)·말투로, 지원도 가입 유형이 맞아야 (알바 공고는 알바, 전문가 의뢰는 전문가)
   const expert = job.audience === 'expert'
@@ -665,6 +668,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
               {/* 방금 사진을 올려 이 칸이 나타났으면 알려 줌 */}
               <PhotoDoneNote />
+              {startsSoon && (
+                <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-soon-note>
+                  <b className="block font-semibold">
+                    {hhmm(job.start_time)} 시작 · {minutesText(soonMin)} 뒤예요
+                  </b>
+                  <span className="block">늦지 않게 갈 수 있을 때 지원해 주세요</span>
+                </p>
+              )}
               {startedToday && (
                 <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-started-note>
                   {hhmm(job.start_time)}에 이미 시작한 {expert ? '일정이에요' : '근무예요'}. 지원하면 담당자가 확인한 뒤 알려 드려요.
