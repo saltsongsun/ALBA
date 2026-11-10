@@ -16,6 +16,7 @@ import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
 import { ConfirmSubmit } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
+import { askTag, needsReply } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -33,6 +34,8 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
   const onlyUnread = sp.unread === '1'
+  // '답장 전'만 모아 보기 (읽었지만 아직 답하지 않은 문의)
+  const onlyNoReply = !onlyUnread && sp.noreply === '1'
   const rooms = await adminRooms(admin.companyId, admin.id)
   // 단체방 마지막 말을 쓴 사람 이름 (나는 '나')
   const lastSenders = [...new Set(rooms.map((r) => r.last?.sender_id).filter((id): id is string => !!id && id !== admin.id))]
@@ -89,11 +92,16 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
     (digits.length >= 3 && (t.last.user!.phone ?? '').replace(/\D/g, '').includes(digits)) ||
     hitOf.has(t.last.thread_user_id)
   const found = all.filter(matches)
-  const list = onlyUnread ? found.filter((t) => t.unread > 0) : found
+  // 답장 전: 근무자가 마지막으로 보낸 글을 읽기만 하고 답하지 않은 대화 (최근 7일 · 알리기만 하는 글은 빼고) — 읽고 나면 빨간 숫자가 사라져 묻히기 쉬움
+  const noReplySince = Date.now() - 7 * 86_400_000
+  const noReply = (t: { last: Row; unread: number }) => !t.last.from_admin && t.unread === 0 && needsReply(t.last.body) && Date.parse(t.last.created_at) >= noReplySince
+  const noReplyCount = found.filter(noReply).length
+  const list = onlyUnread ? found.filter((t) => t.unread > 0) : onlyNoReply ? found.filter(noReply) : found
   const roomHits = term ? rooms.filter((r) => r.title.toLowerCase().includes(low)) : rooms
-  const qs = (unread: boolean) => {
+  const qs = (unread: boolean, noreply = false) => {
     const p = new URLSearchParams()
     if (unread) p.set('unread', '1')
+    else if (noreply) p.set('noreply', '1')
     if (term) p.set('q', term)
     const s = p.toString()
     return `/admin/chat${s ? `?${s}` : ''}`
@@ -187,12 +195,18 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         )
       })()}
       <div className="flex gap-1.5">
-        <Link href={qs(false)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+        <Link href={qs(false)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread && !onlyNoReply ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
           전체 {found.length}
         </Link>
         <Link href={qs(true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
           안 읽음 {term ? found.filter((t) => t.unread > 0).length : unreadCount}
         </Link>
+        {/* 읽고 답하지 않은 문의가 있을 때만 */}
+        {(noReplyCount > 0 || onlyNoReply) && (
+          <Link href={qs(false, true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyNoReply ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'}`} data-inbox-noreply-chip>
+            답장 전 {noReplyCount}
+          </Link>
+        )}
         {/* 안 읽은 대화가 둘 이상이면 하나씩 열지 않고 한 번에 읽음 (두 번 눌러야) */}
         {unreadCount > 1 && !term && (
           <form action={markAllInquiriesRead} className="ml-auto">
@@ -211,12 +225,14 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
             </Link>
           </Empty>
         ) : (
-          <Empty icon="💬" title="아직 들어온 문의가 없어요">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모여요.</Empty>
+          onlyNoReply ? (
+            <Empty icon="✅" title="답장을 기다리는 문의가 없어요">읽은 문의에는 모두 답했어요.</Empty>
+          ) : <Empty icon="💬" title="아직 들어온 문의가 없어요">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모여요.</Empty>
         )
       ) : (
         <div className="stagger space-y-2">
           {list.map(({ last, unread }) => (
-            <Link key={last.thread_user_id} href={`/admin/chat/${last.thread_user_id}`} className="card-link flex items-center gap-3 p-4">
+            <Link key={last.thread_user_id} data-inbox-row={last.thread_user_id} href={`/admin/chat/${last.thread_user_id}`} className="card-link flex items-center gap-3 p-4">
               <span className="relative shrink-0">
                 <Avatar id={last.user!.id} name={last.user!.name} photoAt={last.user!.photo_at} zoom={false} />
                 {workingNow.has(last.thread_user_id) && (
@@ -235,15 +251,34 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                     // 메시지 내용으로 찾았으면 그 메시지를 보여 줌 (이름·번호로 찾았으면 마지막 메시지)
                     const hit = term && !last.user!.name.toLowerCase().includes(low) ? hitOf.get(last.thread_user_id) : undefined
                     const m = hit ?? last
+                    // 바로 처리할 요청이면 종류를 짧게 (출근 확인 · 출근 기록 · 기록 정정 · 확정 문의) — 머리말 줄은 같은 말이라 빼고 내용만
+                    const tag = !hit && !m.from_admin ? askTag(m.body) : null
+                    const rest = tag && /^(📍|✏️)/.test(m.body) ? m.body.split('\n').slice(1).join(' ').trim() : ''
                     return (
                       <p className={`truncate text-sm ${unread ? 'font-semibold text-ink' : 'text-sub'}`} data-chat-snippet>
                         {m.from_admin && <span className="text-mute">답장: </span>}
                         {hit && <span className="mr-1 rounded bg-amber-100 px-1 text-[11px] font-bold text-amber-800">찾은 말</span>}
-                        {plainBody(m.body)}
+                        {tag && (
+                          <>
+                            <span className={`rounded px-1 text-[11px] font-bold ${tag.urgent ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-700'}`} data-inbox-tag={tag.urgent ? 'urgent' : 'ask'}>
+                              {tag.label}
+                            </span>{' '}
+                          </>
+                        )}
+                        {rest || plainBody(m.body)}
                       </p>
                     )
                   })()}
-                  {unread > 0 && <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{unread}</span>}
+                  {unread > 0 ? (
+                    <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{unread}</span>
+                  ) : (
+                    // 읽었지만 아직 답하지 않음
+                    noReply({ last, unread }) && (
+                      <span className="shrink-0 text-[11px] font-bold whitespace-nowrap text-amber-700" data-inbox-noreply>
+                        답장 전
+                      </span>
+                    )
+                  )}
                 </div>
               </div>
             </Link>

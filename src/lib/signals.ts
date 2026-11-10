@@ -31,6 +31,25 @@ export function signalOf(body: string): SignalKind | null {
   return null
 }
 
+/**
+ * 관리자 문의 목록: 근무자가 마지막으로 보낸 글이 답장을 기다리는 글인지.
+ * 알리기만 하는 글(지각 알림 · 근무일/확정 취소 알림 · 늦은 종료 입력)은 답장이 없어도 되므로 뺌
+ */
+export function needsReply(body: string): boolean {
+  const head = body.split('\n', 1)[0]
+  return !(head.startsWith(SIGNAL.late) || head.startsWith('⚠️') || head.startsWith('🕒 근무 종료 늦게 입력'))
+}
+
+/** 관리자 문의 목록의 짧은 표시: 바로 처리할 요청 종류 (일반 문의면 null) · urgent = 현장에서 지금 기다리는 것 */
+export function askTag(body: string): { label: string; urgent: boolean } | null {
+  const head = body.split('\n', 1)[0]
+  if (head.startsWith(SIGNAL.arrive)) return { label: '출근 확인', urgent: true }
+  if (head.startsWith(ASK_MISSED.slice(0, 20))) return { label: '출근 기록', urgent: true }
+  if (head.startsWith(SIGNAL.fix)) return { label: '기록 정정', urgent: false }
+  if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
+  return null
+}
+
 /** 지각 알림 본문에서 늦는 분과 도착 예정 시각 */
 export function parseLate(body: string): { minutes: number; eta: string } | null {
   const m = body.match(/약 (\d+)분 늦어요 \(도착 예정 (\d{2}:\d{2})\)/)
