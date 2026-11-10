@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { haptic } from './ui'
 
@@ -13,37 +13,68 @@ const DOTS = Array.from({ length: 12 }, (_, i) => {
   return { x: Math.round(Math.cos(a) * r), y: Math.round(Math.sin(a) * r), c: ['#10b981', '#2557e8', '#f59e0b', '#f43f5e'][i % 4] }
 })
 
-/** 처리 후 돌아온 화면 위쪽 안내(?m=). 내려왔다가 6초 뒤 부드럽게 접힘 */
+/**
+ * 처리 후 돌아온 화면 위쪽 안내(?m=). 내려왔다가 6초 뒤 부드럽게 접힘.
+ * 주소에서 m을 지운 뒤 같은 화면이 다시 그려져도(대화 화면은 열자마자 읽음 숫자를 맞추려 한 번 새로 고침 · 자동 갱신) 떠 있던 안내는 6초를 채움
+ * — 예전에는 그때 바로 사라져 대화 화면에서는 안내를 읽을 틈이 없었음. 다른 화면(탭·날짜)으로 옮기면 바로 닫음
+ */
 export default function Flash({ m }: { m: string | string[] | undefined }) {
   const msg = typeof m === 'string' ? m.slice(0, 200) : ''
   const [shown, setShown] = useState(msg)
   const [closing, setClosing] = useState(false)
   const [party, setParty] = useState(false)
 
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const partyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  // 안내를 띄운 화면 주소 (m 빼고) — 같은 화면이 다시 그려진 것인지, 다른 화면으로 옮긴 것인지 가름
+  const shownAt = useRef('')
+
   useEffect(() => {
+    if (!msg) {
+      const here = new URL(location.href)
+      here.searchParams.delete('m')
+      // 같은 화면이 다시 그려진 것: 떠 있던 안내는 그대로 (닫는 시각도 그대로)
+      if (shownAt.current && shownAt.current === here.pathname + here.search) return
+      clearTimeout(closeTimer.current)
+      clearTimeout(partyTimer.current)
+      shownAt.current = ''
+      setShown('')
+      setClosing(false)
+      setParty(false)
+      return
+    }
     setShown(msg)
     setClosing(false)
-    if (!msg) return
     // 새로고침하거나 주소를 공유해도 같은 안내가 다시 뜨지 않게 주소에서 m을 지움
     const url = new URL(location.href)
     url.searchParams.delete('m')
     window.history.replaceState(null, '', url)
-    const t = setTimeout(() => setClosing(true), SHOW_MS)
-    let p: ReturnType<typeof setTimeout> | undefined
+    shownAt.current = url.pathname + url.search
+    clearTimeout(closeTimer.current)
+    closeTimer.current = setTimeout(() => setClosing(true), SHOW_MS)
+    clearTimeout(partyTimer.current)
     if (PARTY.test(msg)) {
       setParty(true)
       haptic([12, 60, 18])
-      p = setTimeout(() => setParty(false), 1200)
-    }
-    return () => {
-      clearTimeout(t)
-      if (p) clearTimeout(p)
-    }
+      partyTimer.current = setTimeout(() => setParty(false), 1200)
+    } else setParty(false)
   }, [msg])
+
+  // 화면을 떠날 때만 시계를 멈춤 (msg가 비어 다시 그려질 때는 그대로 둠)
+  useEffect(
+    () => () => {
+      clearTimeout(closeTimer.current)
+      clearTimeout(partyTimer.current)
+    },
+    [],
+  )
 
   useEffect(() => {
     if (!closing) return
-    const t = setTimeout(() => setShown(''), 300)
+    const t = setTimeout(() => {
+      setShown('')
+      shownAt.current = ''
+    }, 300)
     return () => clearTimeout(t)
   }, [closing])
 
