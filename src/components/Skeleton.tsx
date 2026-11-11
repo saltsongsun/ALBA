@@ -390,3 +390,60 @@ export function RosterSkeleton() {
   )
 }
 
+
+/** 전문가·외주 홈: 보라색 큰 카드 자리 · 견적 요청 줄 */
+export function ProHomeSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="불러오는 중" className="skeleton space-y-5" data-skeleton="pro">
+      <div className="h-44 rounded-3xl bg-line/70" />
+      <div className={`h-6 w-36 ${bar}`} />
+      {[0, 1].map((i) => (
+        <div key={i} className="card flex items-center justify-between gap-3 p-4">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className={`h-3.5 w-24 ${bar}`} />
+            <div className={`h-5 w-3/5 ${bar}`} />
+            <div className={`h-4 w-2/5 ${bar}`} />
+          </div>
+          <div className={`h-4 w-16 shrink-0 ${bar}`} />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** 견적·대금: 제목 · 받을/받은 대금 두 칸 · 견적 요청 줄 · 대금 줄 */
+export function ProMoneySkeleton() {
+  const rows = (n: number) => (
+    <div className="card divide-y divide-line py-1">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="flex items-center justify-between gap-3 py-3">
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className={`h-3.5 w-20 ${bar}`} />
+            <div className={`h-5 w-1/2 ${bar}`} />
+            <div className={`h-3.5 w-3/5 ${bar}`} />
+          </div>
+          <div className="shrink-0 space-y-2">
+            <div className={`ml-auto h-5 w-20 ${bar}`} />
+            <div className="ml-auto h-5 w-14 rounded-full bg-line/70" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+  return (
+    <div aria-busy="true" aria-label="불러오는 중" className="skeleton space-y-5" data-skeleton="pro-money">
+      <div className="space-y-2">
+        <div className={`h-7 w-32 ${bar}`} />
+        <div className={`h-4 w-4/5 ${bar}`} />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="h-[68px] rounded-2xl bg-line/70" />
+        <div className="h-[68px] rounded-2xl bg-line/60" />
+      </div>
+      <div className={`h-6 w-28 ${bar}`} />
+      {rows(1)}
+      <div className={`h-6 w-16 ${bar}`} />
+      {rows(2)}
+    </div>
+  )
+}

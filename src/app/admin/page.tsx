@@ -804,7 +804,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {otherUnread.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
-            <Icon name="building" /> {otherUnread.some((c) => c.waiting > 0) ? '다른 회사에 확인할 일' : '다른 회사에 새 문의'}
+            <Icon name="building" />{' '}
+            {otherUnread.some((c) => c.waiting > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
           </span>
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany} className="max-w-full">
@@ -821,6 +822,18 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   <span className="shrink-0 whitespace-nowrap" data-other-waiting>
                     대기 <b className="text-amber-600">{c.waiting}</b>
                   </span>
+                )}
+                {/* 그 회사에서 오늘 진행하는 행사 · (오늘 것이 없으면) 내일 시작하는 행사 — 회사를 바꿔 보지 않아도 놓치지 않게 */}
+                {c.today > 0 ? (
+                  <span className="shrink-0 whitespace-nowrap" data-other-today>
+                    오늘 행사 <b className="text-emerald-600">{c.today}</b>
+                  </span>
+                ) : (
+                  c.tomorrow > 0 && (
+                    <span className="shrink-0 whitespace-nowrap" data-other-tomorrow>
+                      내일 행사 <b className="text-brand-600">{c.tomorrow}</b>
+                    </span>
+                  )
                 )}
               </SubmitButton>
             </form>

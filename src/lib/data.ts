@@ -211,33 +211,47 @@ export async function otherCompaniesUnread(companies: { id: string; name: string
   return others.map((c, i) => ({ id: c.id, name: c.name, n: counts[i] })).filter((c) => c.n > 0)
 }
 
-/** 그 회사에서 확정을 기다리는 지원자 수 (보류 빼고 · 모집·마감 상태이고 아직 안 끝난 공고만 — 대시보드 '확정 대기'와 같은 기준) */
-async function waitingApplicants(companyId: string, today: string): Promise<number> {
-  const jobs = ((await db().from('jobs').select('id, status, end_date').eq('company_id', companyId).in('status', ['open', 'closed']).gte('end_date', today)).data ?? []) as Pick<
-    Job,
-    'id' | 'status' | 'end_date'
-  >[]
-  const ids = jobs.filter((j) => (j.status === 'open' || j.status === 'closed') && j.end_date >= today).map((j) => j.id)
-  if (!ids.length) return 0
+/**
+ * 그 회사의 지금 일: 확정을 기다리는 지원자 수(보류 빼고 · 모집·마감 상태이고 아직 안 끝난 공고만 — 대시보드 '확정 대기'와 같은 기준)
+ * + 오늘 진행하는 행사 수 · 내일 시작하는 행사 수. 공고는 한 번만 읽음
+ */
+async function companyNow(companyId: string, today: string, tomorrow: string): Promise<{ waiting: number; today: number; tomorrow: number }> {
+  const jobs = (
+    ((await db().from('jobs').select('id, status, start_date, end_date').eq('company_id', companyId).in('status', ['open', 'closed']).gte('end_date', today)).data ?? []) as Pick<
+      Job,
+      'id' | 'status' | 'start_date' | 'end_date'
+    >[]
+  ).filter((j) => (j.status === 'open' || j.status === 'closed') && j.end_date >= today)
+  const ids = jobs.map((j) => j.id)
+  if (!ids.length) return { waiting: 0, today: 0, tomorrow: 0 }
   const r = await db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'applied').is('held_at', null).in('job_id', ids)
-  return r.error ? 0 : (r.count ?? 0)
+  return {
+    waiting: r.error ? 0 : (r.count ?? 0),
+    today: jobs.filter((j) => j.start_date <= today).length,
+    tomorrow: jobs.filter((j) => j.start_date === tomorrow).length,
+  }
 }
 
 /**
- * 여러 회사를 맡은 관리자: 지금 보는 회사 말고 다른 회사에 쌓인 일 — 새 문의(n) + 확정을 기다리는 지원자(waiting).
- * 회사는 이 관리자가 속한 곳(companies)만 봄 · 12곳까지 · 둘 다 없으면 뺌 (대시보드 안내·회사 고르기 표시)
+ * 여러 회사를 맡은 관리자: 지금 보는 회사 말고 다른 회사에 쌓인 일 — 새 문의(n) + 확정을 기다리는 지원자(waiting)
+ * + 오늘 진행하는 행사(today) · 내일 시작하는 행사(tomorrow).
+ * 회사는 이 관리자가 속한 곳(companies)만 봄 · 12곳까지 · 아무것도 없으면 뺌 (대시보드 안내·회사 고르기 표시)
  */
-export async function otherCompaniesTodo(companies: { id: string; name: string }[], currentId: string): Promise<{ id: string; name: string; n: number; waiting: number }[]> {
+export async function otherCompaniesTodo(
+  companies: { id: string; name: string }[],
+  currentId: string,
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
+  const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, waiting] = await Promise.all([unreadForAdmins(c.id).catch(() => 0), waitingApplicants(c.id, today).catch(() => 0)])
-      return { id: c.id, name: c.name, n, waiting }
+      const [n, now] = await Promise.all([unreadForAdmins(c.id).catch(() => 0), companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0 }))])
+      return { id: c.id, name: c.name, n, ...now }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0)
 }
 
 /**

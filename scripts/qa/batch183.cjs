@@ -62,11 +62,11 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const card = a.locator('[data-other-companies]')
   await card.waitFor({ timeout: 15000 }).catch(() => {})
   const ct = ((await card.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("'다른 회사에 확인할 일 · 두번째기획 대기 2' (보류·끝난 공고·취소한 공고는 안 셈)", ct === '다른 회사에 확인할 일 두번째기획 대기 2', ct)
+  ok("'다른 회사에 확인할 일 · 두번째기획 대기 2' (보류·끝난 공고·취소한 공고는 안 셈 · 내일 시작 공고는 '내일 행사 1')", ct === '다른 회사에 확인할 일 두번째기획 대기 2 내일 행사 1', ct)
   ok('문의가 없으면 문의 숫자는 없음', (await card.locator('[data-other-unread-n]').count()) === 0 && (await card.locator('[data-other-waiting]').count()) === 1)
   ok('회사 고르기: 빨간 점', (await a.locator('header [data-other-unread]').count()) === 1)
   const opt = await a.locator(`header select[name=company] option[value="${C2}"]`).innerText()
-  ok("회사 고르기 목록: '두번째기획 · 대기 2'", opt.replace(/\s+/g, ' ').trim() === '두번째기획 · 대기 2', opt)
+  ok("회사 고르기 목록: '두번째기획 · 대기 2 · 내일 행사 1'", opt.replace(/\s+/g, ' ').trim() === '두번째기획 · 대기 2 · 내일 행사 1', opt)
   ok('한 줄 · 360px 옆으로 안 밀림', (await card.locator('button').first().evaluate((el) => el.getBoundingClientRect().height < 40)) && (await noSide(a)))
   if (SHOTS) await card.screenshot({ path: `${SHOTS}/other-waiting.png` }).catch(() => {})
   // 문의도 있으면 함께
@@ -74,7 +74,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await a.goto(`${D}/admin`)
   await card.waitFor({ timeout: 15000 }).catch(() => {})
   const ct2 = ((await card.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("문의도 있으면 '두번째기획 문의 1 대기 2'", ct2 === '다른 회사에 확인할 일 두번째기획 문의 1 대기 2', ct2)
+  ok("문의도 있으면 '두번째기획 문의 1 대기 2'", ct2 === '다른 회사에 확인할 일 두번째기획 문의 1 대기 2 내일 행사 1', ct2)
   ok('문의와 함께여도 360px 옆으로 안 밀림', await noSide(a))
   // 누르면 그 회사로 → 확정 대기 지원자 2명이 보임
   await card.getByRole('button', { name: /두번째기획/ }).click()
@@ -82,7 +82,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok('누르면 그 회사 대시보드로', (await a.locator('header select[name=company]').inputValue()) === C2)
   // 그 회사에서 보면: 원래 회사(대기 지원자 김지원 1명 · 문의 1건)가 '다른 회사'로
   const back = ((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("그 회사에서 보면 원래 회사가 '다른 회사'로 (대기 1)", /주식회사 테스트( 문의 \d+)? 대기 1$/.test(back), back)
+  ok("그 회사에서 보면 원래 회사가 '다른 회사'로 (대기 1)", /주식회사 테스트( 문의 \d+)? 대기 1( (오늘|내일) 행사 \d+)?$/.test(back), back)
   // 다 확정·처리하면 안내 없음 (원래 회사로 돌아와서)
   await rest(`applications?company_id=eq.${C2}`, 'PATCH', { status: 'approved' })
   await rest(`messages?company_id=eq.${C2}`, 'PATCH', { read_at: now })
@@ -92,7 +92,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await a.goto(`${D}/admin`)
   await a.locator('main').waitFor({ timeout: 15000 }).catch(() => {})
   await a.waitForTimeout(400)
-  ok('다른 회사에 남은 일이 없으면 안내·점 없음', (await a.locator('header select[name=company]').inputValue()) === C1 && (await a.locator('[data-other-companies]').count()) === 0 && (await a.locator('header [data-other-unread]').count()) === 0, `${await a.locator('header select[name=company]').inputValue()} | ${((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ')}`)
+  ok("다른 회사에 남은 일이 없으면 점 없음 · 안내는 '다른 회사 행사 · 내일 행사 1'만", (await a.locator('header select[name=company]').inputValue()) === C1 && ((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim() === '다른 회사 행사 두번째기획 내일 행사 1' && (await a.locator('header [data-other-unread]').count()) === 0, `${await a.locator('header select[name=company]').inputValue()} | ${((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ')}`)
 
   // ── 2. 근무자 내 근무: 근무 날엔 '오늘의 근무'가 먼저
   await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: today, end_date: today, start_time: '00:00:00', end_time: '23:59:00' })

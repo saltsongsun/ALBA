@@ -12,12 +12,15 @@ export function CompanySwitcher({
   current,
   unread = {},
   waiting = {},
+  events = {},
 }: {
   companies: { id: string; name: string }[]
   current: string
   unread?: Record<string, number>
   /** 다른 회사에서 확정을 기다리는 지원자 수 */
   waiting?: Record<string, number>
+  /** 다른 회사의 행사: '오늘 행사 2' · '내일 행사 1' 같은 짧은 말 (알림 점은 안 켬 — 새로 온 일이 아니라서) */
+  events?: Record<string, string>
 }) {
   const path = usePathname()
   // 다른 회사에 새 문의·확정 대기 지원자가 있으면 점 + 고르기 목록에 '· 새 문의 N · 대기 N'
@@ -46,6 +49,7 @@ export function CompanySwitcher({
               {c.name}
               {c.id !== current && unread[c.id] ? ` · 새 문의 ${unread[c.id]}` : ''}
               {c.id !== current && waiting[c.id] ? ` · 대기 ${waiting[c.id]}` : ''}
+              {c.id !== current && events[c.id] ? ` · ${events[c.id]}` : ''}
             </option>
           ))}
         </select>
