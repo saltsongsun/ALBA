@@ -135,6 +135,21 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
   // 아직 입금되지 않은 급여 (지급 완료되면 알림이 감)
   const unpaid = items.filter((it) => !it.paid && it.s.net > 0)
   const unpaidNet = unpaid.reduce((n, it) => n + it.s.net, 0)
+  // 입금 대기를 회사별로 (회사마다 따로 입금 · 정산 예정일도 회사·공고마다 다름) — 큰 금액부터
+  const unpaidBy = [
+    ...unpaid
+      .reduce((m, it) => {
+        const id = it.job.company_id ?? ''
+        const cur = m.get(id) ?? { id, name: coNames.get(id) ?? '회사', net: 0, n: 0, days: [] as string[] }
+        cur.net += it.s.net
+        cur.n += 1
+        const day = told.get(it.job.id) ?? paydayLabel(it.job.pay_day, it.job.end_date)
+        if (day && !cur.days.includes(day)) cur.days.push(day)
+        m.set(id, cur)
+        return m
+      }, new Map<string, { id: string; name: string; net: number; n: number; days: string[] }>())
+      .values(),
+  ].sort((a, b) => b.net - a.net)
   // 최근 6개월 실수령 막대 (이번 달 포함)
   const nowYm = kstDate().slice(0, 7)
   const recent = Array.from({ length: 6 }, (_, i) => {
@@ -236,14 +251,43 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
             </p>
           </section>
 
-          {unpaidNet > 0 && (
-            <p className="-mt-3 flex items-center justify-between gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <span>
-                ⏳ 입금 대기 <b>{unpaid.length}곳</b>
-              </span>
-              <b className="text-base tabular-nums">{won(unpaidNet)}</b>
-            </p>
-          )}
+          {unpaidNet > 0 &&
+            (unpaid.length < 2 ? (
+              <p className="-mt-3 flex items-center justify-between gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900" data-unpaid>
+                <span>
+                  ⏳ 입금 대기 <b>{unpaid.length}곳</b>
+                </span>
+                <b className="text-base tabular-nums">{won(unpaidNet)}</b>
+              </p>
+            ) : (
+              // 두 곳 이상이면 눌러서 회사별로 (어느 회사가 언제 얼마를 주는지) — 평소엔 한 줄로 접어 둠
+              <details className="group -mt-3 rounded-2xl bg-amber-50 text-sm text-amber-900" data-unpaid>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 select-none before:hidden [&::-webkit-details-marker]:hidden">
+                  <span>
+                    ⏳ 입금 대기 <b>{unpaid.length}곳</b>
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <b className="text-base tabular-nums">{won(unpaidNet)}</b>
+                    <span aria-hidden className="inline-block text-base leading-none text-amber-700 transition-transform duration-200 group-open:rotate-90">
+                      ›
+                    </span>
+                  </span>
+                </summary>
+                <ul className="space-y-2 border-t border-amber-200/70 px-4 pt-2.5 pb-3 group-open:animate-[slide-down_0.22s_ease-out_both]" data-unpaid-rows>
+                  {unpaidBy.map((u) => (
+                    <li key={u.id} className="flex items-center justify-between gap-3" data-unpaid-co>
+                      <span className="min-w-0">
+                        <b className="block truncate">{u.name}</b>
+                        <span className="block truncate text-xs text-amber-800/80">
+                          {[u.n > 1 ? `${u.n}곳` : null, u.days.length ? `정산 예정 ${u.days.join(' · ')}` : null].filter(Boolean).join(' · ') || '정산일은 담당자에게 문의해 주세요'}
+                        </span>
+                      </span>
+                      <b className="shrink-0 tabular-nums">{won(u.net)}</b>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            ))}
           {top > 0 && (
             <section className="card" data-month-bars aria-label="최근 6개월 실수령">
               <h2 className="text-sm font-bold text-sub">최근 6개월 실수령</h2>
