@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation'
 import { audit } from '@/lib/data'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
-import { sendPush } from '@/lib/push'
+import { sendAdminPush, sendPush } from '@/lib/push'
 import { markRoomRead, mentionedIn, pinnedReads, roomMembers, roomOpen, roomPinned, roomReads, unreadFor, workerRoom, type RoomJob } from '@/lib/room'
 import { canManageCompany, requireAdmin, requireUser } from '@/lib/session'
 import { overLimit } from '@/lib/ratelimit'
@@ -65,9 +65,10 @@ export async function sendRoom(jobId: string, _: FormState, form: FormData): Pro
     const mention = { title: `👥 ${title} · ${user.name}님이 나를 언급했어요`, body: plainBody(body) }
     await Promise.all([
       sendPush(plain(workers), { title: `👥 ${title}`, body: text, url: `/me/chat/room/${jobId}`, tag }, { optional: true }),
-      sendPush(plain(admins), { title: `👥 ${title}`, body: text, url: `/admin/chat/room/${jobId}`, tag }, { optional: true }),
+      // 관리자: 여러 회사를 맡은 사람에게는 제목 끝에 회사 이름 (어느 회사 단체방인지 · 방에 참여한 관리자에게만)
+      sendAdminPush(job.company_id, { title: `👥 ${title}`, body: text, url: `/admin/chat/room/${jobId}`, tag }, { optional: true, only: plain(admins) }),
       sendPush(workers.filter((w) => called.has(w.id)).map((w) => w.id), { ...mention, url: `/me/chat/room/${jobId}`, tag: `${tag}-at` }),
-      sendPush(admins.filter((a) => called.has(a.id)).map((a) => a.id), { ...mention, url: `/admin/chat/room/${jobId}`, tag: `${tag}-at` }),
+      sendAdminPush(job.company_id, { ...mention, url: `/admin/chat/room/${jobId}`, tag: `${tag}-at` }, { only: admins.filter((a) => called.has(a.id)).map((a) => a.id) }),
     ])
   })
   roomPaths(jobId)

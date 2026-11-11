@@ -1,5 +1,5 @@
 // 관리자 휴대폰 알림 제목: 여러 회사를 맡은 관리자에게는 회사 이름을 붙임 ('💬 근무자 문의 · 주식회사 테스트') — 잠금 화면에서도 어느 회사 일인지 구분
-// 한 회사만 맡은 관리자에게는 예전 그대로 짧게 ('💬 근무자 문의')
+// 한 회사만 맡은 관리자에게는 예전 그대로 짧게 ('💬 근무자 문의') · 단체방 알림('👥 공고 이름 · 회사 이름')도 같게 (방에 참여한 관리자에게만)
 // 실제 웹 푸시를 받아서 확인 (push-company.cjs와 같은 방법): 이 컴퓨터에 HTTPS 받는 곳을 띄우고, 그 인증서를 믿는 앱을 따로 띄워
 // 근무자가 문의를 보냄 → 두 관리자 기기로 간 암호화된 알림을 각자 키로 풀어 제목을 확인
 // node scripts/qa/push-admin-company.cjs <default 가짜> <작업 폴더>
@@ -79,15 +79,30 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     await box.fill('알림 제목 확인용 문의예요')
     await p.locator('button[type=submit][aria-label="보내기"]').click()
     for (let i = 0; i < 60 && !(got.m.length && got.n.length); i++) await new Promise((r) => setTimeout(r, 250))
+    const afterAsk = { m: got.m.length, n: got.n.length } // 문의 알림까지의 개수 (아래 단체방 알림과 따로 셈)
+
+    // 5. 단체방: 방에 참여한 관리자(두회사관리자)에게만 · 제목 끝에 회사 이름 (한회사관리자는 참여 안 함 → 알림 없음)
+    await rest('job_chat_reads', 'POST', { job_id: J, user_id: M, read_at: new Date().toISOString() })
+    await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10) }) // 저녁에 돌려도 방이 열려 있게
+    await p.goto(`${D}/me/chat/room/${J}`)
+    await box.waitFor({ timeout: 15000 }).catch(() => {})
+    await p.waitForLoadState('networkidle').catch(() => {})
+    await box.fill('단체방 알림 확인용 글이에요')
+    await p.locator('button[type=submit][aria-label="보내기"]').click()
+    for (let i = 0; i < 60 && got.m.length < 2; i++) await new Promise((r) => setTimeout(r, 250))
+    await new Promise((r) => setTimeout(r, 800)) // 한회사관리자에게 (잘못) 가는 알림이 있다면 올 시간
     await b.close()
 
     const sent = (await rest('messages')).find((x) => x.body === '알림 제목 확인용 문의예요')
     ok('문의가 첫 회사로 저장됨', !!sent && sent.company_id === C1, JSON.stringify(sent?.company_id))
-    ok('두 관리자 기기로 알림이 감', got.m.length === 1 && got.n.length === 1, `두회사 ${got.m.length}건 · 한회사 ${got.n.length}건`)
+    ok('두 관리자 기기로 알림이 감', afterAsk.m === 1 && afterAsk.n === 1, `두회사 ${afterAsk.m}건 · 한회사 ${afterAsk.n}건`)
     const mm = got.m[0] ? open(dm, got.m[0]) : null
     const nm = got.n[0] ? open(dn, got.n[0]) : null
     ok('여러 회사를 맡은 관리자: 제목 끝에 회사 이름', mm?.title === '💬 근무자 문의 · 주식회사 테스트', JSON.stringify(mm?.title))
     ok('한 회사만 맡은 관리자: 예전 그대로 짧게', nm?.title === '💬 근무자 문의', JSON.stringify(nm?.title))
+    const rm = got.m[1] ? open(dm, got.m[1]) : null
+    ok('단체방 글: 참여한 관리자에게만 (참여 안 한 관리자에게는 안 감)', got.m.length === 2 && got.n.length === 1, `두회사 ${got.m.length}건 · 한회사 ${got.n.length}건`)
+    ok('단체방 알림 제목에도 회사 이름 (여러 회사를 맡은 관리자)', rm?.title === '👥 경상남도 생활체육대축전 행사장 안내 스태프 · 주식회사 테스트' && rm?.url === `/admin/chat/room/${J}` && (rm?.body ?? '').includes('단체방 알림 확인용 글이에요'), JSON.stringify([rm?.title, rm?.url]))
     ok('내용·여는 주소는 둘 다 같음', !!mm && !!nm && mm.body === nm.body && mm.body.includes('알림 제목 확인용 문의예요') && mm.url === `/admin/chat/${W}` && nm.url === mm.url && mm.tag === nm.tag, JSON.stringify([mm?.body, mm?.url, nm?.url]))
   } finally {
     stop()

@@ -209,6 +209,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           phone: job.manager_phone || company.contact_phone || company.company_phone || null,
         }
       : null
+  // 지원하고 확정을 기다리는데 근무가 하루 안에 시작(또는 이미 시작): 바로 담당자에게 확정 여부를 물을 수 있게 (내 근무 '확정 대기' 칸과 같은 줄)
+  const confirmSoon = (() => {
+    if (app?.status !== 'applied' || ended || job.status === 'cancelled' || workOver(job, job.end_date)) return null
+    const day = (app.available_dates ?? dates).filter((d) => d >= kstDate()).sort()[0] ?? kstDate()
+    const startMs = kstAt(day, job.start_time).getTime()
+    if (startMs > Date.now() + 24 * 3600_000) return null
+    return startMs <= Date.now() ? ('started' as const) : ('soon' as const)
+  })()
   // 확정된 근무에서 내 기록: 지금 근무 중(종료 전 · 시작한 지 18시간 안) · 마지막으로 근무한 날
   const myWork = app?.status === 'approved' ? myAtt : []
   const liveAtt = myWork.find((a) => !a.clock_out && Date.now() - new Date(a.clock_in).getTime() < 18 * 3600_000) ?? null
@@ -554,6 +562,17 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <Icon name="clock" className="shrink-0 text-mute" /> 이 회사는 보통 {replySpan(replyMin)} 안에 답해요
               </p>
             )}
+            {confirmSoon && (
+              // 줄 전체가 누르는 곳 → 문의 화면에 '지원했는데 확정 여부가 궁금해요.'가 첫 빠른 답으로
+              <Link
+                href={`/me/chat?job=${job.id}&ask=confirm`}
+                className="flex min-h-10 items-center justify-between gap-2 rounded-xl bg-amber-50 px-3 py-2 text-[13px] transition active:scale-[0.98]"
+                data-confirm-soon={confirmSoon}
+              >
+                <span className="min-w-0 font-semibold text-amber-900">{confirmSoon === 'started' ? '시작했는데 아직 확정 전이에요' : '곧 시작인데 아직 확정 전이에요'}</span>
+                <span className="shrink-0 font-bold whitespace-nowrap text-brand-700">담당자에게 문의 →</span>
+              </Link>
+            )}
             {app.available_dates && <p className="text-sm text-sub">가능한 날: {app.available_dates.map(fmtDate).join(', ')}</p>}
             {app.status === 'approved' && (
               <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -789,7 +808,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             href={user ? `/me/chat?job=${job.id}` : `/login?next=${encodeURIComponent(`/me/chat?job=${job.id}`)}`}
             className="btn-white btn-sm"
           >
-            <Icon name="chat" /> 이 공고 문의하기
+            <Icon name="chat" /> {expert ? '이 의뢰 문의하기' : '이 공고 문의하기'}
           </Link>
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>

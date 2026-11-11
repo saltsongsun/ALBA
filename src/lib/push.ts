@@ -91,12 +91,14 @@ export async function adminIds(companyId: string): Promise<string[]> {
 /**
  * 그 회사 관리자 전원에게 알림. 여러 회사를 맡은 관리자에게는 제목 끝에 회사 이름을 붙임 ('💬 홍길동 문의 · ○○기획')
  * — 잠금 화면에서도 어느 회사 일인지 알 수 있게 (한 회사만 맡은 관리자에게는 예전 그대로 짧게).
- * 회사 수·이름을 못 읽어도 알림은 그대로 보냄
+ * 회사 수·이름을 못 읽어도 알림은 그대로 보냄 (only를 준 경우엔 그 사람들에게)
  */
-export async function sendAdminPush(companyId: string, msg: PushMessage, opts: { optional?: boolean } = {}): Promise<void> {
+export async function sendAdminPush(companyId: string, msg: PushMessage, opts: { optional?: boolean; only?: string[] } = {}): Promise<void> {
   let ids: string[] = []
   try {
+    // only: 그 회사 관리자 가운데 이 사람들에게만 (단체방 — 방에 참여한 관리자만 받음). 회사 관리자가 아닌 id는 빠짐
     ids = await adminIds(companyId)
+    if (opts.only) ids = ids.filter((id) => opts.only!.includes(id))
     if (!ids.length) return
     const { data } = await db().from('company_members').select('user_id, company_id').in('user_id', ids)
     const seen = new Map<string, Set<string>>()
@@ -115,7 +117,8 @@ export async function sendAdminPush(companyId: string, msg: PushMessage, opts: {
     ])
   } catch {
     // 회사 이름을 붙이려다 실패해도 알림 자체는 보냄 (sendPush는 스스로 오류를 삼킴)
-    if (ids.length) await sendPush(ids, msg, opts)
+    const to = ids.length ? ids : (opts.only ?? [])
+    if (to.length) await sendPush(to, msg, opts)
   }
 }
 
