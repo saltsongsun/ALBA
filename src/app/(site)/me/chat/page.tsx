@@ -200,7 +200,7 @@ async function ChatList({
   companies: { id: string; name: string; support: boolean }[]
   threads: Thread[]
   unreadBy: Map<string, number>
-  rooms: { id: string; title: string; start_date: string; end_date: string; status: RoomJob['status']; unread: number; last: RoomLast | null }[]
+  rooms: { id: string; title: string; company_id: string; start_date: string; end_date: string; status: RoomJob['status']; unread: number; last: RoomLast | null }[]
 }) {
   // 단체방 마지막 말은 안 읽은 수를 셀 때 함께 읽어 옴 (workerRooms)
   const lastRoom = new Map<string, RoomLast>(rooms.filter((r) => r.last).map((r) => [r.id, r.last!]))
@@ -214,7 +214,11 @@ async function ChatList({
     const prev = lastCo.get(t.company_id)
     if (!prev || t.created_at > prev.created_at) lastCo.set(t.company_id, t)
   }
-  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number; ended?: boolean }
+  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number; ended?: boolean; co?: string }
+  // 여러 회사 일을 하면 단체방 줄에 어느 회사 방인지 (공고 이름만으로는 헷갈리지 않게 · 한 회사면 그대로)
+  const coName = new Map(companies.map((c) => [c.id, c.name]))
+  const roomCos = new Set(rooms.map((r) => r.company_id))
+  const multiCo = new Set([...roomCos, ...companies.filter((c) => !c.support).map((c) => c.id)]).size >= 2
   const all: Row[] = [
     ...rooms.map((r): Row => {
       const m = lastRoom.get(r.id)
@@ -229,6 +233,7 @@ async function ChatList({
         at: m?.created_at ?? null,
         unread: r.unread,
         ended: roomEnded(r),
+        co: multiCo ? coName.get(r.company_id) : undefined,
       }
     }),
     ...companies.map((c): Row => {
@@ -281,15 +286,28 @@ async function ChatList({
             {r.at && <span className="ml-auto shrink-0 pl-1 text-xs text-mute tabular-nums">{when(r.at)}</span>}
           </span>
           <span className="mt-0.5 flex items-center gap-2">
-            <span className={`min-w-0 flex-1 truncate text-sm ${r.unread > 0 ? 'font-semibold text-ink' : 'text-sub'}`}>
-              {r.body ? (
+            <span className={`flex min-w-0 flex-1 items-center text-sm ${r.unread > 0 ? 'font-semibold text-ink' : 'text-sub'}`}>
+              {/* 어느 회사 단체방인지 (여러 회사일 때만 · 긴 이름은 줄임) */}
+              {r.co && (
                 <>
-                  {r.who && <span className="text-mute">{r.who}: </span>}
-                  {r.body.replace(/\s+/g, ' ')}
+                  <span className="max-w-[45%] shrink-0 truncate font-medium text-mute" data-room-co>
+                    {r.co}
+                  </span>
+                  <span aria-hidden className="shrink-0 px-1 text-mute">
+                    ·
+                  </span>
                 </>
-              ) : (
-                <span className="text-mute">{r.kind === 'room' ? '아직 대화가 없어요. 먼저 인사해 보세요' : '궁금한 점을 남겨 보세요'}</span>
               )}
+              <span className="min-w-0 flex-1 truncate">
+                {r.body ? (
+                  <>
+                    {r.who && <span className="text-mute">{r.who}: </span>}
+                    {r.body.replace(/\s+/g, ' ')}
+                  </>
+                ) : (
+                  <span className="text-mute">{r.kind === 'room' ? '아직 대화가 없어요. 먼저 인사해 보세요' : '궁금한 점을 남겨 보세요'}</span>
+                )}
+              </span>
             </span>
             {r.unread > 0 && (
               <span data-unread className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums">
