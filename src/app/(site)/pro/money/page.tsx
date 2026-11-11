@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
 import ProMode from '@/components/ProMode'
-import { won } from '@/lib/format'
+import { won, wonReadable } from '@/lib/format'
 import { partnerPayments, partnerQuotes, type PartnerQuote } from '@/lib/partners'
 import { requireUser } from '@/lib/session'
 import { fmtDate, kstDate } from '@/lib/time'
@@ -17,10 +17,24 @@ const QUOTE_STATE: Record<PartnerQuote['status'], { label: string; cls: string }
 }
 
 /** 전문가·외주 업체: 여러 회사에서 받은 견적 요청과 대금(지급 예정일·세금계산서·지급 완료)을 한곳에서 */
-export default async function ProMoney() {
+export default async function ProMoney(props: PageProps<'/pro/money'>) {
   const user = await requireUser('/pro/money')
+  const sp = await props.searchParams
   const today = kstDate()
-  const [quotes, pays] = await Promise.all([partnerQuotes(user.id), partnerPayments(user.id)])
+  const [allQuotes, allPays] = await Promise.all([partnerQuotes(user.id), partnerPayments(user.id)])
+  // 거래하는 회사 (견적을 요청했거나 대금이 있는 곳) — 두 곳 이상이면 회사별로 골라 볼 수 있게. 받을 대금이 큰 순서
+  const firms = new Map<string, { id: string; name: string; unpaid: number }>()
+  for (const q of allQuotes) if (q.request) firms.set(q.request.company_id, { id: q.request.company_id, name: q.company, unpaid: 0 })
+  for (const p of allPays) {
+    const f = firms.get(p.company_id) ?? { id: p.company_id, name: p.company, unpaid: 0 }
+    if (!p.paid_at) f.unpaid += p.amount
+    firms.set(p.company_id, f)
+  }
+  const firmList = [...firms.values()].sort((a, b) => b.unpaid - a.unpaid || a.name.localeCompare(b.name, 'ko'))
+  // 고른 회사 (내가 거래하는 회사일 때만 — 아니면 전체)
+  const co = typeof sp.co === 'string' && firms.has(sp.co) ? sp.co : null
+  const quotes = co ? allQuotes.filter((q) => q.request?.company_id === co) : allQuotes
+  const pays = co ? allPays.filter((p) => p.company_id === co) : allPays
   const unpaid = pays.filter((p) => !p.paid_at)
   const paid = pays.filter((p) => p.paid_at)
   const sum = (list: typeof pays) => list.reduce((n, p) => n + p.amount, 0)
@@ -33,6 +47,27 @@ export default async function ProMoney() {
       </div>
 
       {/* 견적도 대금도 아직 없으면: 0원 칸 두 개와 빈 칸 두 개 대신 안내 하나만 (같은 '아직 없어요'를 여러 번 보이지 않게) */}
+      {firmList.length > 1 && (
+        <nav className="fade-x -mt-2 flex gap-1.5 overflow-x-auto pb-1" aria-label="회사별로 보기" data-pro-firms>
+          <Link href="/pro/money" scroll={false} className={`chip ${co ? '' : 'bg-ink text-white ring-0 hover:bg-ink'}`} aria-current={co ? undefined : 'true'}>
+            전체
+          </Link>
+          {firmList.map((f) => (
+            <Link
+              key={f.id}
+              href={`/pro/money?co=${f.id}`}
+              scroll={false}
+              className={`chip ${co === f.id ? 'bg-ink text-white ring-0 hover:bg-ink' : ''}`}
+              aria-current={co === f.id ? 'true' : undefined}
+              data-pro-firm={f.id}
+            >
+              <span className="max-w-[9.5rem] truncate">{f.name || '회사'}</span>
+              {f.unpaid > 0 && <span className={`text-xs font-medium ${co === f.id ? 'text-white/75' : 'text-mute'}`}>받을 {wonReadable(f.unpaid)}</span>}
+            </Link>
+          ))}
+        </nav>
+      )}
+
       {quotes.length === 0 && pays.length === 0 ? (
         <div data-pro-money-empty>
           <Empty icon="📄" title="아직 받은 견적·대금이 없어요">

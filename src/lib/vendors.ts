@@ -19,6 +19,26 @@ export function payState(p: Pick<VendorPayment, 'paid_at' | 'due_date'>, today: 
   return { key: 'planned', label: '지급 예정', cls: 'bg-gray-100 text-sub' }
 }
 
+/**
+ * 견적을 서로 비교할 때 쓰는 금액: 부가세를 포함한 금액 (부가세 별도 견적은 10%를 더함).
+ * 포함·별도가 섞여 있어도 실제로 나가는 돈으로 견줌. 저장된 금액·지급 건은 바꾸지 않음 (보여 주기·순서에만 씀)
+ */
+export function vatTotal(q: { amount: number | null; vat_included: boolean }): number | null {
+  if (q.amount == null) return null
+  return q.vat_included ? q.amount : Math.round(q.amount * 1.1)
+}
+
+/** 금액 있는 견적 가운데 가장 싼 것 (부가세 포함 기준). anyExcluded: 부가세 별도 견적이 하나라도 있는지 */
+export function lowestQuote(quotes: { amount: number | null; vat_included: boolean }[]): { low: number | null; anyExcluded: boolean; mixed: boolean } {
+  const got = quotes.filter((q) => q.amount != null)
+  const anyExcluded = got.some((q) => !q.vat_included)
+  return {
+    low: got.length ? Math.min(...got.map((q) => vatTotal(q)!)) : null,
+    anyExcluded,
+    mixed: anyExcluded && got.some((q) => q.vat_included),
+  }
+}
+
 /** 업체 입력 링크 주소 */
 export const quoteLink = (origin: string, token: string) => `${origin}/quote/${token}`
 

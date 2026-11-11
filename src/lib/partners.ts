@@ -62,6 +62,7 @@ export type PartnerPayment = {
   invoice_at: string | null
   paid_at: string | null
   company: string
+  company_id: string
 }
 
 /** 내 계정과 이어진 외주사들 (여러 회사가 각자 등록) */
@@ -111,7 +112,7 @@ export async function partnerPayments(userId: string): Promise<PartnerPayment[]>
     .select('id, title, amount, vat_included, due_date, invoice_at, paid_at, company_id, created_at')
     .in('vendor_id', vids)
     .limit(200)
-  const rows = (data ?? []) as (Omit<PartnerPayment, 'company'> & { company_id: string; created_at: string })[]
+  const rows = (data ?? []) as (Omit<PartnerPayment, 'company'> & { created_at: string })[]
   const names = await companyNames(rows.map((r) => r.company_id))
   return rows
     .map((r) => ({ ...r, company: names.get(r.company_id) ?? '' }))

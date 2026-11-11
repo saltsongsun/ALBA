@@ -16,7 +16,7 @@ import { GroupContact } from '@/components/GroupContact'
 import { fmtDate, kstDate } from '@/lib/time'
 import type { Job, Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
-import { payState } from '@/lib/vendors'
+import { lowestQuote, payState } from '@/lib/vendors'
 
 export const metadata: Metadata = { title: '외주 관리' }
 
@@ -60,8 +60,8 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
   // 견적은 이 회사 견적 요청에 딸린 것만
   const quotes = requests.length
     ? (must(
-        await db().from('quotes').select('id, request_id, vendor_id, amount, status').in('request_id', requests.map((r) => r.id)),
-      ) as Pick<Quote, 'id' | 'request_id' | 'vendor_id' | 'amount' | 'status'>[])
+        await db().from('quotes').select('id, request_id, vendor_id, amount, vat_included, status').in('request_id', requests.map((r) => r.id)),
+      ) as Pick<Quote, 'id' | 'request_id' | 'vendor_id' | 'amount' | 'vat_included' | 'status'>[])
     : []
   const vendorOf = new Map(vendors.map((v) => [v.id, v]))
   const jobOf = new Map(jobs.map((j) => [j.id, j]))
@@ -159,7 +159,8 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
             [...openRequests, ...requests.filter((r) => r.status !== 'open')].map((r) => {
               const qs = quotes.filter((q) => q.request_id === r.id)
               const got = qs.filter((q) => q.amount != null)
-              const low = got.length ? Math.min(...got.map((q) => q.amount!)) : null
+              // 최저는 부가세 포함 기준 (견적 비교 화면과 같게)
+              const { low, anyExcluded } = lowestQuote(qs)
               const picked = qs.find((q) => q.status === 'selected')
               const late = r.status === 'open' && r.due_date && r.due_date < today
               return (
@@ -176,7 +177,15 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
                   </div>
                   <p className="text-sm text-sub">
                     받은 견적 <b className="text-ink">{got.length}</b>/{qs.length}곳
-                    {low != null && <> · 최저 {won(low)}</>}
+                    {low != null && (
+                      <>
+                        {' · '}
+                        <span className="whitespace-nowrap" data-request-low>
+                          최저 {won(low)}
+                          {anyExcluded && <span className="text-xs text-mute"> 부가세 포함</span>}
+                        </span>
+                      </>
+                    )}
                     {picked && <> · 선정 {vendorOf.get(picked.vendor_id)?.name} {won(picked.amount)}</>}
                   </p>
                   <p className="text-xs text-mute">

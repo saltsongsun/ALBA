@@ -5,7 +5,7 @@ import { QuoteSubmitForm } from '@/components/vendor'
 import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
-import { won } from '@/lib/format'
+import { phoneFmt, won } from '@/lib/format'
 import { fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { Quote, QuoteRequest } from '@/lib/types'
 
@@ -40,7 +40,10 @@ export default async function VendorQuotePage(props: PageProps<'/quote/[token]'>
   ])
   const company = settings.company_name || '해피워크'
   const open = req.status === 'open' && (q.status === 'requested' || q.status === 'submitted')
-  const late = open && req.due_date && req.due_date < kstDate()
+  const today = kstDate()
+  const late = open && req.due_date && req.due_date < today
+  // 마감까지 남은 날 (받는 중일 때만): 오늘·내일이면 눈에 띄게
+  const daysLeft = open && req.due_date && !late ? Math.round((Date.parse(req.due_date) - Date.parse(today)) / 86_400_000) : null
 
   return (
     <div className="mx-auto max-w-xl space-y-4 px-4 pt-6 pb-16">
@@ -63,6 +66,14 @@ export default async function VendorQuotePage(props: PageProps<'/quote/[token]'>
             <>
               견적 마감 <b className={late ? 'text-rose-600' : 'text-ink'}>{fmtDate(req.due_date)}</b>
               {late && ' (지났지만 아직 받고 있어요)'}
+              {daysLeft != null && (
+                <span
+                  className={`ml-1.5 inline-block rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap ${daysLeft <= 1 ? 'bg-amber-100 text-amber-800' : 'bg-bg text-sub'}`}
+                  data-quote-left={daysLeft}
+                >
+                  {daysLeft === 0 ? '오늘까지' : daysLeft === 1 ? '내일까지' : `${daysLeft}일 남음`}
+                </span>
+              )}
             </>
           ) : (
             '마감일 없음'
@@ -119,9 +130,13 @@ export default async function VendorQuotePage(props: PageProps<'/quote/[token]'>
       )}
       {settings.contact_phone && (
         <p className="text-center text-sm text-sub">
-          문의:{' '}
-          <a href={`tel:${settings.contact_phone}`} className="font-semibold text-brand-600">
-            {settings.contact_name ?? company} {settings.contact_phone}
+          문의{' '}
+          <a
+            href={`tel:${settings.contact_phone.replace(/[^\d+]/g, '')}`}
+            className="-my-2 inline-flex min-h-10 items-center gap-1 px-1 font-semibold whitespace-nowrap text-brand-600 active:opacity-60"
+            data-quote-contact
+          >
+            {settings.contact_name ?? company} · {phoneFmt(settings.contact_phone)}
           </a>
         </p>
       )}

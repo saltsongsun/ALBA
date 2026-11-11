@@ -16,7 +16,7 @@ import { requireAdmin, siteOrigin } from '@/lib/session'
 import { fmtDate, kstDate, kstDateTime } from '@/lib/time'
 import type { Quote, QuoteRequest, Vendor } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
-import { QUOTE_STATUS, quoteLink, quoteMessage } from '@/lib/vendors'
+import { lowestQuote, QUOTE_STATUS, quoteLink, quoteMessage, vatTotal } from '@/lib/vendors'
 
 export const metadata: Metadata = { title: '견적 비교' }
 
@@ -59,9 +59,10 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
   const today = kstDate()
   const open = req.status === 'open'
   const got = quotes.filter((q) => q.amount != null)
-  const low = got.length ? Math.min(...got.map((q) => q.amount!)) : null
-  // 비교: 금액 있는 견적을 싼 순서로, 아직 안 온 곳은 뒤에
-  const sorted = [...quotes].sort((a, b) => (a.amount ?? Infinity) - (b.amount ?? Infinity))
+  // 비교는 부가세 포함 금액으로 (포함·별도가 섞여 있으면 적힌 숫자만으로는 어느 쪽이 싼지 뒤바뀔 수 있음)
+  const { low, mixed } = lowestQuote(quotes)
+  // 금액 있는 견적을 싼 순서로, 아직 안 온 곳은 뒤에
+  const sorted = [...quotes].sort((a, b) => (vatTotal(a) ?? Infinity) - (vatTotal(b) ?? Infinity))
   const notIn = vendors.filter((v) => v.active && !quotes.some((q) => q.vendor_id === v.id)).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   const company = settings.company_name || '해피워크'
 
@@ -128,8 +129,17 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
         <h2 className="text-[17px] font-bold">
           견적 비교 <span className="text-sm font-semibold text-mute">받은 견적 {got.length}/{quotes.length}곳</span>
         </h2>
-        {low != null && got.length > 1 && <span className="text-sm text-sub">최저 {won(low)}</span>}
+        {low != null && got.length > 1 && (
+          <span className="shrink-0 text-sm whitespace-nowrap text-sub" data-quote-low>
+            최저 {won(low)}
+          </span>
+        )}
       </div>
+      {mixed && (
+        <p className="-mt-2 text-xs text-mute" data-quote-vat-mixed>
+          부가세 포함·별도가 섞여 있어 <b className="font-semibold text-sub">부가세 포함 금액</b>으로 견줬어요.
+        </p>
+      )}
 
       {sorted.map((q) => {
         const v = vendorOf.get(q.vendor_id)
@@ -147,12 +157,22 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className={`badge ${st.cls}`}>{st.label}</span>
-                {q.amount != null && q.amount === low && got.length > 1 && <span className="badge bg-emerald-600 text-white">최저가</span>}
+                {q.amount != null && vatTotal(q) === low && got.length > 1 && (
+                  <span className="badge bg-emerald-600 text-white" data-quote-lowest>
+                    최저가
+                  </span>
+                )}
               </div>
             </div>
             {q.amount != null ? (
               <div>
                 <p className="text-2xl font-extrabold tabular-nums">{won(q.amount)}</p>
+                {/* 부가세 별도 견적: 실제로 나갈 금액을 바로 아래에 (다른 견적과 같은 기준으로 보이게) */}
+                {!q.vat_included && (
+                  <p className="text-sm font-semibold text-amber-700" data-quote-vat-total>
+                    부가세 더하면 <span className="whitespace-nowrap tabular-nums">{won(vatTotal(q))}</span>
+                  </p>
+                )}
                 <p className="text-xs text-mute">
                   부가세 {q.vat_included ? '포함' : '별도'} · {q.submitted_by === 'vendor' ? '업체가 직접 입력' : '관리자 기록'}
                   {q.submitted_at && ` · ${kstDateTime(q.submitted_at)}`}
@@ -174,7 +194,7 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
             <div className="flex flex-wrap items-center gap-1.5">
               {open && q.amount != null && q.status !== 'selected' && (
                 <form action={selectQuote.bind(null, q.id)}>
-                  <ConfirmSubmit className="chip-primary h-8 px-3 text-xs" confirmText={`${won(q.amount)}로 선정?`}>
+                  <ConfirmSubmit className="chip-primary h-8 px-3 text-xs" confirmText={`${won(q.amount)}${q.vat_included ? '' : ' (부가세 별도)'}로 선정?`}>
                     ✓ 이 업체로 선정
                   </ConfirmSubmit>
                 </form>

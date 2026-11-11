@@ -78,7 +78,7 @@ const errs = []
   let qq = (await rest(`quotes?id=eq.${q1.id}`))[0]
   ok('견적 저장 (업체 직접 입력)', qq.status === 'submitted' && qq.amount === 1500000 && qq.submitted_by === 'vendor' && qq.note === '설치·철수 포함')
   await vp.goto(`${D}/quote/abcdefghijklmnopqrstuvwxyz0123`)
-  ok('잘못된 링크는 없는 화면', await see(vp, '찾는 화면이 없어요'))
+  ok('잘못된 링크는 업체용 안내 (견적 링크를 열 수 없어요)', await see(vp, '견적 링크를 열 수 없어요'))
 
   // ── 4. 관리자가 전화로 받은 견적 기록 ──
   await a.goto(`${D}/admin/vendors/requests/${req.id}`)
