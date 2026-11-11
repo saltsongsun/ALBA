@@ -40,9 +40,9 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
       .then((r) => must(r) as Pick<SignedDoc, 'id' | 'job_id' | 'title'>[]),
     db()
       .from('applications')
-      .select('job_id, status')
+      .select('job_id, status, job:jobs(start_date, end_date, status)')
       .eq('user_id', user.id)
-      .then((r) => must(r) as { job_id: string; status: string }[]),
+      .then((r) => must(r) as unknown as { job_id: string; status: string; job: { start_date: string; end_date: string; status: string } | null }[]),
     // 후기를 이미 쓴 공고 (못 읽어도 화면은 그대로)
     myReviewedJobs(user.id).catch(() => new Set<string>()),
   ])
@@ -112,6 +112,15 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
   const companies = [...coNames.entries()].map(([id, name]) => ({ id, name, n: all.filter((it) => it.job.company_id === id).length }))
   const pick = companies.length > 1 && typeof sp.co === 'string' && coNames.has(sp.co) ? sp.co : ''
   const items = pick ? all.filter((it) => it.job.company_id === pick) : all
+  // 기록이 하나도 없을 때 보여 줄 것: 곧 할 근무(확정된 것 중 가장 빠른 날) · 확정을 기다리는 지원 수
+  const todayK = kstDate()
+  const liveApps = apps.filter((x) => x.job && x.job.end_date >= todayK && x.job.status !== 'cancelled')
+  const emptyNext =
+    liveApps
+      .filter((x) => x.status === 'approved')
+      .map((x) => (x.job!.start_date > todayK ? x.job!.start_date : todayK))
+      .sort()[0] ?? null
+  const emptyWaiting = liveApps.filter((x) => x.status === 'applied').length
 
   // 마지막 근무일이 속한 달로 묶음
   const months = new Map<string, typeof items>()
@@ -146,11 +155,34 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
       </div>
 
       {items.length === 0 ? (
-        <Empty icon="🗂️" title="아직 근무 기록이 없어요">
-          <Link href="/" className="font-semibold text-brand-600">
-            모집 중인 알바 보기 →
-          </Link>
-        </Empty>
+        // 기록이 없을 때: 곧 할 근무나 확정을 기다리는 지원이 있으면 그것부터 (없을 때만 '모집 중인 알바')
+        <div data-history-empty={emptyNext ? 'next' : emptyWaiting ? 'waiting' : 'none'}>
+          <Empty icon="🗂️" title={emptyNext ? '아직 마친 근무가 없어요' : '아직 근무 기록이 없어요'}>
+            {emptyNext ? (
+              <>
+                <p className="text-sub">
+                  다음 근무 <b className="font-semibold whitespace-nowrap text-ink">{fmtDate(emptyNext)}</b> · 마치면 여기에 쌓여요
+                </p>
+                <Link href="/me" className="mt-1 inline-flex min-h-10 items-center font-semibold text-brand-600">
+                  내 근무 보기 →
+                </Link>
+              </>
+            ) : emptyWaiting ? (
+              <>
+                <p className="text-sub">
+                  지원한 공고 <b className="font-semibold text-ink">{emptyWaiting}건</b>이 확정을 기다리고 있어요
+                </p>
+                <Link href="/me" className="mt-1 inline-flex min-h-10 items-center font-semibold text-brand-600">
+                  내 근무에서 보기 →
+                </Link>
+              </>
+            ) : (
+              <Link href="/" className="font-semibold text-brand-600">
+                모집 중인 알바 보기 →
+              </Link>
+            )}
+          </Empty>
+        </div>
       ) : (
         <>
           {companies.length > 1 && (

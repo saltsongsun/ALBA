@@ -26,6 +26,8 @@ const ASK_INFO = '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.
 const QUICK_DAY = ['조금 늦을 것 같아요. 죄송합니다.', '집결 장소가 어디인가요?', '근무 시작 버튼이 안 눌려요.', '급여 지급일이 언제인가요?']
 const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부만 가능해요.', '식사가 제공되나요?', '주차할 수 있나요?']
 // 해피워크 고객센터(아직 지원한 회사가 없을 때): 근무 날 문의 대신 앱 사용 문의
+/** 지원하고 확정을 기다리는 사람 (늦어요·출근 버튼 같은 근무 날 문구 대신) */
+const QUICK_WAIT = [ASK_CONFIRM, ...QUICK_JOB.filter((q) => q !== '아직 지원할 수 있나요?')]
 const QUICK_SUPPORT = ['지원은 어떻게 하나요?', '급여는 언제 받나요?', '계좌·전화번호를 바꾸고 싶어요.', '회원 탈퇴는 어떻게 하나요?']
 
 /** 이름 + 와/과 (받침이 있으면 '과') · 한글이 아니면 '와(과)' */
@@ -50,7 +52,11 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   roomsP.catch(() => {})
   const [job, apps, threads, platformId] = await Promise.all([
     jobId ? getJob(jobId) : null,
-    db().from('applications').select('company_id').eq('user_id', user.id).then((r) => must(r) as { company_id: string }[]),
+    db()
+      .from('applications')
+      .select('company_id, status, job:jobs(end_date, status)')
+      .eq('user_id', user.id)
+      .then((r) => must(r) as unknown as { company_id: string; status: string; job: { end_date: string; status: string } | null }[]),
     db()
       .from('messages')
       .select('company_id, from_admin, read_at, created_at, body')
@@ -71,6 +77,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const companies = ((companyRows ?? []) as { id: string; company_name: string }[]).sort(
     (a, b) => ids.indexOf(a.id) - ids.indexOf(b.id),
   )
+  // 이 회사에 확정을 기다리는 지원만 있는지 (확정된 근무가 없고 지원만 해 둔 사람): 빠른 답을 '확정 여부가 궁금해요'부터
+  const liveHere = apps.filter((x) => x.company_id === companyId && x.job && x.job.end_date >= kstDate() && x.job.status !== 'cancelled')
+  const onlyWaiting = liveHere.some((x) => x.status === 'applied') && !liveHere.some((x) => x.status === 'approved')
   // 운영 회사(해피워크)에 그 회사 공고로 지원한 적이 없으면 '해피워크 고객센터'로 보여 줌
   const support = (id: string | null) => !!id && id === platformId && !apps.some((a) => a.company_id === id)
   const nameOf = (c: { id: string; company_name: string }) => (support(c.id) ? SUPPORT_NAME : c.company_name)
@@ -157,7 +166,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? [ASK_CONFIRM, ...QUICK_JOB.filter((q) => q !== '아직 지원할 수 있나요?')] : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : QUICK_DAY}
+          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : QUICK_DAY}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">

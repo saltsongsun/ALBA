@@ -21,7 +21,7 @@ import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
@@ -349,6 +349,57 @@ export async function announcePayday(jobId: string, form: FormData) {
   await audit(admin.id, 'job.payday', null, `${jobId} ${date} ${ids.length}명`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
   back(path, `${ids.length}명에게 정산 예정일(${fmtDate(date)})을 알렸어요.`)
+}
+
+/**
+ * 근무 전날: '내일 갈게요'를 아직 안 누른 확정자에게 다시 알림 (문의함 + 휴대폰 알림 · 누르는 버튼이 함께 감).
+ * 전화를 돌리기 전에 한 번에 알리는 용도 — 30분 안에는 또 보내지 않음 (여러 관리자가 겹쳐 누르거나 연달아 누르지 않게)
+ */
+export async function nudgeComing(jobId: string) {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return
+  const path = `/admin/jobs/${jobId}`
+  const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
+  if (!['open', 'closed'].includes(job.status) || job.start_date !== tomorrow) back(path, '근무 전날에만 다시 알릴 수 있어요.')
+  const [apps, msgs] = await Promise.all([
+    db()
+      .from('applications')
+      .select('user_id, available_dates')
+      .eq('company_id', admin.companyId)
+      .eq('job_id', jobId)
+      .eq('status', 'approved')
+      .then((r) => must(r) as { user_id: string; available_dates: string[] | null }[]),
+    db()
+      .from('messages')
+      .select('thread_user_id, from_admin, sender_id, body, created_at')
+      .eq('company_id', admin.companyId)
+      .eq('job_id', jobId)
+      .order('created_at', { ascending: false })
+      .limit(2000)
+      .then((r) =>
+        (must(r) as { thread_user_id: string; from_admin: boolean; sender_id: string | null; body: string; created_at: string }[]).sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      ),
+  ])
+  const came = new Set(msgs.filter((m) => !m.from_admin && isComing(m.body, tomorrow)).map((m) => m.thread_user_id))
+  const to = [...new Set(apps.filter((a) => !a.available_dates || a.available_dates.includes(tomorrow)).map((a) => a.user_id))].filter((uid) => !came.has(uid))
+  if (!to.length) back(path, '확정자 모두 ‘갈게요’를 눌렀어요.')
+  // 관리자가 보낸 마지막 다시 알림 (자동 전날 안내는 보낸 사람이 없음)
+  const last = msgs.find((m) => m.from_admin && m.sender_id && m.body.startsWith(SIGNAL.remind))
+  if (last && Date.now() - Date.parse(last.created_at) < 30 * 60_000) back(path, `${kstTime(last.created_at)}에 다시 알렸어요. 조금 뒤에 눌러 주세요.`)
+  await tellWorkers(to, {
+    senderId: admin.id,
+    companyId: admin.companyId,
+    jobId,
+    title: SIGNAL.remind,
+    text: `${job.title} · ${fmtDate(tomorrow)} ${hhmm(job.start_time)} 시작이에요.\n올 수 있으면 ‘내일 갈게요’를, 못 오게 되면 ‘못 가요’를 눌러 주세요.`,
+    url: '/me#coming',
+    button: 'coming',
+    tag: `remind-${jobId}-${tomorrow}`,
+  })
+  await audit(admin.id, 'job.nudge', null, `${jobId} ${tomorrow} ${to.length}명`, admin.companyId)
+  revalidatePath(path)
+  back(path, `${to.length}명에게 다시 알렸어요.`)
 }
 
 export async function duplicateJob(jobId: string) {

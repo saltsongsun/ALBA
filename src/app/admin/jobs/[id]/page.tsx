@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import RevealTabs from '@/components/RevealTabs'
 import { notFound } from 'next/navigation'
-import { cancelEvent, deleteJob, duplicateJob, setJobStatus } from '@/app/actions/admin'
+import { cancelEvent, deleteJob, duplicateJob, nudgeComing, setJobStatus } from '@/app/actions/admin'
 import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
@@ -18,7 +18,7 @@ import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
-import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
+import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime, kstTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
 import { isComing, SIGNAL } from '@/lib/signals'
 import { phoneFmt } from '@/lib/format'
@@ -177,17 +177,19 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     ['open', 'closed'].includes(job.status) && (job.start_date === today || job.start_date === tomorrowKst)
       ? await db()
           .from('messages')
-          .select('thread_user_id, read_at, body')
+          .select('thread_user_id, read_at, body, sender_id, created_at')
           .eq('company_id', admin.companyId)
           .eq('job_id', id)
           .eq('from_admin', true)
           .like('body', `${SIGNAL.remind}%`)
           .then(
             (r) => {
-              const rows = ((r.data ?? []) as { thread_user_id: string; read_at: string | null; body: string }[]).filter((m) => m.body.startsWith(SIGNAL.remind))
+              const rows = ((r.data ?? []) as { thread_user_id: string; read_at: string | null; body: string; sender_id: string | null; created_at: string }[]).filter((m) => m.body.startsWith(SIGNAL.remind))
               const by = new Map<string, boolean>()
               for (const m of rows) by.set(m.thread_user_id, (by.get(m.thread_user_id) ?? false) || !!m.read_at)
-              return by.size ? { total: by.size, unread: [...by.entries()].filter(([, read]) => !read).map(([uid]) => uid) } : null
+              // 관리자가 '다시 알리기'로 보낸 마지막 시각 (자동 안내는 보낸 사람이 없음)
+              const nudgedAt = rows.filter((m) => m.sender_id).map((m) => m.created_at).sort().at(-1) ?? null
+              return by.size ? { total: by.size, unread: [...by.entries()].filter(([, read]) => !read).map(([uid]) => uid), nudgedAt } : null
             },
             () => null,
           )
@@ -344,6 +346,19 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                       ) : null
                     })}
                   </div>
+                )}
+                {/* 전화 돌리기 전에 한 번에: 아직 안 누른 확정자에게 다시 알림 (근무 전날에만 · 두 번 눌러야 보냄) */}
+                {job.start_date === tomorrowKst && firstDayIds.length > coming.size && (
+                  <form action={nudgeComing.bind(null, job.id)} className="flex flex-wrap items-center gap-x-2.5 gap-y-1 pt-1" data-nudge>
+                    <ConfirmSubmit className="chip h-9 bg-brand-50 px-3.5 text-brand-700 ring-0" confirmText={`${firstDayIds.length - coming.size}명에게 보낼까요?`} track="답 없는 사람에게 다시 알리기">
+                      <Icon name="bell" /> 답 없는 {firstDayIds.length - coming.size}명에게 다시 알리기
+                    </ConfirmSubmit>
+                    {remindRead?.nudgedAt && (
+                      <span className="text-xs whitespace-nowrap text-mute" data-nudged-at>
+                        {kstTime(remindRead.nudgedAt)}에 다시 알림
+                      </span>
+                    )}
+                  </form>
                 )}
               </div>
             )}
