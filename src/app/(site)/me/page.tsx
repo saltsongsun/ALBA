@@ -916,18 +916,27 @@ export default async function MePage(props: PageProps<'/me'>) {
               {/* 근무 전날: '내일 갈게요' 한 번 → 담당자 화면에 출근 확인으로 모임 (전날 밤 전화 돌리는 일을 줄임) */}
               {firstDay(a) === tomorrow && a.job.status !== 'cancelled' &&
                 (comingSent.has(a.job_id) ? (
-                  <p id={a.id === comingFirst ? 'coming' : undefined} className="mt-3 flex scroll-mt-24 flex-wrap items-center gap-x-1.5 border-t border-line pt-3 text-sm font-semibold text-emerald-700" data-coming="done">
-                    <span aria-hidden className="grid size-5 shrink-0 animate-pop place-items-center rounded-full bg-emerald-600 text-[11px] text-white">
-                      <Icon name="check" />
+                  <p id={a.id === comingFirst ? 'coming' : undefined} className="mt-3 flex scroll-mt-24 items-center justify-between gap-2 border-t border-line pt-2 text-sm" data-coming="done">
+                    <span className="flex min-w-0 items-center gap-1.5 font-semibold whitespace-nowrap text-emerald-700">
+                      <span aria-hidden className="grid size-5 shrink-0 animate-pop place-items-center rounded-full bg-emerald-600 text-[11px] leading-none font-bold text-white">
+                        ✓
+                      </span>
+                      내일 출근 확인함 · {comingSent.get(a.job_id)}
                     </span>
-                    <span className="whitespace-nowrap">내일 출근 확인함 · {comingSent.get(a.job_id)}</span>
-                    <span className="text-xs font-normal whitespace-nowrap text-mute">담당자에게 알렸어요</span>
+                    {/* 확인한 뒤에 사정이 생겼을 때: 공고의 '근무를 못 하게 됐어요'로 (전화 먼저 안내가 거기 있음) */}
+                    <Link href={`/jobs/${a.job_id}?cant=1#cant`} className="-mr-1 inline-flex min-h-10 shrink-0 items-center px-1 text-xs font-semibold whitespace-nowrap text-sub active:opacity-60" data-coming-cant>
+                      못 가게 됐어요
+                    </Link>
                   </p>
                 ) : (
-                  <form id={a.id === comingFirst ? 'coming' : undefined} action={confirmComing.bind(null, a.id)} className="mt-3 flex scroll-mt-24 items-center justify-between gap-3 border-t border-line pt-3" data-coming="ask">
-                    <span className="min-w-0 text-sm text-sub">
-                      <b className="font-semibold text-ink">내일 근무예요</b> · 올 수 있나요?
+                  <form id={a.id === comingFirst ? 'coming' : undefined} action={confirmComing.bind(null, a.id)} className="mt-3 flex scroll-mt-24 items-center gap-2 border-t border-line pt-3" data-coming="ask">
+                    <span className="min-w-0 flex-1 text-sm text-sub">
+                      <b className="font-semibold text-ink">내일</b> 올 수 있나요?
                     </span>
+                    {/* 못 오면 전날에 바로 알리게: 공고의 '근무를 못 하게 됐어요' 칸을 열어 둠 (담당자가 대신할 사람을 구할 시간) */}
+                    <Link href={`/jobs/${a.job_id}?cant=1#cant`} className="btn-gray btn-sm min-h-10 shrink-0 px-3 whitespace-nowrap" data-coming-cant>
+                      못 가요
+                    </Link>
                     <SubmitButton className="btn-primary btn-sm min-h-10 shrink-0 px-4 whitespace-nowrap" pendingText="알리는 중…" track="내일 갈게요">
                       내일 갈게요
                     </SubmitButton>

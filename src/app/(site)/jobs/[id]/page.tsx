@@ -3,6 +3,7 @@ import LiveNumber from '@/components/LiveNumber'
 import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
 import Link from 'next/link'
+import HashFocus from '@/components/HashFocus'
 import { WorkerIdentityForm } from '@/components/AuthForms'
 import { notFound } from 'next/navigation'
 import { applyJob, cancelApplication, changeDates } from '@/app/actions/worker'
@@ -481,6 +482,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           aboveTabs={!!user}
         />
       )}
+      {/* 내 근무의 '못 가요'에서 왔을 때: 취소 칸으로 내려가 테두리로 표시 */}
+      <HashFocus prefix="cant" />
       <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
         {clashes.length > 0 && (
           <div className="animate-pop rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200/70">
@@ -686,7 +689,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               </details>
             )}
             {app.status === 'approved' && !ended && !worked && (
-              <details className="text-sm">
+              <details id="cant" className="scroll-mt-24 rounded-xl text-sm data-[hash-focus]:ring-2 data-[hash-focus]:ring-amber-300 data-[hash-focus]:ring-offset-4" open={sp.cant === '1'} data-cant>
                 <summary className="cursor-pointer py-1 font-semibold text-sub">근무를 못 하게 됐어요</summary>
                 <form action={cancelApplication.bind(null, app.id)} className="mt-2 space-y-3 rounded-xl bg-bg p-3">
                   {/* 24시간 안에 시작하는(또는 이미 시작한) 근무: 갑자기 빠지면 대신할 사람을 못 구하니 먼저 전화하게 */}

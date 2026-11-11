@@ -299,7 +299,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           <div className="mt-4 space-y-3 border-t border-line pt-4" data-job-now>
             {/* 시나리오: 행사 전날 밤 '확정자가 진짜 올까?' → 전날 안내를 읽었는지, 안 읽은 사람에게 바로 전화 */}
             {(remindRead || coming.size > 0) && (
-              <div className="space-y-1.5 rounded-2xl bg-bg px-3.5 py-3 text-sm" data-remind-read>
+              <div
+                className={`space-y-1.5 rounded-2xl px-3.5 py-3 text-sm transition-colors duration-300 ${coming.size >= firstDayIds.length && firstDayIds.length ? 'bg-emerald-50' : 'bg-bg'}`}
+                data-remind-read
+                data-coming-all={coming.size >= firstDayIds.length && firstDayIds.length ? '' : undefined}
+              >
                 {remindRead && (
                 <p className="flex items-center justify-between gap-2">
                   <span className="min-w-0 font-semibold">

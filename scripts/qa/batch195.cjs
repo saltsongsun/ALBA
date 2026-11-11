@@ -1,5 +1,5 @@
 // 묶음 195 (정기 개선 2026-11-11 11:36 KST)
-// · 근무 전날 '내일 갈게요': 확정된 근무자가 내 근무의 예정 카드에서 한 번 누름 → '내일 출근 확인함 · 시각'
+// · 근무 전날 '내일 갈게요': 확정된 근무자가 내 근무의 예정 카드에서 한 번 누름 → '내일 출근 확인함 · 시각' ('못 가요' 쪽은 batch196)
 //   - 전날 안내(자동)에 '내일 갈게요' 한 줄 + 문의함 버튼 '내일 갈게요 · 출근 확인하기' (→ /me#coming)
 //   - 문의함에 기록으로 남되 관리자 '안 읽음'·'답장 전'으로 쌓이지 않음 · 두 번 눌러도 기록은 하나
 //   - 내일 근무가 아니면 버튼 없음
@@ -78,7 +78,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok("문의함 안내 아래 '내일 갈게요 · 출근 확인하기' 버튼", one(await go.innerText().catch(() => '')).includes('내일 갈게요 · 출근 확인하기'), one(await go.innerText().catch(() => '')))
   await open(w, '/me')
   const ask = w.locator('[data-coming="ask"]')
-  ok("예정된 근무 카드: '내일 근무예요 · 올 수 있나요?' + '내일 갈게요'", one(await ask.innerText().catch(() => '')) === '내일 근무예요 · 올 수 있나요? 내일 갈게요' && (await ask.getAttribute('id')) === 'coming', one(await ask.innerText().catch(() => '')))
+  ok("예정된 근무 카드: '내일 올 수 있나요?' + '못 가요' · '내일 갈게요'", one(await ask.innerText().catch(() => '')) === '내일 올 수 있나요? 못 가요 내일 갈게요' && (await ask.getAttribute('id')) === 'coming', one(await ask.innerText().catch(() => '')))
   await w.waitForTimeout(500) // 카드가 나타나는 움직임이 끝난 뒤에 잼
   ok('한 줄 · 버튼 높이 40px 이상 · 360px 옆으로 안 밀림', (await ask.evaluate((el) => el.getBoundingClientRect().height < 64).catch(() => false)) && (await ask.locator('button').evaluate((el) => el.getBoundingClientRect().height >= 40).catch(() => false)) && (await noSide(w)))
   await shot(w, '1-worker-ask')
@@ -88,7 +88,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await ask.locator('button').click()
   const done = w.locator('[data-coming="done"]')
   await done.waitFor({ timeout: 10000 }).catch(() => {})
-  ok("누르면 '내일 출근 확인함 · 시각 · 담당자에게 알렸어요' (버튼은 사라짐)", /^내일 출근 확인함 · \d{2}:\d{2} 담당자에게 알렸어요$/.test(one(await done.innerText().catch(() => ''))) && (await ask.count()) === 0, one(await done.innerText().catch(() => '')))
+  ok("누르면 '✓ 내일 출근 확인함 · 시각' + '못 가게 됐어요' (버튼은 사라짐)", /^✓ 내일 출근 확인함 · \d{2}:\d{2} 못 가게 됐어요$/.test(one(await done.innerText().catch(() => ''))) && (await ask.count()) === 0, one(await done.innerText().catch(() => '')))
   ok("안내 한 줄 ('내일 온다고 담당자에게 알렸어요')", one(await w.locator('[role=status]').first().innerText().catch(() => '')).includes('내일 온다고 담당자에게 알렸어요'))
   ok('확인 줄은 한 줄 · 360px 옆으로 안 밀림', (await done.evaluate((el) => el.getBoundingClientRect().height < 56).catch(() => false)) && (await noSide(w)))
   await shot(w, '2-worker-done')
