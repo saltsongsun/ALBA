@@ -37,6 +37,7 @@ export default function JobCard({
   rating,
   pals = 0,
   track,
+  hideCompany = false,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
@@ -52,6 +53,8 @@ export default function JobCard({
   pals?: number
   /** 행동 기록에 남길 이름 (어느 화면의 공고 카드를 눌렀는지) */
   track?: string
+  /** 한 회사 공고만 모은 화면: 회사 이름 줄을 카드마다 되풀이하지 않음 */
+  hideCompany?: boolean
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -94,7 +97,7 @@ export default function JobCard({
           🤝 동료 {pals}명 지원
         </p>
       )}
-      {job.company?.company_name && (
+      {!hideCompany && job.company?.company_name && (
         <p className="mt-0.5 truncate text-xs font-semibold text-mute">
           🏢 {job.company.company_name}
           {/* 해피워크가 확인한 회사 (사업자 확인) */}

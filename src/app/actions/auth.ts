@@ -146,6 +146,8 @@ export async function signup(_: FormState, form: FormData): Promise<FormState> {
   await createSession(data.id, data.session_version)
   // 공고 링크로 가입했으면 그 공고로 돌아가되 '가입 완료 · 아직 지원 전' 안내를 띄움 (지원 버튼을 가입 단계로 착각하지 않게)
   const dest = safeNext(str(form, 'next'), memberType === 'expert' ? '/pro' : '/me')
+  // 회사 공고 모음 링크(/?co=회사)로 가입했으면 그 화면에도 '가입 완료 · 이제 공고를 골라 지원' 안내를 띄움
+  if (/^\/\?co=[0-9a-f-]{36}$/i.test(dest)) redirect(`${dest}&joined=1`)
   redirect(/^\/jobs\/[^/?#]+$/.test(dest.split('#')[0].split('?')[0]) ? `${dest.split('#')[0]}${dest.includes('?') ? '&' : '?'}joined=1` : dest)
 }
 

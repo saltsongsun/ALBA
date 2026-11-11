@@ -98,6 +98,8 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 회사 공고 모음: 이 회사의 지금 공고 가운데 내가 확정된 것 · 확정을 기다리는 것
   const hereApproved = company ? jobs.filter((j) => mine[j.id] === 'approved').length : 0
   const hereWaiting = company ? jobs.filter((j) => mine[j.id] === 'applied').length : 0
+  // 회사 공고 모음: 지금 지원할 수 있는 공고 (모집 중 · 자리 남음 · 오늘 근무가 이미 끝난 공고는 빼고)
+  const canApply = company ? jobs.filter((j) => j.status === 'open' && (counts[j.id] ?? 0) < j.headcount && !(j.end_date === today && workOver(j, j.end_date))) : []
   // 확정·지원한 내 일정과 같은 날 같은 시간대인 공고 (지원 버튼을 누르기 전에 목록에서 미리 알게: 두 군데 겹치기 지원 실수 막기)
   const myShifts = myApps.filter((r) => (r.status === 'approved' || r.status === 'applied') && r.job && r.job.status !== 'cancelled' && r.job.end_date >= today)
   const clashes = (j: JobWithAppStatus) =>
@@ -198,6 +200,32 @@ export default async function HomePage(props: PageProps<'/'>) {
   return (
     <>
       <Flash m={sp.m} />
+      {/* 회사 공고 모음 링크로 가입한 직후: 가입은 끝났고 지원은 아직이라고 분명히 + 바로 다음 할 일 하나 */}
+      {company && user && sp.joined === '1' && hereApproved + hereWaiting === 0 && (
+        <div className="mb-3 animate-pop rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200/70" data-co-joined>
+          <p className="font-bold text-emerald-800">🎉 가입이 끝났어요</p>
+          <p className="mt-1 text-sm text-pretty text-emerald-900">
+            아직 <b>지원한 공고는 없어요.</b>{' '}
+            {canApply.length === 0
+              ? '지금은 지원받는 공고가 없어요. 새 공고가 올라오면 바로 지원할 수 있어요.'
+              : canApply.length === 1
+                ? '내용을 보고 함께하고 싶으면 지원해 주세요.'
+                : '아래에서 함께하고 싶은 공고를 골라 지원해 주세요.'}
+          </p>
+          {canApply.length === 1 ? (
+            <Link href={`/jobs/${canApply[0].id}`} className="btn-primary btn-sm mt-3 min-h-10 max-w-full px-4" data-co-joined-go>
+              <span className="truncate">{canApply[0].title}</span>
+              <span className="shrink-0">보기 →</span>
+            </Link>
+          ) : (
+            canApply.length > 1 && (
+              <a href="#jobs" className="btn-primary btn-sm mt-3 min-h-10 px-4" data-co-joined-go>
+                지원받는 공고 {canApply.length}개 보기 ↓
+              </a>
+            )
+          )}
+        </div>
+      )}
       {todayJob && todayState === 'done' && !todaySignId ? (
         // 오늘 근무를 마침: 할 일이 없으니 조용한 흰 카드 (지난 근무로)
         <Link href="/me/history" data-today-hero data-today-state="done" className="card-link mb-4 flex animate-pop items-center gap-3 p-4">
@@ -395,7 +423,8 @@ export default async function HomePage(props: PageProps<'/'>) {
       )}
       {jobs.length === 0 ? (
         <div className="space-y-3" data-home-nojobs>
-          <Empty icon="🔍" sticker="wait" title="지금은 모집 중인 공고가 없어요">
+          {/* 회사 공고 모음에서는 위 카드가 이미 '지금은 모집 중인 공고가 없어요'라고 말함 → 여기서는 다음에 어떻게 되는지 */}
+          <Empty icon="🔍" sticker="wait" title={company ? '새 공고가 올라오면 여기에 보여요' : '지금은 모집 중인 공고가 없어요'}>
             {company ? (
               <Link href="/#jobs" className="font-semibold text-brand-600">
                 다른 회사 공고 보기 →
@@ -447,6 +476,8 @@ export default async function HomePage(props: PageProps<'/'>) {
                 rating={ratings[j.company_id]}
                 pals={palCounts[j.id] ?? 0}
                 track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
+                // 회사 공고 모음에서는 위 카드에 회사 이름·확인 표시·별점이 이미 있음 → 카드마다 되풀이하지 않음
+                hideCompany={!!company}
               />
             ))}
           </div>
