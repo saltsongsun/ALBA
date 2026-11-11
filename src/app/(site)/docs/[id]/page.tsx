@@ -16,6 +16,7 @@ import DocGuard from '@/components/DocGuard'
 import { viewerMark } from '@/lib/watermark'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { Fragment } from 'react'
+import Icon from '@/components/Icon'
 
 export const metadata: Metadata = { title: '서류' }
 
@@ -73,9 +74,11 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   let body = doc.body ?? ''
   let company: CompanySnapshot | null = doc.company_snapshot
   let seal = doc.seal_image
+  // 공고는 서명 전 서식 채우기와 근무자 화면 위 '어느 회사 · 어느 공고 서류인지' 줄에 씀 (관리자가 서명된 서류를 볼 때는 안 읽음)
+  const jobP = doc.status !== 'signed' || doc.user_id === user.id ? getJob(doc.job_id) : Promise.resolve(null)
   if (doc.status !== 'signed') {
     const [job, settings, { data: tpl }] = await Promise.all([
-      getJob(doc.job_id),
+      jobP,
       getSettings(doc.company_id, { seal: true }),
       doc.template_id ? db().from('doc_templates').select('*').eq('id', doc.template_id).maybeSingle() : { data: null },
     ])
@@ -89,6 +92,9 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   }
 
   const mine = doc.user_id === user.id
+  // 근무자 화면: 어느 회사 · 어느 공고 서류인지 한 줄 (여러 회사 서류가 모두 '근로계약서'여도 서명 전에 바로 알게)
+  const jobTitle = mine ? ((await jobP)?.title ?? null) : null
+  const companyName = company?.company_name || null
   // 서명할 서류가 여러 건이면 몇 번째인지 (같은 공고 먼저, 만든 순서)
   const queue =
     doc.status === 'pending' && mine
@@ -120,11 +126,23 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
             <PrintButton />
           </span>
         ) : (
-          <span className="badge bg-amber-50 text-amber-700">
-            서명 대기{queue.length > 1 && pos >= 0 ? ` · ${pos + 1}/${queue.length}` : ''}
-          </span>
+          // 몇 번째인지는 바로 아래 진행 막대에 있어 여기서는 '서명 대기'만 (같은 숫자를 두 번 보이지 않게)
+          <span className="badge bg-amber-50 text-amber-700">서명 대기</span>
         )}
       </div>
+      {mine && (companyName || jobTitle) && (
+        <p className="no-print flex min-w-0 items-center gap-1.5 text-sm text-sub" data-doc-for>
+          <Icon name="building" className="shrink-0 text-mute" />
+          {/* 회사 이름이 길어도 공고 이름이 조금은 보이게 (회사는 60%까지, 넘치면 각각 줄임) */}
+          {companyName && <b className="max-w-[60%] shrink-0 truncate font-semibold text-ink">{companyName}</b>}
+          {companyName && jobTitle && (
+            <span aria-hidden className="shrink-0">
+              ·
+            </span>
+          )}
+          {jobTitle && <span className="min-w-0 truncate">{jobTitle}</span>}
+        </p>
+      )}
       {/* 서명할 서류가 여러 건이면 몇 번째인지 */}
       {queue.length > 1 && pos >= 0 && (
         <div className="no-print flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5 text-sm text-brand-700">
@@ -133,7 +151,12 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           </span>
           <span className="flex flex-1 gap-1" aria-hidden>
             {queue.map((d, i) => (
-              <span key={d.id} className={`h-1.5 flex-1 rounded-full ${i < pos ? 'bg-brand-600' : i === pos ? 'bg-brand-500' : 'bg-white'}`} />
+              // 지금 서류 칸은 열 때 왼쪽부터 짧게 차오름 (0.3초 · 동작 줄이기면 바로)
+              <span
+                key={d.id}
+                className={`h-1.5 flex-1 rounded-full ${i < pos ? 'bg-brand-600' : i === pos ? 'origin-left animate-[grow_0.3s_ease-out_0.1s_both] bg-brand-500' : 'bg-white'}`}
+                data-doc-step={i < pos ? 'done' : i === pos ? 'now' : 'next'}
+              />
             ))}
           </span>
         </div>
