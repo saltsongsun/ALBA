@@ -265,6 +265,24 @@ export default async function MePage(props: PageProps<'/me'>) {
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
   const pendingDocs = docs.filter((d) => d.status === 'pending' && docOpen(d.job_id))
+  // 오늘 근무인데 현장 담당 번호가 없는 공고: 그 회사의 문의 연락처로 (근무 날 연락할 곳이 없지 않게 · 회사 설정의 문의 담당자)
+  const noMgr = [...new Set(todayApps.filter((a) => !a.job.manager_phone).map((a) => a.job.company_id))]
+  const coContact = new Map<string, { name: string | null; phone: string }>(
+    noMgr.length
+      ? (
+          ((await db()
+            .from('companies')
+            .select('id, contact_name, contact_phone, company_phone')
+            .in('id', noMgr)
+            .then(
+              (r) => r.data,
+              () => null,
+            )) ?? []) as { id: string; contact_name: string | null; contact_phone: string | null; company_phone: string | null }[]
+        )
+          .filter((c) => c.contact_phone || c.company_phone)
+          .map((c) => [c.id, { name: c.contact_name, phone: (c.contact_phone || c.company_phone)! }])
+      : [],
+  )
   // 오늘의 근무 카드가 그 공고의 '서명 ›' 줄을 보여 주는 경우 (오늘이 내 근무일이고 지난 근무 종료를 따로 받는 중이 아니면)
   // → 위 '서명할 서류' 카드에서는 그 서류를 뺌 (같은 안내를 한 화면에 두 번 보이지 않게 · 다른 공고 서류만 남음)
   const signInToday = new Set(
@@ -793,12 +811,23 @@ export default async function MePage(props: PageProps<'/me'>) {
                         </Link>
                       )
                     })()}
-                    {(job.manager_phone || map) && (
+                    {(() => {
+                      // 현장 담당 번호가 없으면 회사 문의 담당자 (전화·문자 버튼은 같은 자리)
+                      const co = !job.manager_phone ? coContact.get(job.company_id) : undefined
+                      const who = job.manager_phone
+                        ? { label: `현장 담당 ${job.manager_name ?? ''}`.trim(), phone: job.manager_phone, name: `담당자 ${job.manager_name ?? ''}`.trim(), kind: 'site' }
+                        : co
+                          ? { label: `회사 담당 ${co.name ?? ''}`.trim(), phone: co.phone, name: `${job.company?.company_name ?? '회사'} 담당자`, kind: 'company' }
+                          : null
+                      if (!who && !map) return null
+                      return (
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                        {job.manager_phone && (
+                        {who && (
                           <>
-                            <span className="text-sub">현장 담당 {job.manager_name}</span>
-                            <ContactButtons phone={job.manager_phone} name={`담당자 ${job.manager_name ?? ''}`.trim()} showNumber={false} />
+                            <span className="text-sub" data-today-contact={who.kind}>
+                              {who.label}
+                            </span>
+                            <ContactButtons phone={who.phone} name={who.name} showNumber={false} />
                           </>
                         )}
                         {map && (
@@ -807,7 +836,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                           </a>
                         )}
                       </div>
-                    )}
+                      )
+                    })()}
                   </div>
                   <ContractNote job={job} received={a.contract_received_at} />
                   {notChosen && !todayAtt && !open ? (

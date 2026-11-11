@@ -447,3 +447,30 @@ export function ProMoneySkeleton() {
     </div>
   )
 }
+
+/** 서류(서명) 화면: 돌아가기·상태 줄 · 회사 · 공고 줄 · 서류 종이 · 서명 칸 (서명하러 들어갈 때 빈 화면 대신 같은 모양) */
+export function DocSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="서류 불러오는 중" className="skeleton space-y-4" data-skeleton="doc">
+      <div className="flex items-center justify-between">
+        <div className={`h-4 w-16 ${bar}`} />
+        <div className="h-6 w-16 rounded-full bg-line/60" />
+      </div>
+      <div className={`h-4 w-3/5 ${bar}`} />
+      <div className="card space-y-3 px-5 py-6">
+        <div className={`mx-auto h-6 w-28 ${bar}`} />
+        <div className={`mx-auto h-4 w-32 ${bar}`} />
+        {[0.95, 0.8, 0.9, 0.7, 0.85, 0.6].map((w, i) => (
+          <div key={i} className={`h-3.5 ${bar}`} style={{ width: `${w * 100}%` }} />
+        ))}
+      </div>
+      <div className="card space-y-3">
+        <div className={`h-5 w-24 ${bar}`} />
+        <div className="h-36 rounded-2xl border-2 border-dashed border-line" />
+        <div className={`h-4 w-4/5 ${bar}`} />
+        <div className="h-12 rounded-2xl bg-line/60" />
+      </div>
+    </div>
+  )
+}
+

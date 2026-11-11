@@ -201,6 +201,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
   // 지원하고 기다리는 중이면: 이 회사가 보통 얼마 만에 답하는지 (회사마다 달라서 · 기록이 적으면 안 보임)
   // 확정 근무를 24시간 안에(또는 이미 시작한 날) 취소하려 하면: 남은 시간 + 담당자 전화 (취소 칸 위에)
+  // 현장 담당 번호가 없을 때 대신 보여 줄 회사 문의 번호 (로그인한 회원에게만 · 번호를 모아 가지 못하게)
+  const coPhone = user && !job.manager_phone ? company.contact_phone || company.company_phone || null : null
   const nextDay = app?.status === 'approved' ? (app.available_dates ?? dates).filter((d) => d >= kstDate()).sort()[0] : undefined
   const untilMin = nextDay ? Math.round((kstAt(nextDay, job.start_time).getTime() - Date.now()) / 60_000) : null
   const soonCancel =
@@ -409,10 +411,21 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               {c.value}
             </Row>
           ))}
-          {job.manager_name && (
+          {(job.manager_name || coPhone) && (
             <Row k="담당자">
               {/* 담당자 휴대폰은 로그인한 회원에게만 (검색에 노출되거나 누구나 모아 가지 못하게) */}
-              {job.manager_phone && user ? (
+              {!job.manager_phone && coPhone ? (
+                // 현장 담당 번호가 없는 공고: 회사 문의 담당자로 (회사 설정의 문의 연락처)
+                <div className="space-y-1">
+                  {job.manager_name && <span className="block">{job.manager_name}</span>}
+                  <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5" data-manager-contact="company">
+                    <span className="whitespace-nowrap">
+                      회사 담당{company.contact_name ? ` ${company.contact_name}` : ''} <span className="text-sub tabular-nums">{phoneFmt(coPhone)}</span>
+                    </span>
+                    <ContactButtons phone={coPhone} name={`${company.company_name} 담당자`} showNumber={false} />
+                  </div>
+                </div>
+              ) : job.manager_phone && user ? (
                 // 이름·번호 한 줄 + 전화·문자 (넓으면 옆에, 좁으면 아래 한 줄 — '문자'만 따로 떨어지지 않게)
                 <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5" data-manager-contact>
                   <span className="whitespace-nowrap">
