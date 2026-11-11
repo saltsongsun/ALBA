@@ -268,4 +268,6 @@ const server = http.createServer(async (req, res) => {
   }
   send(200, out)
 })
-server.listen(PORT, () => console.log(`mock supabase :${PORT} latency ${LAT}ms scenario ${SCENARIO}`))
+// 127.0.0.1에서만 엶: 시험 포트(5432x)는 운영체제가 바깥 연결에 잠깐 빌려 주는 번호 범위라,
+// 모든 주소(0.0.0.0)로 열면 다른 바깥 연결이 그 번호를 쓰는 동안 '이미 쓰는 포트'로 뜨지 못하는 일이 있었음
+server.listen(PORT, '127.0.0.1', () => console.log(`mock supabase 127.0.0.1:${PORT} latency ${LAT}ms scenario ${SCENARIO}`))

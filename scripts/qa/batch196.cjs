@@ -29,7 +29,11 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   }
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
   await rest(`applications?id=eq.${AP_APP}`, 'PATCH', { status: 'approved', available_dates: null })
-  await setJob({ start_date: tomorrow, end_date: tomorrow, start_time: '09:00:00', end_time: '18:00:00', status: 'open' })
+  // 시작은 '내일 · 지금 시각보다 조금 이른 때' → 언제 돌려도 하루(24시간) 안에 시작 (예전에는 09:00으로 고정이라 자정~오전 9시에 돌리면 24시간이 넘었음)
+  const nowMin = Math.floor(((now + 9 * 3600e3) % 864e5) / 60000)
+  const startMin = Math.max(0, Math.min(nowMin - 30, 14 * 60)) // 늦어도 14:00 (끝나는 시각이 같은 날 안에 들게)
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`
+  await setJob({ start_date: tomorrow, end_date: tomorrow, start_time: hm(startMin), end_time: hm(startMin + 9 * 60), status: 'open' })
   // (가짜 데이터: 공고에 붙어 있는 지원 상태 목록도 확정 둘로 맞춤 — 관리자 홈의 '확정 n명'이 이것을 셈)
   await rest(`jobs?id=eq.${J}`, 'PATCH', { applications: [{ status: 'approved' }, { status: 'approved' }] })
 
