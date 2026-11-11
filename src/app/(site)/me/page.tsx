@@ -25,11 +25,11 @@ import { mapLinks } from '@/lib/map'
 import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
 import { won } from '@/lib/format'
-import { answerOvertime, answerShift } from '@/app/actions/worker'
+import { answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import ApplySteps from '@/components/ApplySteps'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
@@ -178,6 +178,10 @@ export default async function MePage(props: PageProps<'/me'>) {
   // 오늘 보낸 출근 확인 요청 (위치 확인이 안 될 때): 공고별 마지막 요청 시각 — 출근 기록이 생기면 화면에서 사라짐
   const arriveSent = new Map<string, string>()
   for (const m of mySignals) if (signalOf(m.body) === 'arrive' && !arriveSent.has(m.job_id)) arriveSent.set(m.job_id, kstTime(m.created_at))
+  // 내일 근무에 '내일 갈게요'를 이미 눌렀는지 (공고별 누른 시각) — 오늘 보낸 것만 보면 됨 (전날에만 누를 수 있음)
+  const tomorrow = kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + 86_400_000))
+  const comingSent = new Map<string, string>()
+  for (const m of mySignals) if (isComing(m.body, tomorrow) && !comingSent.has(m.job_id)) comingSent.set(m.job_id, kstTime(m.created_at))
   const latestNotice = new Map<string, { body: string; created_at: string }>()
   for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
   const photoAt = me?.photo_at ?? null
@@ -192,6 +196,8 @@ export default async function MePage(props: PageProps<'/me'>) {
   const firstDay = (a: AppWithJob) => (a.available_dates ?? [a.job.start_date]).filter((d) => d >= today).sort()[0] ?? a.job.start_date
   const upcoming = approved.filter((a) => a.job.start_date > today).sort((a, b) => firstDay(a).localeCompare(firstDay(b)))
   const nextApp = upcoming[0] ?? null
+  // 문의함 안내의 '출근 확인하기' 버튼이 데려올 곳 (내일 근무가 여러 개면 첫 카드)
+  const comingFirst = upcoming.find((x) => firstDay(x) === tomorrow && x.job.status !== 'cancelled')?.id ?? null
   const dLabel = (d: string) => {
     const n = Math.round((Date.parse(d) - Date.parse(today)) / 86_400_000)
     return n === 1 ? '내일' : `D-${n}`
@@ -877,7 +883,8 @@ export default async function MePage(props: PageProps<'/me'>) {
           <h2 className="section-title">예정된 근무</h2>
           <div className="stagger space-y-2">
             {upcoming.map((a) => (
-              <div key={a.id} id={`work-${a.id}`} className="card flex scroll-mt-20 items-center gap-3 py-4 target:ring-2 target:ring-brand-300">
+              <div key={a.id} id={`work-${a.id}`} className="card scroll-mt-20 py-4 target:ring-2 target:ring-brand-300">
+              <div className="flex items-center gap-3">
                 <Link href={`/jobs/${a.job_id}`} className="min-w-0 flex-1">
                   <p className="font-bold">{a.job.title}</p>
                   <CompanyName job={a.job} />
@@ -905,6 +912,27 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <Icon name="calendar" /> 달력에 넣기
                   </a>
                 </div>
+              </div>
+              {/* 근무 전날: '내일 갈게요' 한 번 → 담당자 화면에 출근 확인으로 모임 (전날 밤 전화 돌리는 일을 줄임) */}
+              {firstDay(a) === tomorrow && a.job.status !== 'cancelled' &&
+                (comingSent.has(a.job_id) ? (
+                  <p id={a.id === comingFirst ? 'coming' : undefined} className="mt-3 flex scroll-mt-24 flex-wrap items-center gap-x-1.5 border-t border-line pt-3 text-sm font-semibold text-emerald-700" data-coming="done">
+                    <span aria-hidden className="grid size-5 shrink-0 animate-pop place-items-center rounded-full bg-emerald-600 text-[11px] text-white">
+                      <Icon name="check" />
+                    </span>
+                    <span className="whitespace-nowrap">내일 출근 확인함 · {comingSent.get(a.job_id)}</span>
+                    <span className="text-xs font-normal whitespace-nowrap text-mute">담당자에게 알렸어요</span>
+                  </p>
+                ) : (
+                  <form id={a.id === comingFirst ? 'coming' : undefined} action={confirmComing.bind(null, a.id)} className="mt-3 flex scroll-mt-24 items-center justify-between gap-3 border-t border-line pt-3" data-coming="ask">
+                    <span className="min-w-0 text-sm text-sub">
+                      <b className="font-semibold text-ink">내일 근무예요</b> · 올 수 있나요?
+                    </span>
+                    <SubmitButton className="btn-primary btn-sm min-h-10 shrink-0 px-4 whitespace-nowrap" pendingText="알리는 중…" track="내일 갈게요">
+                      내일 갈게요
+                    </SubmitButton>
+                  </form>
+                ))}
               </div>
             ))}
           </div>

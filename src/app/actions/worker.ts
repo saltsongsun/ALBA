@@ -15,7 +15,7 @@ import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, overLimit, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
-import { FULL_TIME_MARK, fixTime, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { comingBody, FULL_TIME_MARK, fixTime, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { adminCompanies, clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { ageOn, dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
@@ -658,6 +658,48 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
   revalidatePath('/me')
   revalidatePath('/admin/chat')
   return { ok: `담당자에게 약 ${minutes}분 늦는다고 알렸어요. 조심히 오세요!` }
+}
+
+/**
+ * 근무 전날 '내일 갈게요': 확정된 근무자가 내일 온다고 한 번 눌러 알림 → 담당자 공고 화면에 '출근 확인 n/m명'으로 모임.
+ * 문의함에 기록으로 남기되 읽은 것으로 넣고 휴대폰 알림도 보내지 않음 (전날 밤 확정자 수만큼 안 읽은 문의·알림이 쌓이지 않게)
+ */
+export async function confirmComing(appId: string) {
+  const user = await requireUser()
+  if (!isUuid(appId)) back('/me', '잘못된 요청입니다.')
+  const { data } = await db().from('applications').select('id, job_id, status, available_dates').eq('id', appId).eq('user_id', user.id).maybeSingle()
+  const app = data as Pick<Application, 'id' | 'job_id' | 'status' | 'available_dates'> | null
+  if (!app || app.status !== 'approved') back('/me', '근무가 확정된 공고만 확인할 수 있어요.')
+  const job = await getJob(app.job_id)
+  if (!job || !['open', 'closed'].includes(job.status)) back('/me', '공고를 찾을 수 없습니다.')
+  const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
+  if (!(app.available_dates ?? dateList(job.start_date, job.end_date)).includes(tomorrow)) back('/me', '근무 전날에만 확인할 수 있어요.')
+  const { data: sent } = await db()
+    .from('messages')
+    .select('body')
+    .eq('thread_user_id', user.id)
+    .eq('job_id', job.id)
+    .eq('from_admin', false)
+    .order('created_at', { ascending: false })
+    .limit(30)
+  // 이미 눌렀으면 다시 남기지 않음 (두 번 눌러도 기록은 하나)
+  if (((sent ?? []) as { body: string }[]).some((m) => isComing(m.body, tomorrow))) back('/me', '이미 확인했어요. 내일 만나요!')
+  must(
+    await db()
+      .from('messages')
+      .insert({
+        thread_user_id: user.id,
+        sender_id: user.id,
+        from_admin: false,
+        company_id: job.company_id,
+        job_id: job.id,
+        body: comingBody(job.title, tomorrow, hhmm(job.start_time)),
+        read_at: new Date().toISOString(),
+      }),
+  )
+  revalidatePath('/me')
+  revalidatePath(`/admin/jobs/${job.id}`)
+  back('/me', '내일 온다고 담당자에게 알렸어요. 내일 만나요!')
 }
 
 /** 현장에 왔는데 위치 확인이 안 될 때: 담당자에게 출근 확인 요청 (요청한 시각으로 출근 처리 가능) */

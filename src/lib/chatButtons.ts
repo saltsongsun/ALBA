@@ -25,7 +25,12 @@ export const CHAT_BUTTONS: ChatButton[] = [
   { key: 'push', label: '알림 켜기', href: '/me/profile#push', icon: 'bell', lead: '확정·전날 안내를 놓치지 않게 앱 알림을 켜 주세요.' },
   { key: 'history', label: '근무 내역·급여 보기', href: '/me/history', icon: 'receipt', lead: '근무 내역과 급여는 아래에서 볼 수 있어요.' },
   { key: 'jobs', label: '모집 중인 알바 보기', href: '/', icon: 'search', lead: '지금 모집 중인 공고는 아래에서 볼 수 있어요.' },
+  // 전날 안내(자동)에만 붙음 — 관리자 입력칸의 버튼 목록에는 안 나옴 (ADMIN_CHAT_BUTTONS)
+  { key: 'coming', label: '내일 갈게요 · 출근 확인하기', href: '/me#coming', icon: 'check', lead: '내일 근무예요. 아래 버튼을 눌러 올 수 있는지 알려 주세요.' },
 ]
+
+/** 관리자가 문의 답장에 넣을 수 있는 버튼 (자동 안내 전용 버튼은 뺌) */
+export const ADMIN_CHAT_BUTTONS = CHAT_BUTTONS.filter((b) => b.key !== 'coming')
 
 const BY_KEY = new Map(CHAT_BUTTONS.map((b) => [b.key, b]))
 const KEY = '[a-z][a-z-]{0,19}'

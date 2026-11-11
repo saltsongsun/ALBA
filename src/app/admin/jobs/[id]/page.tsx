@@ -20,7 +20,7 @@ import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
-import { SIGNAL } from '@/lib/signals'
+import { isComing, SIGNAL } from '@/lib/signals'
 import { phoneFmt } from '@/lib/format'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
@@ -192,6 +192,25 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             () => null,
           )
       : null
+  // 근무자가 전날 '내일 갈게요'를 누른 사람 (첫날 근무 기준) — 전날 안내가 가기 전에 눌러도 셈
+  const firstDayIds = approved.filter((a) => !a.available_dates || a.available_dates.includes(job.start_date)).map((a) => a.user_id)
+  const coming =
+    ['open', 'closed'].includes(job.status) && (job.start_date === today || job.start_date === tomorrowKst) && firstDayIds.length
+      ? await db()
+          .from('messages')
+          .select('thread_user_id, body')
+          .eq('company_id', admin.companyId)
+          .eq('job_id', id)
+          .eq('from_admin', false)
+          .like('body', `${SIGNAL.coming}%`)
+          .then(
+            (r) => new Set(((r.data ?? []) as { thread_user_id: string; body: string }[]).filter((m) => isComing(m.body, job.start_date) && firstDayIds.includes(m.thread_user_id)).map((m) => m.thread_user_id)),
+            () => new Set<string>(),
+          )
+      : new Set<string>()
+  // 전화해 볼 사람: 누가 '갈게요'를 누르기 시작했으면 아직 답 없는 사람 전부(안 읽은 사람 표시), 아무도 안 눌렀으면 예전처럼 안내를 안 읽은 사람만
+  const unreadSet = new Set(remindRead?.unread ?? [])
+  const toCall = coming.size ? firstDayIds.filter((uid) => !coming.has(uid)) : [...unreadSet]
   // 지금 할 일 큰 버튼의 숫자: 오늘(행사가 지났으면 남은 기록 전체) 근무 중·퇴근·미출근
   const phase = jobPhase(job, today)
   const dayAtts = atts.filter((a) => a.work_date === today)
@@ -279,8 +298,9 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           {/* 지금 할 일: 전날 안내 확인 → 큰 버튼 → 도구 줄 (정보와 줄로 나눔) */}
           <div className="mt-4 space-y-3 border-t border-line pt-4" data-job-now>
             {/* 시나리오: 행사 전날 밤 '확정자가 진짜 올까?' → 전날 안내를 읽었는지, 안 읽은 사람에게 바로 전화 */}
-            {remindRead && (
-              <div className="rounded-2xl bg-bg px-3.5 py-3 text-sm" data-remind-read>
+            {(remindRead || coming.size > 0) && (
+              <div className="space-y-1.5 rounded-2xl bg-bg px-3.5 py-3 text-sm" data-remind-read>
+                {remindRead && (
                 <p className="flex items-center justify-between gap-2">
                   <span className="min-w-0 font-semibold">
                     <Icon name="bell" className="text-mute" /> 전날 안내 확인{' '}
@@ -290,9 +310,20 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                     {remindRead.unread.length ? `안 읽음 ${remindRead.unread.length}명` : '모두 읽었어요'}
                   </span>
                 </p>
-                {remindRead.unread.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    {remindRead.unread.map((uid) => {
+                )}
+                {/* 근무자가 '내일 갈게요'를 누른 수 — 한 명이라도 눌렀거나 안내가 나간 뒤에 */}
+                <p className="flex items-center justify-between gap-2" data-coming-count>
+                  <span className="min-w-0 font-semibold">
+                    <Icon name="check" className="text-mute" /> ‘갈게요’ 누름{' '}
+                    <b className={`tabular-nums ${coming.size >= firstDayIds.length ? 'text-emerald-600' : coming.size ? 'text-amber-600' : 'text-sub'}`}>{coming.size}</b>/{firstDayIds.length}명
+                  </span>
+                  <span className={`shrink-0 text-xs font-semibold ${coming.size >= firstDayIds.length ? 'text-emerald-600' : 'text-sub'}`}>
+                    {coming.size >= firstDayIds.length ? '모두 온대요' : coming.size ? `답 없음 ${firstDayIds.length - coming.size}명` : '아직 없어요'}
+                  </span>
+                </p>
+                {toCall.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {toCall.map((uid) => {
                       const u = users.get(uid)
                       const tel = (u?.phone ?? '').replace(/\D/g, '')
                       return tel ? (
@@ -304,6 +335,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                           data-unread-person
                         >
                           <Icon name="phone" className="text-emerald-600" /> {u?.name}
+                          {coming.size > 0 && unreadSet.has(uid) && <span className="text-xs font-medium text-amber-700">안 읽음</span>}
                         </a>
                       ) : null
                     })}

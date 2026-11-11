@@ -15,6 +15,7 @@ export const SIGNAL = {
   change: '🔔 일정 변경', // 담당자 → 확정자: 시간·장소 바뀜
   cancel: '❌ 행사 취소', // 담당자 → 확정자·지원자
   remind: '⏰ 내일 근무 안내', // 자동: 근무 전날
+  coming: '🙋 출근 예정 확인', // 근무자 → 담당자: 전날 '내일 갈게요' (알리기만 — 안 읽음으로 쌓지 않음)
   paid: '💸 급여 지급', // 담당자 → 근무자
   payday: '💰 정산 예정일', // 담당자·자동(행사 종료) → 근무자: 언제 들어오는지
   account: '💳 계좌 등록 요청', // 담당자 → 근무자
@@ -37,7 +38,7 @@ export function signalOf(body: string): SignalKind | null {
  */
 export function needsReply(body: string): boolean {
   const head = body.split('\n', 1)[0]
-  return !(head.startsWith(SIGNAL.late) || head.startsWith('⚠️') || head.startsWith('🕒 근무 종료 늦게 입력'))
+  return !(head.startsWith(SIGNAL.late) || head.startsWith(SIGNAL.coming) || head.startsWith('⚠️') || head.startsWith('🕒 근무 종료 늦게 입력'))
 }
 
 /** 관리자 문의 목록의 짧은 표시: 바로 처리할 요청 종류 (일반 문의면 null) · urgent = 현장에서 지금 기다리는 것 */
@@ -49,6 +50,10 @@ export function askTag(body: string): { label: string; urgent: boolean } | null 
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
   return null
 }
+
+/** 전날 '내일 갈게요' 글 (근무일 date에 대한 것인지는 본문의 날짜로 봄) */
+export const comingBody = (title: string, date: string, start: string) => `${SIGNAL.coming}\n${title} · ${fmtDate(date)} ${start} · 시간 맞춰 갈게요.`
+export const isComing = (body: string, date: string) => signalOf(body) === 'coming' && body.includes(`· ${fmtDate(date)} `)
 
 /** 지각 알림 본문에서 늦는 분과 도착 예정 시각 */
 export function parseLate(body: string): { minutes: number; eta: string } | null {

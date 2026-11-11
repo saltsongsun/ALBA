@@ -5,7 +5,7 @@ import { replyInquiry } from '@/app/actions/chat'
 import { switchCompany } from '@/app/actions/company'
 import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { SubmitButton } from '@/components/ui'
-import { CHAT_BUTTONS } from '@/lib/chatButtons'
+import { ADMIN_CHAT_BUTTONS } from '@/lib/chatButtons'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/Chat'
@@ -279,7 +279,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         </Link>
       )}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
-        <ChatComposer buttons={CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
+        <ChatComposer buttons={ADMIN_CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
         />
       </div>
     </div>

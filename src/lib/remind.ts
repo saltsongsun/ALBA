@@ -57,10 +57,12 @@ export async function sendDayBeforeReminders(now = new Date()): Promise<{ date: 
             (job.contract_method === 'paper'
               ? `📝 ${contractNameOf(job.audience)}는 내일 현장에서 종이로 작성해요.`
               : `📝 ${contractNameOf(job.audience)}를 전자계약(모두싸인 등)으로 먼저 서명해 주세요.${job.contract_url ? ` ${job.contract_url}` : ''}`),
-          '늦거나 못 오게 되면 앱에서 바로 알려 주세요.',
+          '올 수 있으면 앱에서 ‘내일 갈게요’를 눌러 주세요. 늦거나 못 오게 되면 바로 알려 주세요.',
         ]
           .filter(Boolean)
           .join('\n'),
+      // 문의함 안내 아래 '내일 갈게요 · 출근 확인하기' → 내 근무의 확인 버튼으로
+      button: 'coming',
       tag: `remind-${job.id}-${tomorrow}`,
     })
     done++
