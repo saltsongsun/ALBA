@@ -25,6 +25,8 @@ function back(path: string, msg: string): never {
 const SECTIONS = ['jobs', 'workers', 'chat', 'reports', 'vendors', 'docs', 'settings', 'companies', 'community']
 /** 보고 있던 화면의 같은 메뉴로 (공고 하나·근무자 한 명처럼 회사마다 다른 화면이면 그 목록으로) */
 function switchTarget(path: string): string {
+  // 새 공고 화면은 회사마다 같은 화면이라 그대로 (다른 회사로 올리려던 것을 알아채고 위에서 바꾼 경우 — 공고 목록으로 나가지 않게)
+  if (path === '/admin/jobs/new') return path
   const seg = /^\/admin\/([a-z]+)(?:[/?#]|$)/.exec(path)?.[1]
   return seg && SECTIONS.includes(seg) ? `/admin/${seg}` : '/admin'
 }

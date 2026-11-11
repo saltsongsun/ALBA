@@ -1,7 +1,7 @@
 'use client'
 
 import { usePathname } from 'next/navigation'
-import { useActionState } from 'react'
+import { useActionState, useRef } from 'react'
 import { addCompanyAdmin, createCompany, switchCompany } from '@/app/actions/company'
 import BizNoField from './BizNoField'
 import { FormMessage, SubmitButton } from './ui'
@@ -23,6 +23,8 @@ export function CompanySwitcher({
   events?: Record<string, string>
 }) {
   const path = usePathname()
+  // 쓴 내용이 있을 때 한 번 멈춘 뒤 다시 고를 수 있는 때까지
+  const armedUntil = useRef(0)
   // 다른 회사에 새 문의·확정 대기 지원자가 있으면 점 + 고르기 목록에 '· 새 문의 N · 대기 N'
   const other = Object.values(unread).reduce((n, x) => n + x, 0) + Object.values(waiting).reduce((n, x) => n + x, 0)
   return (
@@ -42,7 +44,17 @@ export function CompanySwitcher({
           defaultValue={current}
           aria-label="회사 고르기"
           className="min-w-0 truncate rounded-lg border border-line bg-white py-1 pr-7 pl-2 font-semibold"
-          onChange={(e) => e.currentTarget.form?.requestSubmit()}
+          onChange={(e) => {
+            const el = e.currentTarget
+            // 이 화면에 저장하지 않은 내용이 있으면(UnsavedBar) 한 번 멈추고 알림 → 4초 안에 다시 고르면 바꿈
+            if (document.documentElement.dataset.unsavedForm === '1' && Date.now() > armedUntil.current) {
+              el.value = current
+              armedUntil.current = Date.now() + 4000
+              window.dispatchEvent(new Event('unsaved:switch'))
+              return
+            }
+            el.form?.requestSubmit()
+          }}
         >
           {companies.map((c) => (
             <option key={c.id} value={c.id}>

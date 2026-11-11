@@ -13,6 +13,9 @@ function snap(form: HTMLFormElement): string {
   return out.join('\u0000')
 }
 
+/** 쓴 내용이 있는데 위의 회사 고르기를 바꾸려 할 때 */
+const SWITCH_WARN = '저장하지 않았어요 · 한 번 더 고르면 회사가 바뀌어요'
+
 /**
  * 저장하지 않은 변경 안내: 긴 폼을 고친 뒤 '저장'을 잊고 나가지 않게
  * - 값이 처음과 달라지면 아래 탭 위에 '저장하지 않은 변경이 있어요 · 저장' 바가 올라옴 (원래대로 되돌리면 사라짐)
@@ -39,6 +42,8 @@ export default function UnsavedBar({
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [warn, setWarn] = useState(false)
+  // 무엇을 하려다 멈췄는지 (다른 화면 링크 · 위의 회사 고르기)
+  const [warnFor, setWarnFor] = useState<'link' | 'switch'>('link')
   const [done, setDone] = useState(false)
   const [mounted, setMounted] = useState(false)
 
@@ -90,6 +95,27 @@ export default function UnsavedBar({
     }
   }, [formId])
 
+  // 바뀐 채로 위의 회사 고르기를 바꾸면(CompanySwitcher) 한 번 멈춤: 회사를 바꾸면 이 화면을 떠나 쓴 내용이 사라짐
+  useEffect(() => {
+    if (!dirty) return
+    const root = document.documentElement
+    root.dataset.unsavedForm = '1'
+    let t = 0
+    const onSwitch = () => {
+      setWarnFor('switch')
+      setWarn(true)
+      navigator.vibrate?.(30)
+      window.clearTimeout(t)
+      t = window.setTimeout(() => setWarn(false), 4000)
+    }
+    window.addEventListener('unsaved:switch', onSwitch)
+    return () => {
+      delete root.dataset.unsavedForm
+      window.removeEventListener('unsaved:switch', onSwitch)
+      window.clearTimeout(t)
+    }
+  }, [dirty])
+
   // 바뀐 채로 다른 화면 링크를 누르면 한 번 멈춤 (4초 안에 한 번 더 누르면 나감)
   useEffect(() => {
     if (!dirty) {
@@ -109,6 +135,7 @@ export default function UnsavedBar({
       e.preventDefault()
       e.stopPropagation()
       armedUntil = Date.now() + 4000
+      setWarnFor('link')
       setWarn(true)
       navigator.vibrate?.(30)
       window.clearTimeout(t)
@@ -140,7 +167,9 @@ export default function UnsavedBar({
   if (!bar)
     return createPortal(
       <div data-vv="pin" data-unsaved="warn" role="status" className="no-print pointer-events-none fixed inset-x-0 top-[calc(3.5rem+env(safe-area-inset-top)+10px)] z-30 px-3">
-        <p className="glass mx-auto w-fit animate-shake rounded-full px-4 py-2.5 text-[13px] font-semibold text-amber-700">{warnText}</p>
+        <p key={warnFor} className="glass mx-auto w-fit animate-shake rounded-full px-4 py-2.5 text-[13px] font-semibold text-amber-700">
+          {warnFor === 'switch' ? SWITCH_WARN : warnText}
+        </p>
       </div>,
       document.body,
     )
@@ -153,7 +182,7 @@ export default function UnsavedBar({
     >
       <div key={warn ? 'warn' : 'calm'} className={`glass mx-auto flex max-w-md items-center gap-3 rounded-[22px] p-2 pl-4 ${warn ? 'animate-shake' : 'animate-slide-up'}`}>
         <p className={`min-w-0 flex-1 text-[13px] font-semibold ${warn || state?.error ? 'text-amber-700' : 'text-ink'}`}>
-          {warn ? '한 번 더 누르면 저장 없이 나가요' : state?.error ? '저장하지 못했어요 · 칸을 확인해 주세요' : '저장하지 않은 변경이 있어요'}
+          {warn ? (warnFor === 'switch' ? SWITCH_WARN : '한 번 더 누르면 저장 없이 나가요') : state?.error ? '저장하지 못했어요 · 칸을 확인해 주세요' : '저장하지 않은 변경이 있어요'}
         </p>
         <button type="submit" form={formId} className="btn-primary btn-sm shrink-0" disabled={saving} aria-busy={saving}>
           {saving ? '저장 중…' : '저장'}

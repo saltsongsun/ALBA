@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Icon from '@/components/Icon'
 import JobForm from '@/components/JobForm'
 import { getSettings, hasSeal } from '@/lib/data'
 import { db, must } from '@/lib/db'
@@ -33,12 +34,21 @@ export default async function NewJobPage() {
   ])
   // 이 회사의 계약서·명세서에 들어갈 정보가 비어 있으면 올리기 전에 알려 줌 (막지는 않음)
   const missing = missingSetup(settings, sealSet)
+  const multi = admin.companies.length > 1
   return (
     <div className="mx-auto max-w-3xl">
       <Link href="/admin/jobs" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 공고 목록
       </Link>
-      <h1 className="mt-2 mb-4 text-2xl font-extrabold">새 공고 등록</h1>
+      <h1 className={`mt-2 text-2xl font-extrabold ${multi ? 'mb-1' : 'mb-4'}`}>새 공고 등록</h1>
+      {/* 여러 회사를 맡은 관리자: 어느 회사 공고로 올라가는지 (다른 회사면 위에서 바꾸면 이 화면에 그대로 남음) */}
+      {multi && (
+        <p className="mb-4 flex min-w-0 items-center gap-1.5 text-sm text-sub" data-job-company>
+          <Icon name="building" className="shrink-0 text-brand-600" />
+          <b className="min-w-0 truncate font-semibold text-ink">{admin.companyName}</b>
+          <span className="shrink-0">공고로 올라가요</span>
+        </p>
+      )}
       {missing.length > 0 && (
         <div data-setup-missing className="mb-4 rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200/70">
           <p className="font-bold">계약서에 들어갈 회사 정보가 비어 있어요</p>
@@ -52,7 +62,13 @@ export default async function NewJobPage() {
           </Link>
         </div>
       )}
-      <JobForm job={null} templates={templates} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} recent={recent} />
+      <JobForm
+        job={null}
+        templates={templates}
+        defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }}
+        recent={recent}
+        company={multi ? admin.companyName : undefined}
+      />
     </div>
   )
 }

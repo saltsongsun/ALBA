@@ -250,6 +250,7 @@ export default function JobForm({
   defaults,
   approved = 0,
   recent,
+  company,
 }: {
   job: Job | null
   templates: Tpl[]
@@ -258,6 +259,8 @@ export default function JobForm({
   recent?: RecentJobValues
   /** 공고 수정: 지금 확정된 인원 (모집 인원을 그보다 줄이면 안내) */
   approved?: number
+  /** 새 공고 · 여러 회사를 맡은 관리자: 올라갈 회사 이름 (등록 버튼에 함께 · 다른 회사로 잘못 올리지 않게) */
+  company?: string
 }) {
   const [state, action] = useActionState(saveJob.bind(null, job?.id ?? null), null)
   const formRef = useRef<HTMLFormElement>(null)
@@ -870,7 +873,19 @@ export default function JobForm({
       <div className="sticky bottom-[calc(var(--tabbar-space)+8px)] z-10 pt-2 sm:bottom-3" data-job-submit>
         <FormMessage state={state} />
         <SubmitButton className="btn-primary mt-2 w-full py-3.5 text-base shadow-lg" pendingText="저장 중…">
-          {job ? '공고 저장' : '공고 등록'}
+          {job ? (
+            '공고 저장'
+          ) : company ? (
+            // 두 줄: 할 일(공고 등록)은 크게, 올라갈 회사는 아래 작게 (긴 회사 이름은 줄임)
+            <span className="flex min-w-0 flex-col items-center leading-tight">
+              <span>공고 등록</span>
+              <span className="max-w-full truncate text-xs font-medium text-white/80" data-job-submit-company>
+                {company}
+              </span>
+            </span>
+          ) : (
+            '공고 등록'
+          )}
         </SubmitButton>
       </div>
     </form>
