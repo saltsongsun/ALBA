@@ -131,7 +131,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const day2 = kstDay(now + 2 * 864e5)
   await setJob({ start_date: day2, end_date: day2 })
   await open(w, '/me')
-  ok('모레 근무: 예정 카드는 있지만 출근 확인 줄은 없음', (await w.locator('[data-coming]').count()) === 0 && (await w.locator('main').innerText()).includes('예정된 근무'))
+  ok('모레 근무: 다음 근무 카드는 있지만 출근 확인 줄은 없음', (await w.locator('[data-coming]').count()) === 0 && (await w.locator('[data-next-work]').count()) === 1)
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

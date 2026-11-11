@@ -196,6 +196,58 @@ export default async function MePage(props: PageProps<'/me'>) {
   const firstDay = (a: AppWithJob) => (a.available_dates ?? [a.job.start_date]).filter((d) => d >= today).sort()[0] ?? a.job.start_date
   const upcoming = approved.filter((a) => a.job.start_date > today).sort((a, b) => firstDay(a).localeCompare(firstDay(b)))
   const nextApp = upcoming[0] ?? null
+  // 오늘 근무가 없는 날은 다음 근무를 '오늘의 근무' 자리에 크게 보여 주므로, 아래 '예정된 근무' 목록에서는 그 근무를 뺌 (같은 근무를 두 번 보이지 않게)
+  const heroNext = todayApps.length === 0 ? nextApp : null
+  const restUpcoming = heroNext ? upcoming.filter((x) => x.id !== heroNext.id) : upcoming
+  // 다음 근무 장소로 가는 길 (전날 미리 확인 · 장소 정보가 없으면 없음)
+  const nextMap = heroNext ? mapLinks({ name: heroNext.job.location_name, address: heroNext.job.address, lat: heroNext.job.lat, lng: heroNext.job.lng }) : null
+  // 예정 근무에 덧붙는 줄: 배치 · 계약서 안내 · 일정이 바뀐 알림 (큰 카드와 목록 카드가 같이 씀)
+  const upcomingExtras = (a: AppWithJob) => (
+    <>
+      {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700"><Icon name="pin" /> 배치 · {a.position}</p>}
+      <ContractNote job={a.job} received={a.contract_received_at} compact />
+      {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
+      {(() => {
+        const n = latestNotice.get(a.job_id)
+        if (!n || signalOf(n.body) !== 'change') return null
+        return (
+          <p className="mt-1.5 inline-block rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
+            🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요 · 공고에서 확인
+          </p>
+        )
+      })()}
+    </>
+  )
+  // 근무 전날: '내일 갈게요' 한 번 → 담당자 화면에 출근 확인으로 모임 (전날 밤 전화 돌리는 일을 줄임)
+  const comingRow = (a: AppWithJob) =>
+    firstDay(a) === tomorrow && a.job.status !== 'cancelled' &&
+    (comingSent.has(a.job_id) ? (
+      <p id={a.id === comingFirst ? 'coming' : undefined} className="mt-3 flex scroll-mt-24 items-center justify-between gap-2 border-t border-line pt-2 text-sm" data-coming="done">
+        <span className="flex min-w-0 items-center gap-1.5 font-semibold whitespace-nowrap text-emerald-700">
+          <span aria-hidden className="grid size-5 shrink-0 animate-pop place-items-center rounded-full bg-emerald-600 text-[11px] leading-none font-bold text-white">
+            ✓
+          </span>
+          내일 출근 확인함 · {comingSent.get(a.job_id)}
+        </span>
+        {/* 확인한 뒤에 사정이 생겼을 때: 공고의 '근무를 못 하게 됐어요'로 (전화 먼저 안내가 거기 있음) */}
+        <Link href={`/jobs/${a.job_id}?cant=1#cant`} className="-mr-1 inline-flex min-h-10 shrink-0 items-center px-1 text-xs font-semibold whitespace-nowrap text-sub active:opacity-60" data-coming-cant>
+          못 가게 됐어요
+        </Link>
+      </p>
+    ) : (
+      <form id={a.id === comingFirst ? 'coming' : undefined} action={confirmComing.bind(null, a.id)} className="mt-3 flex scroll-mt-24 items-center gap-2 border-t border-line pt-3" data-coming="ask">
+        <span className="min-w-0 flex-1 text-sm text-sub">
+          <b className="font-semibold text-ink">내일</b> 올 수 있나요?
+        </span>
+        {/* 못 오면 전날에 바로 알리게: 공고의 '근무를 못 하게 됐어요' 칸을 열어 둠 (담당자가 대신할 사람을 구할 시간) */}
+        <Link href={`/jobs/${a.job_id}?cant=1#cant`} className="btn-gray btn-sm min-h-10 shrink-0 px-3 whitespace-nowrap" data-coming-cant>
+          못 가요
+        </Link>
+        <SubmitButton className="btn-primary btn-sm min-h-10 shrink-0 px-4 whitespace-nowrap" pendingText="알리는 중…" track="내일 갈게요">
+          내일 갈게요
+        </SubmitButton>
+      </form>
+    ))
   // 문의함 안내의 '출근 확인하기' 버튼이 데려올 곳 (내일 근무가 여러 개면 첫 카드)
   const comingFirst = upcoming.find((x) => firstDay(x) === tomorrow && x.job.status !== 'cancelled')?.id ?? null
   const dLabel = (d: string) => {
@@ -583,7 +635,12 @@ export default async function MePage(props: PageProps<'/me'>) {
         {todayApps.length === 0 ? (
           nextApp ? (
             // 오늘 근무가 없으면 다음 근무를 크게 (며칠 남았는지·시간·장소·길찾기)
-            <div className="card space-y-2 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-brand-500)_10%,white)_0%,white_60%)] ring-brand-100" data-next-work>
+            // 이 근무는 아래 '예정된 근무' 목록에 다시 나오지 않음 → 달력에 넣기·전날 출근 확인도 여기에 (이번 주 칸을 누르면 이 카드로)
+            <div
+              id={`work-${nextApp.id}`}
+              className="card scroll-mt-20 space-y-2 bg-[linear-gradient(160deg,color-mix(in_oklab,var(--color-brand-500)_10%,white)_0%,white_60%)] ring-brand-100 target:ring-2 target:ring-brand-300"
+              data-next-work
+            >
               <p className="flex items-center gap-2 text-sm font-bold text-brand-700">
                 <span className="badge bg-brand-600 text-white">{dLabel(firstDay(nextApp))}</span>
                 다음 근무
@@ -601,12 +658,25 @@ export default async function MePage(props: PageProps<'/me'>) {
               </p>
               {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
               {nextApp.job.meeting_point && <p className="text-sm text-sub"><Icon name="flag" className="text-mute" /> 집결 {nextApp.job.meeting_point}</p>}
+              {upcomingExtras(nextApp)}
               {/* 전날 미리 챙기기: 근무 날 오늘 근무 카드와 같은 체크가 이어짐 */}
               {(() => {
                 const items = [...new Set(`${nextApp.job.dress_code ?? ''},${nextApp.job.supplies ?? ''}`.split(/[,·、/\n]+/).map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 20))].slice(0, 8)
                 return items.length >= 2 ? <PrepChecklist storageKey={`prep-${nextApp.job_id}-${firstDay(nextApp)}`} items={items} /> : null
               })()}
               <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
+              {/* 전날 미리: 휴대폰 달력에 넣기(.ics) · 가는 길 보기 (좌표가 있으면 길찾기, 주소만 있으면 지도) */}
+              <div className="flex flex-wrap gap-1.5">
+                <a href={`/me/calendar/${nextApp.id}`} className="chip h-8 px-3 text-xs" data-next-calendar>
+                  <Icon name="calendar" /> 달력에 넣기
+                </a>
+                {nextMap && (
+                  <a href={nextMap.route ?? nextMap.kakao} target="_blank" rel="noreferrer" className="chip h-8 px-3 text-xs" data-next-map>
+                    <Icon name="route" /> {nextMap.route ? '길찾기' : '지도'}
+                  </a>
+                )}
+              </div>
+              {comingRow(nextApp)}
             </div>
           ) : waitingFirst ? (
             // 확정을 기다리는 지원이 위에 있으면 한 줄로만 (큰 빈 화면 안내가 그 칸을 아래로 밀지 않게)
@@ -878,11 +948,11 @@ export default async function MePage(props: PageProps<'/me'>) {
       {/* 근무 날: 출퇴근 버튼(오늘의 근무)과 할 일 다음에 레벨 카드·이번 주 등 (버튼이 첫 화면에 보이게) */}
       {todayApps.length > 0 && extras}
 
-      {upcoming.length > 0 && (
+      {restUpcoming.length > 0 && (
         <section>
           <h2 className="section-title">예정된 근무</h2>
           <div className="stagger space-y-2">
-            {upcoming.map((a) => (
+            {restUpcoming.map((a) => (
               <div key={a.id} id={`work-${a.id}`} className="card scroll-mt-20 py-4 target:ring-2 target:ring-brand-300">
               <div className="flex items-center gap-3">
                 <Link href={`/jobs/${a.job_id}`} className="min-w-0 flex-1">
@@ -892,18 +962,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     {fmtDateRange(a.job.start_date, a.job.end_date)} {scheduleText(a.job)}
                   </p>
                   {a.available_dates && <p className="mt-0.5 text-xs font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {a.available_dates.map(fmtDate).join(' · ')}</p>}
-                  {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700"><Icon name="pin" /> 배치 · {a.position}</p>}
-                  <ContractNote job={a.job} received={a.contract_received_at} compact />
-                  {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
-                  {(() => {
-                    const n = latestNotice.get(a.job_id)
-                    if (!n || signalOf(n.body) !== 'change') return null
-                    return (
-                      <p className="mt-1.5 inline-block rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
-                        🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요 · 공고에서 확인
-                      </p>
-                    )
-                  })()}
+                  {upcomingExtras(a)}
                 </Link>
                 <div className="flex shrink-0 flex-col items-end gap-2">
                   <span className={`badge ${APP_STATUS.approved.cls}`}>확정</span>
@@ -913,35 +972,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   </a>
                 </div>
               </div>
-              {/* 근무 전날: '내일 갈게요' 한 번 → 담당자 화면에 출근 확인으로 모임 (전날 밤 전화 돌리는 일을 줄임) */}
-              {firstDay(a) === tomorrow && a.job.status !== 'cancelled' &&
-                (comingSent.has(a.job_id) ? (
-                  <p id={a.id === comingFirst ? 'coming' : undefined} className="mt-3 flex scroll-mt-24 items-center justify-between gap-2 border-t border-line pt-2 text-sm" data-coming="done">
-                    <span className="flex min-w-0 items-center gap-1.5 font-semibold whitespace-nowrap text-emerald-700">
-                      <span aria-hidden className="grid size-5 shrink-0 animate-pop place-items-center rounded-full bg-emerald-600 text-[11px] leading-none font-bold text-white">
-                        ✓
-                      </span>
-                      내일 출근 확인함 · {comingSent.get(a.job_id)}
-                    </span>
-                    {/* 확인한 뒤에 사정이 생겼을 때: 공고의 '근무를 못 하게 됐어요'로 (전화 먼저 안내가 거기 있음) */}
-                    <Link href={`/jobs/${a.job_id}?cant=1#cant`} className="-mr-1 inline-flex min-h-10 shrink-0 items-center px-1 text-xs font-semibold whitespace-nowrap text-sub active:opacity-60" data-coming-cant>
-                      못 가게 됐어요
-                    </Link>
-                  </p>
-                ) : (
-                  <form id={a.id === comingFirst ? 'coming' : undefined} action={confirmComing.bind(null, a.id)} className="mt-3 flex scroll-mt-24 items-center gap-2 border-t border-line pt-3" data-coming="ask">
-                    <span className="min-w-0 flex-1 text-sm text-sub">
-                      <b className="font-semibold text-ink">내일</b> 올 수 있나요?
-                    </span>
-                    {/* 못 오면 전날에 바로 알리게: 공고의 '근무를 못 하게 됐어요' 칸을 열어 둠 (담당자가 대신할 사람을 구할 시간) */}
-                    <Link href={`/jobs/${a.job_id}?cant=1#cant`} className="btn-gray btn-sm min-h-10 shrink-0 px-3 whitespace-nowrap" data-coming-cant>
-                      못 가요
-                    </Link>
-                    <SubmitButton className="btn-primary btn-sm min-h-10 shrink-0 px-4 whitespace-nowrap" pendingText="알리는 중…" track="내일 갈게요">
-                      내일 갈게요
-                    </SubmitButton>
-                  </form>
-                ))}
+              {comingRow(a)}
               </div>
             ))}
           </div>
