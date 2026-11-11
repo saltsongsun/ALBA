@@ -1,7 +1,8 @@
 'use client'
 
 import UnsavedBar from '@/components/UnsavedBar'
-import { useActionState, useMemo, useOptimistic, useRef, useState } from 'react'
+import Link from 'next/link'
+import { useActionState, useEffect, useMemo, useOptimistic, useRef, useState } from 'react'
 import { rateWorker, resetPin, revealRrn, revealWorkerField, saveSettings, saveTemplate, setPosition, updateWorker, type RevealField } from '@/app/actions/admin'
 import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
@@ -339,8 +340,39 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
   )
 }
 
-export function SettingsForm({ s }: { s: Settings }) {
+/**
+ * 새 회사(공고를 아직 안 올림): 회사 정보를 저장한 그 자리에서 다음 할 일(첫 공고 올리기)로.
+ * 저장 버튼이 아래 탭 위의 바에도 있어, 어디서 저장했든 보이게 화면 가운데로 옮김
+ * left: 계약서에 들어가는 정보 4가지 가운데 아직 빈 것
+ */
+function SetupNext({ left }: { left: number }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ref.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+  }, [])
+  return (
+    <div ref={ref} className="animate-pop space-y-3 rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200/70" data-settings-next={left === 0 ? 'done' : 'partial'}>
+      <div className="flex items-center gap-3">
+        <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-full bg-emerald-500 font-bold text-white">
+          ✓
+        </span>
+        <p className="min-w-0 flex-1 text-sm text-emerald-900">
+          <b className="block">{left === 0 ? '회사 정보를 다 채웠어요' : '저장했어요'}</b>
+          <span className="block text-xs text-emerald-800">{left === 0 ? '다음은 첫 공고 올리기예요' : `남은 ${left}가지는 계약서 보내기 전에 채워 주세요`}</span>
+        </p>
+      </div>
+      <Link href="/admin/jobs/new" className="btn-primary btn-sm min-h-10 w-full">
+        첫 공고 올리기 →
+      </Link>
+    </div>
+  )
+}
+
+/** firstJob: 이 회사가 아직 공고를 한 번도 안 올렸는지 (새 회사 → 저장 뒤 다음 할 일을 이어 줌) */
+export function SettingsForm({ s, firstJob = false }: { s: Settings; firstJob?: boolean }) {
   const [state, action] = useActionState(saveSettings, null)
+  const left = [s.business_no, s.company_address, s.seal_image, s.contact_phone].filter((v) => !v).length
   return (
     <form id="settings-form" action={action} onReset={keepInputs} className="space-y-5">
       {/* 고친 뒤 맨 아래 '설정 저장'을 잊고 나가지 않게: 아래 탭 위에 저장 바 */}
@@ -415,8 +447,10 @@ export function SettingsForm({ s }: { s: Settings }) {
           </span>
         </label>
       </section>
-      <FormMessage state={state} />
+      {/* 새 회사는 '저장했습니다' 대신 저장 버튼 아래에 다음 할 일 카드 하나로 (같은 말을 두 번 하지 않게) */}
+      {!(firstJob && state?.ok) && <FormMessage state={state} />}
       <SubmitButton>설정 저장</SubmitButton>
+      {firstJob && state?.ok && <SetupNext left={left} />}
     </form>
   )
 }
