@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { SignupForm, SignupTypePicker } from '@/components/AuthForms'
 import ProMode from '@/components/ProMode'
-import { returnJob, ReturnJobChip } from '@/components/ReturnJob'
+import { returnCompany, ReturnCompanyChip, returnJob, ReturnJobChip } from '@/components/ReturnJob'
 import { isMemberType, MEMBER_TYPES } from '@/lib/members'
 import { getUser } from '@/lib/session'
 import { safePath } from '@/lib/validate'
@@ -17,10 +17,13 @@ export default async function SignupPage(props: PageProps<'/signup'>) {
   if (await getUser()) redirect(next || '/me')
   const type = isMemberType(sp.type) ? sp.type : null
   // 공고를 보다가 온 가입: 가입하면 그 공고로 돌아간다는 걸 보여 줌 (왜 가입하는지 잊지 않게) · 공개된 공고만
-  const forJob = await returnJob(next)
+  // forCo: 회사 공고 모음(/?co=회사) 링크로 들어와 가입하는 사람 — 가입하면 그 회사 공고로 돌아감
+  const [forJob, forCo] = await Promise.all([returnJob(next), returnCompany(next)])
   if (!type) {
     // 공고에서 왔는데 유형이 없으면(로그인 화면의 '가입하기' 등) 그 공고 종류로 바로 — 직접 고르려면 '유형 다시 고르기'(pick=1)
     if (forJob && sp.pick !== '1') redirect(`/signup?type=${forJob.audience === 'expert' ? 'expert' : 'worker'}&next=${encodeURIComponent(next)}`)
+    // 회사 공고 모음은 아르바이트 공고만 모은 화면 → 유형을 묻지 않고 바로 아르바이트 가입으로
+    if (forCo && sp.pick !== '1') redirect(`/signup?type=worker&next=${encodeURIComponent(next)}`)
     return (
       <div className="pt-2">
         <h1 className="mb-1 text-2xl font-extrabold">어떤 분이세요?</h1>
@@ -42,6 +45,8 @@ export default async function SignupPage(props: PageProps<'/signup'>) {
       <h1 className="mt-2 mb-1 text-2xl font-extrabold">{type === 'worker' ? '간편 가입' : type === 'expert' ? '전문가 가입' : '외주 업체 가입'}</h1>
       {forJob ? (
         <ReturnJobChip job={forJob} text="가입하면 이 공고로 돌아가요" name="signup" />
+      ) : forCo ? (
+        <ReturnCompanyChip company={forCo} text="가입하면 이 회사 공고로 돌아가요" name="signup" />
       ) : (
         <p className="mb-5 text-sub">
           {type === 'worker'

@@ -82,7 +82,8 @@ const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWid
   // ── 5. 로그인한 근무자 ──
   const wk = await pg(W)
   await wk.goto(`${D}/?co=${C1}`)
-  ok('근무자: 회사 안내 + 내 근무 버튼', (await sub(wk)).includes('모집 중') && (await see(wk, '근무자님 내 근무 보기 →')))
+  // 이 회사에 확정된 근무가 있는 사람 → '내 지원 · 확정 1건' 줄 (없으면 '내 근무 보기' 버튼 — batch200)
+  ok('근무자: 회사 안내 + 내 지원 줄', (await sub(wk)).includes('모집 중') && ((await wk.locator('[data-company-mine]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim() === '내 지원 · 확정 1건 내 근무 →')
   ok('근무자: 가입·로그인 버튼 없음', (await wk.getByRole('link', { name: '간편 가입' }).count()) === 0)
   ok('근무자: 회사1 공고만', (await cards(wk, T1)) === 1 && (await cards(wk, T2)) === 0)
 

@@ -95,6 +95,9 @@ export default async function HomePage(props: PageProps<'/'>) {
   const openCount = jobs.filter((j) => j.status === 'open').length
   const mine: Record<string, string> = {}
   for (const r of myApps) mine[r.job_id] = r.status
+  // 회사 공고 모음: 이 회사의 지금 공고 가운데 내가 확정된 것 · 확정을 기다리는 것
+  const hereApproved = company ? jobs.filter((j) => mine[j.id] === 'approved').length : 0
+  const hereWaiting = company ? jobs.filter((j) => mine[j.id] === 'applied').length : 0
   // 확정·지원한 내 일정과 같은 날 같은 시간대인 공고 (지원 버튼을 누르기 전에 목록에서 미리 알게: 두 군데 겹치기 지원 실수 막기)
   const myShifts = myApps.filter((r) => (r.status === 'approved' || r.status === 'applied') && r.job && r.job.status !== 'cancelled' && r.job.end_date >= today)
   const clashes = (j: JobWithAppStatus) =>
@@ -263,9 +266,26 @@ export default async function HomePage(props: PageProps<'/'>) {
             </Link>
           </div>
           {user ? (
-            <Link href="/me" className="btn-gray btn-sm w-full">
-              {user.name}님 내 근무 보기 →
-            </Link>
+            hereApproved + hereWaiting > 0 ? (
+              // 이 회사에 이미 지원한 사람: 지금 어디까지 왔는지 (확정 · 확정 대기) 한 줄로
+              <Link href="/me" className="flex items-center justify-between gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm transition active:scale-[0.98]" data-company-mine>
+                <span className="min-w-0 truncate">
+                  <b className="font-semibold">내 지원</b>
+                  {hereApproved > 0 && (
+                    <>
+                      {' · '}
+                      <span className="font-semibold text-emerald-600">확정 {hereApproved}건</span>
+                    </>
+                  )}
+                  {hereWaiting > 0 && ` · 확정 대기 ${hereWaiting}건`}
+                </span>
+                <span className="shrink-0 font-bold whitespace-nowrap text-brand-600">내 근무 →</span>
+              </Link>
+            ) : (
+              <Link href="/me" className="btn-gray btn-sm w-full">
+                {user.name}님 내 근무 보기 →
+              </Link>
+            )
           ) : (
             <div className="flex gap-2">
               <Link href={`/signup?type=worker&next=${encodeURIComponent(`/?co=${company.id}`)}`} className="btn-primary btn-sm flex-1">

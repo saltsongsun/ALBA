@@ -1,4 +1,6 @@
 import Link from 'next/link'
+import { Suspense } from 'react'
+import GuestLinks from './GuestLinks'
 import { unreadForWorker } from '@/lib/data'
 import { getUser } from '@/lib/session'
 import LogoutButton from './LogoutButton'
@@ -39,14 +41,21 @@ export default async function SiteHeader() {
               <LogoutButton className="rounded-lg px-2.5 py-1.5 text-mute hover:bg-bg" />
             </>
           ) : (
-            <>
-              <Link href="/login" className="rounded-lg px-2.5 py-1.5 hover:bg-bg">
-                로그인
-              </Link>
-              <Link href="/signup" className="btn-primary btn-sm">
-                가입하기
-              </Link>
-            </>
+            // 보던 공고·회사 공고 모음으로 돌아오게 주소를 붙임 (주소를 읽기 전에는 기본 링크)
+            <Suspense
+              fallback={
+                <>
+                  <Link href="/login" className="rounded-lg px-2.5 py-1.5 hover:bg-bg">
+                    로그인
+                  </Link>
+                  <Link href="/signup" className="btn-primary btn-sm">
+                    가입하기
+                  </Link>
+                </>
+              }
+            >
+              <GuestLinks />
+            </Suspense>
           )}
         </nav>
       </div>
