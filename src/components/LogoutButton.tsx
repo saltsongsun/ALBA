@@ -26,6 +26,10 @@ export default function LogoutButton({ className }: { className: string }) {
         e.preventDefault()
         const form = e.currentTarget
         setBusy(true)
+        // 쓰다 만 문의 글은 지움 (같은 휴대폰을 다음 사람이 쓸 때 보이지 않게)
+        try {
+          for (const k of Object.keys(sessionStorage)) if (k.startsWith('chat-draft:')) sessionStorage.removeItem(k)
+        } catch {}
         Promise.race([dropPush(), new Promise((r) => setTimeout(r, 2000))])
           .catch(() => {})
           .finally(() => {

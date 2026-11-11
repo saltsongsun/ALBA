@@ -35,6 +35,10 @@ function SendButton() {
  * 오류가 나면 쓴 내용은 그대로 둠.
  * Enter = 보내기 · Shift+Enter = 줄바꿈 (한글을 조합하는 중에 누른 Enter는 글자만 확정 — 두 번 보내지 않게)
  */
+/** 쓰던 글을 넣어 두는 이름 (대화 주소를 뒤에 붙임) · 보관 시간 */
+export const DRAFT_PREFIX = 'chat-draft:'
+const DRAFT_TTL = 30 * 60_000
+
 export default function ChatComposer({
   action,
   placeholder,
@@ -166,6 +170,31 @@ export default function ChatComposer({
     setHasText(filled)
     if (!filled) setToolsOpen(false)
   }
+  // 쓰던 글: 보내기 전에 다른 화면에 다녀오거나 화면이 새로 열려도(휴대폰이 탭을 닫았다 다시 열 때) 남게
+  // — 이 탭 안에서만 · 대화마다 따로 · 30분 지나면 버림 · 보내면 지움 (로그아웃할 때도 지움: LogoutButton)
+  const draftKey = useRef('')
+  useEffect(() => {
+    const el = textRef.current
+    if (!el) return
+    const key = `${DRAFT_PREFIX}${location.pathname}${location.search}`
+    draftKey.current = key
+    try {
+      const saved = JSON.parse(sessionStorage.getItem(key) ?? 'null') as { t: number; v: string } | null
+      if (saved && typeof saved.v === 'string' && Date.now() - saved.t < DRAFT_TTL && !el.value) {
+        el.value = saved.v.slice(0, 2000)
+        el.dispatchEvent(new Event('input', { bubbles: true })) // 높이·보내기 버튼 상태를 맞춤
+      } else if (saved) sessionStorage.removeItem(key)
+    } catch {}
+    const save = () => {
+      try {
+        if (el.value.trim()) sessionStorage.setItem(key, JSON.stringify({ t: Date.now(), v: el.value }))
+        else sessionStorage.removeItem(key)
+      } catch {}
+    }
+    el.addEventListener('input', save)
+    return () => el.removeEventListener('input', save)
+  }, [])
+
   // 버튼이 접히거나 펼쳐지면 입력 칸 너비가 달라지니 높이를 다시 맞춤
   useEffect(() => {
     const el = textRef.current
@@ -185,6 +214,10 @@ export default function ChatComposer({
       return
     }
     textRef.current.value = ''
+    // 보냈으니 쓰던 글은 지움 (이모티콘만 보낸 경우에는 쓰던 글이 입력칸에 남아 있으니 그대로 둠)
+    try {
+      sessionStorage.removeItem(draftKey.current)
+    } catch {}
     setMq(null)
     // 보낸 뒤에는 '공지로 고정' 같은 체크도 풀어 둠 (다음 글이 실수로 고정되지 않게)
     formRef.current?.querySelectorAll<HTMLInputElement>('input[type=checkbox]').forEach((c) => (c.checked = false))

@@ -4,6 +4,9 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#2557e8" />
+    <!-- 8초마다 보던 주소를 다시 엶: 연결이 돌아오면 누르지 않아도 화면이 열림.
+         이 화면에서는 스크립트가 막혀 있어(보안 설정) 스크립트 없이 동작하게 함 -->
+    <meta http-equiv="refresh" content="8" />
     <title>인터넷 연결 없음 · 해피워크</title>
     <style>
       body {
@@ -17,6 +20,7 @@
       }
       main {
         width: min(100% - 32px, 360px);
+        box-sizing: border-box;
         padding: 28px 24px;
         border-radius: 20px;
         background: #fff;
@@ -36,17 +40,56 @@
         color: #4e5968;
         font-size: 15px;
         line-height: 1.5;
+        /* 좁은 화면에서 '…저장돼 / 요.'처럼 한 글자만 다음 줄로 넘어가지 않게: 낱말 단위로, 두 줄이면 고르게 */
+        word-break: keep-all;
+        text-wrap: balance;
       }
-      button {
+      /* '다시 시도': 스크립트 없이도 되게 보던 주소를 다시 여는 링크 */
+      a {
+        display: block;
         margin-top: 20px;
-        width: 100%;
         padding: 14px;
-        border: 0;
         border-radius: 12px;
         background: #2557e8;
         color: #fff;
         font-size: 16px;
         font-weight: 600;
+        text-decoration: none;
+      }
+      a:active {
+        opacity: 0.85;
+      }
+      .auto {
+        margin-top: 14px;
+        color: #8b95a1;
+        font-size: 13px;
+      }
+      /* 다음 자동 시도까지 차오르는 줄 (8초) */
+      .bar {
+        width: 96px;
+        height: 4px;
+        margin: 8px auto 0;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #e5e8eb;
+      }
+      .bar i {
+        display: block;
+        height: 100%;
+        border-radius: 999px;
+        background: #2557e8;
+        transform-origin: left;
+        animation: fill 8s linear both;
+      }
+      @keyframes fill {
+        from {
+          transform: scaleX(0);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .bar {
+          display: none;
+        }
       }
     </style>
   </head>
@@ -54,8 +97,10 @@
     <main>
       <img src="/icons/icon-192.png" alt="" />
       <h1>인터넷에 연결되어 있지 않아요</h1>
-      <p>와이파이나 데이터를 켠 뒤 다시 시도해 주세요.<br />출퇴근 기록은 연결된 뒤에 눌러야 저장됩니다.</p>
-      <button type="button" onclick="location.reload()">다시 시도</button>
+      <p>와이파이나 데이터를 켜 주세요.<br />출퇴근은 연결된 뒤에 눌러야 저장돼요.</p>
+      <a href="" data-offline-retry>다시 시도</a>
+      <p class="auto">연결되면 자동으로 다시 열어요</p>
+      <div class="bar" aria-hidden="true"><i></i></div>
     </main>
   </body>
 </html>

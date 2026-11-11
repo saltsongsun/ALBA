@@ -1,6 +1,6 @@
 // 해피워크 서비스 워커
 // 화면·데이터는 저장하지 않고(항상 최신), 인터넷이 끊겼을 때만 안내 화면을 보여 줍니다.
-const CACHE = 'happywork-offline-v2'
+const CACHE = 'happywork-offline-v3'
 const OFFLINE = '/offline.html'
 
 self.addEventListener('install', (event) => {
