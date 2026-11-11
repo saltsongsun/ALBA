@@ -760,12 +760,19 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <InstallBanner />
       {/* 직접 가입해 확인 전인 회사: 무엇이 되고 무엇이 확인 뒤에 열리는지 */}
       {!admin.companyVerified && (
-        <div className="rounded-2xl bg-amber-50 p-4 text-sm text-amber-900 ring-1 ring-amber-200/70">
-          <p className="font-bold">🔒 회사 확인 중이에요</p>
-          <p className="mt-1">
-            공고 올리기·지원자 확정·서류·출퇴근·정산은 지금 바로 쓸 수 있어요. 다른 회사에 지원한 사람까지 보이는 <b>해피워크 전체 회원 명단</b>과 번호로 직접 추가는 확인을 마친 뒤에 열려요.
-          </p>
-        </div>
+        // 한 줄로 짧게 (되는 것) · 눌러서 자세히 (확인 뒤에 열리는 것 · 끝나면 알림)
+        <details className="rounded-2xl bg-amber-50 text-sm text-amber-900 ring-1 ring-amber-200/70" data-unverified>
+          <summary className="cursor-pointer px-4 py-3">
+            <b className="font-bold">🔒 회사 확인 중이에요</b>
+            <span className="mt-0.5 block pl-[1em] text-[13px] text-amber-900/85">공고·확정·서류·출퇴근·정산은 지금 바로 돼요</span>
+          </summary>
+          <div className="space-y-1.5 border-t border-amber-200/70 px-4 py-3">
+            <p>
+              확인 뒤에 열려요 · <b>해피워크 전체 회원 명단</b>(다른 회사에 지원한 사람까지) · 번호로 직접 추가
+            </p>
+            <p className="text-[13px] text-amber-900/85">확인이 끝나면 휴대폰 알림으로 알려 드려요. 아래에서 알림을 켜 두세요.</p>
+          </div>
+        </details>
       )}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="space-y-1">

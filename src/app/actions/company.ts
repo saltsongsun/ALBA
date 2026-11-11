@@ -13,7 +13,7 @@ import { MIN_WAGE_2026 } from '@/lib/pay'
 import { adminCompanies, COMPANY_COOKIE, createSession, getUser, requireSuper } from '@/lib/session'
 import { isBizNo, isPin, isUuid, line, normalizePhone, optLine, optStr, str, weakPin } from '@/lib/validate'
 import { bizNoFmt } from '@/lib/members'
-import { sendPush, superAdminIds } from '@/lib/push'
+import { sendAdminPush, sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import type { FormState } from './auth'
 
@@ -272,8 +272,22 @@ export async function setCompanyActive(companyId: string, active: boolean) {
 export async function setCompanyVerified(companyId: string, verified: boolean, form?: FormData) {
   const admin = await requireSuper()
   if (!isUuid(companyId)) return
+  // 확인 전 → 확인으로 바뀔 때만 그 회사에 알림 (이미 확인한 회사를 또 눌러도 알림이 다시 가지 않게)
+  const { data: before } = await db().from('companies').select('verified').eq('id', companyId).maybeSingle()
+  const wasVerified = (before as { verified?: boolean | null } | null)?.verified === true
   must(await db().from('companies').update({ verified }).eq('id', companyId))
   await audit(admin.id, verified ? 'company.verify' : 'company.unverify', null, null, companyId)
+  if (verified && !wasVerified) {
+    // 그 회사 관리자에게: 확인이 끝나 전체 회원 명단·번호로 직접 추가가 열렸어요 (기다리는 동안 화면을 계속 열어 보지 않아도 되게)
+    after(() =>
+      sendAdminPush(companyId, {
+        title: '✅ 회사 확인이 끝났어요',
+        body: '이제 해피워크 전체 회원 명단에서 근무자를 찾고, 번호로 바로 추가할 수 있어요.',
+        url: '/admin/workers',
+        tag: `verified-${companyId}`,
+      }),
+    )
+  }
   revalidatePath('/admin/companies')
   revalidatePath('/ops')
   // 운영 센터에서 눌렀으면 운영 센터로 돌아감 (그 밖은 회사 관리)
