@@ -872,7 +872,7 @@ export default function JobForm({
       {/* 휴대폰: 아래 탭 위에 붙음 (탭에 가려 버튼이 안 보이던 것) · 키보드가 올라오면 탭이 숨어 그만큼 내려감 */}
       <div className="sticky bottom-[calc(var(--tabbar-space)+8px)] z-10 pt-2 sm:bottom-3" data-job-submit>
         <FormMessage state={state} />
-        <SubmitButton className="btn-primary mt-2 w-full py-3.5 text-base shadow-lg" pendingText="저장 중…">
+        <SubmitButton className="btn-primary mt-2 w-full py-3.5 text-base shadow-lg" pendingText="저장 중…" track={job ? '공고 저장' : '공고 등록'}>
           {job ? (
             '공고 저장'
           ) : company ? (

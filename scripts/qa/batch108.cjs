@@ -82,7 +82,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   // 출근 전 상태로 (근무 중이면 '근무 종료'가 먼저 나오고 서명 안내는 짧은 한 줄 — batch154)
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
   await wk.goto(`${D}/me`)
-  const sign = wk.locator('section', { hasText: '서명할 서류가' }).first()
+  // 오늘 근무의 서류는 오늘의 근무 카드 '서명 ›' 줄로만 (2026-11-12부터 위 카드에 되풀이하지 않음) → 바로 가기 자리(#sign-docs)로 봄
+  const sign = wk.locator('#sign-docs').first()
   await sign.waitFor({ timeout: 10000 }).catch(() => {})
   const yOf = (l) => l.evaluate((el) => el.getBoundingClientRect().top + scrollY)
   ok('서명할 서류 카드가 병아리 레벨 카드보다 위', (await yOf(sign)) < (await yOf(wk.locator('[data-xp-card]'))))

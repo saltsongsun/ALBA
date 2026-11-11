@@ -370,7 +370,7 @@ function SetupNext({ left }: { left: number }) {
 }
 
 /** firstJob: 이 회사가 아직 공고를 한 번도 안 올렸는지 (새 회사 → 저장 뒤 다음 할 일을 이어 줌) */
-export function SettingsForm({ s, firstJob = false }: { s: Settings; firstJob?: boolean }) {
+export function SettingsForm({ s, firstJob = false, company }: { s: Settings; firstJob?: boolean; company?: string }) {
   const [state, action] = useActionState(saveSettings, null)
   const left = [s.business_no, s.company_address, s.seal_image, s.contact_phone].filter((v) => !v).length
   return (
@@ -449,7 +449,19 @@ export function SettingsForm({ s, firstJob = false }: { s: Settings; firstJob?: 
       </section>
       {/* 새 회사는 '저장했습니다' 대신 저장 버튼 아래에 다음 할 일 카드 하나로 (같은 말을 두 번 하지 않게) */}
       {!(firstJob && state?.ok) && <FormMessage state={state} />}
-      <SubmitButton>설정 저장</SubmitButton>
+      {/* 여러 회사를 맡은 관리자: 버튼에도 어느 회사 설정인지 (두 줄 · 긴 이름은 줄임) */}
+      <SubmitButton track="설정 저장" className={company ? 'btn-primary max-w-full py-2' : 'btn-primary'}>
+        {company ? (
+          <span className="flex min-w-0 flex-col items-center leading-tight">
+            <span>설정 저장</span>
+            <span className="max-w-full truncate text-xs font-medium text-white/80" data-settings-submit-company>
+              {company}
+            </span>
+          </span>
+        ) : (
+          '설정 저장'
+        )}
+      </SubmitButton>
       {firstJob && state?.ok && <SetupNext left={left} />}
     </form>
   )

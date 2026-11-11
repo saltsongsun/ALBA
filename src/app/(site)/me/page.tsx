@@ -24,6 +24,7 @@ import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
 import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
+import HashFlash from '@/components/HashFlash'
 import { won } from '@/lib/format'
 import { answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
@@ -264,6 +265,22 @@ export default async function MePage(props: PageProps<'/me'>) {
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
   const pendingDocs = docs.filter((d) => d.status === 'pending' && docOpen(d.job_id))
+  // 오늘의 근무 카드가 그 공고의 '서명 ›' 줄을 보여 주는 경우 (오늘이 내 근무일이고 지난 근무 종료를 따로 받는 중이 아니면)
+  // → 위 '서명할 서류' 카드에서는 그 서류를 뺌 (같은 안내를 한 화면에 두 번 보이지 않게 · 다른 공고 서류만 남음)
+  const signInToday = new Set(
+    todayApps
+      .filter((a) => {
+        const open = openAtt?.job_id === a.job_id ? openAtt : null
+        const worked = atts.some((t) => t.job_id === a.job_id && t.work_date === today)
+        const notChosen = a.available_dates && !a.available_dates.includes(today)
+        const forgot = open && open.work_date < today && Date.now() >= scheduledEnd(shiftOf(a.job, open), open.work_date).getTime()
+        return !(notChosen && !worked && !open) && !forgot
+      })
+      .map((a) => a.job_id),
+  )
+  const topDocs = pendingDocs.filter((d) => !signInToday.has(d.job_id))
+  // 위 카드가 없으면 바로 가기(/me#sign-docs)는 오늘의 근무 카드의 첫 '서명 ›' 줄로
+  const signAnchorJob = topDocs.length === 0 ? pendingDocs.find((d) => signInToday.has(d.job_id))?.job_id : undefined
   const jobsById = new Map(apps.map((a) => [a.job_id, a.job]))
   // 서류 목록 아랫줄: 어느 회사 · 어느 공고 서류인지 (여러 회사 근로계약서가 같은 이름이어도 구분되게)
   const docJobLine = (jobId: string) => {
@@ -598,15 +615,16 @@ export default async function MePage(props: PageProps<'/me'>) {
         </section>
       )}
 
-      {pendingDocs.length > 0 && (
-        // 흰 카드 + 작은 아이콘 (안내 문장은 오늘의 근무 칸에 이미 있어 한 번만)
+      {pendingDocs.length > 0 && <HashFlash id="sign-docs" />}
+      {topDocs.length > 0 && (
+        // 흰 카드 + 작은 아이콘 (오늘 근무의 서류는 오늘의 근무 카드에 '서명 ›'으로 있어 여기서는 뺌)
         <section id="sign-docs" className="card animate-pop scroll-mt-20" data-sign-card>
           <h2 className="mb-2.5 flex items-center gap-1.5 font-bold">
             <Icon name="pen" className="text-amber-600" />
-            서명할 서류가 {pendingDocs.length}건 있어요
+            서명할 서류가 {topDocs.length}건 있어요
           </h2>
           <div className="space-y-2">
-            {pendingDocs.map((d) => (
+            {topDocs.map((d) => (
               <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-bg px-4 py-3 font-semibold transition active:scale-[0.98]">
                 <span className="min-w-0">
                   <span className="block">{d.title}</span>
@@ -830,8 +848,9 @@ export default async function MePage(props: PageProps<'/me'>) {
                       />
                       {docsLeft > 0 && (
                         <Link
+                          id={signAnchorJob === job.id ? 'sign-docs' : undefined}
                           href={`/docs/${jobDocs[0].id}`}
-                          className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 transition active:scale-[0.98]"
+                          className="flex scroll-mt-24 items-center gap-2 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 transition active:scale-[0.98]"
                           data-sign-left
                         >
                           <span className="min-w-0 flex-1 truncate font-semibold">서명할 서류 {docsLeft}건이 남았어요</span>
@@ -842,8 +861,9 @@ export default async function MePage(props: PageProps<'/me'>) {
                   ) : docsLeft > 0 ? (
                     // 누르면 바로 그 서류 서명 화면 (위로 올라가 찾지 않게) · 여러 건이면 서명 뒤 다음 서류로 이어짐
                     <Link
+                      id={signAnchorJob === job.id ? 'sign-docs' : undefined}
                       href={`/docs/${jobDocs[0].id}`}
-                      className="flex items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 transition active:scale-[0.98]"
+                      className="flex scroll-mt-24 items-center gap-2 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 transition active:scale-[0.98]"
                       data-sign-before-start
                     >
                       <span className="min-w-0 flex-1 font-semibold text-balance">서류 {docsLeft}건에 서명하면 근무를 시작할 수 있어요</span>
