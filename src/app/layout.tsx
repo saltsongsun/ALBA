@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { ErrorToast } from '@/components/ErrorCopy'
 import InstallGuide from '@/components/InstallGuide'
 import NavProgress from '@/components/NavProgress'
+import OfflineBar from '@/components/OfflineBar'
 // Pretendard 가변 폰트를 앱에 포함 (외부 CDN 없이, 화면에 쓰인 글자 묶음만 내려받음)
 import '@/fonts/pretendard/pretendardvariable-dynamic-subset.css'
 import './globals.css'
@@ -66,6 +67,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <InstallGuide auto={signedIn} />
         {/* 휴대폰 키보드가 올라와 있는 동안 아래 탭을 숨김 (html[data-kb]) */}
         <KeyboardWatch />
+        {/* 인터넷이 끊기면 위에 안내 + 끊긴 동안 화면 이동·보내기를 막아 보던 화면과 쓰던 내용을 지킴 */}
+        <OfflineBar />
         {/* 뒤에서 난 오류도 바로 복사해 보낼 수 있게 */}
         <ErrorToast />
         {/* 화면 이동 기록 (자체 분석 · 개인정보 없이) */}
