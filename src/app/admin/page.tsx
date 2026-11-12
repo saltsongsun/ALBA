@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { workOver } from '@/lib/pay'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
-import { decideApplication, decideSelected, holdApplication, holdSelected, setJobStatus } from '@/app/actions/admin'
+import { decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting, setJobStatus } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -262,6 +262,36 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         () => new Map<string, number>(),
       )
     : Promise.resolve(new Map<string, number>())
+  // 끝난 행사(지난 30일)인데 결과를 못 들은 대기 지원자: 공고마다 한 줄 + 바로 '미선발 알림'
+  // (끝난 행사는 위 '확정 대기'에 안 나와 잊기 쉬움 → 지원자는 계속 기다리거나 '확정됐나요?' 문의 · 보류한 사람은 빼고)
+  const monthAgo = kstDate(new Date(Date.now() - 30 * 86_400_000))
+  const lapsedP: Promise<{ id: string; title: string; n: number }[]> = Promise.resolve(
+    db()
+      .from('jobs')
+      .select('id, title')
+      .eq('company_id', admin.companyId)
+      .in('status', ['open', 'closed'])
+      .lt('end_date', today)
+      .gte('end_date', monthAgo)
+      .order('end_date', { ascending: false })
+      .limit(100),
+  )
+    .then(async (r) => {
+      const jobs = (r.error ? [] : r.data) as { id: string; title: string }[]
+      if (!jobs.length) return []
+      const w = await db()
+        .from('applications')
+        .select('job_id')
+        .eq('company_id', admin.companyId)
+        .in('job_id', jobs.map((j) => j.id))
+        .eq('status', 'applied')
+        .is('held_at', null)
+        .limit(2000)
+      const by = new Map<string, number>()
+      for (const a of (w.error ? [] : w.data) as { job_id: string }[]) by.set(a.job_id, (by.get(a.job_id) ?? 0) + 1)
+      return jobs.filter((j) => by.has(j.id)).map((j) => ({ ...j, n: by.get(j.id)! }))
+    })
+    .catch(() => [])
   // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
   todayP.catch(() => {})
   const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
@@ -354,6 +384,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     unpaidByJob(admin.companyId, today),
   ])])
   const comingBy = await comingP
+  const lapsedJobs = await lapsedP
   const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
   const absentBy: Record<string, number> = {}
   for (const a of todayApps) {
@@ -363,7 +394,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
     .map((g) => pendingFix(g, today))
     .filter((m) => m !== null)
-  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string }
+  // notify: 줄 오른쪽에 바로 '미선발 알림' (끝난 행사의 대기 지원자 · 그 공고 id)
+  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
   const [reviews, otherUnread, myShift] = await Promise.all([reviewsP, othersP, myShiftP])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
@@ -459,6 +491,15 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       n: u.n,
       href: `/admin/jobs/${id}?tab=pay`,
       tone: 'text-amber-700',
+    })),
+    ...lapsedJobs.map((j) => ({
+      key: `lapsed-${j.id}`,
+      icon: 'users' as const,
+      text: `끝난 행사 · 결과 안 알림 · ${j.title}`,
+      n: j.n,
+      href: `/admin/jobs/${j.id}?tab=apps`,
+      tone: 'text-sub',
+      notify: j.id,
     })),
     ...vendorTodos,
   ]
@@ -858,8 +899,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </h2>
           <ul className="divide-y divide-line">
             {todos.map((t) => (
-              <li key={t.key}>
-                <Link href={t.href} className="flex items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
+              <li key={t.key} className="flex items-center gap-2" data-todo={t.key}>
+                <Link href={t.href} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
                   <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-bg text-[17px] text-sub">
                     <Icon name={t.icon} />
                   </span>
@@ -868,10 +909,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     {t.n}
                     {t.unit ?? '명'}
                   </b>
-                  <span aria-hidden className="shrink-0 text-mute">
-                    ›
-                  </span>
+                  {!t.notify && (
+                    <span aria-hidden className="shrink-0 text-mute">
+                      ›
+                    </span>
+                  )}
                 </Link>
+                {/* 끝난 행사의 대기 지원자: 공고에 들어가지 않고 여기서 바로 결과 알림 (두 번 눌러 확인 · 누르면 버튼이 넓어지며 확인 문구) */}
+                {t.notify && (
+                  <form action={rejectWaiting.bind(null, t.notify, false, 'dashboard')} className="shrink-0" data-lapsed-notify>
+                    <ConfirmSubmit className="btn-gray btn-sm" confirmText={`${t.n}명에게 알릴까요?`} track="끝난 행사 미선발 알림(대시보드)">
+                      미선발 알림
+                    </ConfirmSubmit>
+                  </form>
+                )}
               </li>
             ))}
           </ul>

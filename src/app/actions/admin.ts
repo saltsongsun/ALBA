@@ -712,11 +712,12 @@ export async function holdSelected(scope: string, form: FormData) {
  * 모집이 끝났는데 남은 대기 지원자: 한 번에 미선발로 정리하고 '이번엔 함께하지 못해요' 알림
  * (결과를 몰라 계속 기다리거나 "확정됐나요?" 문의하지 않게)
  */
-export async function rejectWaiting(jobId: string, close?: unknown) {
+// from='dashboard': 대시보드 '확인할 일'에서 눌렀으면 대시보드로 돌아가 결과 한 줄 (공고 화면처럼 폼 데이터가 마지막 자리에 들어와도 'dashboard'일 때만)
+export async function rejectWaiting(jobId: string, close?: unknown, from?: unknown) {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
   if (!job) return
-  const path = `/admin/jobs/${jobId}?tab=apps`
+  const path = from === 'dashboard' ? '/admin' : `/admin/jobs/${jobId}?tab=apps`
   // close: 아직 모집 중인데 필요한 만큼 뽑았으면 (예: 10명 계획 · 5명만 뽑음) 모집을 마감하고 남은 대기자에게 알림
   const closing = close === true && job.status === 'open'
   const apps = must(
@@ -738,7 +739,14 @@ export async function rejectWaiting(jobId: string, close?: unknown) {
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/admin')
   revalidatePath('/')
-  back(path, closing ? `모집을 마감하고 대기 ${apps.length}명에게 미선발을 알렸어요 (${n}명).` : `대기 ${apps.length}명을 미선발로 정리하고 ${n}명에게 알렸어요.`)
+  back(
+    path,
+    closing
+      ? `모집을 마감하고 대기 ${apps.length}명에게 미선발을 알렸어요 (${n}명).`
+      : from === 'dashboard'
+        ? `대기 ${apps.length}명 미선발 · 알림을 보냈어요` // 대시보드 위쪽 한 줄 (휴대폰 한 줄에 들어가게)
+        : `대기 ${apps.length}명을 미선발로 정리하고 ${n}명에게 알렸어요.`,
+  )
 }
 
 /** 근무자 정보 화면에서 모집 중인 공고에 바로 확정 (예전에 잘한 사람을 다시 부를 때) */

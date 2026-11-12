@@ -517,3 +517,94 @@ export function SettingsSkeleton() {
   )
 }
 
+
+/** 관리자 공고 목록: 제목 + 새 공고 버튼 · 공고 모음 링크 한 줄 · 탭 · 찾기 칸 · 공고 카드(배지 · 제목 · 일정 · 인원 막대) — 대시보드 모양 대신 */
+export function AdminJobListSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="공고 불러오는 중" className="skeleton space-y-4" data-skeleton="admin-jobs">
+      <div className="flex items-center justify-between gap-3">
+        <div className={`h-7 w-32 ${bar}`} />
+        <div className="h-11 w-32 rounded-2xl bg-line/70" />
+      </div>
+      <div className="card flex items-center gap-2 px-4 py-3">
+        <div className="size-5 shrink-0 rounded-md bg-line/70" />
+        <div className="min-w-0 flex-1">
+          <div className={`h-4 w-28 ${bar}`} />
+        </div>
+        <div className="h-8 w-11 shrink-0 rounded-full bg-line/60" />
+        <div className="h-8 w-20 shrink-0 rounded-full bg-line/70" />
+      </div>
+      <div className="flex gap-1">
+        {[20, 17, 17].map((w, i) => (
+          <div key={i} className="h-8 rounded-lg bg-line/50" style={{ width: `${w * 4}px` }} />
+        ))}
+      </div>
+      <div className="h-10 rounded-xl bg-line/50" />
+      {/* 휴대폰: 공고 카드 · 넓은 화면: 표 한 장 */}
+      <div className="space-y-2 sm:hidden">
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="card space-y-2 p-4">
+            <div className="flex gap-1.5">
+              <div className="h-5 w-14 rounded-full bg-line/70" />
+              <div className="h-5 w-12 rounded-full bg-line/50" />
+            </div>
+            <div className={`h-5 w-3/4 ${bar}`} />
+            <div className={`h-4 w-1/2 ${bar}`} />
+            <div className="flex items-center gap-2 pt-1">
+              <div className="h-1.5 min-w-0 flex-1 rounded-full bg-line/70" />
+              <div className={`h-3.5 w-16 ${bar}`} />
+              <div className={`h-3.5 w-8 ${bar}`} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="card hidden space-y-4 sm:block">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-4">
+            <div className={`h-4 w-2/5 ${bar}`} />
+            <div className={`h-4 w-1/5 ${bar}`} />
+            <div className="h-1.5 flex-1 rounded-full bg-line/60" />
+            <div className="h-5 w-14 rounded-full bg-line/70" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 공고 쓰기·고치기: 돌아가기 줄 · 제목 · 모집 대상 두 칸 · 펼친 '기본 정보' · 접힌 칸들 · 아래 등록 버튼 (대시보드 모양 대신 같은 모양) */
+export function JobFormSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="공고 불러오는 중" className="skeleton mx-auto max-w-3xl space-y-3" data-skeleton="job-form">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className={`mb-4 h-7 w-36 ${bar}`} />
+      <div className="grid grid-cols-2 gap-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="space-y-1.5 rounded-2xl border-2 border-line px-4 py-3">
+            <div className={`h-5 w-4/5 ${bar}`} />
+            <div className={`h-3 w-3/5 ${bar}`} />
+          </div>
+        ))}
+      </div>
+      <div className="card space-y-4">
+        <div className={`h-5 w-20 ${bar}`} />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="space-y-1.5">
+            <div className={`h-3.5 w-16 ${bar}`} />
+            <div className={`${i === 2 ? 'h-24' : 'h-12'} rounded-xl bg-line/50`} />
+          </div>
+        ))}
+      </div>
+      {[28, 20, 24, 32].map((w, i) => (
+        <div key={i} className="card flex items-center gap-3 px-5 py-4">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className={`h-5 ${bar}`} style={{ width: `${w * 4}px` }} />
+            <div className={`h-3.5 w-2/3 ${bar}`} />
+          </div>
+          <div className="size-5 shrink-0 rounded-md bg-line/50" />
+        </div>
+      ))}
+      <div className="h-[52px] rounded-2xl bg-line/70" />
+    </div>
+  )
+}

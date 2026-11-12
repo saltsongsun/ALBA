@@ -198,7 +198,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const needPhoto = !!user && asWorker && user.memberType !== 'vendor' && !photoAt
   const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
-  const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended
+  // 확정을 기다리던 중에 행사가 끝남(마지막 날 근무 시간까지 지남): '확정되면 알려 드릴게요' 대신 결과를 바로
+  // (끝난 행사를 계속 기다리거나 '확정됐나요?' 문의하지 않게 · 관리자가 미선발 알림을 안 보냈어도)
+  const lapsed = app?.status === 'applied' && job.status !== 'cancelled' && (ended || workOver(job, job.end_date))
+  const activeApp = !!app && (app.status === 'applied' || app.status === 'approved') && !ended && !lapsed
   // 지원하고 기다리는 중이면: 이 회사가 보통 얼마 만에 답하는지 (회사마다 달라서 · 기록이 적으면 안 보임)
   // 확정 근무를 24시간 안에(또는 이미 시작한 날) 취소하려 하면: 남은 시간 + 담당자 전화 (취소 칸 위에)
   // 현장 담당 번호가 없을 때 대신 보여 줄 회사 문의 번호 (로그인한 회원에게만 · 번호를 모아 가지 못하게)
@@ -226,7 +229,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const lastAtt = myWork.filter((a) => a !== liveAtt).at(-1) ?? null
   const worked = myWork.length > 0
   const lastOut = lastAtt ? (lastAtt.adj_out ?? lastAtt.clock_out) : null
-  const replyMin = app?.status === 'applied' && !ended && job.status !== 'cancelled' ? await replyMinutes(job.company_id).catch(() => null) : null
+  const replyMin = app?.status === 'applied' && !lapsed && job.status !== 'cancelled' ? await replyMinutes(job.company_id).catch(() => null) : null
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
   const clashes =
     canApply && (!app || app.status === 'cancelled')
@@ -548,13 +551,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           )
         ) : app && app.status !== 'cancelled' ? (
           <div className="card space-y-3">
-            {app.status !== 'rejected' && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : worked ? 5 : 4} />}
-            <p className="font-semibold">
+            {app.status !== 'rejected' && !lapsed && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : worked ? 5 : 4} />}
+            <p className="font-semibold" data-app-result={lapsed ? 'lapsed' : app.status}>
               {app.status === 'approved'
                 ? '근무가 확정됐어요.'
-                : app.status === 'applied'
-                  ? '지원이 접수됐어요. 확정되면 알려 드릴게요.'
-                  : '이번에는 함께하지 못하게 됐어요.'}
+                : lapsed
+                  ? '행사가 끝나 이번에는 확정되지 않았어요.'
+                  : app.status === 'applied'
+                    ? '지원이 접수됐어요. 확정되면 알려 드릴게요.'
+                    : '이번에는 함께하지 못하게 됐어요.'}
             </p>
             {/* 이미 출근했으면: 지금 근무 중인지 · 마지막으로 근무한 날과 시간 (확정만 보이던 칸에 내 진행 상태) */}
             {liveAtt ? (
@@ -619,7 +624,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <span className="shrink-0 font-semibold whitespace-nowrap text-brand-600">등록 →</span>
               </Link>
             )}
-            {app.status === 'applied' && job.status === 'closed' && !ended && (
+            {app.status === 'applied' && job.status === 'closed' && !lapsed && (
               <p className="text-sm font-semibold text-amber-700">모집 마감 · 결과는 알림으로 알려 드려요</p>
             )}
             {/* 알림을 안 켰으면 바로 여기서 켜게 (확정·전날 안내를 놓치지 않게) */}
@@ -637,8 +642,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               </Link>
             )}
             <div className="flex gap-2">
-              {app.status === 'rejected' ? (
-                // 미선발: 다음으로 할 일은 다른 공고 찾기
+              {app.status === 'rejected' || lapsed ? (
+                // 미선발 · 확정 없이 끝난 행사: 다음으로 할 일은 다른 공고 찾기
                 <Link href={expert ? '/pro' : '/'} className="btn-primary flex-1">
                   {expert ? '모집 중인 다른 의뢰 보기 →' : '모집 중인 다른 알바 보기 →'}
                 </Link>
@@ -653,7 +658,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   <Icon name="users" /> 단체방
                 </Link>
               )}
-              {app.status === 'applied' && !ended && (
+              {app.status === 'applied' && !ended && !lapsed && (
                 <form action={cancelApplication.bind(null, app.id)}>
                   <ConfirmSubmit className="btn-gray" confirmText="정말 취소할까요?">
                     지원 취소
@@ -662,7 +667,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               )}
             </div>
             {/* 여러 날 행사: 근무 가능한 날 바꾸기 (확정 뒤에는 빼기만, 담당자에게 알림) */}
-            {(app.status === 'applied' || app.status === 'approved') && dates.length > 1 && !ended && (
+            {(app.status === 'applied' || app.status === 'approved') && dates.length > 1 && !ended && !lapsed && (
               <details className="text-sm">
                 <summary className="cursor-pointer py-1 font-semibold text-sub">
                   📅 {app.status === 'approved' ? '이날은 못 가요 · 근무일 빼기' : '근무 가능한 날 바꾸기'}
