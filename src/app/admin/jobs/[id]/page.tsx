@@ -236,7 +236,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         {/* min-w-0: 긴 행사 이름이 칸을 넓혀 좁은 휴대폰(320px)에서 화면이 밀리지 않게 */}
         <div className="card min-w-0">
           <div className="flex items-center gap-2">
-            <span className={`badge shrink-0 ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{STATUS_LABEL[job.status]}</span>
+            <span className={`badge shrink-0 ${job.status === 'cancelled' ? 'bg-rose-600 text-white' : 'bg-ink text-white'}`}>{job.status === 'open' && workOver(job, job.end_date) ? '근무 끝' : STATUS_LABEL[job.status]}</span>
             {job.event_name && <span className="w-0 min-w-0 flex-1 truncate text-sm font-semibold text-mute">{job.event_name}</span>}
             <Link href={`/admin/jobs/${job.id}/edit`} className={`btn-soft btn-sm shrink-0 ${job.event_name ? '' : 'ml-auto'}`} data-job-edit>
               <Icon name="pen" /> 수정

@@ -673,7 +673,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <div className="flex gap-2" data-dash-decide>
         <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')} className={GROW}>
           {confirmText(p) ? (
-            <ConfirmSubmit className="btn-primary w-full" confirmText={confirmText(p)!}>
+            // 끝난 행사: 확정은 회색으로 낮추고 미선발을 파랗게 (자리는 그대로 · 손에 익은 위치에서 잘못 누르지 않게)
+            <ConfirmSubmit className={`${ended(p) ? 'btn-gray' : 'btn-primary'} w-full`} confirmText={confirmText(p)!}>
               확정
             </ConfirmSubmit>
           ) : (
@@ -690,7 +691,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </form>
         <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')} className={GROW}>
           {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
-          <ConfirmSubmit className="btn-gray w-full" confirmText="미선발 알림?">
+          <ConfirmSubmit className={`${ended(p) ? 'btn-primary' : 'btn-gray'} w-full`} confirmText="미선발 알림?">
             미선발
           </ConfirmSubmit>
         </form>
@@ -733,7 +734,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex gap-1">
           <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')}>
             {confirmText(p) ? (
-              <ConfirmSubmit className="btn-primary btn-sm" confirmText={confirmText(p)!}>
+              <ConfirmSubmit className={`${ended(p) ? 'btn-gray' : 'btn-primary'} btn-sm`} confirmText={confirmText(p)!}>
                 확정
               </ConfirmSubmit>
             ) : (
@@ -743,7 +744,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             )}
           </form>
           <form action={decideApplication.bind(null, p.id, 'rejected', 'dashboard')}>
-            <ConfirmSubmit className="btn-gray btn-sm" confirmText="미선발 알림 보낼까요?">
+            <ConfirmSubmit className={`${ended(p) ? 'btn-primary' : 'btn-gray'} btn-sm`} confirmText="미선발 알림 보낼까요?">
               미선발
             </ConfirmSubmit>
           </form>

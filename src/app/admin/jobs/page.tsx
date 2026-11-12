@@ -12,6 +12,7 @@ import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
 import { fmtDateRange, kstDate } from '@/lib/time'
+import { workOver } from '@/lib/pay'
 import type { Job } from '@/lib/types'
 import { viewStats } from '@/lib/views'
 import SearchInput from '@/components/SearchInput'
@@ -25,6 +26,9 @@ const STATUS: Record<Job['status'], [string, string]> = {
   done: ['종료', 'bg-gray-100 text-mute'],
   cancelled: ['행사 취소', 'bg-rose-50 text-rose-600'],
 }
+/** 목록 배지: 마지막 날 근무까지 끝났는데 아직 '모집중'이면 '근무 끝' (밤에 '모집중'으로 남아 헷갈리지 않게) */
+const statusOf = (j: Pick<Job, 'status' | 'start_time' | 'end_time' | 'end_date'>): [string, string] =>
+  j.status === 'open' && workOver(j, j.end_date) ? ['근무 끝', 'bg-gray-100 text-sub'] : STATUS[j.status]
 
 export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
   const admin = await requireAdmin()
@@ -179,7 +183,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
               return (
                 <Link key={j.id} href={`/admin/jobs/${j.id}`} className="card-link block p-4">
                   <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                    <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
+                    <span className={`badge ${statusOf(j)[1]}`} data-job-status>{statusOf(j)[0]}</span>
                     {dayTag(j) && (
                       <span className={`badge ${dayTag(j)![1]}`} data-day-tag>
                         {dayTag(j)![0]}
@@ -289,7 +293,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                       )}
                     </td>
                     <td>
-                      <span className={`badge ${STATUS[j.status][1]}`}>{STATUS[j.status][0]}</span>
+                      <span className={`badge ${statusOf(j)[1]}`} data-job-status>{statusOf(j)[0]}</span>
                       {unpaidOf(j.id) > 0 && <span className="badge ml-1 bg-rose-50 text-rose-600">💰 미지급 {unpaidOf(j.id)}명</span>}
                     </td>
                   </tr>
