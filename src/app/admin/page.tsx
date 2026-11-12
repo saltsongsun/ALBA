@@ -395,7 +395,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     .map((g) => pendingFix(g, today))
     .filter((m) => m !== null)
   // notify: 줄 오른쪽에 바로 '미선발 알림' (끝난 행사의 대기 지원자 · 그 공고 id)
-  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string }
+  // sub: 아래 작은 줄 (줄 글자가 잘려도 어떤 공고인지 보이게 공고 이름을 위로)
+  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string; sub?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
   const [reviews, otherUnread, myShift] = await Promise.all([reviewsP, othersP, myShiftP])
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
@@ -495,7 +496,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...lapsedJobs.map((j) => ({
       key: `lapsed-${j.id}`,
       icon: 'users' as const,
-      text: `끝난 행사 · 결과 안 알림 · ${j.title}`,
+      text: j.title,
+      sub: '끝난 행사 · 결과 안 알림',
       n: j.n,
       href: `/admin/jobs/${j.id}?tab=apps`,
       tone: 'text-sub',
@@ -904,7 +906,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-bg text-[17px] text-sub">
                     <Icon name={t.icon} />
                   </span>
-                  <span className="min-w-0 flex-1 truncate">{t.text}</span>
+                  {t.sub ? (
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{t.text}</span>
+                      <span className="block truncate text-xs text-mute">{t.sub}</span>
+                    </span>
+                  ) : (
+                    <span className="min-w-0 flex-1 truncate">{t.text}</span>
+                  )}
                   <b className={`shrink-0 ${t.tone}`}>
                     {t.n}
                     {t.unit ?? '명'}
