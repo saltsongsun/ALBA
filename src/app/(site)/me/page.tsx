@@ -949,12 +949,16 @@ export default async function MePage(props: PageProps<'/me'>) {
                           const end = scheduledEnd(todayShift(job, todayAtt), todayAtt.work_date)
                           const out = new Date(todayAtt.adj_out ?? todayAtt.clock_out)
                           const sent = fixSent(job.id)
-                          const answer = sent ? null : fullAnswer(job.id)
-                          // 담당자가 답했으면 결과 한 줄 (인정: 초록 · 실제대로: 회색 + 문의)
+                          const early = out.getTime() < end.getTime() - 60_000
+                          const ans = sent ? null : fullAnswer(job.id)
+                          // 담당자가 답했으면 결과 한 줄 (인정: 기록이 정말 바뀌었을 때만 초록 · 실제대로: 아직 일찍 끝난 채일 때 회색 + 문의)
+                          // (답한 뒤 담당자가 기록을 다시 고쳤으면 결과 대신 전처럼 요청 칸)
+                          const answer = ans && (ans.ok ? !early : early) ? ans : null
                           if (answer)
                             return answer.ok ? (
                               <p className="animate-pop rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm font-semibold text-emerald-800" role="status" data-full-time-answer="ok">
-                                ✓ 담당자가 근로조건대로{answer.time ? ` ${answer.time}까지` : ''} 인정했어요
+                                {/* 휴대폰 한 줄에 들어가게 짧게 */}
+                                ✓ {answer.time ? `${answer.time}까지 ` : ''}시간 인정됐어요
                               </p>
                             ) : (
                               <p className="flex items-center justify-between gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-full-time-answer="no">
@@ -964,7 +968,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                                 </Link>
                               </p>
                             )
-                          return out.getTime() < end.getTime() - 60_000 || sent?.full ? (
+                          return early || sent?.full ? (
                             <FullTimeRequest attendanceId={todayAtt.id} endText={kstTime(end)} outText={kstTime(out)} sent={sent?.full ? sent.at : null} />
                           ) : null
                         })()}

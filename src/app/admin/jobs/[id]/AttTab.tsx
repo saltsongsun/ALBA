@@ -259,7 +259,7 @@ export default async function AttTab({
         >
           <span className="min-w-0">
             🙏 <b>시간 인정 요청 {fullAsks.length}건</b>
-            <span className="block text-xs text-violet-800">일찍 끝났지만 근로조건대로 · 아래에서 한 명씩도 돼요</span>
+            <span className="block text-xs text-violet-800">일찍 끝났지만 근로조건대로</span>
           </span>
           <ConfirmSubmit className="chip-primary h-9 shrink-0 px-3.5 text-sm" confirmText={`${fullAsks.length}건 모두 인정?`} track="시간 인정 모두 인정">
             모두 인정
