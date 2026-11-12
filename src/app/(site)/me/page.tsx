@@ -715,9 +715,11 @@ export default async function MePage(props: PageProps<'/me'>) {
       {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
       {todayApps.length === 0 && profileNags}
       {/* 근무가 없는 날: 레벨 카드·이번 주·새 댓글·후기 권유가 먼저 */}
-      {todayApps.length === 0 && extras}
+      {/* 확정 대기 칸이 맨 위로 올라온 때(지원하고 기다리는 중)는 레벨·이번 주 칸을 그 아래로 (지원한 공고가 첫 화면에 다 보이게) */}
+      {todayApps.length === 0 && !waitingFirst && extras}
       {/* 지원하고 결과를 기다리는 중이면(오늘·다음 근무 없음) 그 공고부터 */}
       {waitingFirst && waitingSection}
+      {waitingFirst && extras}
 
       <section id="today-work" className="scroll-mt-20">
         <h2 className="section-title">오늘의 {pro ? '일' : '근무'}</h2>
