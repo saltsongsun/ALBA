@@ -62,7 +62,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const card = a.locator('[data-other-companies]')
   await card.waitFor({ timeout: 15000 }).catch(() => {})
   const ct = ((await card.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("'다른 회사에 확인할 일 · 두번째기획 대기 2' (보류·끝난 공고·취소한 공고는 안 셈 · 내일 시작 공고는 '내일 행사 1')", ct === '다른 회사에 확인할 일 두번째기획 대기 2 내일 행사 1', ct)
+  // (어제 끝난 공고의 대기 지원자는 '확정 대기'가 아니라 '결과 안 알림'으로 따로 셈 — 묶음 217)
+  ok("'다른 회사에 확인할 일 · 두번째기획 대기 2 결과 안 알림 1' (보류·취소한 공고는 안 셈 · 끝난 공고는 '결과 안 알림' · 내일 시작 공고는 '내일 행사 1')", ct === '다른 회사에 확인할 일 두번째기획 대기 2 결과 안 알림 1 내일 행사 1', ct)
   ok('문의가 없으면 문의 숫자는 없음', (await card.locator('[data-other-unread-n]').count()) === 0 && (await card.locator('[data-other-waiting]').count()) === 1)
   ok('회사 고르기: 빨간 점', (await a.locator('header [data-other-unread]').count()) === 1)
   const opt = await a.locator(`header select[name=company] option[value="${C2}"]`).innerText()
@@ -74,7 +75,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await a.goto(`${D}/admin`)
   await card.waitFor({ timeout: 15000 }).catch(() => {})
   const ct2 = ((await card.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("문의도 있으면 '두번째기획 문의 1 대기 2'", ct2 === '다른 회사에 확인할 일 두번째기획 문의 1 대기 2 내일 행사 1', ct2)
+  ok("문의도 있으면 '두번째기획 문의 1 대기 2 결과 안 알림 1'", ct2 === '다른 회사에 확인할 일 두번째기획 문의 1 대기 2 결과 안 알림 1 내일 행사 1', ct2)
   ok('문의와 함께여도 360px 옆으로 안 밀림', await noSide(a))
   // 누르면 그 회사로 → 확정 대기 지원자 2명이 보임
   await card.getByRole('button', { name: /두번째기획/ }).click()
