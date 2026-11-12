@@ -439,14 +439,15 @@ export default async function AppsTab({
           )}
           {canRejectWaiting && (
             <form action={rejectWaiting.bind(null, job.id)}>
-              <ConfirmSubmit className="btn-gray btn-sm" confirmText={`대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
+              <ConfirmSubmit className="btn-white btn-sm" confirmText={`대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
                 🙏 대기 {waiting}명 미선발 알림
               </ConfirmSubmit>
             </form>
           )}
           {canCloseNotify && (
             <form action={rejectWaiting.bind(null, job.id, true)} data-close-notify>
-              <ConfirmSubmit className="btn-gray btn-sm" confirmText={`모집 마감 · 대기 ${waiting}명에게 알릴까요?`}>
+              {/* 회색 바탕 위라 흰 버튼 (회색 버튼은 바탕과 같은 색이라 글자처럼만 보임 — batch187) */}
+              <ConfirmSubmit className="btn-white btn-sm" confirmText={`모집 마감 · 대기 ${waiting}명에게 알릴까요?`}>
                 🙏 마감하고 대기 {waiting}명 미선발 알림
               </ConfirmSubmit>
             </form>
