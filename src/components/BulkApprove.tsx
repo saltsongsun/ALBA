@@ -29,6 +29,7 @@ export function BulkApproveBar({
   hold,
   headcount,
   approved = 0,
+  tbd = false,
   className = '',
 }: {
   approve: (form: FormData) => Promise<void>
@@ -38,6 +39,8 @@ export function BulkApproveBar({
   /** 한 공고일 때만: 확정 후 인원 / 모집 인원 */
   headcount?: number
   approved?: number
+  /** 인원 미정 공고: 숫자는 최대 인원 ('모집 10명' 대신 '최대 10명') */
+  tbd?: boolean
   className?: string
 }) {
   const [picked, setPicked] = useState<{ n: number; warns: string[]; overJob: boolean }>({ n: 0, warns: [], overJob: false })
@@ -79,7 +82,7 @@ export function BulkApproveBar({
       : picked.overJob
       ? '인원 넘는 공고 · 확정?'
       : over
-        ? `모집 ${headcount}명 → ${total}명 · 확정?`
+        ? `${tbd ? '최대' : '모집'} ${headcount}명 → ${total}명 · 확정?`
         : count('주휴 대상')
           ? `주휴 대상 ${count('주휴 대상')}명 · 확정?`
           : `${picked.n}명 확정할까요?`
@@ -99,7 +102,7 @@ export function BulkApproveBar({
           명 골랐어요
           {headcount != null && (
             <span className={`ml-1.5 text-xs font-medium ${over ? 'text-amber-300' : 'opacity-70'}`} data-bulk-after>
-              확정 후 {total}/{headcount}명
+              {tbd ? `확정 후 ${total}명 · 최대 ${headcount}` : `확정 후 ${total}/${headcount}명`}
             </span>
           )}
         </p>

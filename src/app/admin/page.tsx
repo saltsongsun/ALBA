@@ -960,10 +960,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     <Link href={`/admin/jobs/${j.id}?tab=apps`} className="min-w-0 flex-1 truncate font-semibold">
                       {j.title}
                     </Link>
-                    <span className="shrink-0 text-sm font-bold text-rose-600">{gap}명 부족</span>
+                    {/* 인원 미정 공고는 아무도 확정 안 됐을 때만 여기 나옴 → '10명 부족' 대신 '확정 0명' */}
+                    <span className="shrink-0 text-sm font-bold text-rose-600" data-short-gap>
+                      {headcountTbd(j) ? '확정 0명' : `${gap}명 부족`}
+                    </span>
                   </div>
                   <p className="text-xs text-sub">
-                    {when} {hhmm(j.start_time)} 시작 · 확정 {counts[j.id] ?? 0}/{j.headcount}명 · 대기 {wait}명
+                    {when} {hhmm(j.start_time)} 시작 · {headcountTbd(j) ? '인원 미정' : `확정 ${counts[j.id] ?? 0}/${j.headcount}명`} · 대기 {wait}명
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {wait === 0 && appsEver === 0 ? (

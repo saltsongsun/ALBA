@@ -25,6 +25,7 @@ import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
 import { MEMBER_TYPES } from '@/lib/members'
 import { careerText } from '@/lib/careers'
+import SlotBar from '@/components/SlotBar'
 import { won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 
@@ -272,6 +273,8 @@ export default async function AppsTab({
             : `${over.map(fmtDate).join('·')} 다 참 · 확정?`,
     }
   }
+  // 인원 미정 공고: 모집 인원 숫자는 '최대 인원' (부족 표시는 아무도 확정 안 된 날만)
+  const tbd = headcountTbd(job)
   const minorsWaiting = minorLimits.length ? apps.filter((a) => a.status === 'applied' && isMinor(a)).length : 0
   // 확정하면 주휴수당이 생기는 대기 지원자 (관리자에게만 · 모두 확정 전에 한 번 더)
   const weeklyWaiting = apps.filter((a) => becomes(a) && !a.held_at).length
@@ -402,7 +405,7 @@ export default async function AppsTab({
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
           확정 <b className="text-ink">{approved.length}</b>
-          {headcountTbd(job) ? '명 · 인원 미정' : ` / 모집 ${job.headcount}명`} · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
+          {tbd ? '명 · 인원 미정' : ` / 모집 ${job.headcount}명`} · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
           {/* 끝난 행사에 대기자가 남았으면: 확정 대신 미선발로 정리할 때 (대시보드의 '끝난 행사'와 같은 표시) */}
           {jobEnded && waiting > 0 && (
             <span className="badge ml-1.5 bg-bg text-mute" data-apps-ended>
@@ -426,8 +429,8 @@ export default async function AppsTab({
                       : weeklyWaiting && !dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
                         ? `주휴 대상 ${weeklyWaiting}명 생겨요 · 모두 확정?`
                         : multi
-                        ? `모집 ${job.headcount}명을 넘는 날이 있어요 · 확정?`
-                        : `모집 ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`
+                        ? `${tbd ? '최대' : '모집'} ${job.headcount}명을 넘는 날이 있어요 · 확정?`
+                        : `${tbd ? '최대' : '모집'} ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`
                   }
                 >
                   대기 {waiting}명 모두 확정
@@ -470,7 +473,8 @@ export default async function AppsTab({
         <div className="space-y-2">
           <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
             {dates.map((d) => {
-              const short = d >= today && byDay[d] < job.headcount
+              // 인원 미정: 숫자는 최대 인원이라 '부족'은 아무도 확정 안 된 날만
+              const short = d >= today && (tbd ? byDay[d] === 0 : byDay[d] < job.headcount)
               const on = shownDay === d
               return (
                 <Link
@@ -483,9 +487,20 @@ export default async function AppsTab({
                 >
                   <span>{fmtDate(d)}</span>
                   <span className="tabular-nums">
-                    확정 {byDay[d]}/{job.headcount}
-                    {short && !on && ` · ${job.headcount - byDay[d]} 부족`}
+                    {tbd ? `확정 ${byDay[d]}명` : `확정 ${byDay[d]}/${job.headcount}`}
+                    {short && !on && !tbd && ` · ${job.headcount - byDay[d]} 부족`}
                   </span>
+                  {/* 날마다 몇 칸 찼는지 얇은 막대 (처음 보일 때 칸이 차례로 차오름 · 인원 미정은 정원이 없어 막대 없음) */}
+                  {!tbd && (
+                    <SlotBar
+                      value={byDay[d]}
+                      max={job.headcount}
+                      height="h-1"
+                      className="mt-1 w-full"
+                      color={on ? 'bg-white' : short ? 'bg-rose-500' : 'bg-brand-500'}
+                      track={on ? 'bg-white/25' : short ? 'bg-rose-100' : 'bg-bg'}
+                    />
+                  )}
                 </Link>
               )
             })}
@@ -661,6 +676,7 @@ export default async function AppsTab({
           hold={holdSelected.bind(null, job.id)}
           headcount={job.headcount}
           approved={approved.length}
+          tbd={tbd}
         />
       )}
     </div>

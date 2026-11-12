@@ -21,6 +21,7 @@ import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 import { EMERGENCY_MEMO } from '@/lib/emergency'
 import { staffByDay } from '@/lib/staffing'
+import { headcountTbd } from '@/lib/jobFields'
 
 export default async function AttTab({
   job,
@@ -153,7 +154,9 @@ export default async function AttTab({
   // 날짜별 확정 인원 → 모집 인원보다 모자란 날 (지난 날은 빼고)
   const byDay = staffByDay(dates, apps)
   // 이날 근무가 아직 안 끝났을 때만 (끝난 날은 더 채울 수 없으니 '부족'·'대기자 →'를 안 띄움)
-  const shortOn = (d: string) => d >= today && !workOver(job, d) && byDay[d] < job.headcount
+  // 인원 미정 공고: 숫자는 최대 인원이라 적게 뽑을 수 있음 → 아무도 확정 안 된 날만 '부족'
+  const tbd = headcountTbd(job)
+  const shortOn = (d: string) => d >= today && !workOver(job, d) && (tbd ? byDay[d] === 0 : byDay[d] < job.headcount)
   const waitToday = waiting.filter((a) => !a.available_dates || a.available_dates.includes(date)).length
   const working = dayAtts.filter((a) => !a.clock_out).length
   const done = dayAtts.filter((a) => a.clock_out).length
@@ -227,7 +230,15 @@ export default async function AttTab({
           className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200 transition active:scale-[0.99]"
         >
           <span>
-            ⚠️ {fmtDate(date)} 확정 <b>{byDay[date]}</b>/{job.headcount}명 · <b>{job.headcount - byDay[date]}명 부족</b>
+            {tbd ? (
+              <>
+                ⚠️ {fmtDate(date)} <b>아직 확정한 사람이 없어요</b>
+              </>
+            ) : (
+              <>
+                ⚠️ {fmtDate(date)} 확정 <b>{byDay[date]}</b>/{job.headcount}명 · <b>{job.headcount - byDay[date]}명 부족</b>
+              </>
+            )}
           </span>
           <span className="shrink-0 font-semibold">{waitToday > 0 ? `이날 가능한 대기자 ${waitToday}명 →` : '지원자 보기 →'}</span>
         </Link>
