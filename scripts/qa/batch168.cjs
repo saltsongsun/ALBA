@@ -29,6 +29,9 @@ const decided = (mins, { days = 5, status = 'approved', job = J, company } = {})
 }
 
 ;(async () => {
+  // 저녁(18시 뒤)에 돌려도 같은 결과: 가짜 공고(오늘 9~18시)를 오늘 23:59까지로 — 18시가 지나면 기다리던 지원이 '행사가 끝나 미확정'으로 바뀌어서
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
+  for (const a of (await rest(`applications?job_id=eq.${J}`)) ?? []) if (a.job) await rest(`applications?id=eq.${a.id}`, 'PATCH', { job: { ...a.job, end_time: '23:59:00' } })
   const b = await chromium.launch()
   const errs = []
   const pg = async (uid, opts = {}) => {

@@ -15,6 +15,9 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 
 ;(async () => {
+  // 저녁(18시 뒤)에 돌려도 같은 결과: 가짜 공고(오늘 9~18시)를 오늘 23:59까지로 — 18시가 지나면 기다리던 지원이 '행사가 끝나 미확정'으로 바뀌어서
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
+  for (const a of (await rest(`applications?job_id=eq.${J}`)) ?? []) if (a.job) await rest(`applications?id=eq.${a.id}`, 'PATCH', { job: { ...a.job, end_time: '23:59:00' } })
   await rest(`users?id=eq.${W}`, 'PATCH', { bank_account_enc: null, bank_name: null })
   await rest(`users?id=eq.${AP}`, 'PATCH', { bank_account_enc: null, bank_name: null })
   const [wRow] = await rest(`users?id=eq.${W}`)

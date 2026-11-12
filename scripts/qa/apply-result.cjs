@@ -12,6 +12,9 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
 const rest = (path, method = 'GET', body) => fetch(`${MD}/rest/v1/${path}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms }).then(() => true, () => false)
 ;(async () => {
+  // 저녁(18시 뒤)에 돌려도 같은 결과: 가짜 공고(오늘 9~18시)를 오늘 23:59까지로 — 18시가 지나면 기다리던 지원이 '행사가 끝나 미확정'으로 바뀌어서
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
+  for (const a of (await rest(`applications?job_id=eq.${J}`)) ?? []) if (a.job) await rest(`applications?id=eq.${a.id}`, 'PATCH', { job: { ...a.job, end_time: '23:59:00' } })
   const app = (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`))[0]
   ok('준비: 김지원 지원 중', app?.status === 'applied')
   const b = await chromium.launch()
