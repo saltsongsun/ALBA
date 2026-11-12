@@ -1,3 +1,4 @@
+import { headcountTbd } from '@/lib/jobFields'
 import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
@@ -202,10 +203,18 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     </p>
                   )}
                   <div className="mt-2 flex items-center gap-2 text-xs text-mute">
-                    <SlotBar value={approved} max={j.headcount} height="h-1.5" className="min-w-0 flex-1" />
-                    <span className="shrink-0 tabular-nums">
-                      확정 <b className="text-ink">{approved}</b>/{j.headcount}명
-                    </span>
+                    {headcountTbd(j) ? (
+                      <span className="min-w-0 flex-1 tabular-nums">
+                        확정 <b className="text-ink">{approved}</b>명 · 인원 미정
+                      </span>
+                    ) : (
+                      <>
+                        <SlotBar value={approved} max={j.headcount} height="h-1.5" className="min-w-0 flex-1" />
+                        <span className="shrink-0 tabular-nums">
+                          확정 <b className="text-ink">{approved}</b>/{j.headcount}명
+                        </span>
+                      </>
+                    )}
                     <span className="inline-flex shrink-0 items-center gap-1 tabular-nums" title="공고를 확인한 인원 (가입자 + 로그인 안 한 사람)" data-views>
                       <Icon name="eye" className="text-mute" /> {views[j.id]?.total ?? 0}
                       {(views[j.id]?.total ?? 0) > 0 && <span className="text-mute">(가입 {views[j.id]?.members ?? 0})</span>}
@@ -250,7 +259,8 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                       <div className="text-xs text-mute">{scheduleText(j)}</div>
                     </td>
                     <td className="whitespace-nowrap">
-                      <b>{counts[j.id] ?? 0}</b>/{j.headcount}
+                      <b>{counts[j.id] ?? 0}</b>
+                      {headcountTbd(j) ? ' · 미정' : `/${j.headcount}`}
                     </td>
                     <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
                     <td className="whitespace-nowrap tabular-nums" data-views-cell>

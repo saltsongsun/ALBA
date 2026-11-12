@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { NewBadge } from './NewJobs'
 import { scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
-import { shows } from '@/lib/jobFields'
+import { headcountTbd, shows } from '@/lib/jobFields'
 import { estimateDay, workOver } from '@/lib/pay'
 import { fmtDateRange, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
@@ -60,7 +60,9 @@ export default function JobCard({
   const when = dday(job, kstDate())
   // 오늘이 마지막 날이고 근무 시간까지 끝났으면 '오늘 근무 종료' (지원 버튼이 없는 공고)
   const over = job.status === 'open' && job.end_date === kstDate() && workOver(job, job.end_date)
-  const showCount = shows(job, 'headcount')
+  // 인원 미정 공고: 남은 자리·칸 대신 '인원 미정' 한마디
+  const tbd = headcountTbd(job)
+  const showCount = shows(job, 'headcount') && !tbd
   const dayEst = job.pay_type !== 'daily' && job.hourly_wage > 0 && shows(job, 'estimate') ? estimateDay(job).gross : null
   return (
     <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']} data-track={track}>
@@ -146,6 +148,11 @@ export default function JobCard({
               {approved}/{job.headcount}명 확정
             </span>
           ))}
+        {tbd && shows(job, 'headcount') && job.status === 'open' && !full && !over && (
+          <span className="mb-0.5 shrink-0 text-xs font-semibold text-sub" data-card-tbd>
+            인원 미정
+          </span>
+        )}
       </div>
       {/* 모집 인원이 얼마나 찼는지: 모집 인원만큼 칸을 나눠 (처음 보일 때 왼쪽 칸부터 차오름) */}
       {showCount && (

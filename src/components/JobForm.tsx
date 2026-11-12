@@ -5,7 +5,7 @@ import { saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { fmtDate, kstDate, minutesText } from '@/lib/time'
-import { JOB_FIELDS } from '@/lib/jobFields'
+import { headcountTbd, JOB_FIELDS } from '@/lib/jobFields'
 import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
 import Fold from './Fold'
@@ -283,6 +283,8 @@ export default function JobForm({
   const [taxType, setTaxType] = useState(job?.tax_type ?? 'daily')
   // 실수 막기: 모집 인원을 이미 확정한 인원보다 적게 고치면 바로 안내 (확정은 그대로라 인원이 넘침)
   const [headcount, setHeadcount] = useState(job?.headcount ?? 10)
+  // 인원 미정: 공고에는 '인원 미정' · 숫자는 최대 인원으로만 (10명 계획이지만 덜 뽑을 수도 있을 때)
+  const [tbd, setTbd] = useState(() => (job ? headcountTbd(job) : false))
   // 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서, 화면 색도 보라로)
   const [audience, setAudience] = useState<'worker' | 'expert'>(job?.audience ?? 'worker')
   const [locMsg, setLocMsg] = useState('')
@@ -464,7 +466,7 @@ export default function JobForm({
         open={isNew}
         summary={brief(
           v('start_date')
-            ? `${fmtDate(v('start_date'))}${v('end_date') && v('end_date') !== v('start_date') ? ` ~ ${fmtDate(v('end_date'))}` : ''} ${v('start_time')}~${v('end_time')} · ${v('headcount')}명`
+            ? `${fmtDate(v('start_date'))}${v('end_date') && v('end_date') !== v('start_date') ? ` ~ ${fmtDate(v('end_date'))}` : ''} ${v('start_time')}~${v('end_time')} · ${tbd ? '인원 미정' : `${v('headcount')}명`}`
             : '날짜를 정해 주세요',
         )}
       >
@@ -481,7 +483,8 @@ export default function JobForm({
           <Field label="종료 시각 *" hint={overnight ? `다음날 ${et} 끝 (밤샘)` : est && est.paidMin > 0 ? `휴게 빼고 ${hoursOf(est.paidMin)}` : '시작보다 이르면 다음날'}>
             <input type="time" name="end_time" className="input" defaultValue={job?.end_time.slice(0, 5) ?? '18:00'} required />
           </Field>
-          <Field label="모집 인원 *">
+          {/* 휴대폰에서는 한 줄 전체 (인원 미정 안내가 반 칸에서 꺾이지 않게) */}
+          <Field label={tbd ? '최대 인원 *' : '모집 인원 *'} className="col-span-2 sm:col-span-1">
             <input
               type="number"
               name="headcount"
@@ -504,6 +507,16 @@ export default function JobForm({
                   지금 확정 {approved}명
                 </p>
               ))}
+            {/* 인원 미정: 근무자에게는 숫자 대신 '인원 미정' (덜 뽑아도 '왜 안 뽑혔나요' 연락이 덜 오게) */}
+            <label className="mt-1.5 flex min-h-9 items-center gap-2 text-sm font-semibold text-sub" data-headcount-tbd>
+              <input type="checkbox" name="headcount_tbd" className="size-4" checked={tbd} onChange={(e) => setTbd(e.currentTarget.checked)} />
+              인원 미정
+            </label>
+            {tbd && (
+              <p className="hint animate-pop" data-headcount-tbd-hint>
+                공고엔 ‘인원 미정’으로 보여요
+              </p>
+            )}
           </Field>
         </div>
       </Fold>

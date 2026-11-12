@@ -1,5 +1,6 @@
 'use server'
 
+import { headcountTbd } from '@/lib/jobFields'
 import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
@@ -196,7 +197,8 @@ export async function cancelApplication(appId: string, form?: FormData) {
         getJob(jobId),
         db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('status', 'applied'),
       ])
-      const left = job ? job.headcount - ((await approvedCounts([jobId]))[jobId] ?? 0) : 0
+      // 인원 미정 공고는 '빈자리 n명'을 말하지 않음 (숫자는 최대 인원일 뿐)
+      const left = job && !headcountTbd(job) ? job.headcount - ((await approvedCounts([jobId]))[jobId] ?? 0) : 0
       await sendAdminPush(companyId, {
         title: `⚠️ 확정 취소${hoursLeft < 24 ? ' (24시간 안)' : ''}`,
         body: `${user.name} · ${title}${reason ? ` · ${reason}` : ''}${left > 0 ? ` · 빈자리 ${left}명, 대기 ${waiting ?? 0}명` : ''}`,

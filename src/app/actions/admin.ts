@@ -14,7 +14,7 @@ import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
-import { hiddenFromForm } from '@/lib/jobFields'
+import { HEADCOUNT_TBD, hiddenFromForm } from '@/lib/jobFields'
 import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
 import { tellWorkers } from '@/lib/notify'
 import { contractNameOf, myWorkTab } from '@/lib/members'
@@ -140,7 +140,8 @@ function parseJob(form: FormData): { row?: Omit<Job, 'id' | 'created_at' | 'comp
     auto_approve: bool(form, 'auto_approve'),
     status,
     conditions,
-    hidden_fields: hiddenFromForm(form),
+    // 인원 미정이면 표시를 함께 저장 (공고에는 '인원 미정' · 숫자는 최대 인원)
+    hidden_fields: [...hiddenFromForm(form), ...(form.get('headcount_tbd') ? [HEADCOUNT_TBD] : [])],
   } satisfies Omit<Job, 'id' | 'created_at' | 'company_id'>
 
   // 최저임금 확인
@@ -711,16 +712,20 @@ export async function holdSelected(scope: string, form: FormData) {
  * 모집이 끝났는데 남은 대기 지원자: 한 번에 미선발로 정리하고 '이번엔 함께하지 못해요' 알림
  * (결과를 몰라 계속 기다리거나 "확정됐나요?" 문의하지 않게)
  */
-export async function rejectWaiting(jobId: string) {
+export async function rejectWaiting(jobId: string, close?: unknown) {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=apps`
+  // close: 아직 모집 중인데 필요한 만큼 뽑았으면 (예: 10명 계획 · 5명만 뽑음) 모집을 마감하고 남은 대기자에게 알림
+  const closing = close === true && job.status === 'open'
   const apps = must(
     // 보류한 지원자는 빼고 (보류는 관리자가 따로 정함)
     await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('company_id', admin.companyId).eq('status', 'applied').is('held_at', null),
   ) as { id: string; user_id: string }[]
   if (!apps.length) back(path, '대기 중인 지원자가 없어요.')
+  // 마감 먼저 (그 사이 새로 지원하지 못하게)
+  if (closing) must(await db().from('jobs').update({ status: 'closed' }).eq('id', jobId).eq('company_id', admin.companyId).eq('status', 'open'))
   must(
     await db()
       .from('applications')
@@ -729,10 +734,11 @@ export async function rejectWaiting(jobId: string) {
       .eq('status', 'applied'),
   )
   const n = await tellNotSelected(job, apps.map((a) => a.user_id), admin.id, true)
-  await audit(admin.id, 'app.reject_waiting', null, `${jobId} ${apps.length}명`, admin.companyId)
+  await audit(admin.id, closing ? 'app.close_reject_waiting' : 'app.reject_waiting', null, `${jobId} ${apps.length}명`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/admin')
-  back(path, `대기 ${apps.length}명을 미선발로 정리하고 ${n}명에게 알렸어요.`)
+  revalidatePath('/')
+  back(path, closing ? `모집을 마감하고 대기 ${apps.length}명에게 미선발을 알렸어요 (${n}명).` : `대기 ${apps.length}명을 미선발로 정리하고 ${n}명에게 알렸어요.`)
 }
 
 /** 근무자 정보 화면에서 모집 중인 공고에 바로 확정 (예전에 잘한 사람을 다시 부를 때) */

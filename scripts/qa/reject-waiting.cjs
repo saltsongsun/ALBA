@@ -39,7 +39,9 @@ const extra = [
   await rest(`jobs?id=eq.${J}`, 'PATCH', { headcount: 10, status: 'open' })
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)
   await p.waitForLoadState('networkidle')
-  ok('모집 중·인원 남음: 미선발 알림 버튼 없음', (await btn().count()) === 0)
+  // 2026-11-12 사용자 요청("10명 기획이지만 5명만 뽑을 때 · 안 뽑힌 사람들이 연락 와"): 모집 중이면 그냥 정리하는 버튼은 여전히 없고,
+  // 대신 '마감하고 …' 버튼 (모집 마감까지 함께 · 두 번 눌러야 함 — 실수로 정리하지 않게는 그대로) — 자세한 확인은 batch214
+  ok('모집 중·인원 남음: 그냥 미선발 알림 버튼은 없음 · 「마감하고 대기 3명 미선발 알림」만', (await p.getByRole('button', { name: '🙏 대기 3명 미선발 알림', exact: true }).count()) === 0 && (await p.locator('[data-close-notify]').count()) === 1)
 
   // 모집 마감: 버튼 보임
   await rest(`jobs?id=eq.${J}`, 'PATCH', { status: 'closed' })

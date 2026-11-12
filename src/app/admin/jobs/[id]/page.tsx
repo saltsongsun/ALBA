@@ -1,3 +1,4 @@
+import { headcountTbd } from '@/lib/jobFields'
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -246,7 +247,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {job.location_name && ` · ${job.location_name}`}
           </p>
           <p className="mt-1 text-sm">
-            {wageBadge(job)} · 확정 <b>{approved.length}</b>/{job.headcount}명 · 대기 {waiting.length}명
+            {wageBadge(job)} · 확정 <b>{approved.length}</b>
+            {headcountTbd(job) ? '명 · 인원 미정' : `/${job.headcount}명`} · 대기 {waiting.length}명
             {job.gps_required && <span className="badge ml-2 bg-emerald-50 text-emerald-700">현장 위치 확인</span>}
             {job.auto_approve && <span className="badge ml-1 bg-brand-50 text-brand-700">자동 확정</span>}
           </p>

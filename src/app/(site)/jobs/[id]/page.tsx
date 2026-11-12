@@ -21,7 +21,7 @@ import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
 import { phoneFmt, won } from '@/lib/format'
-import { shows } from '@/lib/jobFields'
+import { headcountTbd, shows } from '@/lib/jobFields'
 import { breakDescription, estimateDay, TAX_LABEL, workOver } from '@/lib/pay'
 import { adminCompanies, getUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
@@ -396,7 +396,13 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </Row>
           )}
           {!(job.location_name || job.address) && job.meeting_point && <Row k="집결">{job.meeting_point}</Row>}
-          {shows(job, 'headcount') && (
+          {shows(job, 'headcount') && headcountTbd(job) && (
+            // 인원 미정: 숫자(최대 인원)는 보이지 않음 · 확정된 사람이 있으면 그 수만
+            <Row k="인원">
+              <span data-job-tbd>인원 미정{approved > 0 ? ` · ${approved}명 확정` : ''}</span>
+            </Row>
+          )}
+          {shows(job, 'headcount') && !headcountTbd(job) && (
             <Row k="인원">
               {job.headcount}명 모집 · {approved}명 확정
               {/* 모집 인원만큼 칸 (확정된 만큼 참) */}

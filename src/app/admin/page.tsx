@@ -1,3 +1,4 @@
+import { headcountTbd } from '@/lib/jobFields'
 import PushLevel from '@/components/PushLevel'
 import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
@@ -199,7 +200,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const soon = kstDate(new Date(Date.now() + 2 * 86_400_000))
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   // 마지막 날 근무까지 다 끝난 행사는 빼요 (밤에 '진행 중인데 인원이 모자라요 · 대기 1명 확정하러 가기'가 남지 않게)
-  const short = activeJobs.filter((j) => j.start_date <= soon && (counts[j.id] ?? 0) < j.headcount && !workOver(j, j.end_date))
+  // 인원 미정 공고는 한 명이라도 확정했으면 '모자라요'로 보지 않음 (적게 뽑을 수도 있는 공고)
+  const short = activeJobs.filter((j) => j.start_date <= soon && (counts[j.id] ?? 0) < j.headcount && !(headcountTbd(j) && (counts[j.id] ?? 0) > 0) && !workOver(j, j.end_date))
   // 이미 시작한 행사 (어제 이전 시작 · 오늘 시작 시각이 지남): '오늘 09:00 시작' 대신 '진행 중'
   const nowAt = Date.now()
   const begun = (j: { start_date: string; start_time: string }) => j.start_date < today || (j.start_date === today && kstAt(today, hhmm(j.start_time)).getTime() <= nowAt)
@@ -1038,7 +1040,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   </span>
                   )}
                   <span className="shrink-0 text-mute">
-                    확정 {counts[j.id] ?? 0}명 · 모집 {j.headcount}명
+                    확정 {counts[j.id] ?? 0}명 · {headcountTbd(j) ? '인원 미정' : `모집 ${j.headcount}명`}
                   </span>
                 </p>
                 <SlotBar value={workingBy[j.id] ?? 0} max={counts[j.id] ?? 0} color="bg-emerald-500" className="mt-2" />
@@ -1153,7 +1155,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 {fmtDateRange(j.start_date, j.end_date)} {scheduleText(j)}
               </p>
               <p className="mt-1 text-sm">
-                확정 <b>{counts[j.id] ?? 0}</b>/{j.headcount}명
+                확정 <b>{counts[j.id] ?? 0}</b>
+                {headcountTbd(j) ? '명 · 인원 미정' : `/${j.headcount}명`}
                 {/* 내일 시작: 확정자 가운데 '내일 갈게요'를 누른 수 (다 눌렀으면 초록) */}
                 {j.start_date === tomorrow && (counts[j.id] ?? 0) > 0 &&
                   (() => {
@@ -1166,7 +1169,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   })()}
                 {j.status === 'closed' && <span className="badge ml-2 bg-gray-100 text-mute">모집마감</span>}
               </p>
-              <SlotBar value={counts[j.id] ?? 0} max={j.headcount} className="mt-2" />
+              {!headcountTbd(j) && <SlotBar value={counts[j.id] ?? 0} max={j.headcount} className="mt-2" />}
             </Link>
           ))}
         </div>

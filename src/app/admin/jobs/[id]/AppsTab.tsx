@@ -1,3 +1,4 @@
+import { headcountTbd } from '@/lib/jobFields'
 import Link from 'next/link'
 import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
@@ -279,6 +280,9 @@ export default async function AppsTab({
   const recruitDone =
     job.status !== 'open' || job.end_date < today || dates.filter((d) => d >= today).every((d) => byDay[d] >= job.headcount)
   const canRejectWaiting = waiting > 0 && job.status !== 'cancelled' && recruitDone
+  // 아직 모집 중인데 필요한 만큼 뽑았으면 (예: 10명 계획 · 5명만): 마감하고 남은 대기자에게 미선발 알림을 한 번에
+  // (안 뽑힌 사람이 결과를 몰라 '확정됐나요?' 연락하지 않게 · 사용자 요청 2026-11-12)
+  const canCloseNotify = !canRejectWaiting && waiting > 0 && job.status === 'open' && approved.length > 0 && job.end_date >= today
   const shownDay = day && dates.includes(day) ? day : null
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   // 정렬: 지원순(기본) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
@@ -397,7 +401,8 @@ export default async function AppsTab({
       })()}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
-          확정 <b className="text-ink">{approved.length}</b> / 모집 {job.headcount}명 · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
+          확정 <b className="text-ink">{approved.length}</b>
+          {headcountTbd(job) ? '명 · 인원 미정' : ` / 모집 ${job.headcount}명`} · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
           {/* 끝난 행사에 대기자가 남았으면: 확정 대신 미선발로 정리할 때 (대시보드의 '끝난 행사'와 같은 표시) */}
           {jobEnded && waiting > 0 && (
             <span className="badge ml-1.5 bg-bg text-mute" data-apps-ended>
@@ -436,6 +441,13 @@ export default async function AppsTab({
             <form action={rejectWaiting.bind(null, job.id)}>
               <ConfirmSubmit className="btn-gray btn-sm" confirmText={`대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
                 🙏 대기 {waiting}명 미선발 알림
+              </ConfirmSubmit>
+            </form>
+          )}
+          {canCloseNotify && (
+            <form action={rejectWaiting.bind(null, job.id, true)} data-close-notify>
+              <ConfirmSubmit className="btn-gray btn-sm" confirmText={`모집 마감 · 대기 ${waiting}명에게 알릴까요?`}>
+                🙏 마감하고 대기 {waiting}명 미선발 알림
               </ConfirmSubmit>
             </form>
           )}

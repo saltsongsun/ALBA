@@ -25,3 +25,14 @@ export function hiddenFromForm(form: FormData): string[] {
   const shown = new Set(form.getAll('show_fields').map(String))
   return KEYS.filter((k) => !shown.has(k))
 }
+
+/**
+ * 모집 인원 미정 (사용자 요청 2026-11-12 "10명이 기획이지만 5명만 뽑을 때도 있어 · 안 뽑힌 사람들이 연락이 와"):
+ * 공고에는 숫자 대신 '인원 미정' · 입력한 숫자는 최대 인원으로만 씀 (다 차면 마감 등) · 인원이 모자라다는 경고도 하지 않음
+ * DB를 바꾸지 않으려고 hidden_fields에 표시로 저장 (공고 화면 표시 설정과 같은 칸)
+ */
+export const HEADCOUNT_TBD = 'headcount_tbd'
+export function headcountTbd(job: { hidden_fields?: string[] | null }): boolean {
+  return (job.hidden_fields ?? []).includes(HEADCOUNT_TBD)
+}
+
