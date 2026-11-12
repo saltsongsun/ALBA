@@ -9,7 +9,13 @@ import ReadSync from '@/components/ReadSync'
 import { RoomMembersInfo, RoomMessages, RoomPinned } from '@/components/Room'
 import { markRoomRead, roomMembers, roomMessages, roomOpen, roomPinned, roomReads, workerRoom } from '@/lib/room'
 import { canManageCompany, requireUser } from '@/lib/session'
-import { fmtDateRange } from '@/lib/time'
+import { fmtDateRange, kstDate } from '@/lib/time'
+import Icon from '@/components/Icon'
+import { getJob } from '@/lib/data'
+import { db } from '@/lib/db'
+import { scheduleText } from '@/lib/docs'
+import { phoneFmt } from '@/lib/format'
+import { mapLinks } from '@/lib/map'
 
 export const metadata: Metadata = { title: '단체방' }
 
@@ -21,8 +27,31 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
   // 관리자는 맡은 회사 방이면 관리자 단체방으로 · 다른 회사에서 근무자로 확정된 방이면 근무자로 (한 계정으로 두 역할)
   if (user.role === 'admin' && (!job || (await canManageCompany(user, job.company_id)))) redirect(`/admin/chat/room/${jobId}`)
   if (!job) notFound()
-  const [messages, members, pinned, reads] = await Promise.all([roomMessages(job.id), roomMembers(job), roomPinned(job.id), roomReads(job.id), markRoomRead(job.id, user.id)])
+  // 근무 정보 한 줄 (끝나지 않은 행사만): 시간·장소·집결 + 길찾기·담당 전화 — 방에서 '몇 시까지예요? 어디로 가요?'를 묻지 않게
+  const live = job.end_date >= kstDate()
+  const [messages, members, pinned, reads, , full, co] = await Promise.all([
+    roomMessages(job.id),
+    roomMembers(job),
+    roomPinned(job.id),
+    roomReads(job.id),
+    markRoomRead(job.id, user.id),
+    live ? getJob(job.id).catch(() => null) : null,
+    live
+      ? db()
+          .from('companies')
+          .select('contact_phone, company_phone')
+          .eq('id', job.company_id)
+          .maybeSingle()
+          .then(
+            (r) => r.data as { contact_phone: string | null; company_phone: string | null } | null,
+            () => null,
+          )
+      : null,
+  ])
   const open = roomOpen(job)
+  const map = full ? mapLinks({ name: full.location_name, address: full.address, lat: full.lat, lng: full.lng }) : null
+  // 현장 담당 번호가 없으면 회사 문의 번호 (확정된 근무자만 들어오는 방)
+  const phone = full ? full.manager_phone || co?.contact_phone || co?.company_phone || null : null
 
   return (
     <div className="space-y-4">
@@ -37,9 +66,37 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
           ⬇️ 대화 저장
         </a>
       </div>
-      <div>
+      <div className="space-y-1.5">
         <h1 className="truncate text-xl font-extrabold">👥 {job.title}</h1>
-        <p className="text-sm text-sub">{fmtDateRange(job.start_date, job.end_date)} · 같은 근무 단체방</p>
+        {full ? (
+          <>
+            <p className="truncate text-sm text-sub" data-room-facts>
+              {fmtDateRange(job.start_date, job.end_date)} {scheduleText(full)}
+              {full.location_name && ` · ${full.location_name}`}
+            </p>
+            {full.meeting_point && (
+              <p className="truncate text-sm text-sub" data-room-meeting>
+                <Icon name="flag" className="text-mute" /> 집결 {full.meeting_point}
+              </p>
+            )}
+            {(map || phone) && (
+              <div className="flex flex-wrap gap-1.5" data-room-tools>
+                {map && (
+                  <a href={map.route ?? map.kakao} target="_blank" rel="noreferrer" className="chip h-8 px-3 text-xs">
+                    <Icon name="route" /> {map.route ? '길찾기' : '지도'}
+                  </a>
+                )}
+                {phone && (
+                  <a href={`tel:${phone.replace(/\D/g, '')}`} className="chip h-8 px-3 text-xs" aria-label={`담당 전화 ${phoneFmt(phone)}`}>
+                    <Icon name="phone" /> 담당 전화
+                  </a>
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-sub">{fmtDateRange(job.start_date, job.end_date)} · 같은 근무 단체방</p>
+        )}
       </div>
       <RoomMembersInfo workers={members.workers} admins={members.admins} worker />
       {pinned && <RoomPinned msg={pinned} jobId={job.id} canUnpin={false} />}

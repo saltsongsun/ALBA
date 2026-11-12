@@ -67,7 +67,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok('문의가 없으면 문의 숫자는 없음', (await card.locator('[data-other-unread-n]').count()) === 0 && (await card.locator('[data-other-waiting]').count()) === 1)
   ok('회사 고르기: 빨간 점', (await a.locator('header [data-other-unread]').count()) === 1)
   const opt = await a.locator(`header select[name=company] option[value="${C2}"]`).innerText()
-  ok("회사 고르기 목록: '두번째기획 · 대기 2 · 내일 행사 1'", opt.replace(/\s+/g, ' ').trim() === '두번째기획 · 대기 2 · 내일 행사 1', opt)
+  ok("회사 고르기 목록: '두번째기획 · 대기 2 · 결과 안 알림 1 · 내일 행사 1' (어제 끝난 공고의 대기 지원자 — 묶음 220)", opt.replace(/\s+/g, ' ').trim() === '두번째기획 · 대기 2 · 결과 안 알림 1 · 내일 행사 1', opt)
   ok('한 줄 · 360px 옆으로 안 밀림', (await card.locator('button').first().evaluate((el) => el.getBoundingClientRect().height < 40)) && (await noSide(a)))
   if (SHOTS) await card.screenshot({ path: `${SHOTS}/other-waiting.png` }).catch(() => {})
   // 문의도 있으면 함께

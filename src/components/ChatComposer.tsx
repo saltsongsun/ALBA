@@ -379,9 +379,49 @@ export default function ChatComposer({
 }
 
 /** 새 메시지가 오면 맨 아래로 (처음 열 때도) */
+/**
+ * 대화 화면: 처음 열 때·새 글이 올 때 맨 아래로.
+ * 단, 위로 올려 지난 대화를 읽는 중이면 끌어내리지 않고 '새 메시지 n개 ↓' (누르면 부드럽게 맨 아래로 · 직접 내려가면 사라짐)
+ * — 단체방은 5초마다 새로 받아서, 읽던 곳에서 자꾸 맨 아래로 끌려가던 것. 내가 쓰는 중(입력 칸에 커서)이면 그대로 맨 아래로
+ */
 export function ScrollToEnd({ count }: { count: number }) {
+  const prev = useRef<number | null>(null)
+  const [fresh, setFresh] = useState(0)
+  const gap = () => document.documentElement.scrollHeight - (window.scrollY + window.innerHeight)
   useEffect(() => {
-    window.scrollTo({ top: document.documentElement.scrollHeight })
+    const first = prev.current === null
+    const added = first ? 0 : count - (prev.current ?? count)
+    prev.current = count
+    if (!first && added <= 0) return
+    const typing = document.activeElement?.tagName === 'TEXTAREA'
+    if (first || typing || gap() < 240) {
+      window.scrollTo({ top: document.documentElement.scrollHeight })
+      setFresh(0)
+      return
+    }
+    setFresh((n) => n + added)
   }, [count])
-  return null
+  useEffect(() => {
+    if (!fresh) return
+    const onScroll = () => {
+      if (gap() < 120) setFresh(0)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [fresh])
+  if (!fresh) return null
+  return (
+    <button
+      type="button"
+      key={fresh}
+      onClick={() => {
+        window.scrollTo({ top: document.documentElement.scrollHeight, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+        setFresh(0)
+      }}
+      className="fixed bottom-[calc(var(--tabbar-space)+88px)] left-1/2 z-20 -translate-x-1/2 animate-pop rounded-full bg-ink px-3.5 py-2 text-xs font-bold whitespace-nowrap text-white shadow-lg active:scale-95 sm:bottom-24"
+      data-new-below
+    >
+      새 메시지 {fresh}개 ↓
+    </button>
+  )
 }

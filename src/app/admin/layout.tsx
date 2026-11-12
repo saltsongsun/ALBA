@@ -57,6 +57,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             </TopLink>
             {admin.companies.length > 1 ? (
               <CompanySwitcher companies={admin.companies} current={admin.companyId} unread={Object.fromEntries(others.map((o) => [o.id, o.n]))} waiting={Object.fromEntries(others.map((o) => [o.id, o.waiting]))}
+                lapsed={Object.fromEntries(others.map((o) => [o.id, o.lapsed]))}
                 events={Object.fromEntries(others.filter((o) => o.today || o.tomorrow).map((o) => [o.id, o.today ? `오늘 행사 ${o.today}` : `내일 행사 ${o.tomorrow}`]))}
               />
             ) : (
