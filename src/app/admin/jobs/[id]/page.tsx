@@ -17,6 +17,7 @@ import { companyJob, jobInMyOtherCompany } from '@/lib/company'
 import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
+import { workOver } from '@/lib/pay'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime, kstTime } from '@/lib/time'
@@ -133,7 +134,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
   // 아직 모집 중인 공고 (마감·종료·취소·지난 행사가 아님)
-  const recruiting = job.status === 'open' && job.end_date >= today
+  // 단톡방 모집 문구는 모집 중일 때만: 마지막 날 근무 시간이 지나면(모집중으로 남아 있어도) 숨김 — 끝난 공고를 다시 올리는 실수 막기
+  const recruiting = job.status === 'open' && job.end_date >= today && !workOver(job, job.end_date)
   // 근로계약서를 받지 않는 공고는 위에 경고 (지난 공고·종료한 공고는 제외)
   // 전문가 의뢰는 근로계약서가 아니라 용역계약서(service)로 계약 (저장할 때 근로계약서는 빠지고 용역계약서가 들어감)
   const expertJob = job.audience === 'expert'

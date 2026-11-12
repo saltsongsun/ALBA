@@ -238,6 +238,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .map((m) => ({ m, at: overlapDay(job, { ...m.job!, dates: m.available_dates }) }))
           .filter((x): x is { m: (typeof mine)[number]; at: string } => !!x.at)
       : []
+  // 여러 날 지원 칩: 그날 시간이 겹치는 다른 근무 (확정이 있으면 'approved' → 처음부터 빼 둠 · 지원만 했으면 'applied' → 점만)
+  const busyOn = (d: string): 'approved' | 'applied' | undefined => {
+    let hit: 'applied' | undefined
+    for (const { m } of clashes) {
+      if (!overlapDay({ ...job, dates: [d] }, { ...m.job!, dates: m.available_dates })) continue
+      if (m.status === 'approved') return 'approved'
+      hit = 'applied'
+    }
+    return hit
+  }
 
   // 급여 자세히 (돈 칸 안에 접어 둠)
   const payMore = (
@@ -805,7 +815,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               )}
               {dates.length > 1 && (
                 <ApplyDays
-                  days={dates.map((d) => ({ value: d, label: fmtDate(d), past: d < kstDate() }))}
+                  days={dates.map((d) => ({ value: d, label: fmtDate(d), past: d < kstDate(), busy: busyOn(d) }))}
                   perDay={shows(job, 'estimate') ? est.gross : null}
                 />
               )}

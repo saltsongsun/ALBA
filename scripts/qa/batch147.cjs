@@ -16,6 +16,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 const kst = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
 
 ;(async () => {
+  // 저녁(18시 뒤)에 돌려도 같은 결과: 가짜 공고(오늘 9~18시)를 오늘 23:59까지로 — 근무 시간이 지나면 모집 문구 칸이 숨겨져서
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
   const b = await chromium.launch()
   const errs = []
   const mk = async (uid, opts) => {
