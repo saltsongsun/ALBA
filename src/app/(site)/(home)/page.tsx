@@ -10,8 +10,9 @@ import { scheduleText } from '@/lib/docs'
 import { getUser } from '@/lib/session'
 import { redirect } from 'next/navigation'
 import { isPro } from '@/lib/members'
-import { kstDate } from '@/lib/time'
-import { workOver } from '@/lib/pay'
+import { kstAt, kstDate } from '@/lib/time'
+import { scheduledEnd, shiftOf, workOver } from '@/lib/pay'
+import ShiftBar from '@/components/ShiftBar'
 import { isUuid } from '@/lib/validate'
 import { overlapDay } from '@/lib/overlap'
 import { NewJobsChip } from '@/components/NewJobs'
@@ -169,12 +170,15 @@ export default async function HomePage(props: PageProps<'/'>) {
             ),
           db()
             .from('attendance')
-            .select('job_id, work_date, clock_in, clock_out')
+            .select('job_id, work_date, clock_in, clock_out, sched_start, sched_end')
             .eq('user_id', user.id)
             .eq('job_id', todayJob.id)
             .eq('work_date', today)
             .then(
-              (r) => ((r.data ?? []) as { job_id: string; work_date: string; clock_in: string | null; clock_out: string | null }[]).find((a) => a.job_id === todayJob.id && a.work_date === today) ?? null,
+              (r) =>
+                (
+                  (r.data ?? []) as { job_id: string; work_date: string; clock_in: string | null; clock_out: string | null; sched_start: string | null; sched_end: string | null }[]
+                ).find((a) => a.job_id === todayJob.id && a.work_date === today) ?? null,
               () => null,
             ),
         ])
@@ -182,14 +186,24 @@ export default async function HomePage(props: PageProps<'/'>) {
   const todayState: 'before' | 'working' | 'done' = todayAtt?.clock_out ? 'done' : todayAtt?.clock_in ? 'working' : 'before'
   // 출근 기록 없이 오늘 근무 시간이 다 지났으면 '근무가 있어요'가 아니라 '지났어요' (내 근무에서 담당자에게 알리기)
   const shiftOver = !!todayJob && todayState === 'before' && workOver(todayJob, today)
+  // 근무 중인데 예정 종료(바뀐 근무시간 포함)가 지났으면: '지금 근무 중'이 아니라 '근무 종료를 아직 안 눌렀어요' → 내 근무의 종료 버튼으로 바로
+  const todayShift = todayJob && todayState === 'working' ? shiftOf(todayJob, todayAtt) : null
+  const todayEnd = todayShift ? scheduledEnd(todayShift, today) : null
+  const outLate = !!todayEnd && Date.now() >= todayEnd.getTime()
+  // 근무 중(종료 전)이면 카드 아래 얇은 막대로 근무 시간이 얼마나 지났는지
+  const shiftSpan = todayShift && todayEnd && !outLate ? { from: kstAt(today, todayShift.start_time).toISOString(), to: todayEnd.toISOString() } : null
   const todayLabel = todaySignId
     ? todayState === 'before'
       ? '출퇴근 전 서명이 남았어요'
       : todayState === 'working'
-        ? '근무 중 · 서명이 남았어요'
+        ? outLate
+          ? '서명·근무 종료가 남았어요'
+          : '근무 중 · 서명이 남았어요'
         : '근무 끝 · 서명이 남았어요'
     : todayState === 'working'
-      ? '지금 근무 중이에요'
+      ? outLate
+        ? '근무 종료를 아직 안 눌렀어요'
+        : '지금 근무 중이에요'
       : shiftOver
         ? '오늘 근무 시간이 지났어요'
         : '오늘 근무가 있어요'
@@ -242,10 +256,11 @@ export default async function HomePage(props: PageProps<'/'>) {
         todayJob && (
           // 오늘 근무: 초록→청록 그라데이션 카드 (할 일이 있을 때만 · 빛 번짐 없이)
           <Link
-            href={todaySignId ? `/docs/${todaySignId}` : '/me'}
+            href={todaySignId ? `/docs/${todaySignId}` : outLate ? '/me#clock' : '/me'}
             data-today-hero
             data-today-state={todayState}
             data-today-sign={todaySignId ? '' : undefined}
+            data-today-out-late={outLate ? '' : undefined}
             className="relative mb-4 flex animate-pop items-center gap-3 overflow-hidden rounded-[24px] bg-[linear-gradient(135deg,#10b981_0%,#0d9488_100%)] p-4 text-white transition active:scale-[0.985]"
           >
             <span aria-hidden className="relative grid size-11 shrink-0 place-items-center rounded-2xl bg-white/20 ring-1 ring-white/35">
@@ -263,9 +278,10 @@ export default async function HomePage(props: PageProps<'/'>) {
               </span>
             </span>
             {/* 서명이 먼저면 버튼이 한 번 톡 튀어 눈에 띄게 (움직임 줄이기면 그대로) */}
-            <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 ${todaySignId ? 'animate-bump [animation-delay:450ms]' : ''}`}>
-              {todaySignId ? '서명 →' : shiftOver ? '확인 →' : '출퇴근 →'}
+            <span className={`relative shrink-0 rounded-full bg-[#fff] px-3 py-1.5 text-sm font-bold text-teal-700 ${todaySignId || outLate ? 'animate-bump [animation-delay:450ms]' : ''}`}>
+              {todaySignId ? '서명 →' : outLate ? '종료 →' : shiftOver ? '확인 →' : '출퇴근 →'}
             </span>
+            {shiftSpan && <ShiftBar from={shiftSpan.from} to={shiftSpan.to} />}
           </Link>
         )
       )}

@@ -18,6 +18,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 
 ;(async () => {
+  // 저녁(18시 뒤)에 돌려도 같은 결과: 가짜 공고(오늘 9~18시)를 오늘 23:59까지로 — 종료 시각이 지나면 홈 카드가 '근무 종료를 아직 안 눌렀어요'로 바뀌어서
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
   const [att] = await rest(`attendance?user_id=eq.${W}&job_id=eq.${J}`)
   const docs = (await rest(`signed_docs?user_id=eq.${W}`)).filter((d) => d.job_id === J && d.status === 'pending')
   ok('준비: 오늘 출근 · 서명 안 한 서류', !!att?.clock_in && !att.clock_out && docs.length > 0)
