@@ -108,3 +108,11 @@ export function seenText(iso: string | null | undefined, now = Date.now()): { on
   if (d <= 30) return { online: false, text: `${d}일 전 접속` }
   return null
 }
+
+/** 현장 담당 번호가 없을 때 근무자에게 보이는 회사 문의 번호 ('김담당 010-1234-5678' · 회사 전화로 대신 · 없으면 null) */
+export function contactLabel(s: { contact_name?: string | null; contact_phone?: string | null; company_phone?: string | null }): string | null {
+  const phone = s.contact_phone || s.company_phone
+  if (!phone) return null
+  return [s.contact_phone ? s.contact_name : null, phoneFmt(phone)].filter(Boolean).join(' ')
+}
+

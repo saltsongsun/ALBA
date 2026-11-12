@@ -75,6 +75,9 @@ const appDown = async () => { try { process.kill(-app.pid, 'SIGKILL') } catch {}
   const back = await p.getByRole('heading', { name: '로그인' }).waitFor({ timeout: 30000 }).then(() => true, () => false)
   ok('다시 닿으면 누르지 않아도 보던 화면(로그인)이 열림', back && (await p.getByRole('heading', { name: '인터넷에 연결되어 있지 않아요' }).count()) === 0, p.url())
   // 열린 뒤에는 더 다시 열지 않음 (자동으로 다시 여는 것은 연결 없음 화면에서만)
+  // 다시 닿는 순간 이미 출발한 새로 고침 한 번이 늦게 끝날 수 있어, 화면이 자리 잡은 뒤부터 셈 (2026-11-12 시간차로 6 → 7 한 번)
+  await p.waitForLoadState('load').catch(() => {})
+  await p.waitForTimeout(2500)
   const stable = loads
   await p.waitForTimeout(10000)
   ok('보던 화면이 열린 뒤에는 저절로 다시 열지 않음', loads === stable, `${stable} → ${loads}`)

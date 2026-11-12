@@ -474,3 +474,46 @@ export function DocSkeleton() {
   )
 }
 
+/** 회사 설정: 제목 · 관리자(초대 코드) · 회사 정보 칸들 · 직인 · 운영 기본값 (대시보드 모양 대신 같은 모양) */
+export function SettingsSkeleton() {
+  const field = (w = 'w-full') => (
+    <div className="space-y-1.5">
+      <div className={`h-3.5 w-16 ${bar}`} />
+      <div className={`h-12 ${w} rounded-xl bg-line/50`} />
+    </div>
+  )
+  return (
+    <div aria-busy="true" aria-label="회사 설정 불러오는 중" className="skeleton space-y-4" data-skeleton="settings">
+      <div className={`h-7 w-28 ${bar}`} />
+      <div className="card space-y-3">
+        <div className="flex justify-between">
+          <div className={`h-5 w-16 ${bar}`} />
+          <div className={`h-4 w-8 ${bar}`} />
+        </div>
+        <div className="h-28 rounded-2xl bg-line/40" />
+      </div>
+      <div className="card space-y-4">
+        <div className="space-y-2">
+          <div className={`h-5 w-32 ${bar}`} />
+          <div className={`h-3.5 w-3/4 ${bar}`} />
+        </div>
+        {field()}
+        <div className="grid grid-cols-2 gap-3">
+          {field()}
+          {field()}
+        </div>
+        {field()}
+      </div>
+      <div className="card flex items-center gap-4">
+        <div className="size-24 shrink-0 rounded-2xl border-2 border-dashed border-line" />
+        <div className="flex-1 space-y-2">
+          <div className={`h-8 w-24 ${bar}`} />
+          <div className={`h-3.5 w-full ${bar}`} />
+          <div className={`h-3.5 w-2/3 ${bar}`} />
+        </div>
+      </div>
+      <div className="h-12 w-28 rounded-2xl bg-line/60" />
+    </div>
+  )
+}
+

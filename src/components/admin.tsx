@@ -435,7 +435,7 @@ export function SettingsForm({ s, firstJob = false, company }: { s: Settings; fi
           <label>
             <span className="label">문의 연락처</span>
             <input name="contact_phone" className="input px-3" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={phoneShown(s.contact_phone)} />
-            <span className="hint">비밀번호 분실 안내에 보여요</span>
+            <span className="hint" data-contact-hint>로그인·현장 연락처로 보여요</span>
           </label>
           <WageDefault value={s.default_hourly_wage} />
         </div>

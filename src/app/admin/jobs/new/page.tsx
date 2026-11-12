@@ -4,6 +4,7 @@ import Icon from '@/components/Icon'
 import JobForm from '@/components/JobForm'
 import { getSettings, hasSeal } from '@/lib/data'
 import { db, must } from '@/lib/db'
+import { contactLabel } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
 import { recentJobValues } from '@/lib/recent-job'
@@ -68,6 +69,7 @@ export default async function NewJobPage() {
         defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }}
         recent={recent}
         company={multi ? admin.companyName : undefined}
+        fallbackContact={contactLabel(settings)}
       />
     </div>
   )

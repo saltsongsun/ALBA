@@ -251,6 +251,7 @@ export default function JobForm({
   approved = 0,
   recent,
   company,
+  fallbackContact = null,
 }: {
   job: Job | null
   templates: Tpl[]
@@ -261,8 +262,12 @@ export default function JobForm({
   approved?: number
   /** 새 공고 · 여러 회사를 맡은 관리자: 올라갈 회사 이름 (등록 버튼에 함께 · 다른 회사로 잘못 올리지 않게) */
   company?: string
+  /** 현장 담당 번호를 비우면 근무자에게 대신 보이는 회사 문의 번호 ('김담당 010-…' · 없으면 null) */
+  fallbackContact?: string | null
 }) {
   const [state, action] = useActionState(saveJob.bind(null, job?.id ?? null), null)
+  // 현장 담당 번호를 썼는지 (비우면 근무자에게 무엇이 보이는지 바로 아래에 알려 줌 · 최근 담당 칩으로 채워도 같게)
+  const [mgrPhone, setMgrPhone] = useState(() => !!job?.manager_phone)
   const formRef = useRef<HTMLFormElement>(null)
   const [est, setEst] = useState(() => (job ? estimateDay(job) : null))
   const [payType, setPayType] = useState(job?.pay_type ?? 'hourly')
@@ -758,8 +763,27 @@ export default function JobForm({
           <Field label="현장 담당자">
             <input name="manager_name" className="input" defaultValue={job?.manager_name ?? ''} />
           </Field>
-          <Field label="담당자 연락처">
-            <input name="manager_phone" className="input" inputMode="tel" placeholder="010-1234-5678" onInput={onPhoneInput} defaultValue={phoneShown(job?.manager_phone)} />
+          <Field
+            label="담당자 연락처"
+            hint={
+              mgrPhone ? undefined : (
+                // 두 줄이 되면 고르게 (마지막 줄에 '가 보여요'만 남지 않게)
+                <span className="block text-balance">{fallbackContact ? `비우면 근무자에게 회사 번호(${fallbackContact})가 보여요` : '비우면 근무 날 근무자가 연락할 번호가 없어요'}</span>
+              )
+            }
+            warn={!mgrPhone && !fallbackContact}
+          >
+            <input
+              name="manager_phone"
+              className="input"
+              inputMode="tel"
+              placeholder="010-1234-5678"
+              onInput={(e) => {
+                onPhoneInput(e)
+                setMgrPhone(e.currentTarget.value.replace(/\D/g, '').length > 0)
+              }}
+              defaultValue={phoneShown(job?.manager_phone)}
+            />
           </Field>
         </div>
         {recent && (

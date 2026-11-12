@@ -6,6 +6,7 @@ import JobForm from '@/components/JobForm'
 import { getSettings } from '@/lib/data'
 import { companyJob } from '@/lib/company'
 import { db, must } from '@/lib/db'
+import { contactLabel } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 
@@ -42,7 +43,7 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
         ← 공고로 돌아가기
       </Link>
       <h1 className="mt-2 mb-4 text-2xl font-extrabold">공고 수정</h1>
-      <JobForm job={job} templates={templates} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} approved={approved} />
+      <JobForm job={job} templates={templates} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} approved={approved} fallbackContact={contactLabel(settings)} />
     </div>
   )
 }
