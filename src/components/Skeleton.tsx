@@ -608,3 +608,87 @@ export function JobFormSkeleton() {
     </div>
   )
 }
+
+/** 기간을 넘기는 줄 (‹ 이번 달 · 2026년 11월 ›) — 정산·주간 화면 맨 위 */
+function PeriodNav() {
+  return (
+    <div className="card flex items-center justify-between py-3">
+      <div className="size-6 rounded bg-line/50" />
+      <div className="flex flex-col items-center gap-1.5">
+        <div className={`h-3 w-12 ${bar}`} />
+        <div className={`h-5 w-32 ${bar}`} />
+      </div>
+      <div className="size-6 rounded bg-line/50" />
+    </div>
+  )
+}
+
+/** 정산·신고자료: 제목 · 달 넘기기 · 지급총액 카드(큰 숫자 + 공제 3칸) · 신고자료 목록 — 대시보드 모양 대신 */
+export function ReportsSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="정산 불러오는 중" className="skeleton space-y-4" data-skeleton="reports">
+      <div className={`h-7 w-36 ${bar}`} />
+      <PeriodNav />
+      <div className="card space-y-4">
+        <div className="flex items-end justify-between">
+          <div className="space-y-2">
+            <div className={`h-3.5 w-14 ${bar}`} />
+            <div className={`h-8 w-28 ${bar}`} />
+          </div>
+          <div className={`h-4 w-20 ${bar}`} />
+        </div>
+        <div className="grid grid-cols-3 gap-2 border-t border-line pt-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex flex-col items-center gap-1.5">
+              <div className={`h-3 w-12 ${bar}`} />
+              <div className={`h-4 w-10 ${bar}`} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card space-y-3">
+        <div className={`h-5 w-28 ${bar}`} />
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center justify-between gap-3 rounded-xl bg-line/25 px-3 py-3">
+            <div className="flex-1 space-y-1.5">
+              <div className={`h-4 w-2/3 ${bar}`} />
+              <div className={`h-3 w-1/3 ${bar}`} />
+            </div>
+            <div className={`h-4 w-10 ${bar}`} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** 주간 근무·주휴: 제목 · 주 넘기기 · 예상 인건비/주휴수당 두 칸 · 근무자 줄(이름 · 시간 막대) — 대시보드 모양 대신 */
+export function WeeklySkeleton() {
+  return (
+    <div aria-busy="true" aria-label="주간 근무 불러오는 중" className="skeleton space-y-4" data-skeleton="weekly">
+      <div className={`h-7 w-36 ${bar}`} />
+      <PeriodNav />
+      <div className="grid grid-cols-2 gap-3">
+        {[0, 1].map((i) => (
+          <div key={i} className="card space-y-2">
+            <div className={`h-3.5 w-16 ${bar}`} />
+            <div className={`h-7 w-24 ${bar}`} />
+          </div>
+        ))}
+      </div>
+      <div className="card space-y-4">
+        <div className={`h-5 w-20 ${bar}`} />
+        {[0, 1, 2].map((i) => (
+          <div key={i} className="space-y-2">
+            <div className="flex justify-between">
+              <div className={`h-4 w-16 ${bar}`} />
+              <div className="h-5 w-16 rounded-full bg-line/50" />
+            </div>
+            <div className={`h-3 w-1/2 ${bar}`} />
+            <div className="h-1.5 w-full rounded-full bg-line/40" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

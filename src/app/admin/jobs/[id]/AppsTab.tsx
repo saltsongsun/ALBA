@@ -281,7 +281,9 @@ export default async function AppsTab({
   const weeklyWaiting = apps.filter((a) => becomes(a) && !a.held_at).length
   const allOver = jobEnded || dates.some((d) => byDay[d] + waitByDay[d] > job.headcount) || minorsWaiting > 0 || weeklyWaiting > 0
   // 모집이 끝났는데(마감·종료·지난 행사·남은 날 인원 다 참) 대기자가 남아 있으면: 미선발로 정리하고 결과 알리기
+  // 마지막 날 근무까지 끝났으면(오늘 저녁 포함) 모집도 끝난 것: 대기자는 확정이 아니라 미선발 알림으로 정리
   const recruitDone =
+    jobEnded ||
     job.status !== 'open' || job.end_date < today || dates.filter((d) => d >= today).every((d) => byDay[d] >= job.headcount)
   const canRejectWaiting = waiting > 0 && job.status !== 'cancelled' && recruitDone
   // 아직 모집 중인데 필요한 만큼 뽑았으면 (예: 10명 계획 · 5명만): 마감하고 남은 대기자에게 미선발 알림을 한 번에
@@ -416,12 +418,20 @@ export default async function AppsTab({
         </p>
         <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`[${job.title}] `} copyClassName="btn-white btn-sm" />
         <div className="flex flex-wrap gap-2">
+          {/* 끝난 행사: '미선발 알림'이 먼저(파란 버튼) · '모두 확정'은 흰 버튼으로 뒤에 (밤에 끝난 행사를 통째로 확정하는 실수 막기) */}
+          {canRejectWaiting && jobEnded && (
+            <form action={rejectWaiting.bind(null, job.id)} data-ended-notify>
+              <ConfirmSubmit className="btn-primary btn-sm" confirmText={`끝난 행사 · 대기 ${waiting}명에게 미선발 알림?`}>
+                🙏 대기 {waiting}명 미선발 알림
+              </ConfirmSubmit>
+            </form>
+          )}
           {waiting > 0 && (
-            <form action={approveAllApplied.bind(null, job.id)}>
+            <form action={approveAllApplied.bind(null, job.id)} data-approve-all>
               {/* 모집 인원을 넘기게 되면 한 번 더 확인 */}
               {allOver ? (
                 <ConfirmSubmit
-                  className="btn-primary btn-sm"
+                  className={jobEnded ? 'btn-white btn-sm' : 'btn-primary btn-sm'}
                   confirmText={
                     jobEnded
                       ? `끝난 행사 · ${waiting}명 모두 확정?`
@@ -441,7 +451,7 @@ export default async function AppsTab({
               )}
             </form>
           )}
-          {canRejectWaiting && (
+          {canRejectWaiting && !jobEnded && (
             <form action={rejectWaiting.bind(null, job.id)}>
               <ConfirmSubmit className="btn-white btn-sm" confirmText={`대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
                 🙏 대기 {waiting}명 미선발 알림

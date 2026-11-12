@@ -16,6 +16,8 @@ const extra = [
   { uid: '44444444-0000-4000-8000-000000000032', app: '55555555-0000-4000-8000-000000000032', name: '최수아', phone: '01012130002' },
 ]
 ;(async () => {
+  // 저녁(18시 뒤)에 돌려도 같은 결과: 가짜 공고(오늘 9~18시)를 오늘 23:59까지로 — 근무가 끝난 공고는 '마감하고' 대신 끝난 행사 미선발 알림이 먼저라서
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
   // 대기 지원자 2명 더 (김지원 포함 대기 3명)
   for (const e of extra) {
     const user = { id: e.uid, name: e.name, phone: e.phone, birth_date: '1995-05-05', photo_at: null, careers: [], role: 'worker', active: true }
