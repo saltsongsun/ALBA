@@ -1071,6 +1071,76 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
 }
 
 /**
+ * 그날 '시간 인정 요청'(일찍 끝났지만 근로조건대로 인정해 달라는 요청)을 한 번에 모두 인정
+ * (이용 기록: 시간 인정 요청이 자주 옴 — 한 사람씩 누르던 것). 한 사람씩 인정(decideFix accept)과 같은 규칙:
+ * 종료 기록이 있고 · 지급 전이고 · 요청 시각이 출근 뒤인 것만 · 근무자마다 결과 알림
+ */
+export async function decideFullTimeAll(jobId: string, date: string) {
+  const admin = await requireAdmin()
+  const job = isDate(date) ? await companyJob(admin, jobId) : null
+  if (!job) return
+  const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
+  const msgs = must(
+    await db()
+      .from('messages')
+      .select('thread_user_id, body, created_at, from_admin')
+      .eq('company_id', job.company_id)
+      .eq('job_id', jobId)
+      .gte('created_at', kstAt(date, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(500),
+  ) as { thread_user_id: string; body: string; created_at: string; from_admin: boolean }[]
+  const asks: { uid: string; fix: { field: 'in' | 'out'; time: string } }[] = []
+  for (const uid of new Set(msgs.map((m) => m.thread_user_id))) {
+    const req = pendingFix(
+      msgs.filter((m) => m.thread_user_id === uid),
+      date,
+    )
+    const fix = req && parseFix(req.body)
+    if (req && fix && fix.field === 'out' && isFullTimeAsk(req.body)) asks.push({ uid, fix })
+  }
+  if (!asks.length) back(path, '인정할 시간 인정 요청이 없어요.')
+  const atts = must(
+    await db()
+      .from('attendance')
+      .select('id, user_id, clock_in, clock_out, adj_in, adj_out, note, paid')
+      .eq('job_id', jobId)
+      .eq('company_id', job.company_id)
+      .eq('work_date', date)
+      .in('user_id', asks.map((a) => a.uid)),
+  ) as Pick<Attendance, 'id' | 'user_id' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'note' | 'paid'>[]
+  const day = fmtDate(date)
+  let done = 0
+  for (const { uid, fix } of asks) {
+    const att = atts.find((a) => a.user_id === uid)
+    if (!att?.clock_out || att.paid) continue
+    const inAt = new Date(att.adj_in ?? att.clock_in)
+    const want = fixTime(date, fix, inAt)
+    if (want <= inAt) continue
+    const memo = `일찍 종료 · 근로조건대로 ${fix.time}까지 인정`
+    must(
+      await db()
+        .from('attendance')
+        .update({ adj_out: want.toISOString(), note: (att.note ? `${att.note} · ${memo}` : memo).slice(0, 300) })
+        .eq('id', att.id),
+    )
+    await audit(admin.id, 'attendance.full_time_ok', uid, `${date} 종료 ${fix.time} (모두 인정)`, admin.companyId)
+    await tellWorkers([uid], {
+      senderId: admin.id,
+      companyId: admin.companyId,
+      jobId,
+      title: SIGNAL.fixDone,
+      text: `${job.title} · ${day} 근무를 근로조건대로 ${fix.time}까지 인정했어요. 정산에 그대로 들어가요.`,
+      tag: `fix-${jobId}`,
+    })
+    done++
+  }
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath('/me')
+  back(path, done ? `시간 인정 ${done}건 · 근무자마다 알렸어요.` : '인정할 수 있는 요청이 없어요 (지급 완료·종료 기록 없음).')
+}
+
+/**
  * 근무시간 변경 (퇴근 연장 등): 그날만(scope=날짜) 또는 전체 일정(scope=all).
  * 근무자마다 '계속하시겠습니까' 동의를 받고, 동의한 사람만 바뀐 시간으로 급여를 계산
  */

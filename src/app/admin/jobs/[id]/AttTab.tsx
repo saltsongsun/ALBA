@@ -1,6 +1,6 @@
 import Icon from '@/components/Icon'
 import Link from 'next/link'
-import { addAttendance, answerShiftByAdmin, approveArrival, bulkAdjustTimes, bulkClockIn, bulkClockOut, bulkClockOutPicked, dismissWorker, confirmDay, decideFix, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
+import { addAttendance, answerShiftByAdmin, approveArrival, bulkAdjustTimes, bulkClockIn, bulkClockOut, bulkClockOutPicked, dismissWorker, confirmDay, decideFix, decideFullTimeAll, decideOvertime, deleteAttendance, nudgeWorkers, rateQuick, saveAttendance } from '@/app/actions/admin'
 import { PositionInput, QuickRate } from '@/components/admin'
 import AutoRefresh from '@/components/AutoRefresh'
 import BulkAdjust from '@/components/BulkAdjust'
@@ -126,6 +126,8 @@ export default async function AttTab({
     }
   }
   const dayAtts = atts.filter((a) => a.work_date === date)
+  // 이날 '시간 인정 요청' (일찍 끝났지만 근로조건대로): 둘 이상이면 위에 '모두 인정' 한 줄 (한 사람씩 누르지 않게 · 지급 전 · 종료 기록 있는 것만)
+  const fullAsks = [...fixOf.entries()].filter(([uid, f]) => f.full && dayAtts.some((a) => a.user_id === uid && a.clock_out && !a.paid))
   // 이날 지금 적용 중인 시간 (이날 동의받은 변경 → 출근 기록에 적용된 시간 → 공고 시간). 연장을 또 할 때 이 시각부터 더함
   const dayShift = (() => {
     const agreed = changes.find((c) => c.work_date === date && c.status === 'agreed')
@@ -247,6 +249,22 @@ export default async function AttTab({
           </span>
           <span className="shrink-0 font-semibold">{waitToday > 0 ? `이날 가능한 대기자 ${waitToday}명 →` : '지원자 보기 →'}</span>
         </Link>
+      )}
+
+      {fullAsks.length > 1 && !['cancelled', 'draft'].includes(job.status) && (
+        <form
+          action={decideFullTimeAll.bind(null, job.id, date)}
+          className="flex animate-pop items-center justify-between gap-2 rounded-2xl bg-violet-50 px-4 py-3 text-sm text-violet-900 ring-1 ring-violet-200"
+          data-full-time-all
+        >
+          <span className="min-w-0">
+            🙏 <b>시간 인정 요청 {fullAsks.length}건</b>
+            <span className="block text-xs text-violet-800">일찍 끝났지만 근로조건대로 · 아래에서 한 명씩도 돼요</span>
+          </span>
+          <ConfirmSubmit className="chip-primary h-9 shrink-0 px-3.5 text-sm" confirmText={`${fullAsks.length}건 모두 인정?`} track="시간 인정 모두 인정">
+            모두 인정
+          </ConfirmSubmit>
+        </form>
       )}
 
       {/* 이날 현황: 근무 중 · 종료 · 미출근 */}

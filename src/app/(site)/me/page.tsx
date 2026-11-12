@@ -164,6 +164,14 @@ export default async function MePage(props: PageProps<'/me'>) {
     const f = req && parseFix(req.body)
     return req && f ? { ...f, at: kstTime(req.created_at), full: isFullTimeAsk(req.body) && f.field === 'out' } : null
   }
+  // 오늘 '시간 인정 요청'에 담당자가 답했으면 (인정 / 실제대로): 요청 칸 대신 결과를 그 자리에 (다시 요청하지 않게)
+  const fullAnswer = (jobId: string) => {
+    const m = adminJobMsgs
+      .filter((x) => x.job_id === jobId && kstDate(x.created_at) === today && ['fixDone', 'fixNo'].includes(signalOf(x.body) ?? '') && x.body.includes('근로조건대로'))
+      .sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+    if (!m) return null
+    return signalOf(m.body) === 'fixDone' ? { ok: true as const, time: m.body.match(/(\d{1,2}:\d{2})까지 인정/)?.[1] ?? null } : { ok: false as const, time: null }
+  }
   const pendingShifts = shifts.filter((c) => c.status === 'pending')
   // 오늘 적용되는 시간 (동의한 변경이 있으면 그것)
   const todayShift = (job: Job, att?: Attendance | null) => {
@@ -941,6 +949,21 @@ export default async function MePage(props: PageProps<'/me'>) {
                           const end = scheduledEnd(todayShift(job, todayAtt), todayAtt.work_date)
                           const out = new Date(todayAtt.adj_out ?? todayAtt.clock_out)
                           const sent = fixSent(job.id)
+                          const answer = sent ? null : fullAnswer(job.id)
+                          // 담당자가 답했으면 결과 한 줄 (인정: 초록 · 실제대로: 회색 + 문의)
+                          if (answer)
+                            return answer.ok ? (
+                              <p className="animate-pop rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm font-semibold text-emerald-800" role="status" data-full-time-answer="ok">
+                                ✓ 담당자가 근로조건대로{answer.time ? ` ${answer.time}까지` : ''} 인정했어요
+                              </p>
+                            ) : (
+                              <p className="flex items-center justify-between gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-full-time-answer="no">
+                                <span className="min-w-0">실제 종료 시각대로 계산해요</span>
+                                <Link href={`/me/chat?co=${job.company_id}`} className="shrink-0 font-semibold whitespace-nowrap text-brand-700">
+                                  문의 →
+                                </Link>
+                              </p>
+                            )
                           return out.getTime() < end.getTime() - 60_000 || sent?.full ? (
                             <FullTimeRequest attendanceId={todayAtt.id} endText={kstTime(end)} outText={kstTime(out)} sent={sent?.full ? sent.at : null} />
                           ) : null
