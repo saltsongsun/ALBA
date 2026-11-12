@@ -730,3 +730,36 @@ export function WorkerDetailSkeleton() {
     </div>
   )
 }
+
+/** 내 근무 (근무자): 날짜·인사 + '내 정보' · '오늘의 근무' 큰 카드(회사 · 제목 · 시간 · 버튼) · 이번 주 7칸 — 일반 카드 두 개 대신 */
+export function MeSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="내 근무 불러오는 중" className="skeleton space-y-4" data-skeleton="me">
+      <div className="flex items-end justify-between">
+        <div className="space-y-2">
+          <div className={`h-3.5 w-16 ${bar}`} />
+          <div className={`h-7 w-44 ${bar}`} />
+        </div>
+        <div className="h-9 w-20 rounded-xl bg-line/50" />
+      </div>
+      <div className={`h-5 w-24 ${bar}`} />
+      <div className="card space-y-3">
+        <div className={`h-3.5 w-40 ${bar}`} />
+        <div className={`h-6 w-3/4 ${bar}`} />
+        <div className={`h-4 w-1/2 ${bar}`} />
+        <div className="flex gap-2">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="h-8 w-16 rounded-xl bg-line/50" />
+          ))}
+        </div>
+        <div className="h-14 w-full rounded-2xl bg-line/60" />
+      </div>
+      <div className={`h-5 w-28 ${bar}`} />
+      <div className="grid grid-cols-7 gap-1">
+        {Array.from({ length: 7 }, (_, i) => (
+          <div key={i} className="h-[62px] rounded-xl bg-line/40" />
+        ))}
+      </div>
+    </div>
+  )
+}

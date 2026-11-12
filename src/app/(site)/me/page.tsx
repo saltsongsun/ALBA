@@ -393,6 +393,9 @@ export default async function MePage(props: PageProps<'/me'>) {
   const waitingLive = waiting.filter((a) => !lapsedApp(a))
   const waitingRows = [...waitingLive, ...waiting.filter(lapsedApp)]
   const waitingFirst = todayApps.length === 0 && !nextApp && waitingLive.length > 0
+  // 이번 주 칸: 확정이 없는 날에 지원하고 기다리는 근무가 있으면 점선 (같은 날 또 지원하기 전에 한눈에 · 누르면 그 대기 카드로)
+  const weekWait = week.map((d, i) => (weekWork[i].length ? [] : waitingLive.filter((a) => workDays(a).includes(d))))
+  const weekWaitCount = weekWait.filter((w) => w.length > 0).length
   const soonMs = Date.now() + 24 * 3600_000
   const waitingSection = waiting.length > 0 && (
     <section data-waiting={waitingFirst ? 'first' : 'below'}>
@@ -406,7 +409,13 @@ export default async function MePage(props: PageProps<'/me'>) {
           const soon = a.job.status !== 'cancelled' && startMs <= soonMs && !lapsed
           const started = startMs <= Date.now()
           return (
-            <div key={a.id} className="card-link py-4" data-waiting-app={a.job_id} data-waiting-lapsed={lapsed ? '' : undefined}>
+            <div
+              key={a.id}
+              id={`wait-${a.id}`}
+              className="card-link scroll-mt-20 py-4 target:ring-2 target:ring-brand-300"
+              data-waiting-app={a.job_id}
+              data-waiting-lapsed={lapsed ? '' : undefined}
+            >
               {/* 맨 위로 올라온 첫 지원: 지금 어디까지 왔고 다음에 무엇을 하는지 (지원 ✓ → 확정 → 서명 → 출근) */}
               {waitingFirst && i === 0 && !lapsed && (
                 <div className="mb-3">
@@ -455,25 +464,32 @@ export default async function MePage(props: PageProps<'/me'>) {
       {/* 병아리 레벨 카드는 지금 할 일(시간 변경 답·연장 확인·서명·계좌·사진) 다음에 (재미용이라 할 일을 밀어내지 않게) */}
       {xp && <LevelCard s={xp} />}
 
-      {weekCount > 0 && (
+      {weekCount + weekWaitCount > 0 && (
         <section aria-label="이번 주 내 근무" data-week>
           <div className="mb-2 flex items-baseline justify-between">
             <h2 className="text-[15px] font-bold">이번 주 내 {pro ? '일' : '근무'}</h2>
-            <span className="text-sm font-semibold text-brand-700">{weekCount}일</span>
+            <span className="text-sm font-semibold text-brand-700" data-week-count>
+              {weekCount > 0 && `${weekCount}일`}
+              {weekCount > 0 && weekWaitCount > 0 && ' · '}
+              {weekWaitCount > 0 && <span className="text-sub">대기 {weekWaitCount}일</span>}
+            </span>
           </div>
           <ol className="grid grid-cols-7 gap-1">
             {week.map((d, i) => {
               const w = weekWork[i]
+              const wait = weekWait[i]
               const dow = new Date(`${d}T00:00:00Z`).getUTCDay()
               const label = ['일', '월', '화', '수', '목', '금', '토'][dow]
               const cls = w.length
                 ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/30 active:scale-95'
-                : `bg-white ring-1 ring-line ${i === 0 ? 'ring-2 ring-brand-300' : ''} ${dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-brand-500' : 'text-sub'}`
+                : wait.length
+                  ? 'border border-dashed border-brand-400 bg-brand-50/60 text-brand-700 active:scale-95'
+                  : `bg-white ring-1 ring-line ${i === 0 ? 'ring-2 ring-brand-300' : ''} ${dow === 0 ? 'text-rose-500' : dow === 6 ? 'text-brand-500' : 'text-sub'}`
               const inner = (
                 <>
                   <span className="text-[11px] leading-none font-semibold opacity-80">{i === 0 ? '오늘' : label}</span>
                   <span className="text-base leading-tight font-extrabold tabular-nums">{Number(d.slice(8))}</span>
-                  <span aria-hidden className={`size-1.5 rounded-full ${w.length ? 'bg-white' : 'bg-transparent'}`} />
+                  <span aria-hidden className={`size-1.5 rounded-full ${w.length ? 'bg-white' : wait.length ? 'ring-1 ring-brand-500' : 'bg-transparent'}`} />
                 </>
               )
               return (
@@ -487,6 +503,16 @@ export default async function MePage(props: PageProps<'/me'>) {
                     >
                       {inner}
                     </a>
+                  ) : wait.length ? (
+                    <a
+                      href={`#wait-${wait[0].id}`}
+                      aria-label={`${fmtDate(d)} 확정 대기: ${wait.map((x) => x.job.title).join(', ')}`}
+                      className={`flex animate-pop flex-col items-center gap-1 rounded-xl py-2 transition ${cls}`}
+                      style={{ animationDelay: `${i * 30}ms` }}
+                      data-week-wait
+                    >
+                      {inner}
+                    </a>
                   ) : (
                     <span className={`flex flex-col items-center gap-1 rounded-xl py-2 ${cls}`}>{inner}</span>
                   )}
@@ -494,6 +520,11 @@ export default async function MePage(props: PageProps<'/me'>) {
               )
             })}
           </ol>
+          {weekWaitCount > 0 && (
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs text-mute" data-week-legend>
+              <span aria-hidden className="inline-block h-3 w-4 rounded border border-dashed border-brand-400 bg-brand-50/60" /> 점선은 확정 대기
+            </p>
+          )}
         </section>
       )}
 
