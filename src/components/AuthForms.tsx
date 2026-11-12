@@ -949,7 +949,7 @@ export function SetupForm() {
       </div>
       <div>
         <label className="label">휴대폰 번호 (로그인 아이디)</label>
-        <input name="phone" className="input" inputMode="tel" required />
+        <input name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
       </div>
       <div>
         <label className="label">비밀번호 (숫자 6자리)</label>

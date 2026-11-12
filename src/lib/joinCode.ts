@@ -47,3 +47,7 @@ export async function companyByJoinCode(code: string): Promise<{ id: string; com
   const hit = rows.find((c) => c.join_code === code && c.active)
   return hit ? { id: hit.id, company_name: hit.company_name } : null
 }
+
+/** 관리자 합류 신청 '다시 알리기' 간격 (대표 관리자를 너무 자주 깨우지 않게 · 신청할 때 간 알림도 한 번으로 셈) */
+export const JOIN_NUDGE_SEC = 30 * 60
+export const joinNudgeKey = (userId: string, companyId: string) => `join-nudge:${userId}:${companyId}`

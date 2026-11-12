@@ -180,7 +180,7 @@ export function WorkerEditForm({
         <label>
           <span className="label">휴대폰 번호{!canEditIdentity && ' (본인만 바꿀 수 있어요)'}</span>
           {canEditIdentity ? (
-            <input name="phone" className="input" defaultValue={initial.phone} />
+            <input name="phone" className="input" inputMode="tel" maxLength={13} defaultValue={phoneShown(initial.phone)} onInput={onPhoneInput} />
           ) : (
             // 보안: 번호를 화면에 싣지 않음 (가린 번호만, 폼으로 보내지도 않음)
             <input className="input bg-bg text-sub" value={initial.phone} readOnly disabled aria-readonly />

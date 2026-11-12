@@ -1,5 +1,6 @@
 import { headcountTbd } from '@/lib/jobFields'
 import Link from 'next/link'
+import PhoneInput from '@/components/PhoneInput'
 import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { PositionInput } from '@/components/admin'
@@ -472,7 +473,7 @@ export default async function AppsTab({
               <summary className="btn-white btn-sm cursor-pointer list-none before:hidden group-open:bg-line [&::-webkit-details-marker]:hidden">＋ 번호로 추가</summary>
               {/* 접혀 있을 때는 아예 숨김 (좁은 버튼 폭에 맞춰 칸이 꺾여 그려지지 않게) */}
               <form action={addWorkerToJob.bind(null, job.id)} className="mt-2 hidden animate-pop gap-1.5 group-open:flex">
-                <input name="phone" className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" inputMode="tel" aria-label="가입자 휴대폰 번호" />
+                <PhoneInput name="phone" className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" aria-label="가입자 휴대폰 번호" />
                 <SubmitButton className="btn-primary btn-sm shrink-0">직접 추가</SubmitButton>
               </form>
             </details>

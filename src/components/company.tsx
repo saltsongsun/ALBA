@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useActionState, useRef } from 'react'
 import { addCompanyAdmin, createCompany, switchCompany } from '@/app/actions/company'
 import BizNoField from './BizNoField'
+import { onPhoneInput } from './phoneTyping'
 import { FormMessage, SubmitButton } from './ui'
 
 /** 관리자 화면 위 회사 고르기 (고르면 바로 그 회사 화면으로 — 보던 메뉴 그대로) */
@@ -99,7 +100,7 @@ export function CreateCompanyForm() {
         </div>
         <label>
           <span className="label">문의 연락처 (선택)</span>
-          <input name="contact_phone" className="input" inputMode="tel" />
+          <input name="contact_phone" className="input" inputMode="tel" placeholder="010-1234-5678" maxLength={20} onInput={onPhoneInput} />
         </label>
       </div>
       <p className="hint">직인·주소·기본 시급 등은 그 회사로 들어가 ‘회사 설정’에서 채워요. 기본 서류 서식(근로계약서 등)은 자동으로 넣어 드려요.</p>
@@ -115,7 +116,7 @@ export function AddAdminForm({ companyId }: { companyId: string }) {
   return (
     <form action={action} className="space-y-2">
       <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-        <input name="phone" className="input py-2 text-sm" inputMode="tel" placeholder="휴대폰 번호" aria-label="관리자 휴대폰 번호" required />
+        <input name="phone" className="input py-2 text-sm" inputMode="tel" placeholder="휴대폰 번호" aria-label="관리자 휴대폰 번호" maxLength={13} onInput={onPhoneInput} required />
         <input name="name" className="input py-2 text-sm" placeholder="이름 (처음 쓰는 번호만)" aria-label="관리자 이름" />
         <select name="role" className="input py-2 text-sm" aria-label="권한" defaultValue="admin">
           <option value="admin">관리자</option>

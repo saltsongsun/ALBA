@@ -6,7 +6,7 @@ import { revalidatePath } from 'next/cache'
 import { hashPin } from '@/lib/crypto'
 import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
-import { companyByJoinCode, normJoinCode, setJoinCode } from '@/lib/joinCode'
+import { companyByJoinCode, JOIN_NUDGE_SEC, joinNudgeKey, normJoinCode, setJoinCode } from '@/lib/joinCode'
 import { sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import { createSession, getUser, requireAdmin, requireUser, type AdminUser } from '@/lib/session'
@@ -95,6 +95,26 @@ export async function cancelJoin(companyId: string) {
   must(await db().from('company_join_requests').delete().eq('company_id', companyId).eq('user_id', user.id))
   revalidatePath(WAIT)
   back(WAIT, '신청을 취소했어요.')
+}
+
+/** 승인이 늦을 때: 대표 관리자에게 승인 부탁 알림을 한 번 더 (30분에 한 번 · 내 신청이 있는 회사만) */
+export async function nudgeJoin(companyId: string) {
+  const user = await requireUser(WAIT)
+  if (!isUuid(companyId)) return
+  const [{ data: req }, { data: co }] = await Promise.all([
+    db().from('company_join_requests').select('created_at').eq('company_id', companyId).eq('user_id', user.id).maybeSingle(),
+    db().from('companies').select('company_name').eq('id', companyId).maybeSingle(),
+  ])
+  if (!req || !co) back(WAIT, '신청을 찾을 수 없어요. 이미 처리됐을 수 있어요.')
+  // 신청할 때도 알림이 갔으니 신청 뒤 30분 동안은 다시 알리지 않음
+  const asked = Date.parse((req as { created_at: string }).created_at)
+  if (Date.now() - asked < JOIN_NUDGE_SEC * 1000 || (await overLimit(joinNudgeKey(user.id, companyId), 1, JOIN_NUDGE_SEC))) {
+    back(WAIT, '방금 알렸어요. 30분 뒤에 다시 알릴 수 있어요.')
+  }
+  const name = (co as { company_name: string }).company_name
+  after(() => tellOwners(companyId, '🧑‍💼 관리자 승인을 기다려요', `${user.name}님이 ${name} 관리자 승인을 기다리고 있어요. 회사 설정에서 승인해 주세요.`))
+  revalidatePath(WAIT)
+  back(WAIT, '대표 관리자에게 다시 알렸어요.')
 }
 
 /** 대표 관리자(또는 최고 관리자)만: 관리자 승인·거절, 코드 바꾸기, 관리자 빼기 */
