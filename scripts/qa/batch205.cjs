@@ -67,6 +67,8 @@ const brn = () => { const d = [1, 2, 3, 4, 5, 6, 7, 8, 9]; const w = [1, 3, 7, 1
   // 부드럽게 옮기는 중일 수 있어 4초까지 기다림 (정해진 0.9초만 기다리면 테스트를 한꺼번에 돌려 느릴 때 아직 움직이는 중이라 실패하던 것 · 맨 위로 되돌려지면 여전히 실패)
   const inView = await p.waitForFunction(() => { const el = document.querySelector('[data-settings-next]'); if (!el) return false; const r = el.getBoundingClientRect(); return r.top >= 56 && r.bottom <= innerHeight }, null, { timeout: 4000 }).then(() => true, () => false)
   ok('카드가 화면 안으로 옮겨져 보임 · 톡 나타남', inView && ((await next.getAttribute('class')) ?? '').includes('animate-pop'))
+  // 크기를 재기 전에 '톡' 움직임(0.9배 → 1배)이 끝나길 기다림 (움직이는 중에 재면 버튼 높이가 작게 잡혀 실패하던 것)
+  await next.evaluate((el) => Promise.all(el.getAnimations({ subtree: true }).map((x) => x.finished.catch(() => {})))).catch(() => {})
   ok('한 줄씩 (제목 · 안내) · 버튼 40px 이상 · 옆으로 안 밀림', await next.evaluate((el) => { const b = el.querySelector('b').getBoundingClientRect(), s = el.querySelector('b + span').getBoundingClientRect(), a = el.querySelector('a').getBoundingClientRect(); return b.height < 24 && s.height < 20 && a.height >= 40 && document.scrollingElement.scrollWidth <= innerWidth + 1 }))
   ok("'첫 공고 올리기 →' → 공고 등록", (await next.locator('a').getAttribute('href')) === '/admin/jobs/new')
   if (SHOTS) await p.screenshot({ path: `${SHOTS}/settings-next-partial.png` }).catch(() => {})
