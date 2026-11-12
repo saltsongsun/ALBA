@@ -415,7 +415,8 @@ function RrnFields({ note }: { note: string }) {
  */
 function PinFields() {
   const ref = useRef<HTMLDivElement>(null)
-  const [hint, setHint] = useState<{ ok: boolean; text: string } | null>(null)
+  // count: 아직 6자리를 다 쓰지 않음 (회색 'n/6자리') · 가입을 눌렀을 때 모자라면 주황으로 바뀌고 그 칸으로
+  const [hint, setHint] = useState<{ ok: boolean; text: string; count?: boolean } | null>(null)
   useEffect(() => {
     const form = ref.current?.closest('form')
     if (!form) return
@@ -426,7 +427,9 @@ function PinFields() {
     const check = () => {
       const pin = val('pin')
       const pin2 = val('pin2')
-      if (pin.length < 6) return setHint(null)
+      if (pin.length === 0) return setHint(null)
+      // 쓰는 중: 몇 자리 썼는지 (이용 기록: 6자리가 안 된 채 가입을 눌러 '숫자 6자리로 정해 주세요'를 받는 사람이 있었음)
+      if (pin.length < 6) return setHint({ ok: true, count: true, text: `숫자 6자리 · 지금 ${pin.length}자리` })
       const phone = val('phone')
       const births = birthCandidates(val('rrn1'), val('rrn2'))
       const weak = (births.length ? births : [null]).map((b) => weakPin(pin, { birthDate: b, phone: phone.length >= 10 ? phone : null })).find(Boolean)
@@ -434,8 +437,31 @@ function PinFields() {
       if (pin2.length === 6 && pin2 !== pin) return setHint({ ok: false, text: '비밀번호 확인이 달라요. 같은 번호를 한 번 더 넣어 주세요.' })
       setHint({ ok: true, text: pin2.length === 6 ? '쓸 수 있는 비밀번호예요 · 확인도 같아요' : '쓸 수 있는 비밀번호예요' })
     }
+    // 가입을 눌렀을 때: 6자리가 안 되거나 확인이 다르면 보내기 전에 그 칸으로 (서버까지 갔다 오지 않게)
+    const onSubmit = (e: SubmitEvent) => {
+      if (e.defaultPrevented) return // 위쪽 칸(사진·주민번호)이 먼저 멈춰 세웠으면 그쪽부터
+      const photo = form.elements.namedItem('photo')
+      if (photo instanceof HTMLInputElement && !photo.value && form.querySelector('[data-photo-field]')) return
+      const pin = val('pin')
+      const pin2 = val('pin2')
+      const stop = (text: string, at: 'pin' | 'pin2') => {
+        e.preventDefault()
+        setHint({ ok: false, text })
+        const el = form.elements.namedItem(at)
+        if (el instanceof HTMLInputElement) {
+          el.focus({ preventScroll: true })
+          el.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
+        }
+      }
+      if (pin.length > 0 && pin.length < 6) return stop(`비밀번호는 숫자 6자리예요 · 지금 ${pin.length}자리`, 'pin')
+      if (pin.length === 6 && pin2.length > 0 && pin2 !== pin) return stop('비밀번호 확인이 달라요. 같은 번호를 한 번 더 넣어 주세요.', 'pin2')
+    }
     form.addEventListener('input', check)
-    return () => form.removeEventListener('input', check)
+    form.addEventListener('submit', onSubmit)
+    return () => {
+      form.removeEventListener('input', check)
+      form.removeEventListener('submit', onSubmit)
+    }
   }, [])
   return (
     <div ref={ref} className="space-y-1.5">
@@ -468,8 +494,13 @@ function PinFields() {
           <PinReveal names={['pin', 'pin2']} />
         </div>
       </div>
-      <p id="pin-hint" aria-live="polite" data-pin-hint={hint ? (hint.ok ? 'ok' : 'weak') : 'rule'} className={`text-xs ${hint ? (hint.ok ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700') : 'text-mute'}`}>
-        {hint ? `${hint.ok ? '✓ ' : ''}${hint.text}` : '생년월일·휴대폰 번호·123456 같은 번호는 안 돼요'}
+      <p
+        id="pin-hint"
+        aria-live="polite"
+        data-pin-hint={hint ? (hint.count ? 'count' : hint.ok ? 'ok' : 'weak') : 'rule'}
+        className={`text-xs ${hint ? (hint.count ? 'text-sub tabular-nums' : hint.ok ? 'font-semibold text-emerald-700' : 'font-semibold text-amber-700') : 'text-mute'}`}
+      >
+        {hint ? `${hint.ok && !hint.count ? '✓ ' : ''}${hint.text}` : '생년월일·휴대폰 번호·123456 같은 번호는 안 돼요'}
       </p>
     </div>
   )

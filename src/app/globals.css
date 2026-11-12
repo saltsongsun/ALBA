@@ -33,6 +33,7 @@
   --animate-slide-down: slide-down 0.34s var(--ease-spring) both;
   --animate-float: float 3.2s ease-in-out infinite;
   --animate-bump: bump 0.7s var(--ease-spring);
+  --animate-hop: hop 0.3s var(--ease-spring);
   --animate-grow: grow 0.7s var(--ease-spring) 0.15s both;
   --animate-grow-up: grow-up 0.7s var(--ease-spring) 0.15s both;
   --animate-heart: heart 0.8s var(--ease-spring) both;
@@ -111,6 +112,12 @@
 @keyframes float {
   50% {
     transform: translateY(-6px);
+  }
+}
+/* 병아리를 누르면 톡 뛰어오름 (0.3초) */
+@keyframes hop {
+  40% {
+    transform: translateY(-5px) scale(1.06);
   }
 }
 @keyframes bump {

@@ -13,6 +13,23 @@ const SEEN = 'xp-level-seen'
  */
 export default function LevelCard({ s }: { s: XpState }) {
   const [up, setUp] = useState(false)
+  // 병아리를 누르면 톡 뛰고 말풍선 한마디 (이용 기록: 병아리 그림을 여러 번 누름 — 눌러도 반응이 없었음)
+  const [say, setSay] = useState<{ n: number; text: string } | null>(null)
+  const lines = [
+    '삐약! 👋',
+    s.toNext > 0 ? `근무 ${s.shiftsToNext}번 더 하면 Lv.${s.level + 1}!` : '최고 레벨이에요 👑',
+    '오늘도 화이팅!',
+    '근무 끝나면 종료 꼭 눌러 줘요',
+  ]
+  const tap = () => setSay((p) => {
+    const n = (p?.n ?? -1) + 1
+    return { n, text: lines[n % lines.length] }
+  })
+  useEffect(() => {
+    if (!say) return
+    const t = setTimeout(() => setSay(null), 1800)
+    return () => clearTimeout(t)
+  }, [say])
   useEffect(() => {
     try {
       const prev = Number(localStorage.getItem(SEEN) ?? 0)
@@ -29,11 +46,33 @@ export default function LevelCard({ s }: { s: XpState }) {
   return (
     <section className="card relative p-0" data-xp-card data-level={s.level}>
       <div className="flex items-center gap-3.5 px-4 pt-3.5 pb-3">
-        {/* 둥근 바탕 안에 병아리만 (스티커 위쪽 글씨는 살짝 확대하고 위로 올려 잘라냄 · 다섯 단계 스티커 모두 확인) */}
-        <span aria-hidden className={`relative size-14 shrink-0 overflow-hidden rounded-full bg-amber-50 ring-1 ring-amber-100 ${up ? 'animate-pop' : ''}`}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={s.stage.img} alt="" className="absolute inset-0 size-full -translate-y-[15%] scale-[1.35] object-cover" />
-        </span>
+        {/* 둥근 바탕 안에 병아리만 (스티커 위쪽 글씨는 살짝 확대하고 위로 올려 잘라냄 · 다섯 단계 스티커 모두 확인) · 누르면 톡 뛰고 한마디 */}
+        <button
+          type="button"
+          onClick={tap}
+          aria-label="병아리 (누르면 한마디)"
+          data-xp-chick
+          className="relative size-14 shrink-0 rounded-full transition-transform active:scale-95"
+        >
+          <span
+            key={say?.n ?? 'idle'}
+            className={`absolute inset-0 overflow-hidden rounded-full bg-amber-50 ring-1 ring-amber-100 ${say ? 'animate-hop' : up ? 'animate-pop' : ''}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={s.stage.img} alt="" className="absolute inset-0 size-full -translate-y-[15%] scale-[1.35] object-cover" />
+          </span>
+        </button>
+        {/* 말풍선: 병아리 오른쪽 위 (1.8초 뒤 사라짐) */}
+        {say && (
+          <span
+            key={say.n}
+            role="status"
+            data-xp-say
+            className="pointer-events-none absolute top-1 left-[4.6rem] z-10 max-w-[calc(100%-5.5rem)] animate-pop truncate rounded-2xl rounded-bl-sm bg-ink px-2.5 py-1 text-xs font-semibold text-white shadow-md"
+          >
+            {say.text}
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="flex items-center gap-1.5">
             <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-extrabold text-amber-700 tabular-nums" data-xp-level>

@@ -339,9 +339,10 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                 {list.map(({ job, s, cut, paid, live, worked, first, last, days }) => (
                   <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
+                      {/* 제목·회사·날짜 줄 어디를 눌러도 공고로 (이용 기록: 회사·날짜 줄을 여러 번 누름) — 제목 링크가 왼쪽 칸 전체를 덮음 */}
+                      <div className="relative min-w-0" data-history-info>
                         {/* 제목을 누르면 공고 (내 근무 '오늘의 근무' 카드와 같게) */}
-                        <Link href={`/jobs/${job.id}`} className="block font-bold transition-opacity active:opacity-60" data-history-title>
+                        <Link href={`/jobs/${job.id}`} className="block font-bold transition-opacity after:absolute after:inset-0 after:content-[''] active:opacity-60" data-history-title>
                           {job.title}
                           <span aria-hidden className="whitespace-nowrap text-sm font-semibold text-mute">{'\u00a0'}›</span>
                         </Link>
