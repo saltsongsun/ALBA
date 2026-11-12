@@ -268,7 +268,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const lapsedP: Promise<{ id: string; title: string; n: number }[]> = Promise.resolve(
     db()
       .from('jobs')
-      .select('id, title')
+      .select('id, title, status, end_date')
       .eq('company_id', admin.companyId)
       .in('status', ['open', 'closed'])
       .lt('end_date', today)
@@ -277,7 +277,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .limit(100),
   )
     .then(async (r) => {
-      const jobs = (r.error ? [] : r.data) as { id: string; title: string }[]
+      // (조건을 여기서 한 번 더 — 받은 줄이 조건과 어긋나도 끝난 행사만)
+      const jobs = ((r.error ? [] : r.data) as { id: string; title: string; status: string; end_date: string }[]).filter(
+        (j) => (j.status === 'open' || j.status === 'closed') && j.end_date < today && j.end_date >= monthAgo,
+      )
       if (!jobs.length) return []
       const w = await db()
         .from('applications')
@@ -289,7 +292,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         .limit(2000)
       const by = new Map<string, number>()
       for (const a of (w.error ? [] : w.data) as { job_id: string }[]) by.set(a.job_id, (by.get(a.job_id) ?? 0) + 1)
-      return jobs.filter((j) => by.has(j.id)).map((j) => ({ ...j, n: by.get(j.id)! }))
+      return jobs.filter((j) => by.has(j.id)).map((j) => ({ id: j.id, title: j.title, n: by.get(j.id)! }))
     })
     .catch(() => [])
   // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
