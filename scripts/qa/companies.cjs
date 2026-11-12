@@ -62,7 +62,8 @@ const errs = []
   ok('회사2 → 회사1 근무자: 회원 화면은 열림', await see(a2, '아직 우리 회사에 지원한 적 없는 회원이에요'))
   ok('회사2 → 회사1 근무자: 회사1 공고·계좌·주민번호 안 보임', !(await see(a2, J_TITLE, 1000)) && (await a2.locator('dt', { hasText: /^(주민등록번호|계좌|주소)$/ }).count()) === 0)
   ok('회사2 → 회사1 근무자: 사진 바꾸기 없음 (보기만)', !(await see(a2, '사진 올리기', 800)))
-  ok('회사2 → 회사1 서명 서류 막힘', (await status(a2, `${D}/docs/${DOC_SIGNED}`)) === 404)
+  // 서류 화면도 2026-11-12부터 불러오는 모양을 먼저 보내므로(200) 위 관리자 화면들처럼 내용으로 확인: '찾는 화면이 없어요' + 서류 내용 없음
+  ok('회사2 → 회사1 서명 서류 막힘', await blocked(a2, `${D}/docs/${DOC_SIGNED}`, '서약서'))
   ok('회사2 → 회사1 임금명세서 막힘', (await status(a2, `${D}/print/payslip/${J}/${W}`)) === 404)
   ok('회사2 → 회사1 한 번에 인쇄 막힘', (await status(a2, `${D}/print/payslip/${J}`)) === 404)
   ok('회사2 관리자도 가입 회원 사진은 봄 (공용)', (await a2.request.get(`${D}/photo/${APPLICANT}`)).status() === 200)
