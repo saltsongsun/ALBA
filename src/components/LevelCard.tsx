@@ -62,13 +62,13 @@ export default function LevelCard({ s }: { s: XpState }) {
             <img src={s.stage.img} alt="" className="absolute inset-0 size-full -translate-y-[15%] scale-[1.35] object-cover" />
           </span>
         </button>
-        {/* 말풍선: 병아리 오른쪽 위 (1.8초 뒤 사라짐) */}
+        {/* 말풍선: 병아리 오른쪽 위 · 카드 위쪽 가장자리에 걸쳐 레벨 글자를 가리지 않게 (1.8초 뒤 사라짐) */}
         {say && (
           <span
             key={say.n}
             role="status"
             data-xp-say
-            className="pointer-events-none absolute top-1 left-[4.6rem] z-10 max-w-[calc(100%-5.5rem)] animate-pop truncate rounded-2xl rounded-bl-sm bg-ink px-2.5 py-1 text-xs font-semibold text-white shadow-md"
+            className="pointer-events-none absolute -top-2.5 left-[3.9rem] z-10 max-w-[calc(100%-5.5rem)] animate-pop truncate rounded-2xl rounded-bl-sm bg-ink px-2.5 py-1 text-xs font-semibold text-white shadow-md"
           >
             {say.text}
           </span>
