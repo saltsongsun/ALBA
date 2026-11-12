@@ -692,3 +692,41 @@ export function WeeklySkeleton() {
     </div>
   )
 }
+
+/** 근무자 한 사람 (관리자): '← 근무자 목록' · 사진·이름·배지 카드 · 정보 줄(휴대폰·생년월일·주소·계좌) · 접힌 칸들 — 일반 카드 모양 대신 */
+export function WorkerDetailSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="근무자 불러오는 중" className="skeleton space-y-4" data-skeleton="worker">
+      <div className={`h-4 w-24 ${bar}`} />
+      <div className="card space-y-4">
+        <div className="flex items-center gap-4">
+          <div className="size-24 shrink-0 rounded-full bg-line/60" />
+          <div className="flex-1 space-y-2.5">
+            <div className={`h-6 w-28 ${bar}`} />
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="h-5 w-12 rounded-full bg-line/50" />
+              ))}
+            </div>
+            <div className="h-8 w-24 rounded-xl bg-line/50" />
+          </div>
+        </div>
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="flex items-center gap-4">
+            <div className={`h-4 w-16 shrink-0 ${bar}`} />
+            <div className={`h-4 w-32 ${bar}`} />
+          </div>
+        ))}
+      </div>
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="card flex items-center justify-between">
+          <div className="space-y-2">
+            <div className={`h-5 w-20 ${bar}`} />
+            <div className={`h-3.5 w-36 ${bar}`} />
+          </div>
+          <div className="size-5 rounded bg-line/50" />
+        </div>
+      ))}
+    </div>
+  )
+}

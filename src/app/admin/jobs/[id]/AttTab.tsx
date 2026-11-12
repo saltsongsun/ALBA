@@ -14,7 +14,7 @@ import ShiftChange from '@/components/ShiftChange'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { phoneFmt, won } from '@/lib/format'
-import { calcDay, OT_ASK_MIN, shiftOf, workOver } from '@/lib/pay'
+import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
 import { DISMISS_NOTE, DISMISS_REASONS, FULL_TIME_MARK, isFullTimeAsk, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
 import type { Attendance, Job, ShiftChange as Change } from '@/lib/types'
@@ -152,6 +152,8 @@ export default async function AttTab({
   const today = kstDate()
   // 이날 근무 시작 시각이 지났는지 (미출근자 비상연락처를 눈에 띄게)
   const started = date < today || (date === today && Date.now() >= kstAt(date, dayShift.start).getTime())
+  // 이날 근무 시간까지 다 지났는지 (지난 날 · 오늘 종료 시각 뒤): 미출근자에게 '도착하면 근무 시작'은 늦었으니 '근무했다면 알려 주세요'로
+  const dayOver = date < today || (date === today && Date.now() >= scheduledEnd({ start_time: dayShift.start, end_time: dayShift.end }, date).getTime())
   // 시작 시각 전(오늘 시작 전·앞으로의 날)은 '미출근'이 아니라 '출근 전' (공고 화면 큰 버튼과 같게 · 사용자 지적 2026-11-07)
   const notYet = !started
   // 날짜별 확정 인원 → 모집 인원보다 모자란 날 (지난 날은 빼고)
@@ -347,15 +349,20 @@ export default async function AttTab({
           {started && absent.length > 0 && (
             <GroupContact
               copy={false}
-              className="chip-primary"
+              className={dayOver ? 'chip' : 'chip-primary'}
               phones={absent.map((u) => users.get(u)?.phone)}
-              label={`미출근 ${absent.length}명 문자`}
-              body={`[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`}
+              label={dayOver ? `기록 없음 ${absent.length}명 문자` : `미출근 ${absent.length}명 문자`}
+              body={
+                dayOver
+                  ? `[${job.title}] ${fmtDate(date)} 근무의 출퇴근 기록이 없어요. 근무하셨다면 이 문자로 알려 주세요.`
+                  : `[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`
+              }
             />
           )}
           {/* 앱 문의함 + 휴대폰 알림으로 한 번에 (두 번 눌러 보냄). 늦는다고 알렸거나 출근 확인을 요청한 사람은 빼고
               문의 채팅에 근무 시작·종료 버튼이 함께 가서 근무자가 채팅에서 바로 누름 · 알림을 누르면 근무 버튼으로 */}
-          {started && nudgeable > 0 && (
+          {/* 근무 시간이 다 지난 날엔 안 보냄 (이미 끝난 근무에 '근무 시작'을 누르라고 하지 않게) */}
+          {started && !dayOver && nudgeable > 0 && (
             <form action={nudgeWorkers.bind(null, job.id, 'clockin', date)} className="shrink-0">
               <ConfirmSubmit className="chip" confirmText={`${nudgeable}명에게 근무 시작 버튼을 보낼까요?`}>
                 미출근 {nudgeable}명 · 근무 시작 버튼
