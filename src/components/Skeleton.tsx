@@ -763,3 +763,24 @@ export function MeSkeleton() {
     </div>
   )
 }
+
+/** 긴급 투입 QR: '← 출퇴근' · 가운데 카드(제목 · 일정 · 큰 정사각형 QR · 안내 두 줄 · 버튼 둘) — 공고 화면 모양 대신 */
+export function QrSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="QR 불러오는 중" className="skeleton space-y-4" data-skeleton="qr">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className="card mx-auto flex max-w-md flex-col items-center gap-3">
+        <div className={`h-4 w-24 ${bar}`} />
+        <div className={`h-6 w-3/4 ${bar}`} />
+        <div className={`h-4 w-1/2 ${bar}`} />
+        <div className="aspect-square w-full max-w-72 rounded-2xl bg-line/50" />
+        <div className={`h-4 w-5/6 ${bar}`} />
+        <div className={`h-3.5 w-2/3 ${bar}`} />
+        <div className="flex gap-2">
+          <div className="h-10 w-24 rounded-xl bg-line/50" />
+          <div className="h-10 w-24 rounded-xl bg-line/50" />
+        </div>
+      </div>
+    </div>
+  )
+}

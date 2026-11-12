@@ -360,10 +360,22 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const lapsedJobs = await lapsedP
   const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
   const absentBy: Record<string, number> = {}
+  const absentIds: Record<string, string[]> = {}
   for (const a of todayApps) {
     if (a.available_dates && !a.available_dates.includes(today)) continue
-    if (!arrived.has(`${a.job_id}|${a.user_id}`)) absentBy[a.job_id] = (absentBy[a.job_id] ?? 0) + 1
+    if (!arrived.has(`${a.job_id}|${a.user_id}`)) {
+      absentBy[a.job_id] = (absentBy[a.job_id] ?? 0) + 1
+      ;(absentIds[a.job_id] ??= []).push(a.user_id)
+    }
   }
+  // 시작했는데(근무 시간 안) 아직 출근 기록이 없는 사람: 이름·번호 (대시보드에서 바로 전화 · 공고당 3명까지)
+  const callJobs = todayJobs.filter((j) => started(j) && !workOver(j, today) && (absentIds[j.id]?.length ?? 0) > 0)
+  const callIds = [...new Set(callJobs.flatMap((j) => absentIds[j.id].slice(0, 3)))]
+  const callUsers = new Map(
+    callIds.length
+      ? ((((await db().from('users').select('id, name, phone').in('id', callIds)).data ?? []) as { id: string; name: string; phone: string | null }[]).map((u) => [u.id, u]))
+      : [],
+  )
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
     .map((g) => pendingFix(g, today))
     .filter((m) => m !== null)
@@ -1088,6 +1100,31 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 </p>
                 <SlotBar value={workingBy[j.id] ?? 0} max={counts[j.id] ?? 0} color="bg-emerald-500" className="mt-2" />
                 </Link>
+                {/* 시작했는데 아직 안 온 사람: 이름을 누르면 바로 전화 (출퇴근 탭까지 가지 않게) */}
+                {callJobs.includes(j) && (
+                  <div className="flex flex-wrap items-center gap-1.5" data-absent-call>
+                    <span className="text-xs font-semibold text-rose-600">미출근</span>
+                    {absentIds[j.id].slice(0, 3).map((id, i) => {
+                      const u = callUsers.get(id)
+                      return u?.phone ? (
+                        <a
+                          key={id}
+                          href={`tel:${u.phone}`}
+                          className="chip animate-pop gap-1 py-1 text-xs"
+                          style={{ animationDelay: `${i * 40}ms` }}
+                          aria-label={`${u.name}에게 전화`}
+                        >
+                          <Icon name="phone" className="text-emerald-600" /> {u.name}
+                        </a>
+                      ) : null
+                    })}
+                    {absentIds[j.id].length > 3 && (
+                      <Link href={`/admin/jobs/${j.id}?tab=att&date=${today}`} className="text-xs font-semibold text-brand-600">
+                        외 {absentIds[j.id].length - 3}명 →
+                      </Link>
+                    )}
+                  </div>
+                )}
                 {/* 지금 할 일 큰 버튼 (출석 체크 · 오늘 근무 마무리 · 행사 종료하기) */}
                 <JobActions job={j} today={today} working={workingBy[j.id] ?? 0} compact />
               </div>
