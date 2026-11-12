@@ -233,25 +233,58 @@ async function companyNow(companyId: string, today: string, tomorrow: string): P
 }
 
 /**
+ * 끝난 행사(지난 30일)인데 결과를 못 들은 대기 지원자 (공고별 · 이 회사만 · 보류한 사람은 빼고).
+ * 끝난 행사는 '확정 대기'에 안 나와 잊기 쉬움 → 대시보드 '확인할 일'·다른 회사 안내에서 알려 줌
+ */
+export async function lapsedWaiting(companyId: string, today: string): Promise<{ id: string; title: string; n: number }[]> {
+  const monthAgo = kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) - 30 * 86_400_000))
+  const r = await db()
+    .from('jobs')
+    .select('id, title, status, end_date')
+    .eq('company_id', companyId)
+    .in('status', ['open', 'closed'])
+    .lt('end_date', today)
+    .gte('end_date', monthAgo)
+    .order('end_date', { ascending: false })
+    .limit(100)
+  // (조건을 여기서 한 번 더 — 받은 줄이 조건과 어긋나도 끝난 행사만)
+  const jobs = ((r.error ? [] : r.data) as { id: string; title: string; status: string; end_date: string }[]).filter(
+    (j) => (j.status === 'open' || j.status === 'closed') && j.end_date < today && j.end_date >= monthAgo,
+  )
+  if (!jobs.length) return []
+  const w = await db().from('applications').select('job_id').eq('company_id', companyId).in('job_id', jobs.map((j) => j.id)).eq('status', 'applied').is('held_at', null).limit(2000)
+  const by = new Map<string, number>()
+  for (const a of (w.error ? [] : w.data) as { job_id: string }[]) by.set(a.job_id, (by.get(a.job_id) ?? 0) + 1)
+  return jobs.filter((j) => by.has(j.id)).map((j) => ({ id: j.id, title: j.title, n: by.get(j.id)! }))
+}
+
+/**
  * 여러 회사를 맡은 관리자: 지금 보는 회사 말고 다른 회사에 쌓인 일 — 새 문의(n) + 확정을 기다리는 지원자(waiting)
- * + 오늘 진행하는 행사(today) · 내일 시작하는 행사(tomorrow).
+ * + 오늘 진행하는 행사(today) · 내일 시작하는 행사(tomorrow) + 끝난 행사인데 결과를 못 들은 대기 지원자(lapsed).
  * 회사는 이 관리자가 속한 곳(companies)만 봄 · 12곳까지 · 아무것도 없으면 뺌 (대시보드 안내·회사 고르기 표시)
  */
 export async function otherCompaniesTodo(
   companies: { id: string; name: string }[],
   currentId: string,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number }[]> {
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; lapsed: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, now] = await Promise.all([unreadForAdmins(c.id).catch(() => 0), companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0 }))])
-      return { id: c.id, name: c.name, n, ...now }
+      const [n, now, lapsed] = await Promise.all([
+        unreadForAdmins(c.id).catch(() => 0),
+        companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0 })),
+        lapsedWaiting(c.id, today).then(
+          (l) => l.reduce((t, j) => t + j.n, 0),
+          () => 0,
+        ),
+      ])
+      return { id: c.id, name: c.name, n, ...now, lapsed }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0)
 }
 
 /**

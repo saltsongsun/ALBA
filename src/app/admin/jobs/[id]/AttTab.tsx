@@ -22,6 +22,7 @@ import type { AppRow, WorkerLite } from './page'
 import { EMERGENCY_MEMO } from '@/lib/emergency'
 import { staffByDay } from '@/lib/staffing'
 import { headcountTbd } from '@/lib/jobFields'
+import KeepChipInView from '@/components/KeepChipInView'
 
 export default async function AttTab({
   job,
@@ -195,6 +196,7 @@ export default async function AttTab({
             <Link
               key={d}
               href={`/admin/jobs/${job.id}?tab=att&date=${d}`}
+              data-chip-on={d === date ? '' : undefined}
               className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
                 d === date ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
               }`}
@@ -205,6 +207,8 @@ export default async function AttTab({
             </Link>
           )
         })}
+        {/* 고른 날짜가 줄 밖에 숨어 있으면 가운데로 */}
+        {dates.length > 1 && <KeepChipInView on={date} />}
       </div>
 
       {/* 근무시간 변경·퇴근 연장 (근무자 동의) */}

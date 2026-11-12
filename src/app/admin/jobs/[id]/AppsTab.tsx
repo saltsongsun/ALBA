@@ -26,6 +26,7 @@ import type { AppRow } from './page'
 import { MEMBER_TYPES } from '@/lib/members'
 import { careerText } from '@/lib/careers'
 import SlotBar from '@/components/SlotBar'
+import KeepChipInView from '@/components/KeepChipInView'
 import { won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 
@@ -481,6 +482,7 @@ export default async function AppsTab({
                   key={d}
                   href={`/admin/jobs/${job.id}?tab=apps${sort === 'time' ? '' : `&sort=${sort}`}${on ? '' : `&day=${d}`}`}
                   scroll={false}
+                  data-chip-on={on ? '' : undefined}
                   className={`flex shrink-0 flex-col items-center rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 transition active:scale-95 ${
                     on ? 'bg-ink text-white ring-ink' : short ? 'bg-rose-50 text-rose-700 ring-rose-200' : 'bg-white text-sub ring-line'
                   }`}
@@ -504,6 +506,8 @@ export default async function AppsTab({
                 </Link>
               )
             })}
+            {/* 고른 날짜가 줄 밖에 숨어 있으면 가운데로 */}
+            {shownDay && <KeepChipInView on={shownDay} />}
           </div>
           {shownDay && (
             <p className="flex items-center justify-between gap-2 rounded-xl bg-brand-50 px-3 py-2 text-sm text-brand-700">

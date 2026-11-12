@@ -19,7 +19,7 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { overlapDay } from '@/lib/overlap'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -264,37 +264,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     : Promise.resolve(new Map<string, number>())
   // 끝난 행사(지난 30일)인데 결과를 못 들은 대기 지원자: 공고마다 한 줄 + 바로 '미선발 알림'
   // (끝난 행사는 위 '확정 대기'에 안 나와 잊기 쉬움 → 지원자는 계속 기다리거나 '확정됐나요?' 문의 · 보류한 사람은 빼고)
-  const monthAgo = kstDate(new Date(Date.now() - 30 * 86_400_000))
-  const lapsedP: Promise<{ id: string; title: string; n: number }[]> = Promise.resolve(
-    db()
-      .from('jobs')
-      .select('id, title, status, end_date')
-      .eq('company_id', admin.companyId)
-      .in('status', ['open', 'closed'])
-      .lt('end_date', today)
-      .gte('end_date', monthAgo)
-      .order('end_date', { ascending: false })
-      .limit(100),
-  )
-    .then(async (r) => {
-      // (조건을 여기서 한 번 더 — 받은 줄이 조건과 어긋나도 끝난 행사만)
-      const jobs = ((r.error ? [] : r.data) as { id: string; title: string; status: string; end_date: string }[]).filter(
-        (j) => (j.status === 'open' || j.status === 'closed') && j.end_date < today && j.end_date >= monthAgo,
-      )
-      if (!jobs.length) return []
-      const w = await db()
-        .from('applications')
-        .select('job_id')
-        .eq('company_id', admin.companyId)
-        .in('job_id', jobs.map((j) => j.id))
-        .eq('status', 'applied')
-        .is('held_at', null)
-        .limit(2000)
-      const by = new Map<string, number>()
-      for (const a of (w.error ? [] : w.data) as { job_id: string }[]) by.set(a.job_id, (by.get(a.job_id) ?? 0) + 1)
-      return jobs.filter((j) => by.has(j.id)).map((j) => ({ id: j.id, title: j.title, n: by.get(j.id)! }))
-    })
-    .catch(() => [])
+  const lapsedP = lapsedWaiting(admin.companyId, today).catch(() => [] as { id: string; title: string; n: number }[])
   // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
   todayP.catch(() => {})
   const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
@@ -860,7 +830,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
           </span>
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany} className="max-w-full">
@@ -876,6 +846,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 {c.waiting > 0 && (
                   <span className="shrink-0 whitespace-nowrap" data-other-waiting>
                     대기 <b className="text-amber-600">{c.waiting}</b>
+                  </span>
+                )}
+                {/* 그 회사의 끝난 행사에서 결과를 못 들은 대기 지원자 (그 회사 대시보드 '확인할 일'에서 바로 알림) */}
+                {c.lapsed > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-lapsed>
+                    결과 안 알림 <b className="text-sub">{c.lapsed}</b>
                   </span>
                 )}
                 {/* 그 회사에서 오늘 진행하는 행사 · (오늘 것이 없으면) 내일 시작하는 행사 — 회사를 바꿔 보지 않아도 놓치지 않게 */}

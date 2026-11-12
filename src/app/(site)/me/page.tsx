@@ -378,23 +378,29 @@ export default async function MePage(props: PageProps<'/me'>) {
       : null
   // 확정 대기 (지원하고 결과를 기다리는 공고). 오늘·다음 근무가 없으면 이 칸이 가장 궁금한 것이라 '오늘의 근무' 위로 올림
   // 곧 시작(하루 안)인데 아직 확정 전이면: 그 줄에서 바로 담당자에게 문의 (확정된 줄 알고 가거나, 안 된 줄 알고 안 가는 일을 막음)
-  const waitingFirst = todayApps.length === 0 && !nextApp && waiting.length > 0
+  // 마지막 날 근무 시간까지 끝났는데 확정되지 않은 지원 (오늘 끝난 행사 · 밤을 넘기는 근무는 끝 시각이 다음 날):
+  // '지원완료'로 계속 기다리지 않게 '행사가 끝나 확정되지 않았어요' · 맨 위로 올리지 않고 아래로
+  const endMsOf = (a: AppWithJob) => kstAt(a.job.end_date, a.job.end_time).getTime() + (a.job.end_time <= a.job.start_time ? 86_400_000 : 0)
+  const lapsedApp = (a: AppWithJob) => a.job.status !== 'cancelled' && Date.now() >= endMsOf(a)
+  const waitingLive = waiting.filter((a) => !lapsedApp(a))
+  const waitingRows = [...waitingLive, ...waiting.filter(lapsedApp)]
+  const waitingFirst = todayApps.length === 0 && !nextApp && waitingLive.length > 0
   const soonMs = Date.now() + 24 * 3600_000
   const waitingSection = waiting.length > 0 && (
     <section data-waiting={waitingFirst ? 'first' : 'below'}>
-      <h2 className="section-title">확정 대기</h2>
+      <h2 className="section-title">{waitingLive.length ? '확정 대기' : '지원 결과'}</h2>
       <div className="stagger space-y-2">
-        {waiting.map((a, i) => {
+        {waitingRows.map((a, i) => {
           const day = (a.available_dates ?? []).filter((d) => d >= today).sort()[0] ?? (a.job.start_date >= today ? a.job.start_date : today)
           const startMs = kstAt(day, a.job.start_time).getTime()
-          // 마지막 날 근무 시간까지 끝났으면 물어볼 것이 없음 (밤을 넘기는 근무는 끝 시각이 다음 날)
-          const endMs = kstAt(a.job.end_date, a.job.end_time).getTime() + (a.job.end_time <= a.job.start_time ? 86_400_000 : 0)
-          const soon = a.job.status !== 'cancelled' && startMs <= soonMs && Date.now() < endMs
+          // 마지막 날 근무 시간까지 끝났으면 물어볼 것이 없음
+          const lapsed = lapsedApp(a)
+          const soon = a.job.status !== 'cancelled' && startMs <= soonMs && !lapsed
           const started = startMs <= Date.now()
           return (
-            <div key={a.id} className="card-link py-4" data-waiting-app={a.job_id}>
+            <div key={a.id} className="card-link py-4" data-waiting-app={a.job_id} data-waiting-lapsed={lapsed ? '' : undefined}>
               {/* 맨 위로 올라온 첫 지원: 지금 어디까지 왔고 다음에 무엇을 하는지 (지원 ✓ → 확정 → 서명 → 출근) */}
-              {waitingFirst && i === 0 && (
+              {waitingFirst && i === 0 && !lapsed && (
                 <div className="mb-3">
                   <ApplySteps step={2} />
                 </div>
@@ -404,10 +410,18 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <p className="font-bold">{a.job.title}</p>
                   <CompanyName job={a.job} />
                   <p className="text-sm text-sub">{fmtDateRange(a.job.start_date, a.job.end_date)}</p>
-                  {/* 모집이 마감됐으면 결과를 기다리는 중이라고 (계속 지원 중인 줄 알지 않게) */}
-                  {a.job.status === 'closed' && <p className="text-xs font-semibold text-amber-700">모집 마감 · 결과를 곧 알려 드려요</p>}
+                  {/* 모집이 마감됐으면 결과를 기다리는 중이라고 (계속 지원 중인 줄 알지 않게) · 행사가 끝났으면 결과를 바로 */}
+                  {lapsed ? (
+                    <p className="text-xs font-semibold text-sub">행사가 끝나 이번에는 확정되지 않았어요</p>
+                  ) : (
+                    a.job.status === 'closed' && <p className="text-xs font-semibold text-amber-700">모집 마감 · 결과를 곧 알려 드려요</p>
+                  )}
                 </div>
-                <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
+                {lapsed ? (
+                  <span className="badge shrink-0 bg-bg text-mute">미확정</span>
+                ) : (
+                  <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
+                )}
               </Link>
               {soon && (
                 // 줄 전체가 누르는 곳 (글자만 누르게 하면 작아서 빗나감)
