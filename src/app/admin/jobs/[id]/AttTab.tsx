@@ -232,7 +232,8 @@ export default async function AttTab({
           <span>
             {tbd ? (
               <>
-                ⚠️ {fmtDate(date)} <b>아직 확정한 사람이 없어요</b>
+                {/* 짧게 한 줄 (오른쪽 '이날 가능한 대기자 →'와 함께 360px에 들어가게 · 지원자 탭 칩과 같은 말) */}
+                ⚠️ {fmtDate(date)} 확정 <b>0명</b>
               </>
             ) : (
               <>
