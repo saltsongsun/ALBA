@@ -70,7 +70,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     await w.locator('#today-work [data-clock-main]').first().waitFor({ timeout: 15000 }).catch(() => {})
     ok('근무 시간 안: 안내 없음 · 큰 근무 시작', (await w.locator('[data-shift-over]').count()) === 0 && (await visibleMain()) === 1)
     await w.goto(`${D}/`)
-    ok("홈 카드는 그대로 '오늘 근무가 있어요'", await w.getByText('오늘 근무가 있어요').first().waitFor({ timeout: 10000 }).then(() => true, () => false))
+    // 시작 시각이 지났는데 아직 근무 시작 전이면 '근무 시작을 아직 안 눌렀어요' (지났어요가 아님 · 묶음 227)
+    ok("홈 카드: '근무 시작을 아직 안 눌렀어요' ('근무 시간이 지났어요' 아님)", await w.getByText('근무 시작을 아직 안 눌렀어요').first().waitFor({ timeout: 10000 }).then(() => true, () => false))
   }
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

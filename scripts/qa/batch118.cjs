@@ -58,9 +58,10 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
   // ── 4. 출근 전 ── (근무 시간 안에서: 끝난 뒤엔 '오늘 근무 시간이 지났어요' — batch160)
   await rest(`attendance?id=eq.${att.id}`, 'PATCH', { clock_in: null, clock_out: null })
-  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59:00' })
+  // 시작 전으로 (언제 돌려도): 23:58 시작 → 홈 카드는 '오늘 근무가 있어요' 대신 시작까지 남은 시간 (묶음 227)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_time: '23:58:00', end_time: '23:59:00' })
   await open()
-  ok("출근 전: '오늘 근무가 있어요' · '출퇴근 →'", (await hero.getAttribute('data-today-state')) === 'before' && (await label()) === '오늘 근무가 있어요' && (await hero.innerText()).includes('출퇴근 →'), await label())
+  ok("출근 전: 시작까지 남은 시간 ('n시간 n분 뒤 시작') · '출퇴근 →'", (await hero.getAttribute('data-today-state')) === 'before' && /^(\d+시간( \d+분)?|\d+분) 뒤 시작$|^지금 시작할 시간이에요$/.test(await label()) && (await hero.innerText()).includes('출퇴근 →'), await label())
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
