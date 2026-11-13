@@ -4,7 +4,7 @@ import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
 import Icon, { type IconName } from '@/components/Icon'
 import Link from 'next/link'
-import { workOver } from '@/lib/pay'
+import { startedTodayOnly, workOver } from '@/lib/pay'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
 import { decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting, setJobStatus } from '@/app/actions/admin'
@@ -609,8 +609,21 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   }
   // 마지막 날 근무까지 끝난 행사의 지원자: 확정은 한 번 더 묻고 '끝난 행사' 표시 (밤에 끝난 행사를 확정하는 실수 막기 · 미선발·보류는 그대로)
   const ended = (p: (typeof pendingApps)[number]) => workOver(p.job, p.job.end_date)
+  // 남은 근무일이 오늘뿐인데 오늘 근무가 이미 시작함: 확정하면 바로 와야 해서 한 번 더 묻고 '전화로 확인' 안내 (알림만 믿고 기다리지 않게)
+  // 겹침·인원·주휴처럼 다른 까닭이 있으면 확인 문구는 그쪽 (주황 줄은 따로 보임)
+  const startedNow = (p: (typeof pendingApps)[number]) => !ended(p) && startedTodayOnly(p.job, p.available_dates, today)
   const confirmText = (p: (typeof pendingApps)[number]) =>
-    ended(p) ? '끝난 행사 · 확정?' : clashOf.has(p.id) ? '겹쳐요 · 확정?' : isFull(p.job.id) ? '인원 다 찼어요 · 확정?' : weeklyFor(p) ? '주휴 대상이 돼요 · 확정?' : null
+    ended(p)
+      ? '끝난 행사 · 확정?'
+      : clashOf.has(p.id)
+        ? '겹쳐요 · 확정?'
+        : isFull(p.job.id)
+          ? '인원 다 찼어요 · 확정?'
+          : weeklyFor(p)
+            ? '주휴 대상이 돼요 · 확정?'
+            : startedNow(p)
+              ? '이미 시작 · 확정?'
+              : null
   const WeeklyNote = ({ p }: { p: (typeof pendingApps)[number] }) => {
     const w = weeklyFor(p)
     if (!w) return null
@@ -638,7 +651,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           form={BULK_FORM}
           data-job={p.job.id}
           data-left={headOf.has(p.job.id) ? Math.max(0, headOf.get(p.job.id)! - (counts[p.job.id] ?? 0)) : undefined}
-          data-warn={ended(p) ? '끝난 행사' : clashOf.has(p.id) ? '근무 겹침' : weeklyFor(p) ? '주휴 대상' : undefined}
+          data-warn={ended(p) ? '끝난 행사' : clashOf.has(p.id) ? '근무 겹침' : weeklyFor(p) ? '주휴 대상' : startedNow(p) ? '이미 시작' : undefined}
           className="size-5 accent-brand-600"
         />
       </label>
@@ -679,8 +692,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         </div>
       )}
       <Clash p={p} />
+      {startedNow(p) && (
+        // 오늘 근무가 이미 시작: 확정하면 지금 와야 하니 전화로 먼저 확인 (아래 전화 버튼)
+        <p className="truncate rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200" data-pending-started>
+          ⏰ 오늘 {hhmm(p.job.start_time)}에 이미 시작했어요 · 확정 전에 전화로 확인
+        </p>
+      )}
       <WeeklyNote p={p} />
-      <ContactButtons phone={p.user.phone} name={p.user.name} />
+      <ContactButtons phone={p.user.phone} name={p.user.name} urgent={startedNow(p)} />
       {/* 확인 문구가 뜬 버튼이 넓어짐 (문구가 두 줄로 꺾이지 않게 · 지원자 탭과 같게) */}
       <div className="flex gap-2" data-dash-decide>
         <form action={decideApplication.bind(null, p.id, 'approved', 'dashboard')} className={GROW}>

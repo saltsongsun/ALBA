@@ -21,10 +21,13 @@ export function ContactButtons({
   phone,
   name,
   showNumber = true,
+  urgent = false,
 }: {
   phone: string | null | undefined
   name?: string
   showNumber?: boolean
+  /** 카드가 '전화로 확인'을 권할 때: 전화 버튼을 꽉 찬 초록으로 (다음에 누를 곳이 바로 보이게) · 처음 그릴 때 한 번 톡 */
+  urgent?: boolean
 }) {
   const digits = (phone ?? '').replace(/\D/g, '')
   if (digits.length < 9) return null
@@ -32,7 +35,12 @@ export function ContactButtons({
   return (
     <span className="inline-flex flex-wrap items-center gap-1.5">
       {showNumber && <span className="text-sm whitespace-nowrap text-sub tabular-nums">{phoneFmt(digits)}</span>}
-      <a href={`tel:${digits}`} className="contact-btn bg-emerald-50 text-emerald-700 hover:bg-emerald-100" aria-label={`${who}전화`}>
+      <a
+        href={`tel:${digits}`}
+        className={`contact-btn ${urgent ? 'animate-pop bg-emerald-600 text-white shadow-sm hover:bg-emerald-700' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
+        aria-label={`${who}전화`}
+        data-call-urgent={urgent ? '' : undefined}
+      >
         <PhoneIcon />
         전화
       </a>

@@ -1,5 +1,5 @@
 import type { Attendance, Job } from './types'
-import { kstAt, nightMinutes } from './time'
+import { dateList, kstAt, nightMinutes } from './time'
 
 export const MIN_WAGE_2026 = 10_320
 const DAILY_INCOME_DEDUCTION = 150_000 // 일용근로소득 1일 근로소득공제
@@ -114,6 +114,24 @@ export function scheduledEnd(rule: Pick<Job, 'start_time' | 'end_time'>, workDat
 /** 마지막 날 근무 시간까지 지났는지 (오늘 끝난 근무엔 더 지원받지 않게 · 밤샘 근무는 다음 날 끝나는 시각 기준) */
 export function workOver(rule: Pick<Job, 'start_time' | 'end_time'>, lastDate: string, now = Date.now()): boolean {
   return now >= scheduledEnd(rule, lastDate).getTime()
+}
+
+/**
+ * 확정 대기 지원 가운데 '남은 근무일이 오늘뿐이고 오늘 근무가 이미 시작한(끝나지는 않은)' 것.
+ * 지금 확정하면 바로 와야 해서 알림만 믿지 말고 전화로 확인해야 함 (확정은 한 번 더 묻는 데 씀)
+ */
+export function startedTodayOnly(
+  job: Pick<Job, 'start_date' | 'end_date' | 'start_time' | 'end_time'>,
+  dates: string[] | null,
+  today: string,
+  now = Date.now(),
+): boolean {
+  // 지원 날짜는 지금 공고 날짜 안의 것만 (지원한 뒤 행사 날짜가 바뀌었으면 공고 날짜로)
+  const all = dateList(job.start_date, job.end_date)
+  const mine = dates?.length ? dates.filter((d) => all.includes(d)) : []
+  const left = (mine.length ? mine : all).filter((d) => d >= today)
+  if (left.length !== 1 || left[0] !== today) return false
+  return now >= kstAt(today, job.start_time).getTime() && !workOver(job, today, now)
 }
 
 export function effectiveTimes(a: Pick<Attendance, 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out'>) {

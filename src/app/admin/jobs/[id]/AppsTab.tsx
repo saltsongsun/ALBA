@@ -19,9 +19,9 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
-import { estimateDay, workOver } from '@/lib/pay'
+import { estimateDay, startedTodayOnly, workOver } from '@/lib/pay'
 import { staffByDay, fullDays } from '@/lib/staffing'
-import { ageOn, dateList, fmtDate, kstDate, kstDateTime } from '@/lib/time'
+import { ageOn, dateList, fmtDate, hhmm, kstDate, kstDateTime } from '@/lib/time'
 import type { Job } from '@/lib/types'
 import type { AppRow } from './page'
 import { MEMBER_TYPES } from '@/lib/members'
@@ -252,6 +252,8 @@ export default async function AppsTab({
   const minorWarn = (a: AppRow) => (isMinor(a) && minorLimits.length ? `${minorLimits.join('·')} 근무 제한` : null)
   // 마지막 날 근무까지 끝난 행사: 확정은 한 번 더 (밤에 끝난 행사를 확정하는 실수 막기 · 대시보드와 같게)
   const jobEnded = workOver(job, job.end_date)
+  // 남은 근무일이 오늘뿐인데 오늘 근무가 이미 시작함: 확정은 한 번 더 · '전화로 확인' 안내 (대시보드와 같게)
+  const startedNow = (a: AppRow) => a.status === 'applied' && !jobEnded && startedTodayOnly(job, a.available_dates, today)
   const fullOf = (a: AppRow) => {
     if (jobEnded && a.status === 'applied') return { full: true, text: '끝난 행사 · 확정?' }
     const over = fullDays(a, dates, byDay, job.headcount)
@@ -260,14 +262,18 @@ export default async function AppsTab({
     const weekly = becomes(a)
     // 같은 날 이미 확정된 다른 근무가 있으면 한 번 더 (한 사람을 두 현장에 보내지 않게)
     const clash = a.status === 'applied' && clashOf.has(a.user_id)
+    // 오늘 근무가 이미 시작 (다른 까닭이 있으면 그 문구 · 카드의 주황 줄은 따로 보임)
+    const started = startedNow(a)
     return {
-      full: over.length > 0 || !!warn || weekly || clash,
+      full: over.length > 0 || !!warn || weekly || clash || started,
       text: warn
         ? `연소자 ${minorLimits.join('·')} · 확정?`
         : clash
           ? '겹쳐요 · 확정?'
           : weekly && over.length === 0
           ? '주휴 대상이 돼요 · 확정?'
+          : started && over.length === 0
+          ? '이미 시작 · 확정?'
           : !multi
           ? '인원 다 찼어요 · 확정?'
           : over.length === dates.length || over.length > 2
@@ -321,7 +327,7 @@ export default async function AppsTab({
           name="app"
           value={a.id}
           form={BULK_FORM}
-          data-warn={jobEnded ? '끝난 행사' : minorWarn(a) ? '연소자' : clashOf.has(a.user_id) ? '근무 겹침' : becomes(a) ? '주휴 대상' : undefined}
+          data-warn={jobEnded ? '끝난 행사' : minorWarn(a) ? '연소자' : clashOf.has(a.user_id) ? '근무 겹침' : becomes(a) ? '주휴 대상' : startedNow(a) ? '이미 시작' : undefined}
           className="size-5 accent-brand-600"
         />
       </label>
@@ -362,6 +368,11 @@ export default async function AppsTab({
           {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
         </p>
         <Clash uid={a.user_id} />
+        {startedNow(a) && (
+          <p className="mt-1 truncate rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200" data-app-started>
+            ⏰ 오늘 {hhmm(job.start_time)}에 이미 시작했어요 · 확정 전에 전화로 확인
+          </p>
+        )}
         <Weekly a={a} />
         <Memo uid={a.user_id} />
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
@@ -374,7 +385,7 @@ export default async function AppsTab({
             </p>
           )}
         </div>
-        <ContactButtons phone={a.user.phone} name={a.user.name} />
+        <ContactButtons phone={a.user.phone} name={a.user.name} urgent={startedNow(a)} />
         {a.status === 'approved' && <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />}
         <Decide a={a} wide full={fullOf(a).full} fullText={fullOf(a).text} />
       </div>
