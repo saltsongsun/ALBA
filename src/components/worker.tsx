@@ -102,7 +102,20 @@ function elapsedText(fromIso: string, now: number): string {
  * 출근 전 오늘 근무 카드: 시작까지 남은 시간, 시작 시각이 지났으면 근무 시작을 누르라고 (30초마다 갱신)
  * serverNow로 처음 그려서 서버·브라우저 화면이 같게
  */
-export function StartCountdown({ startAt, endAt, startText, serverNow }: { startAt: string; endAt: string; startText: string; serverNow: number }) {
+export function StartCountdown({
+  startAt,
+  endAt,
+  startText,
+  serverNow,
+  confirmedAt = null,
+}: {
+  startAt: string
+  endAt: string
+  startText: string
+  serverNow: number
+  /** 확정된 때: 시작 시각 뒤에 확정됐으면 '지났어요'(빨강) 대신 차분하게 (늦은 게 아니라 늦게 뽑힌 것) */
+  confirmedAt?: string | null
+}) {
   const [now, setNow] = useState(serverNow)
   useEffect(() => {
     setNow(Date.now())
@@ -116,6 +129,16 @@ export function StartCountdown({ startAt, endAt, startText, serverNow }: { start
   }
   // 3시간보다 많이 남았거나 근무 시간이 다 지났으면 표시 안 함
   if (diff > 180 || now >= Date.parse(endAt)) return null
+  if (diff <= 0 && confirmedAt && Date.parse(confirmedAt) > Date.parse(startAt))
+    return (
+      <p className="flex items-center gap-2.5 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900" data-start-late="after-confirm">
+        <span aria-hidden>⏰</span>
+        <span className="min-w-0">
+          <b className="block font-semibold">{startText} 시작 뒤에 확정됐어요</b>
+          <span className="block text-xs">오는 중이면 도착 시간을 알려 주세요</span>
+        </span>
+      </p>
+    )
   return diff > 0 ? (
     <p className="flex items-center gap-2 rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-semibold text-brand-700">
       <span aria-hidden>⏱</span> {startText} 시작까지 {span(diff)}
@@ -744,6 +767,7 @@ export function LateNotice({
   sent,
   startAt,
   started,
+  stress = false,
 }: {
   jobId: string
   sent: { minutes: number; eta: string; at: string } | null
@@ -751,6 +775,8 @@ export function LateNotice({
   startAt: string
   /** 화면을 그릴 때 이미 시작 시각이 지났는지 */
   started: boolean
+  /** 시작 뒤에 확정돼 지금 오는 중일 사람: 아직 안 알렸으면 '도착 시간 알리기'를 눈에 띄게 (확정 알림이 여기를 가리킴) */
+  stress?: boolean
 }) {
   const [state, action, pending] = useActionState(notifyLate.bind(null, jobId), null)
   const [openForm, setOpenForm] = useState(false)
@@ -774,7 +800,13 @@ export function LateNotice({
         </p>
       )}
       {!openForm ? (
-        <button type="button" onClick={open} className="btn-gray btn-sm w-full" data-late-open={started ? 'started' : 'before'}>
+        <button
+          type="button"
+          onClick={open}
+          className={`btn-sm w-full ${stress && !sent && !done ? 'btn bg-amber-100 text-amber-900 ring-1 ring-amber-300' : 'btn-gray'}`}
+          data-late-open={started ? 'started' : 'before'}
+          data-late-stress={stress && !sent && !done ? '' : undefined}
+        >
           🕒 {started ? (sent || done ? '도착 시간 다시 알리기' : '가는 중이에요 · 도착 시간 알리기') : sent || done ? '늦는 시간 다시 알리기' : '늦을 것 같아요 · 담당자에게 알리기'}
         </button>
       ) : (

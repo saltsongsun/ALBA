@@ -15,7 +15,7 @@ import { withWeeklyPay } from '@/lib/weekly'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
 import { HEADCOUNT_TBD, hiddenFromForm } from '@/lib/jobFields'
-import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, scheduledEnd, settle, shiftOf } from '@/lib/pay'
+import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, scheduledEnd, settle, shiftOf, workOver } from '@/lib/pay'
 import { tellWorkers } from '@/lib/notify'
 import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
@@ -497,21 +497,47 @@ export async function cancelEvent(jobId: string, form: FormData) {
  */
 async function tellApproved(job: Job, userIds: string[], adminId: string | null) {
   if (!userIds.length) return
-  await tellWorkers(userIds, {
-    senderId: adminId,
-    companyId: job.company_id,
-    jobId: job.id,
-    title: job.audience === 'expert' ? '✅ 의뢰가 확정됐어요' : '✅ 근무가 확정됐어요',
-    text: [
-      job.title,
-      `${scheduleSummary(job)}${job.location_name ? ` · ${job.location_name}` : ''}`,
-      job.required_docs.length ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.` : '',
-    ]
-      .filter(Boolean)
-      .join('\n'),
-    url: '/me',
-    tag: `approved-${job.id}`,
-  })
+  // 오늘 근무가 이미 시작한 뒤 확정된 사람 (오늘 날짜에 지원한 사람만): 지금 와 달라는 말 + 도착 시간 알리기를 맨 앞에
+  // (확정 알림만 받고 내일부터인 줄 알거나, 늦는다는 말 없이 오지 않게)
+  const today = kstDate()
+  const startedToday =
+    dateList(job.start_date, job.end_date).includes(today) && Date.now() >= kstAt(today, job.start_time).getTime() && !workOver(job, today)
+  let late = new Set<string>()
+  if (startedToday) {
+    const { data } = await db().from('applications').select('user_id, available_dates').eq('job_id', job.id).in('user_id', userIds)
+    const rows = (data ?? []) as { user_id: string; available_dates: string[] | null }[]
+    // 지원 날짜는 지금 공고 날짜 안의 것만 (지원 뒤 행사 날짜가 바뀌었으면 공고 날짜 전체로 봄 · 대시보드 '이미 시작'과 같게)
+    const all = dateList(job.start_date, job.end_date)
+    late = new Set(
+      rows
+        .filter((r) => {
+          const mine = (r.available_dates ?? []).filter((d) => all.includes(d))
+          return !mine.length || mine.includes(today)
+        })
+        .map((r) => r.user_id),
+    )
+  }
+  const send = (ids: string[], now: boolean) =>
+    ids.length
+      ? tellWorkers(ids, {
+          senderId: adminId,
+          companyId: job.company_id,
+          jobId: job.id,
+          title: job.audience === 'expert' ? '✅ 의뢰가 확정됐어요' : '✅ 근무가 확정됐어요',
+          text: [
+            now ? `⏰ 오늘 근무는 ${hhmm(job.start_time)}에 이미 시작했어요. 아직 현장이 아니면 바로 와 주시고 ‘${myWorkTab(job.audience)}’에서 도착 시간을 알려 주세요.` : '',
+            job.title,
+            `${scheduleSummary(job)}${job.location_name ? ` · ${job.location_name}` : ''}`,
+            job.required_docs.length ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.` : '',
+          ]
+            .filter(Boolean)
+            .join('\n'),
+          url: '/me',
+          tag: `approved-${job.id}`,
+        })
+      : null
+  await send(userIds.filter((u) => late.has(u)), true)
+  await send(userIds.filter((u) => !late.has(u)), false)
 }
 
 /** 미선발 알림: 근무자가 결과를 몰라 계속 기다리거나 "확정됐나요?" 문의하지 않게 (문의함 + 휴대폰 알림) */

@@ -1047,6 +1047,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                         endAt={scheduledEnd(todayShift(job), today).toISOString()}
                         startText={hhmm(todayShift(job).start_time)}
                         serverNow={Date.now()}
+                        confirmedAt={a.decided_at}
                       />}
                       <ClockPanel
                         jobId={job.id}
@@ -1065,6 +1066,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                       sent={lateSent.get(job.id) ?? null}
                       startAt={kstAt(today, job.start_time).toISOString()}
                       started={Date.now() > kstAt(today, job.start_time).getTime()}
+                      // 시작 뒤에 확정된 사람: 확정 알림이 '도착 시간 알리기'를 가리키므로 눈에 띄게
+                      stress={!!a.decided_at && Date.parse(a.decided_at) > kstAt(today, job.start_time).getTime()}
                     />
                   )}
                 </div>
