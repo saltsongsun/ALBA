@@ -137,7 +137,8 @@ const href = (p, sel) => p.locator(sel).first().getAttribute('href', { timeout: 
   const ap = await pg(AP)
   await ap.goto(`${D}${CO}`, { waitUntil: 'networkidle' })
   const at = ((await ap.locator('[data-company-mine]').innerText({ timeout: 8000 }).catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("확정을 기다리는 사람: '내 지원 · 확정 대기 1건'", at === '내 지원 · 확정 대기 1건 내 근무 →', at)
+  // 옆에 '문의' 버튼이 붙어 줄이 좁아져 '확정 대기' → '대기' (묶음 234)
+  ok("확정을 기다리는 사람: '내 지원 · 대기 1건'", at === '내 지원 · 대기 1건 내 근무 →', at)
   // 이 회사에 지원한 적이 없으면 전처럼
   await w.goto(`${D}/?co=${C2}`, { waitUntil: 'networkidle' })
   ok("지원한 적 없는 회사: 전처럼 '내 근무 보기'", (await w.locator('[data-company-mine]').count()) === 0 && (await w.getByRole('link', { name: /님 내 근무 보기 →/ }).count()) === 1)

@@ -100,6 +100,18 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 회사 공고 모음: 이 회사의 지금 공고 가운데 내가 확정된 것 · 확정을 기다리는 것
   const hereApproved = company ? jobs.filter((j) => mine[j.id] === 'approved').length : 0
   const hereWaiting = company ? jobs.filter((j) => mine[j.id] === 'applied').length : 0
+  // 회사 공고 모음: 이 회사 담당자가 보낸 답장 가운데 아직 안 읽은 것 ('문의' 버튼에 숫자로)
+  const coUnread =
+    company && user && hereApproved + hereWaiting > 0
+      ? await db()
+          .from('messages')
+          .select('id', { count: 'exact', head: true })
+          .eq('thread_user_id', user.id)
+          .eq('company_id', company.id)
+          .eq('from_admin', true)
+          .is('read_at', null)
+          .then((r) => r.count ?? 0)
+      : 0
   // 회사 공고 모음: 지금 지원할 수 있는 공고 (모집 중 · 자리 남음 · 오늘 근무가 이미 끝난 공고는 빼고)
   const canApply = company ? jobs.filter((j) => j.status === 'open' && (counts[j.id] ?? 0) < j.headcount && !(j.end_date === today && workOver(j, j.end_date))) : []
   // 확정·지원한 내 일정과 같은 날 같은 시간대인 공고 (지원 버튼을 누르기 전에 목록에서 미리 알게: 두 군데 겹치기 지원 실수 막기)
@@ -323,20 +335,38 @@ export default async function HomePage(props: PageProps<'/'>) {
           </div>
           {user ? (
             hereApproved + hereWaiting > 0 ? (
-              // 이 회사에 이미 지원한 사람: 지금 어디까지 왔는지 (확정 · 확정 대기) 한 줄로
-              <Link href="/me" className="flex items-center justify-between gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm transition active:scale-[0.98]" data-company-mine>
-                <span className="min-w-0 truncate">
-                  <b className="font-semibold">내 지원</b>
-                  {hereApproved > 0 && (
-                    <>
-                      {' · '}
-                      <span className="font-semibold text-emerald-600">확정 {hereApproved}건</span>
-                    </>
+              // 이 회사에 이미 지원한 사람: 지금 어디까지 왔는지 (확정 · 확정 대기) 한 줄로 + 이 회사 담당자에게 바로 문의
+              // (문의는 지원·대화가 있는 회사만 열려서, 지원한 회사에서만 보여 줌)
+              <div className="flex gap-2">
+                <Link href="/me" className="flex min-w-0 flex-1 items-center justify-between gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm transition active:scale-[0.98]" data-company-mine>
+                  <span className="min-w-0 truncate">
+                    <b className="font-semibold">내 지원</b>
+                    {hereApproved > 0 && (
+                      <>
+                        {' · '}
+                        <span className="font-semibold text-emerald-600">확정 {hereApproved}건</span>
+                      </>
+                    )}
+                    {hereWaiting > 0 && ` · 대기 ${hereWaiting}건`}
+                  </span>
+                  <span className="shrink-0 font-bold whitespace-nowrap text-brand-600">내 근무 →</span>
+                </Link>
+                <Link
+                  href={`/me/chat?co=${company.id}`}
+                  className="relative flex shrink-0 items-center gap-1 rounded-xl bg-bg px-3 text-sm font-semibold text-sub transition active:scale-[0.96]"
+                  aria-label={coUnread > 0 ? `${company.company_name}에 문의 · 안 읽은 답장 ${coUnread}개` : `${company.company_name}에 문의`}
+                  data-company-ask={coUnread}
+                >
+                  <Icon name="chat" className="text-brand-600" />
+                  문의
+                  {/* 담당자 답장을 아직 안 읽었으면 숫자가 톡 */}
+                  {coUnread > 0 && (
+                    <span aria-hidden className="absolute -top-1.5 -right-1.5 grid h-5 min-w-5 animate-pop place-items-center rounded-full bg-rose-500 px-1 text-[11px] font-bold text-white tabular-nums">
+                      {coUnread > 9 ? '9+' : coUnread}
+                    </span>
                   )}
-                  {hereWaiting > 0 && ` · 확정 대기 ${hereWaiting}건`}
-                </span>
-                <span className="shrink-0 font-bold whitespace-nowrap text-brand-600">내 근무 →</span>
-              </Link>
+                </Link>
+              </div>
             ) : (
               <Link href="/me" className="btn-gray btn-sm w-full">
                 {user.name}님 내 근무 보기 →
