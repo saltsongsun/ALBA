@@ -77,6 +77,13 @@ async function companyNames(ids: string[]): Promise<Map<string, string>> {
   return new Map(((data ?? []) as { id: string; company_name: string }[]).map((c) => [c.id, c.company_name]))
 }
 
+/** 이 계정을 외주사로 등록해 둔 회사 이름 (같은 휴대폰 번호로 이어진 곳 · 쓰는 중인 외주사만) */
+export async function partnerCompanies(userId: string): Promise<string[]> {
+  const { data } = await db().from('vendors').select('company_id, active').eq('user_id', userId)
+  const ids = ((data ?? []) as { company_id: string; active: boolean }[]).filter((v) => v.active !== false).map((v) => v.company_id)
+  return [...(await companyNames(ids)).values()]
+}
+
 /** 전문가·외주 업체가 받은 견적 요청 (최근 순) */
 export async function partnerQuotes(userId: string): Promise<PartnerQuote[]> {
   const vids = await myVendorIds(userId)

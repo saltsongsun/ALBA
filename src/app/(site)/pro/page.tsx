@@ -6,9 +6,11 @@ import ProMode from '@/components/ProMode'
 import JobCard from '@/components/JobCard'
 import { countApps, JOB_WITH_APP_STATUS, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
-import { won } from '@/lib/format'
 import { MEMBER_TYPES } from '@/lib/members'
-import { partnerPayments, partnerQuotes } from '@/lib/partners'
+import { partnerCompanies, partnerPayments, partnerQuotes } from '@/lib/partners'
+import LiveNumber from '@/components/LiveNumber'
+import { PartnerShareCard } from '@/components/pro'
+import { phoneFmt, won } from '@/lib/format'
 import { getUser } from '@/lib/session'
 import PhotoPrompt from '@/components/PhotoPrompt'
 import PushNudge from '@/components/PushNudge'
@@ -28,7 +30,7 @@ export default async function ProHome(props: PageProps<'/pro'>) {
   const today = kstDate()
   const type = user && user.role !== 'admin' ? user.memberType : null
   const vendor = type === 'vendor'
-  const [jobs, myApps, quotes, pays, photoAt] = await Promise.all([
+  const [jobs, myApps, quotes, pays, photoAt, linked] = await Promise.all([
     vendor
       ? []
       : db()
@@ -58,6 +60,8 @@ export default async function ProHome(props: PageProps<'/pro'>) {
           .maybeSingle()
           .then((r) => (r.data as { photo_at: string | null } | null)?.photo_at ?? null)
       : 'n/a',
+    // 외주 업체: 나를 외주사로 등록해 둔 회사 (없으면 회사에 알려 줄 번호를 보여 줌)
+    vendor && user ? partnerCompanies(user.id) : [],
   ])
   const counts = countApps(jobs, 'approved')
   const mine = new Map(myApps.map((a) => [a.job_id, a.status]))
@@ -109,11 +113,16 @@ export default async function ProHome(props: PageProps<'/pro'>) {
             <div className="mt-4 grid grid-cols-2 gap-2">
               <Link href="/pro/money" className="rounded-2xl bg-white/12 px-4 py-3 backdrop-blur transition active:scale-95">
                 <span className="block text-xs font-semibold text-white/75">답할 견적</span>
-                <span className="text-2xl font-extrabold tabular-nums">{toAnswer.length}건</span>
+                {/* 처음 열 때 0에서 짧게 올라감 ('움직임 줄이기'면 바로) */}
+                <span className="text-2xl font-extrabold">
+                  <LiveNumber value={toAnswer.length} countUp />건
+                </span>
               </Link>
               <Link href="/pro/money#pay" className="rounded-2xl bg-white/12 px-4 py-3 backdrop-blur transition active:scale-95">
                 <span className="block text-xs font-semibold text-white/75">받을 대금</span>
-                <span className="text-lg font-extrabold whitespace-nowrap tabular-nums">{won(unpaidSum)}</span>
+                <span className="text-lg font-extrabold whitespace-nowrap">
+                  <LiveNumber value={unpaidSum} countUp />원
+                </span>
               </Link>
             </div>
           )}
@@ -170,11 +179,21 @@ export default async function ProHome(props: PageProps<'/pro'>) {
         </section>
       )}
 
-      {vendor && toAnswer.length === 0 && (
-        <Empty icon="📄" title="아직 받은 견적 요청이 없어요">
-          회사가 이 번호나 사업자등록번호로 외주사를 등록해 두면 견적 요청이 앱으로 와요.
-        </Empty>
-      )}
+      {/* 답할 견적이 없을 때: 아직 이어진 회사가 없으면 회사에 알려 줄 번호 · 있으면 어느 회사에 등록됐는지 */}
+      {vendor &&
+        user &&
+        toAnswer.length === 0 &&
+        (linked.length === 0 ? (
+          <PartnerShareCard name={user.name} phone={phoneFmt(user.phone)} />
+        ) : (
+          <Empty icon="📄" title="답할 견적 요청이 없어요">
+            <span className="block" data-partner-linked={linked.length}>
+              {linked.length}개 회사에 외주사로 등록돼 있어요 · {linked.slice(0, 3).join(', ')}
+              {linked.length > 3 && ` 외 ${linked.length - 3}곳`}
+            </span>
+            견적을 요청하면 여기와 휴대폰 알림으로 알려 드려요.
+          </Empty>
+        ))}
 
       {user && unpaid.length > 0 && (
         <section>

@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
 import ProMode from '@/components/ProMode'
-import { won, wonReadable } from '@/lib/format'
-import { partnerPayments, partnerQuotes, type PartnerQuote } from '@/lib/partners'
+import { phoneFmt, won, wonReadable } from '@/lib/format'
+import { partnerCompanies, partnerPayments, partnerQuotes, type PartnerQuote } from '@/lib/partners'
+import { PartnerShareCard } from '@/components/pro'
 import { requireUser } from '@/lib/session'
 import { fmtDate, kstDate } from '@/lib/time'
 
@@ -38,6 +39,8 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
   const unpaid = pays.filter((p) => !p.paid_at)
   const paid = pays.filter((p) => p.paid_at)
   const sum = (list: typeof pays) => list.reduce((n, p) => n + p.amount, 0)
+  // 견적·대금이 하나도 없으면: 나를 외주사로 등록해 둔 회사가 있는지 (없으면 회사에 알려 줄 번호를 보여 줌)
+  const linked = allQuotes.length === 0 && allPays.length === 0 ? await partnerCompanies(user.id) : []
   return (
     <div className="space-y-5" data-mode="pro">
       <ProMode />
@@ -70,9 +73,17 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
 
       {quotes.length === 0 && pays.length === 0 ? (
         <div data-pro-money-empty>
-          <Empty icon="📄" title="아직 받은 견적·대금이 없어요">
-            회사가 이 휴대폰 번호(업체는 사업자등록번호)로 외주사를 등록하면 견적 요청이 여기로 와요. 견적이 선정되면 대금도 지급 예정일과 함께 여기에 보여요.
-          </Empty>
+          {linked.length === 0 ? (
+            <PartnerShareCard name={user.name} phone={phoneFmt(user.phone)} title="아직 받은 견적·대금이 없어요" />
+          ) : (
+            <Empty icon="📄" title="아직 받은 견적·대금이 없어요">
+              <span className="block" data-partner-linked={linked.length}>
+                {linked.length}개 회사에 외주사로 등록돼 있어요 · {linked.slice(0, 3).join(', ')}
+                {linked.length > 3 && ` 외 ${linked.length - 3}곳`}
+              </span>
+              견적을 요청하면 여기로 와요. 선정되면 대금도 지급 예정일과 함께 보여요.
+            </Empty>
+          )}
         </div>
       ) : (
       <>
@@ -91,7 +102,7 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
         <h2 className="section-title">📄 견적 요청 {quotes.length > 0 && <span className="text-brand-600">{quotes.length}</span>}</h2>
         {quotes.length === 0 ? (
           <Empty icon="📄" title="받은 견적 요청이 없어요">
-            회사가 이 휴대폰 번호(업체는 사업자등록번호)로 외주사를 등록하면 견적 요청이 여기로 와요.
+            새 견적 요청이 오면 여기와 휴대폰 알림으로 알려 드려요.
           </Empty>
         ) : (
           <div className="card divide-y divide-line py-1">
