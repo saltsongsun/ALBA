@@ -18,6 +18,8 @@ import Flash from '@/components/Flash'
 import { ONLINE_MS, phoneFmt } from '@/lib/format'
 import Presence from '@/components/Presence'
 import SearchInput from '@/components/SearchInput'
+import SortSelect from '@/components/SortSelect'
+import { companyLevels } from '@/lib/xpCompany'
 
 export const metadata: Metadata = { title: '근무자' }
 
@@ -35,7 +37,22 @@ type Row = {
   attendance: { work_date: string }[] | null
   ratings: { score: number }[] | null
   last_seen_at?: string | null
+  // 레벨의 '내 정보 다 채우기' 점수만 봄 (화면에 그리지 않음)
+  emergency_phone?: string | null
+  address?: string | null
+  careers?: unknown
 }
+
+/** 명단 정렬 (사용자 요청 2026-11-13 "명단도 정렬 여러가지로") · 처음은 최근 가입순 */
+const SORTS = [
+  { value: 'new', label: '최근 가입순' },
+  { value: 'level', label: '레벨 높은 순' },
+  { value: 'days', label: '근무 많은 순' },
+  { value: 'recent', label: '최근 근무순' },
+  { value: 'rating', label: '평점 높은 순' },
+  { value: 'name', label: '이름순' },
+] as const
+type SortKey = (typeof SORTS)[number]['value']
 
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const admin = await requireAdmin()
@@ -63,10 +80,21 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const isNew = (u: { created_at: string }) => u.created_at >= newSince
   // 가입 유형으로 거르기: 아르바이트 / 전문가
   const t = isMemberType(sp.t) ? sp.t : null
+  const sort: SortKey = SORTS.find((o) => o.value === sp.s)?.value ?? 'new'
+  // 거르기·검색·정렬을 서로 지우지 않게 주소를 함께 만듦
+  const listHref = (o: { t?: string | null; f?: string | null; q?: string; s?: SortKey }) => {
+    const qs = new URLSearchParams()
+    if (o.t) qs.set('t', o.t)
+    if (o.f) qs.set('f', o.f)
+    if (o.q) qs.set('q', o.q)
+    if (o.s && o.s !== 'new') qs.set('s', o.s)
+    const str = qs.toString()
+    return `/admin/workers${str ? `?${str}` : ''}`
+  }
   let query = db()
     .from('users')
     .select(
-      `id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)${admin.isSuper ? ', last_seen_at' : ''}`,
+      `id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, emergency_phone, address, careers, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)${admin.isSuper ? ', last_seen_at' : ''}`,
     )
     .eq('attendance.company_id', admin.companyId)
     .eq('ratings.company_id', admin.companyId)
@@ -100,10 +128,53 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     .filter((u) => !t || (u.member_type ?? 'worker') === t)
   // 휴대폰 알림을 켰는지 (확정·전날 안내·단체방 알림을 받는지) → 꺼진 사람 표시 · '알림 꺼짐'으로 모아 보기
   const pushOn = await pushEnabledIds(listed.map((u) => u.id))
-  const users = listed
-    .filter((u) => f !== 'nopush' || !pushOn.has(u.id))
-    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+  const shown = listed.filter((u) => f !== 'nopush' || !pushOn.has(u.id))
+  // 근무일수·최근 근무 (이 회사 기록만 · 위 읽기에서 이 회사 출퇴근만 붙여 옴)
+  const stat: Record<string, { days: number; last: string }> = {}
+  for (const u of shown) {
+    for (const a of u.attendance ?? []) {
+      const st = (stat[u.id] ??= { days: 0, last: '' })
+      st.days++
+      if (a.work_date > st.last) st.last = a.work_date
+    }
+  }
+  // 레벨은 아르바이트만 (전문가는 레벨이 없음 · 근무자 본인 화면과 같게)
+  const hasLevel = (u: Row) => (u.member_type ?? 'worker') === 'worker'
+  const avg = (u: Row) => (u.ratings?.length ? u.ratings.reduce((n, r) => n + r.score, 0) / u.ratings.length : -1)
+  const byName = (a: Row, b: Row) => a.name.localeCompare(b.name, 'ko')
+  // 레벨 순이면 거른 사람 전체의 레벨을 먼저 셈 (아니면 화면에 보일 사람만)
+  const levelsAll = sort === 'level' ? await companyLevels(admin.companyId, shown.filter(hasLevel)) : null
+  const lv = (u: Row) => levelsAll?.get(u.id)?.xp ?? -1
+  const users = [...shown]
+    .sort((a, b) =>
+      sort === 'name'
+        ? byName(a, b)
+        : sort === 'level'
+          ? lv(b) - lv(a) || byName(a, b)
+          : sort === 'days'
+            ? (stat[b.id]?.days ?? 0) - (stat[a.id]?.days ?? 0) || byName(a, b)
+            : sort === 'recent'
+              ? (stat[b.id]?.last ?? '').localeCompare(stat[a.id]?.last ?? '') || byName(a, b)
+              : sort === 'rating'
+                ? avg(b) - avg(a) || byName(a, b)
+                : b.created_at.localeCompare(a.created_at),
+    )
     .slice(0, 300)
+  const levels = levelsAll ?? (await companyLevels(admin.companyId, users.filter(hasLevel)))
+  const levelBadge = (u: Row) => {
+    const x = hasLevel(u) ? levels.get(u.id) : null
+    if (!x) return null
+    return (
+      <span
+        className={`badge tabular-nums ${x.level >= 3 ? 'bg-amber-100 text-amber-800' : 'bg-amber-50 text-amber-700'}`}
+        title={`${x.stage.name} · 우리 회사 기록으로 센 레벨`}
+        aria-label={`레벨 ${x.level} ${x.stage.name}`}
+        data-level={x.level}
+      >
+        Lv.{x.level}
+      </span>
+    )
+  }
   // 할 일로 거른 목록(계좌·사진·알림)이면: 우리 회사 지원자에게 한 번에 문자로 요청 (해피워크 전체 회원에게 마구 보내지 않게 우리 회사 지원자만)
   const co = admin.companyName
   const ASK = {
@@ -114,14 +185,6 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const ask = f === 'noaccount' || f === 'nophoto' || f === 'nopush' ? ASK[f] : null
   const askTo = ask ? users.filter((u) => applied.has(u.id) && u.active && u.phone) : []
   const origin = ask && askTo.length > 0 ? await siteOrigin() : ''
-  const stat: Record<string, { days: number; last: string }> = {}
-  for (const u of users) {
-    for (const a of u.attendance ?? []) {
-      const s = (stat[u.id] ??= { days: 0, last: '' })
-      s.days++
-      if (a.work_date > s.last) s.last = a.work_date
-    }
-  }
   const today = kstDate()
 
   const ageBadges = (u: Row) => {
@@ -164,9 +227,14 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
       <RosterOpenBar seconds={rosterLeft} />
       <RosterTabs view="workers" admins={members.length} />
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-extrabold">근무자 {users.length}명</h1>
+        <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
+          <h1 className="text-2xl font-extrabold">근무자 {users.length}명</h1>
+          {/* 정렬: 최근 가입 · 레벨 · 근무 많은 · 최근 근무 · 평점 · 이름 (거르기·검색은 그대로) */}
+          <SortSelect value={sort} options={SORTS.map((o) => ({ value: o.value, label: o.label, href: listHref({ t, f, q, s: o.value }) }))} label="근무자 정렬" />
+        </div>
         <div className="flex w-full gap-2 sm:w-auto">
           <form className="flex min-w-0 flex-1 gap-1 sm:flex-none">
+            {sort !== 'new' && <input type="hidden" name="s" value={sort} />}
             <SearchInput name="q" enterKeyHint="search" defaultValue={q} wrapClassName="min-w-0 flex-1 sm:w-56 sm:flex-none" className="input py-2 text-sm" placeholder="이름 또는 번호 검색" aria-label="근무자 찾기" />
           </form>
           <a href="/admin/export/workers" className="btn-soft btn-sm">
@@ -196,7 +264,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         ).map(([tk, fk, label]) => (
           <Link
             key={label}
-            href={`/admin/workers${tk ? `?t=${tk}` : fk ? `?f=${fk}` : ''}`}
+            href={listHref({ t: tk, f: fk, s: sort })}
             className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold ${t === tk && f === fk ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}
           >
             {label}
@@ -224,6 +292,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                 <Link href={`/admin/workers/${u.id}`} className="text-[17px] font-bold">
                   {u.name}
                 </Link>
+                {levelBadge(u)}
                 {ageBadges(u)}
                 {roleBadges(u)}
               </div>
@@ -245,6 +314,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
           <thead>
             <tr>
               <th>이름</th>
+              <th>레벨</th>
               <th>나이</th>
               <th>연락처</th>
               <th>근무일수</th>
@@ -267,6 +337,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                     {roleBadges(u)}
                   </div>
                 </td>
+                <td className="whitespace-nowrap">{levelBadge(u) ?? '-'}</td>
                 <td>
                   <div className="flex items-center gap-1 whitespace-nowrap">{ageBadges(u) ?? '-'}</div>
                 </td>
