@@ -146,6 +146,8 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 지원할 수 있는 공고를 위에, 오늘 근무가 끝난 공고는 맨 아래 따로 (제목의 숫자는 위쪽만)
   const live = listed.filter((j) => !doneToday(j))
   const done = listed.filter(doneToday)
+  // 볼 공고가 없거나 오늘 근무가 끝난 공고만 남음 (가입 안내를 '미리 가입해 두세요'로)
+  const noLive = jobs.every(doneToday)
   const jobCard = (j: JobWithAppStatus) => (
     <JobCard
       key={j.id}
@@ -576,10 +578,10 @@ export default async function HomePage(props: PageProps<'/'>) {
           <div>
             {/* 공고가 없는 날엔 '마음에 드는 공고가 있나요?'가 맞지 않음 → 미리 가입해 둘 이유를 말함 */}
             <p className="font-bold" data-join-title>
-              {jobs.length === 0 ? '미리 가입해 두세요' : '마음에 드는 공고가 있나요?'}
+              {noLive ? '미리 가입해 두세요' : '마음에 드는 공고가 있나요?'}
             </p>
             <p className="mt-0.5 text-sm text-sub">
-              {jobs.length === 0 ? '새 공고가 올라오면 바로 지원할 수 있어요. 이렇게 진행돼요.' : '가입은 1분이면 끝나요. 지원 뒤 확정되면 이렇게 진행돼요.'}
+              {noLive ? '새 공고가 올라오면 바로 지원할 수 있어요. 이렇게 진행돼요.' : '가입은 1분이면 끝나요. 지원 뒤 확정되면 이렇게 진행돼요.'}
             </p>
           </div>
           <ol className="grid grid-cols-3 gap-1.5 text-center text-xs font-semibold text-sub" data-home-steps>

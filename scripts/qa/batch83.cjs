@@ -52,7 +52,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const ea = a.locator('[data-jobs-empty=active]')
   await ea.waitFor({ timeout: 10000 }).catch(() => {})
   ok("공고를 올려 본 회사: '진행 중인 공고가 없어요' + 지난 공고 복사하기", (await ea.innerText().catch(() => '')).includes('진행 중인 공고가 없어요') && (await ea.locator('a[href="/admin/jobs?tab=past"]').count()) === 1)
-  ok("공고 모음 칸: '단톡방에 올려 두면 새 공고도 여기서 봐요'", (await a.locator('[data-share-card]').innerText()).includes('새 공고도 여기서 봐요'))
+  // 진행 공고가 없으면 링크를 열어도 지원할 공고가 없음 → 그대로 알려 줌 (빈 링크를 올리지 않게 · 묶음 238)
+  ok("공고 모음 칸: '지금 링크엔 지원할 공고가 없어요'", (await a.locator('[data-link-count="0"]').innerText().catch(() => '')).includes('지금 링크엔 지원할 공고가 없어요'))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

@@ -122,7 +122,7 @@ const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
   const ch = await card.evaluate((el) => Math.round(el.getBoundingClientRect().height)).catch(() => 999)
   ok(`공고 모음 링크 칸: 두 줄 (높이 ${ch}px < 90)`, ch < 90)
   ok("'공고 모음 링크' · QR · 공유하기 한 줄", await card.evaluate((el) => { const t = el.querySelector('[data-poster-link]').getBoundingClientRect().top; const s = [...el.querySelectorAll('button, a')].find((x) => x.textContent.includes('공유하기')); return !!s && Math.abs(s.getBoundingClientRect().top - t) < 4 }))
-  ok('안내 한 줄 · 잘리지 않음', await card.locator('span.block').evaluate((el) => el.getClientRects().length === 1 && el.scrollWidth <= el.clientWidth + 1))
+  ok('안내 한 줄 · 잘리지 않음', await card.locator('[data-link-count], span.block').first().evaluate((el) => el.getClientRects().length === 1 && el.scrollWidth <= el.clientWidth + 1))
   if (SHOTS) await card.screenshot({ path: `${SHOTS}/share-card.png` }).catch(() => {})
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

@@ -20,6 +20,9 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
 
 ;(async () => {
+  // 공고는 내일로 (오늘로 두면 저녁에 돌릴 때 근무가 끝난 공고만 남아 '미리 가입해 두세요'가 나와서)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 86400e3).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   const b = await chromium.launch()
   const errs = []
   const pg = async (uid, { push = false } = {}) => {

@@ -62,6 +62,9 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       : 1,
   ])
   const firstTime = everCount === 0
+  // 공고 모음 링크를 열면 근무자에게 지금 보이는 '지원받는' 공고 수 (홈 '모집 중 n개'와 같은 기준:
+  // 모집 중 · 근무자 공고 · 오늘이 마지막 날이고 근무까지 끝난 공고는 빼고) → 빈 링크를 올리는 일이 없게
+  const linkCount = all.filter((j) => j.status === 'open' && j.audience === 'worker' && !(j.end_date === today && workOver(j, j.end_date))).length
   // 진행·예정 공고에서 오늘 하는 행사는 '오늘', 내일 시작은 '내일' (현장에서 지금 볼 공고를 바로 찾게)
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const dayTag = (j: JobWithAppStatus): [string, string] | null =>
@@ -96,9 +99,29 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
             <Link href="/admin/jobs/poster" className="chip shrink-0 whitespace-nowrap" data-poster-link>
               QR
             </Link>
-            <ShareButton className="chip-primary shrink-0 whitespace-nowrap" title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} />
+            {/* 링크에 지원받는 공고가 없으면 공유 버튼은 덜 눈에 띄게 (빈 링크를 올리지 않게) */}
+            <ShareButton
+              className={`${linkCount > 0 || firstTime ? 'chip-primary' : 'chip'} shrink-0 whitespace-nowrap`}
+              title={`${admin.companyName} 모집 공고`}
+              text={`${admin.companyName} 모집 공고 모음`}
+              path={`/?co=${admin.companyId}`}
+            />
           </div>
-          <span className="block text-xs text-sub">{firstTime ? '첫 공고를 올린 뒤 단톡방에 올려 두세요' : '단톡방에 올려 두면 새 공고도 여기서 봐요'}</span>
+          {firstTime ? (
+            <span className="block text-xs text-sub">첫 공고를 올린 뒤 단톡방에 올려 두세요</span>
+          ) : (
+            // 지금 링크에 몇 개가 보이는지 한 줄로 (초록 점: 지원받는 공고 있음 · 주황 점: 없음)
+            <span className={`flex items-center gap-1.5 truncate text-xs ${linkCount > 0 ? 'text-sub' : 'font-semibold text-amber-700'}`} data-link-count={linkCount}>
+              <span aria-hidden className={`size-1.5 shrink-0 rounded-full ${linkCount > 0 ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+              {linkCount > 0 ? (
+                <span className="truncate">
+                  링크에 지금 <b className="text-ink tabular-nums">{linkCount}</b>개 · 새 공고도 여기서 봐요
+                </span>
+              ) : (
+                <span className="truncate">지금 링크엔 지원할 공고가 없어요</span>
+              )}
+            </span>
+          )}
         </div>
       )}
       <div className="flex gap-1 text-sm font-semibold">
