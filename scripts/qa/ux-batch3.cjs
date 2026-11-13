@@ -14,6 +14,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 
 ;(async () => {
   // 방금 올라온 공고 하나 (기존 공고는 10월에 올라옴)
+  // 공고는 내일로 (오늘로 두면 저녁에 돌릴 때 근무가 끝난 공고라 목록 맨 아래 '끝난 공고' 칸으로 내려가서)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 86400e3).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   const [j1] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j1, id: J2, title: '방금 올라온 매표소 안내', created_at: new Date().toISOString(), applications: [], required_docs: [] })
 
