@@ -24,6 +24,7 @@ import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange 
 import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
+import { bizNoOwners } from '@/lib/bizNo'
 import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 import type { Attendance, Job, JobCondition, ShiftChange, SignedDoc } from '@/lib/types'
 import { bool, formatRrn, int, isDate, isTime, isUuid, line, normalizePhone, oneLine, optLine, optStr, str, weakPin } from '@/lib/validate'
@@ -2035,6 +2036,15 @@ export async function saveSettings(_: FormState, form: FormData): Promise<FormSt
     update.seal_image = `data:${seal.type};base64,${Buffer.from(await seal.arrayBuffer()).toString('base64')}`
   } else if (bool(form, 'remove_seal')) {
     update.seal_image = null
+  }
+  // 다른 회사가 이미 쓰는 사업자등록번호로 바꾸지 못하게 (남의 번호가 근로계약서·임금명세서에 들어가지 않게)
+  // 원래 저장돼 있던 번호 그대로면 막지 않음 (예전 자료 때문에 저장이 막히지 않게)
+  const bizDigits = String(update.business_no ?? '').replace(/\D/g, '')
+  if (bizDigits.length === 10) {
+    const owners = await bizNoOwners(bizDigits)
+    if (owners.some((id) => id !== admin.companyId) && !owners.includes(admin.companyId)) {
+      return { error: '다른 회사가 이미 쓰는 사업자등록번호예요. 사업자등록증의 번호와 다시 맞춰 보세요.' }
+    }
   }
   must(await db().from('companies').update(update).eq('id', admin.companyId))
   await audit(admin.id, 'company.settings', null, company_name, admin.companyId)

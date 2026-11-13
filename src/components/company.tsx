@@ -96,7 +96,7 @@ export function CreateCompanyForm() {
           <label className="label" htmlFor="new_business_no">
             사업자등록번호 (선택)
           </label>
-          <BizNoField id="new_business_no" placeholder="000-00-00000" />
+          <BizNoField id="new_business_no" placeholder="000-00-00000" checkTaken="super" />
         </div>
         <label>
           <span className="label">문의 연락처 (선택)</span>

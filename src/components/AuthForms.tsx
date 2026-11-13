@@ -102,6 +102,16 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
   const phoneRef = useRef<HTMLInputElement>(null)
   const pinRef = useRef<HTMLInputElement>(null)
   const [filled, setFilled] = useState(false)
+  // 휴대폰 번호 11자리를 다 쳤는지 (칸 안 오른쪽에 ✓)
+  const [phoneOk, setPhoneOk] = useState(false)
+  const onPhone = (e: React.FormEvent<HTMLInputElement>) => {
+    formatPhone(e)
+    const el = e.currentTarget
+    const ok = /^01\d{9}$/.test(el.value.replace(/\D/g, ''))
+    setPhoneOk(ok)
+    // 끝까지 다 쳤으면 비밀번호 칸으로 바로 (가운데를 고치는 중이거나 비밀번호를 이미 넣었으면 그대로)
+    if (ok && el.selectionStart === el.value.length && pinRef.current && !pinRef.current.value) pinRef.current.focus()
+  }
   // 가입 화면에서 넘어온 번호를 채우고 비밀번호 칸으로
   useEffect(() => {
     let phone: string | null = null
@@ -112,6 +122,7 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
     if (!phone || !phoneRef.current) return
     phoneRef.current.value = phone
     setFilled(true)
+    setPhoneOk(/^01\d{9}$/.test(phone.replace(/\D/g, '')))
     pinRef.current?.focus()
   }, [])
   return (
@@ -122,7 +133,29 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
         <label className="label" htmlFor="phone">
           휴대폰 번호
         </label>
-        <input ref={phoneRef} id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+        {/* 11자리를 다 치면 오른쪽에 ✓가 톡 뜨고 비밀번호 칸으로 넘어감 (한 번 덜 누르게) */}
+        <div className="relative">
+          <input
+            ref={phoneRef}
+            id="phone"
+            name="phone"
+            className="input pr-11"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="010-1234-5678"
+            maxLength={13}
+            onInput={onPhone}
+            data-phone-ok={phoneOk ? '' : undefined}
+            required
+          />
+          {phoneOk && (
+            <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center" data-phone-check>
+              <svg viewBox="0 0 24 24" className="size-5 animate-[pop_0.25s_var(--ease-spring)_both] text-emerald-600" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+                <path d="m5 12.5 4.5 4.5L19 7.5" />
+              </svg>
+            </span>
+          )}
+        </div>
         {filled && <p className="mt-1.5 text-sm font-medium text-emerald-700">✓ 가입된 번호를 채웠어요</p>}
       </div>
       <div>
@@ -778,7 +811,7 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
             사업자등록번호
           </label>
           {/* 쓰는 대로 맞는 번호인지 바로 + 이미 해피워크를 쓰는 회사면 그 자리에서 '기존 회사에 합류'로 (다 쓰고 가입을 눌러서야 막히지 않게) */}
-          <BizNoField placeholder="숫자 10자리" required checkTaken hint="사업자등록증의 번호예요. 계약서·명세서에 들어가요." />
+          <BizNoField placeholder="숫자 10자리" required checkTaken="signup" hint="사업자등록증의 번호예요. 계약서·명세서에 들어가요." />
         </div>
         <div>
           <label className="label" htmlFor="ceo_name">

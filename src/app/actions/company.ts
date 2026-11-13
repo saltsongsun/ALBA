@@ -10,9 +10,10 @@ import { audit, platformCompanyId } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { MIN_WAGE_2026 } from '@/lib/pay'
-import { adminCompanies, COMPANY_COOKIE, createSession, getUser, requireSuper } from '@/lib/session'
+import { adminCompanies, COMPANY_COOKIE, createSession, getUser, requireAdmin, requireSuper } from '@/lib/session'
 import { isBizNo, isPin, isUuid, line, normalizePhone, optLine, optStr, str, weakPin } from '@/lib/validate'
 import { bizNoFmt } from '@/lib/members'
+import { bizNoOwners } from '@/lib/bizNo'
 import { sendAdminPush, sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import type { FormState } from './auth'
@@ -84,17 +85,18 @@ export async function switchCompany(form: FormData) {
  * 이미 로그인한 관리자는 회사만 더 만듦 (한 관리자가 여러 회사 운영)
  */
 /**
- * 회사로 시작하기: 사업자등록번호 10자리를 다 쓰면 이미 해피워크를 쓰는 회사인지 바로 알려 줌
- * (담당자·비밀번호까지 다 쓰고 가입을 눌러서야 막히지 않게 → 그 자리에서 '기존 회사에 합류'로).
- * 있다/없다만 돌려줌 (회사 이름 등은 알려 주지 않음) · 가입 때는 signupCompany가 다시 막음.
- * 번호를 하나씩 넣어 보며 캐지 못하게 IP당 한 시간 30번까지 (넘으면 '모름'으로 두고 가입 때 확인).
+ * 사업자등록번호를 다 쓰면 이미 해피워크를 쓰는 회사인지 바로 알려 줌 (있다/없다만 · 회사 이름 등은 알려 주지 않음)
+ * · 'signup': 회사로 시작하기·회사 추가 — 어느 회사든 쓰고 있으면 (다 쓰고 가입을 눌러서야 막히지 않게 → 그 자리에서 '기존 회사에 합류')
+ * · 'others': 회사 설정 — 지금 보고 있는 우리 회사는 빼고 다른 회사가 쓰는지 (남의 번호가 계약서·명세서에 들어가지 않게)
+ * 가입·저장 때 서버가 다시 막음. 번호를 하나씩 넣어 보며 캐지 못하게 IP당 한 시간 30번까지 (넘으면 '모름'으로 두고 저장 때 확인).
  */
-export async function bizNoTaken(raw: string): Promise<boolean> {
+export async function bizNoTaken(raw: string, scope: 'signup' | 'others' = 'signup'): Promise<boolean> {
   const bizNo = String(raw ?? '').replace(/\D/g, '')
   if (!isBizNo(bizNo)) return false
+  // 회사 설정에서만: 관리자가 아니면 여기서 멈춤 (로그인 화면으로)
+  const mine = scope === 'others' ? (await requireAdmin()).companyId : null
   if (await overLimit(await ipKey('biz-taken'), 30, 3600)) return false
-  const { data } = await db().from('companies').select('business_no')
-  return ((data ?? []) as { business_no: string | null }[]).some((c) => (c.business_no ?? '').replace(/\D/g, '') === bizNo)
+  return (await bizNoOwners(bizNo)).some((id) => id !== mine)
 }
 
 export async function signupCompany(_: FormState, form: FormData): Promise<FormState> {

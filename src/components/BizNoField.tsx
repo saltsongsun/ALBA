@@ -23,7 +23,8 @@ export const bizNoDash = (v: string) => {
  * 사업자등록번호 칸: 쓰는 대로 맞는 번호인지 바로 알려 줌 (끝자리 검증 숫자 · 국세청 계산법).
  * 잘못 친 번호가 근로계약서·임금명세서에 그대로 들어가지 않게 — 막지는 않고 안내만 (서버는 회사 가입 때만 막음)
  * 숫자만 쳐도 사업자등록증처럼 줄표가 들어감 (105-87-12345 · 보던 자리에서 커서가 튀지 않게) — 서버는 숫자만 씀
- * checkTaken: 회사로 시작하기 — 10자리가 맞으면 이미 해피워크를 쓰는 회사인지 바로 확인 (있으면 '기존 회사에 합류'로)
+ * checkTaken: 10자리가 맞으면 이미 해피워크를 쓰는 회사인지 바로 확인
+ *   'signup' 회사로 시작하기 (있으면 '기존 회사에 합류'로) · 'others' 회사 설정 (우리 회사 빼고 다른 회사가 쓰는지) · 'super' 최고 관리자의 회사 만들기
  * 쓰는 곳: 회사로 시작하기 · 회사 설정 · 외주 업체 가입 · 업체 정보 고치기 · 외주처 등록 · 회사 추가(최상위 관리자)
  */
 export default function BizNoField({
@@ -42,7 +43,7 @@ export default function BizNoField({
   placeholder?: string
   required?: boolean
   hint?: string
-  checkTaken?: boolean
+  checkTaken?: 'signup' | 'others' | 'super'
 }) {
   const [state, setState] = useState<State>(stateOf(defaultValue))
   const [count, setCount] = useState(defaultValue.replace(/\D/g, '').length)
@@ -53,7 +54,7 @@ export default function BizNoField({
     const my = ++seq.current
     if (!checkTaken || next !== 'ok') return setTaken(null)
     setTaken('checking')
-    bizNoTaken(v.replace(/\D/g, ''))
+    bizNoTaken(v.replace(/\D/g, ''), checkTaken === 'others' ? 'others' : 'signup')
       .then((t) => seq.current === my && setTaken(t ? 'taken' : 'free'))
       .catch(() => seq.current === my && setTaken(null))
   }
@@ -107,13 +108,24 @@ export default function BizNoField({
             </span>
           ) : taken === 'taken' ? (
             <span className="block animate-[pop_0.28s_var(--ease-spring)_both]">
-              이미 해피워크를 쓰는 회사예요. 대표 관리자에게 회사 코드를 받아 합류해 주세요.{' '}
-              <Link href="/start?tab=join" className="tap whitespace-nowrap text-brand-600 underline underline-offset-2" data-biz-join>
-                기존 회사에 합류 →
-              </Link>
+              {checkTaken === 'others' ? (
+                // 회사 설정: 남의 번호가 계약서·명세서에 들어가지 않게 (저장도 막힘)
+                '다른 회사가 이미 쓰는 번호예요 · 다시 확인해 주세요'
+              ) : checkTaken === 'super' ? (
+                '이미 이 번호로 등록된 회사가 있어요 · 위 회사 목록에서 확인해 주세요'
+              ) : (
+                <>
+                  이미 해피워크를 쓰는 회사예요. 대표 관리자에게 회사 코드를 받아 합류해 주세요.{' '}
+                  <Link href="/start?tab=join" className="tap whitespace-nowrap text-brand-600 underline underline-offset-2" data-biz-join>
+                    기존 회사에 합류 →
+                  </Link>
+                </>
+              )}
             </span>
           ) : taken === 'free' ? (
-            <span className="inline-block animate-[pop_0.28s_var(--ease-spring)_both]">✓ 올바른 번호예요 · 새로 시작할 수 있어요</span>
+            <span className="inline-block animate-[pop_0.28s_var(--ease-spring)_both]">
+              {checkTaken === 'signup' ? '✓ 올바른 번호예요 · 새로 시작할 수 있어요' : '✓ 올바른 사업자등록번호예요'}
+            </span>
           ) : (
             '✓ 올바른 사업자등록번호예요'
           )

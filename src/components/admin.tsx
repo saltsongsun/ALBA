@@ -408,7 +408,7 @@ export function SettingsForm({ s, firstJob = false, company }: { s: Settings; fi
             <label className="label" htmlFor="business_no">
               사업자등록번호
             </label>
-            <BizNoField defaultValue={s.business_no ?? ''} placeholder="000-00-00000" />
+            <BizNoField defaultValue={s.business_no ?? ''} placeholder="000-00-00000" checkTaken="others" />
           </div>
           <label className="col-span-2">
             <span className="label">회사 주소</span>

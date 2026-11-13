@@ -90,7 +90,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await p.waitForURL((u) => new URL(u).searchParams.get('tab') === 'join', { timeout: 10000 }).catch(() => {})
   ok("'기존 회사에 합류 →' → 합류 탭 (회사 코드 칸)", new URL(p.url()).searchParams.get('tab') === 'join' && (await p.locator('#code').count()) === 1)
 
-  // ── 8. 회사 설정의 사업자등록번호 칸도 줄표 (이미 쓰는지는 묻지 않음 — 우리 회사 번호)
+  // ── 8. 회사 설정의 사업자등록번호 칸도 줄표
   const ac = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
   await ac.addCookies([{ name: 'alba_session', value: cookie(A), url: D }])
   const a = await ac.newPage()
@@ -100,7 +100,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await sb.fill('')
   await sb.pressSequentially(TAKEN, { delay: 20 })
   await a.waitForTimeout(500)
-  ok("회사 설정: '105-87-12345' 줄표 · '✓ 올바른 사업자등록번호예요' (이미 쓰는지 안 물음)", (await sb.inputValue()) === '105-87-12345' && (await a.locator('#business_no-check').getAttribute('data-biz-check')) === 'ok')
+  // 묶음 244부터 회사 설정도 '다른 회사가 쓰는지' 확인 — 이 번호는 우리 회사 번호라 괜찮음
+  await a.waitForFunction(() => document.querySelector('#business_no-check')?.getAttribute('data-biz-check') === 'free', null, { timeout: 8000 }).catch(() => {})
+  ok("회사 설정: '105-87-12345' 줄표 · 우리 회사 번호면 '✓ 올바른 사업자등록번호예요'", (await sb.inputValue()) === '105-87-12345' && (await a.locator('#business_no-check').getAttribute('data-biz-check')) === 'free' && one(await a.locator('#business_no-check').innerText()) === '✓ 올바른 사업자등록번호예요')
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
