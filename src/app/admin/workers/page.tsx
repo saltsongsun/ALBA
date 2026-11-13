@@ -19,6 +19,7 @@ import { ONLINE_MS, phoneFmt } from '@/lib/format'
 import Presence from '@/components/Presence'
 import SearchInput from '@/components/SearchInput'
 import SortSelect from '@/components/SortSelect'
+import LevelBadge from '@/components/LevelBadge'
 import { companyLevels } from '@/lib/xpCompany'
 
 export const metadata: Metadata = { title: '근무자' }
@@ -161,20 +162,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     )
     .slice(0, 300)
   const levels = levelsAll ?? (await companyLevels(admin.companyId, users.filter(hasLevel)))
-  const levelBadge = (u: Row) => {
-    const x = hasLevel(u) ? levels.get(u.id) : null
-    if (!x) return null
-    return (
-      <span
-        className={`badge tabular-nums ${x.level >= 3 ? 'bg-amber-100 text-amber-800' : 'bg-amber-50 text-amber-700'}`}
-        title={`${x.stage.name} · 우리 회사 기록으로 센 레벨`}
-        aria-label={`레벨 ${x.level} ${x.stage.name}`}
-        data-level={x.level}
-      >
-        Lv.{x.level}
-      </span>
-    )
-  }
+  const levelBadge = (u: Row) => (hasLevel(u) ? <LevelBadge x={levels.get(u.id)} /> : null)
   // 할 일로 거른 목록(계좌·사진·알림)이면: 우리 회사 지원자에게 한 번에 문자로 요청 (해피워크 전체 회원에게 마구 보내지 않게 우리 회사 지원자만)
   const co = admin.companyName
   const ASK = {
@@ -313,14 +301,32 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         <table className="table">
           <thead>
             <tr>
-              <th>이름</th>
-              <th>레벨</th>
-              <th>나이</th>
-              <th>연락처</th>
-              <th>근무일수</th>
-              <th>최근 근무</th>
-              <th>계좌</th>
-              <th>가입일</th>
+              {/* 넓은 화면: 칸 제목을 누르면 그 순서로 (휴대폰은 위 정렬 고르기) */}
+              {(
+                [
+                  ['이름', 'name'],
+                  ['레벨', 'level'],
+                  ['나이', null],
+                  ['연락처', null],
+                  ['근무일수', 'days'],
+                  ['최근 근무', 'recent'],
+                  ['계좌', null],
+                  ['가입일', 'new'],
+                ] as const
+              ).map(([label, key]) => (
+                <th key={label} aria-sort={key && sort === key ? (key === 'name' ? 'ascending' : 'descending') : undefined}>
+                  {key ? (
+                    <Link href={listHref({ t, f, q, s: key })} scroll={false} className={`inline-flex items-center gap-0.5 transition-colors hover:text-ink ${sort === key ? 'text-ink' : ''}`} data-sort-head={key}>
+                      {label}
+                      <span aria-hidden className={`text-[10px] ${sort === key ? 'text-brand-600' : 'text-transparent'}`}>
+                        {key === 'name' ? '▲' : '▼'}
+                      </span>
+                    </Link>
+                  ) : (
+                    label
+                  )}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>

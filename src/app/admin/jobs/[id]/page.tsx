@@ -66,7 +66,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   if (!isUuid(id)) notFound()
 
   // 공고와 지원·출퇴근·서류를 한 번에 읽음
-  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone, member_type, specialty'
+  const userCols = 'id, name, phone, birth_date, bank_name, bank_account_enc, account_holder, photo_at, careers, emergency_phone, address, member_type, specialty'
   // 조회 현황·후기는 공고 내용과 상관없이 먼저 출발 (기다리는 횟수를 줄임). 못 읽으면 빈 값
   const viewP = Promise.all([viewStats([id]), admin.companyVerified ? memberViewers(id) : Promise.resolve([] as Awaited<ReturnType<typeof memberViewers>>)])
     .then(async ([vstats, mviewers]) => ({

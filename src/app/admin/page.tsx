@@ -13,6 +13,8 @@ import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
+import LevelBadge from '@/components/LevelBadge'
+import { companyLevels } from '@/lib/xpCompany'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import LiveNumber from '@/components/LiveNumber'
@@ -167,7 +169,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       .then((r) => must(r) as JobWithAppStatus[]),
     db()
       .from('applications')
-      .select('id, created_at, message, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time), user:users(id, name, phone, birth_date, photo_at)').eq('company_id', admin.companyId)
+      .select('id, created_at, message, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time), user:users(id, name, phone, birth_date, photo_at, member_type, bank_account_enc, emergency_phone, address, careers)').eq('company_id', admin.companyId)
       .eq('status', 'applied')
       .is('held_at', null) // 보류한 지원자는 '확정 대기'에서 빼고 공고의 지원자 탭 '보류'에서
       .order('created_at', { ascending: false })
@@ -180,7 +182,19 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             message: string | null
             available_dates: string[] | null
             job: { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string }
-            user: { id: string; name: string; phone: string; birth_date: string | null; photo_at: string | null }
+            user: {
+              id: string
+              name: string
+              phone: string
+              birth_date: string | null
+              photo_at: string | null
+              // 레벨 칩의 '내 정보 다 채우기'만 봄 (화면에 그리지 않음)
+              member_type: string | null
+              bank_account_enc: string | null
+              emergency_phone: string | null
+              address: string | null
+              careers: unknown
+            }
           }[],
       ),
     db().from('attendance').select('job_id').eq('company_id', admin.companyId).is('clock_out', null).then((r) => must(r) as { job_id: string }[]),
@@ -491,6 +505,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...vendorTodos,
   ]
   const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
+  // 대기 지원자의 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 확정할 때 경험 많은 사람이 바로 보이게
+  const pendingLv = await companyLevels(admin.companyId, [...new Map(pendingApps.filter((p) => (p.user.member_type ?? 'worker') === 'worker').map((p) => [p.user.id, p.user])).values()])
   // 확정 대기는 최근 30명까지만 불러옴 → 더 있으면 진짜 수를 따로 세어 '나머지 n명'을 알려 줌 (빠뜨리지 않게)
   const PENDING_LIMIT = 30
   const pendingTotal =
@@ -572,6 +588,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     const r = rel[uid]
     return (
       <span className="flex min-w-0 items-center gap-1.5 text-xs text-mute" data-pending-rel>
+        {/* 병아리 레벨은 이름 줄이 아니라 여기 (이름·나이·지원 시각이 한 줄에 그대로 남게) */}
+        <LevelBadge x={pendingLv.get(uid)} />
         {scores[uid] && <StarAvg scores={scores[uid]} />}
         <span className="min-w-0 truncate">
           {!r || (r.days === 0 && r.noShow === 0) ? (

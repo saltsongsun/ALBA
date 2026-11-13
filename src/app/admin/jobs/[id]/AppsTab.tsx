@@ -7,6 +7,8 @@ import { PositionInput } from '@/components/admin'
 import Avatar from '@/components/Avatar'
 import Empty from '@/components/Empty'
 import { ContactButtons } from '@/components/Contact'
+import LevelBadge from '@/components/LevelBadge'
+import { companyLevels } from '@/lib/xpCompany'
 import { GroupContact } from '@/components/GroupContact'
 import HashFocus from '@/components/HashFocus'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
@@ -138,6 +140,11 @@ export default async function AppsTab({
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
   const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
   // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
+  // 지원자의 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만)
+  const levels = await companyLevels(
+    job.company_id,
+    [...new Map(apps.filter((a) => (a.user.member_type ?? 'worker') === 'worker').map((a) => [a.user_id, { ...a.user, id: a.user_id }])).values()],
+  )
   const [rel, ratings, others, notes] = ids.length
     ? await Promise.all([
         reliabilityFor(job.company_id, ids, job.id),
@@ -345,6 +352,7 @@ export default async function AppsTab({
             <Link href={`/admin/workers/${a.user_id}`} className="text-[17px] font-bold">
               {a.user.name}
             </Link>
+            <LevelBadge x={levels.get(a.user_id)} />
             {age != null && <span className="text-sm text-mute">만 {age}세</span>}
             {a.user.member_type && a.user.member_type !== 'worker' && (
               <span className={`badge ${MEMBER_TYPES[a.user.member_type].badge}`}>

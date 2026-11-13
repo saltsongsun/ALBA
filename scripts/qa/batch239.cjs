@@ -103,7 +103,7 @@ const day = (n) => new Date(Date.UTC(2026, 9, 1 + n)).toISOString().slice(0, 10)
   // ── 4. 넓은 화면 표: '레벨' 칸
   await p.setViewportSize({ width: 1024, height: 800 })
   await open('?s=level')
-  const th = await p.locator('table thead th').evaluateAll((els) => els.map((e) => e.textContent.trim()))
+  const th = await p.locator('table thead th').evaluateAll((els) => els.map((e) => e.textContent.replace(/[▲▼]/g, '').trim()))
   ok("표에 '레벨' 칸 (이름 다음)", th[1] === '레벨', JSON.stringify(th))
   ok("표 가람 줄 'Lv.3'", one(await p.locator('table tbody tr', { hasText: '가람' }).locator('[data-level]').innerText().catch(() => '')) === 'Lv.3')
 

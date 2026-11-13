@@ -26,7 +26,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   a.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
   const wide = () => a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)
   const rel = a.locator('#pending [data-pending-rel]:visible').first()
-  const relText = async () => ((await rel.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
+  // 맨 앞 병아리 레벨 배지('Lv.n')는 묶음 241에서 따로 확인 — 여기서는 근무 이력 글자만 봄
+  const relText = async () => ((await rel.innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim().replace(/^Lv\.\d+ /, '')
 
   // ── 1. 이 회사에서 처음인 지원자: '첫 근무'
   await a.goto(`${D}/admin`)
