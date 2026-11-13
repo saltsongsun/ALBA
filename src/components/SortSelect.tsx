@@ -27,11 +27,12 @@ export default function SortSelect({
       <select
         value={value}
         aria-label={label}
+        // 고른 말이 잘리지 않게 가장 긴 항목('레벨 높은 순')과 양쪽 그림 자리만큼은 늘 확보
         onChange={(e) => {
           const href = options.find((o) => o.value === e.target.value)?.href
           if (href) start(() => router.replace(href, { scroll: false }))
         }}
-        className="h-8 appearance-none rounded-full bg-white py-0 pr-7 pl-7 text-[13px] font-semibold text-ink ring-1 ring-line outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+        className="h-8 min-w-[9.5rem] appearance-none rounded-full bg-white py-0 pr-7 pl-7 text-[13px] font-semibold text-ink ring-1 ring-line outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
