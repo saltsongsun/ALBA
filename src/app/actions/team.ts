@@ -28,6 +28,19 @@ async function tellOwners(companyId: string, title: string, body: string) {
   await sendPush(owners.length ? owners : await superAdminIds(), { title, body, url: '/admin/settings', tag: `join-${companyId}` })
 }
 
+
+/**
+ * 회사 코드 8자리를 다 넣으면 어느 회사인지 미리 보여 줌 (잘못 친 코드로 담당자·비밀번호까지 다 쓰고 나서야 막히지 않게).
+ * 초대받은 사람만 아는 코드라 회사 이름만 돌려줌 · 코드를 하나씩 넣어 보지 못하게 IP당 한 시간 20번 (넘으면 확인 없이 가입 때 확인)
+ */
+export async function joinCodeCompany(raw: string): Promise<{ name: string } | { none: true } | { limit: true }> {
+  const code = normJoinCode(String(raw ?? ''))
+  if (code.length !== 8) return { none: true }
+  if (await overLimit(await ipKey('join-peek'), 20, 3600)) return { limit: true }
+  const company = await companyByJoinCode(code)
+  return company ? { name: company.company_name } : { none: true }
+}
+
 /**
  * 회사 코드를 넣고 관리자 가입 신청.
  * · 로그인 안 했으면 관리자 계정을 새로 만들고 신청 (승인 전에는 어느 회사 자료도 못 봄)

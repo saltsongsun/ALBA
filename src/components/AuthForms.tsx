@@ -9,7 +9,7 @@ import { useActionState, useEffect, useRef, useState } from 'react'
 import { login, setupAdmin, signup } from '@/app/actions/auth'
 import { addWorkerIdentity } from '@/app/actions/worker'
 import { signupCompany } from '@/app/actions/company'
-import { requestJoin } from '@/app/actions/team'
+import { joinCodeCompany, requestJoin } from '@/app/actions/team'
 import { BANKS, PRIVACY_ITEMS, RRN_NOTICE, THIRD_PARTY_ITEMS, THIRD_PARTY_ITEMS_VENDOR } from '@/lib/privacy'
 import { PhotoField } from './PhotoUpload'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
@@ -39,6 +39,48 @@ const formatPhone = (e: React.FormEvent<HTMLInputElement>) => {
   if (el.selectionStart !== el.value.length) return
   const d = el.value.replace(/\D/g, '').slice(0, 11)
   el.value = d.length < 4 ? d : d.length < 8 ? `${d.slice(0, 3)}-${d.slice(3)}` : `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
+}
+
+const isMobile = (v: string) => /^01\d{9}$/.test(v.replace(/\D/g, ''))
+
+/**
+ * 휴대폰 번호 칸 (로그인·가입 화면 공용): 010-1234-5678로 끊어 주고,
+ * 11자리를 다 치면 칸 안 오른쪽에 ✓가 톡 뜨고 다음 칸(next · 보통 비밀번호)으로 바로 (한 번 덜 누르게).
+ * 가운데를 고치는 중이거나 다음 칸을 이미 채웠으면 커서는 그대로
+ */
+function PhoneField({ inputRef, next = 'pin' }: { inputRef?: React.Ref<HTMLInputElement>; next?: string }) {
+  const [ok, setOk] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        ref={inputRef}
+        id="phone"
+        name="phone"
+        className="input pr-11"
+        inputMode="tel"
+        autoComplete="tel"
+        placeholder="010-1234-5678"
+        maxLength={13}
+        onInput={(e) => {
+          formatPhone(e)
+          const el = e.currentTarget
+          const good = isMobile(el.value)
+          setOk(good)
+          const nx = el.form?.elements.namedItem(next)
+          if (good && el.selectionStart === el.value.length && nx instanceof HTMLInputElement && !nx.value) nx.focus()
+        }}
+        data-phone-ok={ok ? '' : undefined}
+        required
+      />
+      {ok && (
+        <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center" data-phone-check>
+          <svg viewBox="0 0 24 24" className="size-5 animate-[pop_0.25s_var(--ease-spring)_both] text-emerald-600" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
+            <path d="m5 12.5 4.5 4.5L19 7.5" />
+          </svg>
+        </span>
+      )}
+    </div>
+  )
 }
 
 /** 봇 함정 칸: 사람에게는 안 보이고, 자동 입력 봇만 채움 (채워지면 서버가 거절) */
@@ -102,16 +144,6 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
   const phoneRef = useRef<HTMLInputElement>(null)
   const pinRef = useRef<HTMLInputElement>(null)
   const [filled, setFilled] = useState(false)
-  // 휴대폰 번호 11자리를 다 쳤는지 (칸 안 오른쪽에 ✓)
-  const [phoneOk, setPhoneOk] = useState(false)
-  const onPhone = (e: React.FormEvent<HTMLInputElement>) => {
-    formatPhone(e)
-    const el = e.currentTarget
-    const ok = /^01\d{9}$/.test(el.value.replace(/\D/g, ''))
-    setPhoneOk(ok)
-    // 끝까지 다 쳤으면 비밀번호 칸으로 바로 (가운데를 고치는 중이거나 비밀번호를 이미 넣었으면 그대로)
-    if (ok && el.selectionStart === el.value.length && pinRef.current && !pinRef.current.value) pinRef.current.focus()
-  }
   // 가입 화면에서 넘어온 번호를 채우고 비밀번호 칸으로
   useEffect(() => {
     let phone: string | null = null
@@ -121,8 +153,9 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
     } catch {}
     if (!phone || !phoneRef.current) return
     phoneRef.current.value = phone
+    // 칸의 ✓도 같이 (입력한 것처럼 알림)
+    phoneRef.current.dispatchEvent(new Event('input', { bubbles: true }))
     setFilled(true)
-    setPhoneOk(/^01\d{9}$/.test(phone.replace(/\D/g, '')))
     pinRef.current?.focus()
   }, [])
   return (
@@ -134,28 +167,7 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
           휴대폰 번호
         </label>
         {/* 11자리를 다 치면 오른쪽에 ✓가 톡 뜨고 비밀번호 칸으로 넘어감 (한 번 덜 누르게) */}
-        <div className="relative">
-          <input
-            ref={phoneRef}
-            id="phone"
-            name="phone"
-            className="input pr-11"
-            inputMode="tel"
-            autoComplete="tel"
-            placeholder="010-1234-5678"
-            maxLength={13}
-            onInput={onPhone}
-            data-phone-ok={phoneOk ? '' : undefined}
-            required
-          />
-          {phoneOk && (
-            <span aria-hidden className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center" data-phone-check>
-              <svg viewBox="0 0 24 24" className="size-5 animate-[pop_0.25s_var(--ease-spring)_both] text-emerald-600" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round">
-                <path d="m5 12.5 4.5 4.5L19 7.5" />
-              </svg>
-            </span>
-          )}
-        </div>
+        <PhoneField inputRef={phoneRef} />
         {filled && <p className="mt-1.5 text-sm font-medium text-emerald-700">✓ 가입된 번호를 채웠어요</p>}
       </div>
       <div>
@@ -637,7 +649,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
             <label className="label" htmlFor="phone">
               담당자 휴대폰 번호
             </label>
-            <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+            <PhoneField />
             <p className="hint">로그인 아이디로 쓰여요. 견적 요청 알림도 이 번호의 앱으로 와요.</p>
           </div>
           <PinFields />
@@ -657,7 +669,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
             <label className="label" htmlFor="phone">
               휴대폰 번호
             </label>
-            <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+            <PhoneField />
             <p className="hint">로그인 아이디로 쓰여요.</p>
           </div>
           <PinFields />
@@ -837,7 +849,7 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
               <label className="label" htmlFor="phone">
                 휴대폰 번호 (로그인할 때 써요)
               </label>
-              <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+              <PhoneField />
             </div>
             <PinFields />
           </section>
@@ -883,6 +895,23 @@ function joinCodeInput(e: React.FormEvent<HTMLInputElement>) {
  */
 export function JoinCompanyForm({ signedIn, name, code, worker }: { signedIn: boolean; name?: string; code: string; worker: boolean }) {
   const [state, action] = useActionState(requestJoin, null)
+  // 코드 8자리를 다 넣으면 어느 회사인지 바로 (잘못 친 코드로 내 정보까지 다 쓰고 나서야 막히지 않게) · 마지막에 친 코드의 답만 씀
+  const [co, setCo] = useState<null | 'checking' | 'none' | { name: string }>(null)
+  const seq = useRef(0)
+  const peek = (raw: string) => {
+    const c = raw.toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const my = ++seq.current
+    if (c.length !== 8) return setCo(null)
+    setCo('checking')
+    joinCodeCompany(c)
+      .then((r) => seq.current === my && setCo('name' in r ? { name: r.name } : 'none' in r ? 'none' : null))
+      .catch(() => seq.current === my && setCo(null))
+  }
+  // 초대 링크(?code=)로 왔으면 열자마자 확인
+  useEffect(() => {
+    if (code) peek(code)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
       <Honeypot />
@@ -904,10 +933,39 @@ export function JoinCompanyForm({ signedIn, name, code, worker }: { signedIn: bo
             autoCapitalize="characters"
             autoComplete="off"
             spellCheck={false}
-            onInput={joinCodeInput}
+            onInput={(e) => {
+              joinCodeInput(e)
+              peek(e.currentTarget.value)
+            }}
+            aria-describedby="code-check"
+            aria-invalid={co === 'none' || undefined}
+            data-missing={co === 'none' ? '' : undefined}
             required
           />
-          <p className="hint">대표 관리자의 회사 설정 화면에 있어요.</p>
+          <p
+            id="code-check"
+            aria-live="polite"
+            data-join-check={co === null ? 'idle' : typeof co === 'string' ? co : 'found'}
+            className={`hint mt-1 ${co === 'none' ? 'font-semibold text-amber-700' : typeof co === 'object' && co ? 'font-semibold text-emerald-700' : ''}`}
+          >
+            {co === 'checking' ? (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="size-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent" aria-hidden />
+                어느 회사 코드인지 확인 중…
+              </span>
+            ) : co === 'none' ? (
+              <span className="block animate-[pop_0.25s_var(--ease-spring)_both]">코드에 맞는 회사가 없어요 · 대표 관리자에게 다시 확인해 주세요</span>
+            ) : co ? (
+              // 회사 이름이 길면 이름만 …로 줄이고 '에 합류 신청해요'는 붙여서 그대로
+              <span className="flex min-w-0 animate-[pop_0.25s_var(--ease-spring)_both] items-center" data-join-company>
+                <span className="shrink-0">✓&nbsp;</span>
+                <b className="min-w-0 truncate">{co.name}</b>
+                <span className="shrink-0">에 합류 신청해요</span>
+              </span>
+            ) : (
+              '대표 관리자의 회사 설정 화면에 있어요.'
+            )}
+          </p>
         </div>
       </section>
 
@@ -934,7 +992,7 @@ export function JoinCompanyForm({ signedIn, name, code, worker }: { signedIn: bo
               <label className="label" htmlFor="phone">
                 휴대폰 번호 (로그인할 때 써요)
               </label>
-              <input id="phone" name="phone" className="input" inputMode="tel" autoComplete="tel" placeholder="010-1234-5678" maxLength={13} onInput={formatPhone} required />
+              <PhoneField />
             </div>
             <PinFields />
           </section>
