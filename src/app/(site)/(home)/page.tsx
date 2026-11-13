@@ -28,10 +28,13 @@ export async function generateMetadata(props: PageProps<'/'>): Promise<Metadata>
   const sp = await props.searchParams
   const coId = typeof sp.co === 'string' && isUuid(sp.co) ? sp.co : null
   if (!coId) return {}
-  const [{ data: co }, { count }] = await Promise.all([
+  const today = kstDate()
+  const [{ data: co }, { data: open }] = await Promise.all([
     db().from('companies').select('company_name').eq('id', coId).eq('active', true).maybeSingle(),
-    db().from('jobs').select('id', { count: 'exact', head: true }).eq('company_id', coId).eq('audience', 'worker').eq('status', 'open').gte('end_date', kstDate()),
+    db().from('jobs').select('start_date, end_date, start_time, end_time').eq('company_id', coId).eq('audience', 'worker').eq('status', 'open').gte('end_date', today),
   ])
+  // 오늘이 마지막 날이고 근무 시간도 끝난 공고는 '모집 중'에서 뺌 (저녁에 링크를 보내도 지원할 수 있는 공고만 셈)
+  const count = ((open ?? []) as Pick<JobWithAppStatus, 'start_date' | 'end_date' | 'start_time' | 'end_time'>[]).filter((j) => !(j.end_date === today && workOver(j, j.end_date))).length
   const name = (co as { company_name: string } | null)?.company_name
   if (!name) return {}
   const title = `${name} 모집 공고`
@@ -93,8 +96,10 @@ export default async function HomePage(props: PageProps<'/'>) {
   const [ratings, palCounts] = user
     ? await Promise.all([reviewsOn ? companyRatings(jobs.map((j) => j.company_id)) : Promise.resolve({} as Awaited<ReturnType<typeof companyRatings>>), coworkerCounts(user.id, jobs.map((j) => j.id))])
     : [{} as Awaited<ReturnType<typeof companyRatings>>, {} as Record<string, number>]
-  // 회사 공고 모음: 지금 지원받는 공고 수 (모집 마감은 빼고)
-  const openCount = jobs.filter((j) => j.status === 'open').length
+  // 오늘이 마지막 날이고 근무 시간까지 끝난 공고 (지원 버튼이 없음 · 목록 맨 아래로 · '모집 중' 수에서 뺌)
+  const doneToday = (j: Pick<JobWithAppStatus, 'start_date' | 'end_date' | 'start_time' | 'end_time'>) => j.end_date === today && workOver(j, j.end_date)
+  // 회사 공고 모음: 지금 지원받는 공고 수 (모집 마감 · 오늘 근무가 끝난 공고는 빼고)
+  const openCount = jobs.filter((j) => j.status === 'open' && !doneToday(j)).length
   const mine: Record<string, string> = {}
   for (const r of myApps) mine[r.job_id] = r.status
   // 회사 공고 모음: 이 회사의 지금 공고 가운데 내가 확정된 것 · 확정을 기다리는 것
@@ -138,6 +143,24 @@ export default async function HomePage(props: PageProps<'/'>) {
     return true
   }
   const listed = jobs.filter((j) => matches(j, when, avail, good))
+  // 지원할 수 있는 공고를 위에, 오늘 근무가 끝난 공고는 맨 아래 따로 (제목의 숫자는 위쪽만)
+  const live = listed.filter((j) => !doneToday(j))
+  const done = listed.filter(doneToday)
+  const jobCard = (j: JobWithAppStatus) => (
+    <JobCard
+      key={j.id}
+      job={j}
+      approved={counts[j.id] ?? 0}
+      myStatus={mine[j.id]}
+      clash={clashes(j)}
+      showNew
+      rating={ratings[j.company_id]}
+      pals={palCounts[j.id] ?? 0}
+      track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
+      // 회사 공고 모음에서는 위 카드에 회사 이름·확인 표시·별점이 이미 있음 → 카드마다 되풀이하지 않음
+      hideCompany={!!company}
+    />
+  )
   const filterHref = (w: string | null, a: boolean, g: boolean = good) => {
     const q = new URLSearchParams()
     if (company) q.set('co', company.id)
@@ -423,7 +446,7 @@ export default async function HomePage(props: PageProps<'/'>) {
       )}
 
       <h2 id="jobs" className="section-title scroll-mt-20">
-        모집 중인 알바 {listed.length > 0 && <span className="text-brand-600">{listed.length}</span>}
+        모집 중인 알바 {live.length > 0 && <span className="text-brand-600">{live.length}</span>}
       </h2>
       {jobs.length > 0 && (
         <div className="fade-x -mt-1 mb-3 flex gap-1.5 overflow-x-auto pb-1" data-chip-row>
@@ -522,23 +545,28 @@ export default async function HomePage(props: PageProps<'/'>) {
         <>
           {/* 지난번에 본 뒤로 새로 올라온 모집 중 공고 (이 휴대폰 기준) */}
           <NewJobsChip createdAts={jobs.filter((j) => j.status === 'open').map((j) => j.created_at)} />
+          {/* 지원할 수 있는 공고가 없고 끝난 공고만 남음 (회사 공고 모음은 위 카드가 이미 '모집 중인 공고가 없어요'라고 말함) */}
+          {live.length === 0 && !company && (
+            <p className="rounded-2xl bg-white px-4 py-3 text-sm text-sub ring-1 ring-line" data-no-live>
+              지금 지원할 수 있는 공고가 없어요
+            </p>
+          )}
           <div className="stagger space-y-3">
-            {listed.map((j) => (
-              <JobCard
-                key={j.id}
-                job={j}
-                approved={counts[j.id] ?? 0}
-                myStatus={mine[j.id]}
-                clash={clashes(j)}
-                showNew
-                rating={ratings[j.company_id]}
-                pals={palCounts[j.id] ?? 0}
-                track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
-                // 회사 공고 모음에서는 위 카드에 회사 이름·확인 표시·별점이 이미 있음 → 카드마다 되풀이하지 않음
-                hideCompany={!!company}
-              />
-            ))}
+            {live.map(jobCard)}
           </div>
+          {/* 오늘 근무가 끝난 공고: 맨 아래 한 줄 제목 아래로 · 살짝 흐리게 (지원 버튼이 없는 공고라 눈에 덜 띄게) */}
+          {done.length > 0 && (
+            <section className="mt-5 space-y-3" data-done-today>
+              <h3 className="flex items-center gap-2 text-xs font-semibold whitespace-nowrap text-mute" data-done-today-head>
+                <span className="h-px flex-1 bg-line" aria-hidden />
+                오늘 근무가 끝난 공고 {done.length}
+                <span className="h-px flex-1 bg-line" aria-hidden />
+              </h3>
+              <div className="space-y-3 opacity-80 transition-opacity duration-200 hover:opacity-100">
+                {done.map(jobCard)}
+              </div>
+            </section>
+          )}
         </>
       )}
 
