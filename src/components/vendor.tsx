@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react'
 import { createQuoteRequest, recordQuote, savePayment, saveVendor, submitQuote } from '@/app/actions/vendor'
 import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
-import { VENDOR_CATEGORIES } from '@/lib/vendors'
+import { VENDOR_CATEGORIES, vatTotal } from '@/lib/vendors'
 import { onAccountPaste } from './accountPaste'
 import { onPhoneInput, phoneShown } from './phoneTyping'
 import BizNoField from './BizNoField'
@@ -13,35 +13,57 @@ import Link from 'next/link'
 
 type Opt = { id: string; label: string }
 
-/** 금액 입력: 숫자만 받아 읽기 쉽게 (쉼표 붙인 금액을 아래에 보여 줌) */
-function AmountInput({ defaultValue, label = '금액 (원)', autoFocus = false }: { defaultValue?: number | null; label?: string; autoFocus?: boolean }) {
+/**
+ * 금액 + 부가세 포함/별도 (함께 바뀜).
+ * 쓰는 대로 '1,500,000원 · 150만 원'(0 자리 실수를 바로 알게) · 부가세 별도면 '부가세 150,000원 더해 합계 1,650,000원',
+ * 포함이면 '공급가 1,363,636원 + 부가세 136,364원' (화면 안내만 · 저장하는 값은 그대로)
+ */
+function AmountWithVat({ defaultValue, label = '금액 (원)', vat = true }: { defaultValue?: number | null; label?: string; vat?: boolean }) {
   const [v, setV] = useState(defaultValue != null ? String(defaultValue) : '')
+  const [inc, setInc] = useState(vat)
   const n = Number(v.replace(/[^\d]/g, ''))
+  const total = inc ? n : vatTotal({ amount: n, vat_included: false })!
+  const supply = Math.round(total / 1.1)
   return (
-    <label className="block">
-      <span className="label">{label}</span>
-      <input
-        name="amount"
-        inputMode="numeric"
-        autoComplete="off"
-        className="input text-lg font-bold tabular-nums"
-        placeholder="예: 1500000"
-        value={v}
-        autoFocus={autoFocus}
-        onChange={(e) => setV(e.target.value.replace(/[^\d,]/g, ''))}
-        required
-      />
-      {/* 쓰는 대로 '1,500,000원 · 150만 원' — 큰 금액의 0 자리 실수를 바로 알 수 있게 */}
+    <div className="space-y-2.5">
+      <label className="block">
+        <span className="label">{label}</span>
+        <input
+          name="amount"
+          inputMode="numeric"
+          autoComplete="off"
+          className="input text-lg font-bold tabular-nums"
+          placeholder="예: 1500000"
+          value={v}
+          onChange={(e) => setV(e.target.value.replace(/[^\d,]/g, ''))}
+          required
+        />
+        {n > 0 && (
+          <span className="mt-1 block text-sm font-semibold text-brand-700 tabular-nums" data-amount-read>
+            {n.toLocaleString('ko-KR')}원{n >= 10000 && <span className="font-medium text-sub"> · {wonReadable(n)}</span>}
+          </span>
+        )}
+      </label>
+      <VatChoice included={inc} onChange={setInc} />
       {n > 0 && (
-        <span className="mt-1 block text-sm font-semibold text-brand-700 tabular-nums" data-amount-read>
-          {n.toLocaleString('ko-KR')}원{n >= 10000 && <span className="font-medium text-sub"> · {wonReadable(n)}</span>}
-        </span>
+        // 고를 때마다 한 줄이 톡 (어느 쪽으로 계산했는지 바로 보이게)
+        <p key={inc ? 'in' : 'ex'} className="animate-pop text-xs text-sub tabular-nums" data-vat-line={inc ? 'included' : 'excluded'}>
+          {inc ? (
+            <>
+              공급가 {supply.toLocaleString('ko-KR')}원 + 부가세 {(total - supply).toLocaleString('ko-KR')}원
+            </>
+          ) : (
+            <>
+              부가세 {(total - n).toLocaleString('ko-KR')}원 더해 합계 <b className="font-bold text-ink">{total.toLocaleString('ko-KR')}원</b>
+            </>
+          )}
+        </p>
       )}
-    </label>
+    </div>
   )
 }
 
-function VatChoice({ included = true }: { included?: boolean }) {
+function VatChoice({ included = true, onChange }: { included?: boolean; onChange?: (included: boolean) => void }) {
   return (
     <div className="flex gap-2 text-sm">
       {(
@@ -51,7 +73,14 @@ function VatChoice({ included = true }: { included?: boolean }) {
         ] as const
       ).map(([v, label]) => (
         <label key={v} className="flex-1 cursor-pointer">
-          <input type="radio" name="vat" value={v} defaultChecked={(v === 'included') === included} className="peer sr-only" />
+          <input
+            type="radio"
+            name="vat"
+            value={v}
+            defaultChecked={(v === 'included') === included}
+            onChange={(e) => e.currentTarget.checked && onChange?.(v === 'included')}
+            className="peer sr-only"
+          />
           <span className="block rounded-xl bg-white px-3 py-2.5 text-center font-semibold text-sub ring-1 ring-line peer-checked:animate-pop peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600">
             {label}
           </span>
@@ -129,6 +158,10 @@ export function VendorForm({
         <label>
           <span className="label">연락처</span>
           <input name="phone" className="input" inputMode="tel" maxLength={20} defaultValue={phoneShown(initial?.phone)} placeholder="010-0000-0000" onInput={onPhoneInput} />
+          {/* 업체 계정과는 휴대폰 번호로만 이어짐 (사업자등록번호로는 아님) */}
+          <span className="mt-1 block text-xs text-mute" data-vendor-phone-hint>
+            업체가 해피워크에 가입한 휴대폰 번호면 견적 요청이 앱으로도 가요
+          </span>
         </label>
         <label>
           <span className="label">이메일</span>
@@ -270,8 +303,7 @@ export function RecordQuoteForm({ quoteId, amount, vat = true, note }: { quoteId
   const [state, action] = useActionState(recordQuote.bind(null, quoteId), null)
   return (
     <form action={action} onReset={keepInputs} className="space-y-2.5">
-      <AmountInput defaultValue={amount} label="견적 금액 (원)" />
-      <VatChoice included={vat} />
+      <AmountWithVat defaultValue={amount} label="견적 금액 (원)" vat={vat} />
       <input name="note" className="input text-sm" maxLength={1000} defaultValue={note ?? ''} placeholder="메모 (예: 전화로 받음, 설치비 포함)" />
       <FormMessage state={state} />
       <SubmitButton className="btn-soft btn-sm w-full" pendingText="저장 중…">
@@ -326,8 +358,7 @@ export function PaymentForm({
         <span className="label">내용 *</span>
         <input name="title" className="input" required maxLength={80} defaultValue={initial?.title} placeholder="예: 무대 음향 장비 임차" />
       </label>
-      <AmountInput defaultValue={initial?.amount} />
-      <VatChoice included={initial?.vat_included ?? true} />
+      <AmountWithVat defaultValue={initial?.amount} vat={initial?.vat_included ?? true} />
       <label className="block">
         <span className="label">지급 예정일</span>
         <input type="date" name="due_date" className="input" defaultValue={initial?.due_date ?? ''} />
@@ -353,8 +384,7 @@ export function QuoteSubmitForm({ token, amount, vat = true, note }: { token: st
           <input type="text" name="website" tabIndex={-1} autoComplete="off" defaultValue="" />
         </label>
       </div>
-      <AmountInput defaultValue={amount} label="견적 금액 (원) *" />
-      <VatChoice included={vat} />
+      <AmountWithVat defaultValue={amount} label="견적 금액 (원) *" vat={vat} />
       <label className="block">
         <span className="label">내용·조건 (선택)</span>
         <textarea name="note" className="input min-h-24" maxLength={1000} defaultValue={note ?? ''} placeholder="포함 품목, 설치·철수, 결제 조건, 견적서 파일 링크 등" />

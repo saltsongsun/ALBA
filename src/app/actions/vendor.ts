@@ -120,13 +120,14 @@ export async function saveVendor(id: string | null, _: FormState, form: FormData
     must(await db().from('vendors').update(row).eq('id', id).eq('company_id', admin.companyId))
     await audit(admin.id, 'vendor.edit', null, name, admin.companyId)
     refresh(`/admin/vendors/${id}`)
-    return { ok: '저장했어요.' }
+    // 이 번호로 가입한 업체 계정과 이어졌으면 알려 줌 (견적 요청이 업체 앱으로도 감)
+    return { ok: row.user_id ? '저장했어요 · 📱 앱 연결됨 (견적 요청이 업체 앱으로도 가요)' : '저장했어요.' }
   }
   const { data, error } = await db().from('vendors').insert({ ...row, company_id: admin.companyId, active: true }).select('id').single()
   if (error || !data) return { error: '등록하지 못했어요. 다시 시도해 주세요.' }
   await audit(admin.id, 'vendor.add', null, name, admin.companyId)
   refresh()
-  back('/admin/vendors?tab=list', `${name}을(를) 외주사로 등록했어요.`)
+  back('/admin/vendors?tab=list', row.user_id ? `${name}을(를) 외주사로 등록했어요 · 📱 해피워크 가입 업체라 견적 요청이 앱으로도 가요.` : `${name}을(를) 외주사로 등록했어요.`)
 }
 
 // ───────────── 견적 요청 ─────────────
