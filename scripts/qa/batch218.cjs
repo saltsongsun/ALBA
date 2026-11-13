@@ -65,9 +65,15 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const w = await mk(W)
   const tapLine = async (page, sel) => {
     // 화면 가운데로 옮긴 뒤 그 줄을 손가락처럼 누름 (아래 탭 막대에 가리지 않게)
-    await page.locator(sel).first().evaluate((el) => el.scrollIntoView({ block: 'center' })).catch(() => {})
-    await page.waitForTimeout(200)
-    const box = await page.locator(sel).first().boundingBox()
+    // 부드러운 스크롤이 끝나기 전에 자리를 재면 다른 곳을 누름 (전체 검사처럼 느릴 때) → 바로 옮기고 자리가 멈출 때까지 기다림
+    await page.locator(sel).first().evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })).catch(() => {})
+    let box = null
+    for (let i = 0; i < 20; i++) {
+      await page.waitForTimeout(100)
+      const next = await page.locator(sel).first().boundingBox()
+      if (box && next && Math.abs(next.y - box.y) < 0.5) { box = next; break }
+      box = next
+    }
     if (!box) return false
     await page.mouse.click(box.x + Math.min(box.width / 2, 60), box.y + box.height / 2)
     return page.waitForURL((u) => new URL(u).pathname === `/jobs/${J}`, { timeout: 10000 }).then(() => true, () => false)
