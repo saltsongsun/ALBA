@@ -9,6 +9,8 @@ const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
 const [D, MD] = process.argv.slice(2)
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', CO = '99999999-0000-4000-8000-000000000099'
+const J = 'cccccccc-0000-4000-8000-000000000003'
+const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toISOString().slice(0, 10)
 let fails = 0
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: body && JSON.stringify(body) }).then((r) => r.json())
@@ -25,6 +27,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     return p
   }
 
+  // 공고는 내일로 (저녁에 돌리면 오늘 근무가 끝난 공고라 목록 맨 아래 '끝난 공고' 칸으로 내려가서)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: kst(1), end_date: kst(1) })
   // ── 1. 로그인 전 홈 ──
   const g = await pg(null)
   await g.goto(`${D}/`)

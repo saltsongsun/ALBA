@@ -2,7 +2,8 @@
 //          · 카카오톡 미리보기 로봇(kakaotalk-scrap)은 막지 않음 · 공고: 제목·설명 그대로 · 회사 링크: '회사 이름 모집 공고' + 모집 수
 //          · 없는 공고·없는 회사도 기본 그림 (오류 없이)
 // node scripts/qa/batch56.cjs <default 앱> <default 가짜>
-const [D] = process.argv.slice(2)
+const [D, MD] = process.argv.slice(2)
+const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toISOString().slice(0, 10)
 const J = 'cccccccc-0000-4000-8000-000000000003', CO = '99999999-0000-4000-8000-000000000099'
 const UA = 'facebookexternalhit/1.1; kakaotalk-scrap/1.0; +https://devtalk.kakao.com/t/scrap/33984'
 let fails = 0
@@ -16,6 +17,8 @@ const png = async (url) => {
 }
 
 ;(async () => {
+  // 공고는 내일로 (저녁에 돌리면 오늘 근무가 끝난 공고라 '모집 중'으로 세지 않아서)
+  if (MD) await fetch(`${MD}/rest/v1/jobs?id=eq.${J}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ start_date: kst(1), end_date: kst(1) }) })
   // ── 1. 공고 링크 ──
   const job = await html(`/jobs/${J}`)
   ok('카카오톡 미리보기 로봇도 공고를 읽음 (막지 않음)', job.status === 200)

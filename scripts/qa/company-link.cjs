@@ -25,6 +25,9 @@ const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWid
   const [c1] = await rest(`companies?id=eq.${C1}`)
   await rest('companies', 'POST', { ...c1, id: C2, company_name: '두번째컴퍼니', seal_image: null, verified: false, created_at: '2026-10-15T00:00:00Z' })
   await rest('companies', 'POST', { ...c1, id: C3, company_name: '쉬는회사', seal_image: null, active: false, created_at: '2026-10-16T00:00:00Z' })
+  // 공고는 내일로 (저녁에 돌리면 오늘 근무가 끝난 공고라 '모집 중'으로 세지 않고 목록 맨 아래로 내려가서)
+  const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: kst(1), end_date: kst(1) })
   const [j1] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j1, id: J2, company_id: C2, company: { company_name: '두번째컴퍼니' }, title: T2, applications: [], required_docs: [] })
 
