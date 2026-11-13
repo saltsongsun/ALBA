@@ -83,6 +83,20 @@ export async function switchCompany(form: FormData) {
  * 공고·지원·출퇴근·서류·정산은 바로 쓰고, 해피워크 전체 회원 명단은 최고 관리자가 '확인'한 뒤에 열림 (verified=false로 시작).
  * 이미 로그인한 관리자는 회사만 더 만듦 (한 관리자가 여러 회사 운영)
  */
+/**
+ * 회사로 시작하기: 사업자등록번호 10자리를 다 쓰면 이미 해피워크를 쓰는 회사인지 바로 알려 줌
+ * (담당자·비밀번호까지 다 쓰고 가입을 눌러서야 막히지 않게 → 그 자리에서 '기존 회사에 합류'로).
+ * 있다/없다만 돌려줌 (회사 이름 등은 알려 주지 않음) · 가입 때는 signupCompany가 다시 막음.
+ * 번호를 하나씩 넣어 보며 캐지 못하게 IP당 한 시간 30번까지 (넘으면 '모름'으로 두고 가입 때 확인).
+ */
+export async function bizNoTaken(raw: string): Promise<boolean> {
+  const bizNo = String(raw ?? '').replace(/\D/g, '')
+  if (!isBizNo(bizNo)) return false
+  if (await overLimit(await ipKey('biz-taken'), 30, 3600)) return false
+  const { data } = await db().from('companies').select('business_no')
+  return ((data ?? []) as { business_no: string | null }[]).some((c) => (c.business_no ?? '').replace(/\D/g, '') === bizNo)
+}
+
 export async function signupCompany(_: FormState, form: FormData): Promise<FormState> {
   if (caughtByHoneypot(form)) return { error: '가입 중 문제가 생겼어요. 잠시 후 다시 시도해 주세요.' }
   // 한 곳에서 회사를 대량으로 만들지 못하게

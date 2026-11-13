@@ -592,7 +592,7 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
               사업자등록번호
             </label>
             {/* 쓰는 대로 맞는 번호인지 바로 (잘못 치면 세금계산서·대금 지급에 그대로 들어가지 않게) */}
-            <BizNoField id="biz_no" name="biz_no" placeholder="숫자 10자리" required digits hint="세금계산서·대금 지급에 쓰여요." />
+            <BizNoField id="biz_no" name="biz_no" placeholder="숫자 10자리" required hint="세금계산서·대금 지급에 쓰여요." />
           </div>
           <div>
             <label className="label" htmlFor="name">
@@ -777,8 +777,8 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
           <label className="label" htmlFor="business_no">
             사업자등록번호
           </label>
-          {/* 쓰는 대로 맞는 번호인지 바로 (잘못 치면 가입 전에 알 수 있게) */}
-          <BizNoField placeholder="숫자 10자리" required digits hint="사업자등록증의 번호예요. 계약서·명세서에 들어가요." />
+          {/* 쓰는 대로 맞는 번호인지 바로 + 이미 해피워크를 쓰는 회사면 그 자리에서 '기존 회사에 합류'로 (다 쓰고 가입을 눌러서야 막히지 않게) */}
+          <BizNoField placeholder="숫자 10자리" required checkTaken hint="사업자등록증의 번호예요. 계약서·명세서에 들어가요." />
         </div>
         <div>
           <label className="label" htmlFor="ceo_name">
