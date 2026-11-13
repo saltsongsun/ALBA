@@ -29,7 +29,7 @@ export default async function PosterPage() {
   ])
   return (
     <div className="mx-auto max-w-md space-y-4">
-      <Link href="/admin/jobs" className="no-print text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href="/admin/jobs" className="tap no-print text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 공고 목록
       </Link>
       <section className="card space-y-4 text-center" data-poster>

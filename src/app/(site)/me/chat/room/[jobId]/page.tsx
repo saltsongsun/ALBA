@@ -59,7 +59,7 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`room-${job.id}`} />
       <div className="flex items-center justify-between gap-2">
-        <Link href="/me/chat" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href="/me/chat" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 문의
         </Link>
         <a href={`/me/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs">

@@ -308,7 +308,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <p className="mt-1 text-sm font-semibold text-sub">🏢 {company.company_name}</p>
         ) : (
           // 회사 이름을 누르면 그 회사 공고만 모아 보기
-          <Link href={`/?co=${job.company_id}`} className="mt-1 flex items-center gap-1.5 text-sm font-semibold text-sub" data-company-line>
+          <Link href={`/?co=${job.company_id}`} className="tap mt-1 flex items-center gap-1.5 text-sm font-semibold text-sub" data-company-line>
             <span className="min-w-0 truncate">🏢 {company.company_name}</span>
             {coInfo.verified && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ 확인된 회사</span>}
             {coInfo.open > 0 && <span className="ml-auto shrink-0 text-xs text-brand-600">공고 {coInfo.open}개 →</span>}
@@ -371,7 +371,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {/* 급여 자세히: 휴게·수당·가산·공제·지급일은 접어 둠 (한눈에 보는 칸은 짧게) */}
           {payMore.length > 0 && (
             <details className="group mt-2 border-t border-brand-100/70 pt-2" data-pay-more>
-              <summary className="flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-brand-700 [&::-webkit-details-marker]:hidden">
+              <summary className="tap flex cursor-pointer list-none items-center gap-1 text-xs font-semibold text-brand-700 [&::-webkit-details-marker]:hidden">
                 {/* 펼침 표시는 앞의 화살표 하나만 (뒤에 ⌄까지 있어 두 개였음) */}
                 {payMore.map(([k]) => k).join(' · ')} 자세히
               </summary>
@@ -397,7 +397,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               {[job.location_name, job.address].filter(Boolean).join('\n')}
               {/* 지도는 설명 아래 멀리 있어서: 장소 옆에서 바로 내려가기 */}
               {' '}
-              <a href="#venue" className="text-sm font-semibold whitespace-nowrap text-brand-600" data-venue-link>
+              <a href="#venue" className="tap text-sm font-semibold whitespace-nowrap text-brand-600" data-venue-link>
                 지도 ↓
               </a>
               {/* 모이는 곳은 장소 아래 작은 글씨로 (따로 한 줄을 차지하지 않게) */}

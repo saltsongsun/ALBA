@@ -806,9 +806,8 @@ export default async function AttTab({
                         </a>
                       )}
                     </span>
-                    {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) */}
-                    <span className="inline-flex items-center gap-1 text-xs text-mute">
-                      평가
+                    {/* 관리자끼리만 보는 별점 (다시 누르면 바뀜) · 별을 크게 하면서 '평가' 글자는 빼고 한 줄에 (읽어 주기용 이름은 남김) */}
+                    <span className="inline-flex items-center" role="group" aria-label="관리자 평가 (관리자끼리만 봐요)">
                       <QuickRate action={rateQuick.bind(null, uid, job.id)} score={myScores[uid] ?? null} />
                     </span>
                   </div>
@@ -816,7 +815,7 @@ export default async function AttTab({
                   {/* 불성실 근무자 귀가 조치: 지금 시각으로 종료하고 사유를 남겨 알림 (일한 시간 급여는 지급) */}
                   {a && !a.clock_out && (
                     <details className="mt-3 border-t border-line pt-2.5">
-                      <summary className="cursor-pointer text-sm font-semibold text-rose-600">🏠 귀가 조치 (불성실 근무)</summary>
+                      <summary className="tap cursor-pointer text-sm font-semibold text-rose-600">🏠 귀가 조치 (불성실 근무)</summary>
                       <form action={dismissWorker.bind(null, a.id)} className="mt-2 space-y-2.5">
                         <div className="flex flex-wrap gap-1.5">
                           {DISMISS_REASONS.map((r, i) => (

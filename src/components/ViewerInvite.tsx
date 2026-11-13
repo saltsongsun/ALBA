@@ -13,7 +13,7 @@ export default function ViewerInvite({ jobId, viewers, canInvite }: { jobId: str
   return (
     // 상자 없이 한 줄 (펼치면 목록만 연한 바탕) · 사용자 지적 2026-11-07 '지저분하다'
     <details className="group/viewers mt-1 text-sm">
-      <summary className="cursor-pointer text-sub">
+      <summary className="tap cursor-pointer text-sub">
         {/* '지원 안 함'은 본 가입자 안의 사람 수 (따로 더하는 숫자가 아님) */}
         본 가입자 {viewers.length}명 · 그중 지원 안 함 {notApplied.length}명
       </summary>

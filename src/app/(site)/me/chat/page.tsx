@@ -119,7 +119,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       {companyId && <ReadSync tag={`chat-${companyId}`} />}
       <div>
         {many && (
-          <Link href="/me/chat" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-sub" data-chat-back transitionTypes={['nav-back']}>
+          <Link href="/me/chat" className="tap mb-2 inline-flex items-center gap-1 text-sm font-semibold text-sub" data-chat-back transitionTypes={['nav-back']}>
             ← 대화 목록
           </Link>
         )}

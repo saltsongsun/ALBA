@@ -964,3 +964,13 @@ html[data-text='lg'] {
     animation: none;
   }
 }
+
+/* 작은 글자 링크·접기 제목(← 뒤로, 지도 ↓, 자세히…): 보이는 크기와 자리는 그대로, 누르는 곳만 위아래로 넓힘 (손가락이 빗나가지 않게) */
+@utility tap {
+  position: relative;
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -10px -6px;
+  }
+}

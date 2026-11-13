@@ -63,7 +63,7 @@ export default async function PaperContractPage(props: PageProps<'/print/contrac
   return (
     <div className="space-y-4">
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
-        <Link href={back} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href={back} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 돌아가기
         </Link>
         <p className="text-sm text-sub">{blank ? '빈 계약서 1장' : `${people.length}명 · 한 사람에 한 장`}</p>

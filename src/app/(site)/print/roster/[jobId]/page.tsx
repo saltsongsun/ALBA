@@ -55,7 +55,7 @@ export default async function RosterPrint(props: { params: Promise<{ jobId: stri
   return (
     <div className="space-y-4">
       <div className="no-print flex flex-wrap items-center justify-between gap-2">
-        <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href={`/admin/jobs/${job.id}?tab=att&date=${date}`} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 출퇴근으로
         </Link>
         {dates.length > 1 && (

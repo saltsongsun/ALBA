@@ -60,7 +60,7 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
     <div className="space-y-4">
       <CommunitySeen />
       <Flash m={sp.m} />
-      <Link href={`/community?c=${post.category}`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href={`/community?c=${post.category}`} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← {cat.label}
       </Link>
       <article className="card space-y-3" data-post-detail>

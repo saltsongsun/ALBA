@@ -144,7 +144,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
     <div className="space-y-5">
       <Flash m={sp.m} />
       <RosterOpenBar seconds={rosterLeft} />
-      <Link href="/admin/workers" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href="/admin/workers" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 근무자 목록
       </Link>
       <div className="grid items-start gap-4 lg:grid-cols-2">

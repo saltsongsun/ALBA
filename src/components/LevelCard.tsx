@@ -97,7 +97,7 @@ export default function LevelCard({ s }: { s: XpState }) {
       </div>
       {/* 점수 얻는 법: 카드 아래 가는 줄로 접어 둠 */}
       <details className="border-t border-line px-4 py-2.5 text-xs" data-xp-rules>
-        <summary className="cursor-pointer font-semibold text-mute">점수 얻는 법</summary>
+        <summary className="tap cursor-pointer font-semibold text-mute">점수 얻는 법</summary>
         <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 text-sub">
           {XP_RULES.map((r) => (
             <li key={r.key} className="flex justify-between gap-2">

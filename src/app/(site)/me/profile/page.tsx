@@ -66,7 +66,7 @@ export default async function ProfilePage() {
   return (
     <div className="space-y-4">
       <OpenOnHash />
-      <Link href={vendor ? '/pro' : '/me'} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href={vendor ? '/pro' : '/me'} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         {vendor ? '← 홈' : '← 내 근무'}
       </Link>
       {doneN < checks.length && (
@@ -131,7 +131,7 @@ export default async function ProfilePage() {
           {/* 어디에 요청하는지 바로: 문의 화면으로 (바꿀 정보 문구를 첫 빠른 답장으로) */}
           <p className="hint">
             이름·주민등록번호·휴대폰 번호를 바꾸려면 담당자에게 요청해 주세요.{' '}
-            <Link href="/me/chat?ask=info" className="font-semibold whitespace-nowrap text-brand-600" data-ask-info>
+            <Link href="/me/chat?ask=info" className="tap font-semibold whitespace-nowrap text-brand-600" data-ask-info>
               문의하기 →
             </Link>
           </p>
@@ -159,7 +159,7 @@ export default async function ProfilePage() {
         <section id="nickname" className="card scroll-mt-20 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <h2 className="font-bold">커뮤니티 별명</h2>
-            <Link href="/community" className="text-sm font-semibold text-brand-600">
+            <Link href="/community" className="tap text-sm font-semibold text-brand-600">
               커뮤니티 →
             </Link>
           </div>

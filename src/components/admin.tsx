@@ -501,17 +501,29 @@ function WageDefault({ value }: { value: number }) {
   )
 }
 
-/** 출퇴근 화면의 빠른 평가: 별을 누르면 바로 채워지고 저장됨 (다시 누르면 바뀜) */
+/**
+ * 출퇴근 화면의 빠른 평가: 별을 누르면 바로 채워지고 저장됨 (다시 누르면 바뀜).
+ * 별 하나하나를 손가락 크기(26×32)로 · 저장되면 별 위에 '✓ n점'이 잠깐 톡 (몇 점으로 저장됐는지 바로 보이게 · 자리는 차지하지 않음)
+ */
 export function QuickRate({ action, score }: { action: (form: FormData) => Promise<void>; score: number | null }) {
   const [shown, setShown] = useOptimistic(score)
+  const [saved, setSaved] = useState<number | null>(null)
+  useEffect(() => {
+    if (saved == null) return
+    const t = setTimeout(() => setSaved(null), 1800)
+    return () => clearTimeout(t)
+  }, [saved])
   return (
     <form
       action={async (form) => {
-        setShown(Number(form.get('score')))
+        const n = Number(form.get('score'))
+        setShown(n)
         haptic(8)
         await action(form)
+        setSaved(n)
       }}
-      className="inline-flex items-center"
+      className="relative inline-flex items-center"
+      data-quick-rate
     >
       {[1, 2, 3, 4, 5].map((n) => (
         <button
@@ -519,11 +531,18 @@ export function QuickRate({ action, score }: { action: (form: FormData) => Promi
           name="score"
           value={n}
           aria-label={`${n}점`}
-          className={`px-0.5 text-lg leading-none transition duration-150 active:scale-75 ${n <= (shown ?? 0) ? 'text-amber-400' : 'text-line hover:text-amber-200'}`}
+          className={`grid h-8 w-[26px] place-items-center text-lg leading-none transition duration-150 active:scale-75 ${n <= (shown ?? 0) ? 'text-amber-400' : 'text-line hover:text-amber-200'}`}
         >
           ★
         </button>
       ))}
+      <span aria-live="polite" className="pointer-events-none absolute -top-4 right-0 text-[11px] font-bold whitespace-nowrap text-emerald-700" data-rate-saved={saved ?? undefined}>
+        {saved != null && (
+          <span key={saved} className="inline-block animate-pop">
+            ✓ {saved}점
+          </span>
+        )}
+      </span>
     </form>
   )
 }

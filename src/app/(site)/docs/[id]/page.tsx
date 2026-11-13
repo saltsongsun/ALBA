@@ -50,7 +50,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
     if (blocked) {
       return (
         <div className="space-y-4">
-          <Link href="/me" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+          <Link href="/me" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
             ← 내 근무
           </Link>
           <div className="card px-6 py-12 text-center">
@@ -112,7 +112,7 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
     <div className="space-y-4">
       <Flash m={sp.m} />
       <div className="no-print flex items-center justify-between">
-        <Link href={mine ? '/me' : `/admin/jobs/${doc.job_id}?tab=docs`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href={mine ? '/me' : `/admin/jobs/${doc.job_id}?tab=docs`} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 돌아가기
         </Link>
         {doc.status === 'signed' ? (

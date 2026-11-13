@@ -1114,7 +1114,7 @@ export default async function MePage(props: PageProps<'/me'>) {
         <section>
           <div className="mb-3 flex items-baseline justify-between">
             <h2 className="text-[17px] font-bold">근무 내역 · 급여</h2>
-            <Link href="/me/history" className="text-sm font-semibold text-brand-600">
+            <Link href="/me/history" className="tap text-sm font-semibold text-brand-600">
               지난 근무 전체 →
             </Link>
           </div>

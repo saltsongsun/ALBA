@@ -195,7 +195,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`chat-${worker.id}`} />
       <div className="flex items-center justify-between gap-2">
-        <Link href="/admin/chat" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href="/admin/chat" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 문의 목록
         </Link>
         {messages.length > 0 && (

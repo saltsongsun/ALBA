@@ -20,7 +20,7 @@ export default async function CoworkersPage() {
   if (!(await coworkersEnabled())) {
     return (
       <div className="space-y-4">
-        <Link href="/community" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href="/community" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 커뮤니티
         </Link>
         <p className="card text-sm text-sub" data-coworkers-off>
@@ -34,7 +34,7 @@ export default async function CoworkersPage() {
 
   return (
     <div className="space-y-4">
-      <Link href="/community" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href="/community" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 커뮤니티
       </Link>
       <div>

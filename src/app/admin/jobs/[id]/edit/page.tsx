@@ -39,7 +39,7 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
   return (
     <div className="mx-auto max-w-3xl">
       <Flash m={sp.m} />
-      <Link href={`/admin/jobs/${id}`} className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href={`/admin/jobs/${id}`} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 공고로 돌아가기
       </Link>
       <h1 className="mt-2 mb-4 text-2xl font-extrabold">공고 수정</h1>

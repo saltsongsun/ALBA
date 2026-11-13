@@ -17,7 +17,7 @@ export default async function NewPostPage(props: PageProps<'/community/new'>) {
   const nick = (data as { nickname: string | null } | null)?.nickname
   return (
     <div className="space-y-4">
-      <Link href="/community" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href="/community" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 커뮤니티
       </Link>
       <h1 className="text-2xl font-extrabold">글쓰기</h1>

@@ -38,7 +38,7 @@ export default async function NewJobPage() {
   const multi = admin.companies.length > 1
   return (
     <div className="mx-auto max-w-3xl">
-      <Link href="/admin/jobs" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href="/admin/jobs" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 공고 목록
       </Link>
       <h1 className={`mt-2 text-2xl font-extrabold ${multi ? 'mb-1' : 'mb-4'}`}>새 공고 등록</h1>

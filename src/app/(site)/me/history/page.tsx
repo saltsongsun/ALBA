@@ -163,7 +163,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/me" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+        <Link href="/me" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 내 근무
         </Link>
         <h1 className="mt-2 text-2xl font-extrabold">지난 근무</h1>
@@ -384,7 +384,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                     </div>
                     {/* 날짜별 기록: 접어 둠 (며칠·몇 시간이 어떻게 나왔는지 눌러서 확인) */}
                     <details className="group border-t border-line pt-2" data-history-days>
-                      <summary className="cursor-pointer text-xs font-semibold text-sub">날짜별 기록 {days.length}일</summary>
+                      <summary className="tap cursor-pointer text-xs font-semibold text-sub">날짜별 기록 {days.length}일</summary>
                       <ul className="mt-1.5 space-y-1 text-[13px] tabular-nums">
                         {days.map((d) => (
                           <li key={d.id} className="flex items-baseline justify-between gap-3">

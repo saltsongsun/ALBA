@@ -41,7 +41,7 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
 
   return (
     <div className="space-y-4">
-      <Link href="/community?c=review" className="text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+      <Link href="/community?c=review" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 회사 후기
       </Link>
       <section className="card space-y-4" data-company-rating>
