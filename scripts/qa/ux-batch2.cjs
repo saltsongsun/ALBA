@@ -14,7 +14,10 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 const plus = (d, n) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86400e3).toISOString().slice(0, 10)
 
 ;(async () => {
-  // 근무자는 오늘 09~18시 공고(J)에 확정. 같은 날 10~15시(겹침) · 같은 날 19~22시(안 겹침) · 내일(안 겹침)
+  // 근무자는 내일 09~18시 공고(J)에 확정. 같은 날 10~15시(겹침) · 같은 날 19~22시(안 겹침) · 다음 날(안 겹침)
+  // (오늘로 두면 저녁에 돌릴 때 근무가 끝난 공고라 목록 맨 아래 '끝난 공고' 칸으로 내려가서 내일로)
+  const tmr = new Date(Date.now() + 9 * 3600e3 + 86400e3).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: tmr, end_date: tmr })
   const [j1] = await rest(`jobs?id=eq.${J}`)
   const day = j1.start_date
   const mk = (id, title, start, st, et) => ({ ...j1, id, title, start_date: start, end_date: start, start_time: st, end_time: et, applications: [], required_docs: [] })
