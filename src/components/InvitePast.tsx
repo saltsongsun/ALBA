@@ -4,6 +4,7 @@ import { useActionState, useMemo, useState } from 'react'
 import { inviteToJob } from '@/app/actions/chat'
 import Avatar from './Avatar'
 import Fold from './Fold'
+import LevelBadge from './LevelBadge'
 import { GroupContact } from './GroupContact'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 
@@ -17,6 +18,8 @@ export type PastWorker = {
   noShow: number
   dismissed?: number
   avg: number | null
+  /** 병아리 레벨 (이 회사 기록으로 셈 · 전문가는 없음) */
+  lv?: { level: number; stage: { name: string } } | null
 }
 
 /** 예전에 일한 근무자를 골라 새 공고 모집을 앱 알림·단체 문자로 (노쇼 없는 사람을 기본으로 고름) */
@@ -57,7 +60,10 @@ export default function InvitePast({ jobId, jobTitle, link, workers }: { jobId: 
             <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5">
               <input type="checkbox" className="size-5 shrink-0 accent-brand-600" checked={picked.has(w.id)} onChange={() => toggle(w.id)} />
               <Avatar id={w.id} name={w.name} photoAt={w.photo_at} size="sm" zoom={false} />
-              <span className="min-w-0 flex-1 truncate font-semibold">{w.name}</span>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5">
+                <span className="min-w-0 truncate font-semibold">{w.name}</span>
+                <LevelBadge x={w.lv} />
+              </span>
               <span className="shrink-0 text-xs text-mute">
                 근무 {w.days}일{w.avg != null && ` · ★${w.avg.toFixed(1)}`}
                 {w.late > 0 && ` · 지각 ${w.late}`}

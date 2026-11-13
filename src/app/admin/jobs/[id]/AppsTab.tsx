@@ -8,7 +8,9 @@ import Avatar from '@/components/Avatar'
 import Empty from '@/components/Empty'
 import { ContactButtons } from '@/components/Contact'
 import LevelBadge from '@/components/LevelBadge'
-import { companyLevels } from '@/lib/xpCompany'
+import { companyLevels, type LevelUser } from '@/lib/xpCompany'
+import SortChips from '@/components/SortChips'
+import { SORT_DIM } from '@/lib/sortDim'
 import { GroupContact } from '@/components/GroupContact'
 import HashFocus from '@/components/HashFocus'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
@@ -99,9 +101,13 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
   const [users, rel, ratings] = await Promise.all([
     db()
       .from('users')
-      .select('id, name, phone, photo_at, active, role')
+      // 레벨을 세려고 내 정보 채움 여부(계좌·비상연락처·주소·경력)도 받음 — 값은 화면에 넘기지 않음
+      .select('id, name, phone, photo_at, active, role, member_type, bank_account_enc, emergency_phone, address, careers')
       .in('id', ids)
-      .then((r) => must(r) as { id: string; name: string; phone: string; photo_at: string | null; active: boolean; role: string }[]),
+      .then(
+        (r) =>
+          must(r) as ({ id: string; name: string; phone: string; active: boolean; role: string; member_type: string | null } & LevelUser)[],
+      ),
     reliabilityFor(job.company_id, ids),
     db()
       .from('worker_ratings')
@@ -110,11 +116,25 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
       .then((r) => must(r) as { user_id: string; score: number }[]),
   ])
   const scores = scoresByUser(ratings)
-  return users
-    .filter((u) => u.active && u.role === 'worker')
+  const active = users.filter((u) => u.active && u.role === 'worker')
+  // 병아리 레벨: 명단·지원자 카드와 같게 이 회사 기록만 (전문가는 없음)
+  const levels = await companyLevels(
+    job.company_id,
+    active.filter((u) => (u.member_type ?? 'worker') === 'worker'),
+  )
+  return active
     .map((u) => {
       const s = scores[u.id]
-      return { id: u.id, name: u.name, phone: u.phone, photo_at: u.photo_at, ...rel[u.id], avg: s?.length ? s.reduce((a, b) => a + b, 0) / s.length : null }
+      const x = levels.get(u.id)
+      return {
+        id: u.id,
+        name: u.name,
+        phone: u.phone,
+        photo_at: u.photo_at,
+        ...rel[u.id],
+        avg: s?.length ? s.reduce((a, b) => a + b, 0) / s.length : null,
+        lv: x ? { level: x.level, stage: { name: x.stage.name } } : null,
+      }
     })
     .sort((a, b) => a.noShow + a.dismissed - (b.noShow + b.dismissed) || (b.avg ?? 0) - (a.avg ?? 0) || b.days - a.days)
 }
@@ -305,13 +325,14 @@ export default async function AppsTab({
   const canCloseNotify = !canRejectWaiting && waiting > 0 && job.status === 'open' && approved.length > 0 && job.end_date >= today
   const shownDay = day && dates.includes(day) ? day : null
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
-  // 정렬: 지원순(기본) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
+  // 정렬: 지원순(기본) · 레벨 높은 순(이 회사 기록으로 센 병아리 레벨 · 전문가는 뒤) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
   const avg = (uid: string) => {
     const s = scores[uid]
     return s?.length ? s.reduce((x, y) => x + y, 0) / s.length : 0
   }
   const by: Record<string, (a: AppRow, b: AppRow) => number> = {
     time: () => 0,
+    level: (a, b) => (levels.get(b.user_id)?.xp ?? -1) - (levels.get(a.user_id)?.xp ?? -1),
     rating: (a, b) => avg(b.user_id) - avg(a.user_id),
     exp: (a, b) => (rel[b.user_id]?.days ?? 0) - (rel[a.user_id]?.days ?? 0),
     reliable: (a, b) => {
@@ -552,27 +573,24 @@ export default async function AppsTab({
         </div>
       )}
       {apps.length > 1 && (
-        <div className="fade-x flex gap-1.5 overflow-x-auto pb-1">
-          {(
+        // 누르면 그 칩이 바로 켜지고 아래 지원자 목록이 새 순서를 받을 때까지 살짝 흐려짐 (SORT_DIM)
+        <SortChips
+          label="지원자 정렬"
+          value={by[sort] ? sort : 'time'}
+          options={(
             [
               ['time', '지원순'],
+              ['level', '레벨 높은 순'],
               ['rating', '평점 높은 순'],
               ['exp', '경험 많은 순'],
               ['reliable', '성실한 순'],
             ] as const
-          ).map(([k, label]) => (
-            <Link
-              key={k}
-              href={`/admin/jobs/${job.id}?tab=apps${k === 'time' ? '' : `&sort=${k}`}${shownDay ? `&day=${shownDay}` : ''}`}
-              scroll={false}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold transition active:scale-95 ${
-                sort === k ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
-              }`}
-            >
-              {label}
-            </Link>
-          ))}
-        </div>
+          ).map(([k, label]) => ({
+            value: k,
+            label,
+            href: `/admin/jobs/${job.id}?tab=apps${k === 'time' ? '' : `&sort=${k}`}${shownDay ? `&day=${shownDay}` : ''}`,
+          }))}
+        />
       )}
       {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} link={`${origin}/jobs/${job.id}`} workers={past} />}
       {apps.length === 0 ? (
@@ -585,7 +603,7 @@ export default async function AppsTab({
           {/* 휴대폰: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) */}
           {/* 문의 화면 '지원자 보기'로 왔으면 그 사람 카드로 내려가 테두리로 표시 */}
           <HashFocus prefix="app-" />
-          <div className="space-y-2 sm:hidden">
+          <div className={`space-y-2 sm:hidden ${SORT_DIM}`} data-app-list>
             {groups.map(([label, list, open]) =>
               list.length === 0 ? null : open ? (
                 <div key={label} className="stagger space-y-2" data-app-group={label}>
@@ -613,7 +631,7 @@ export default async function AppsTab({
             )}
           </div>
 
-          <div className="card hidden overflow-x-auto p-0 sm:block">
+          <div className={`card hidden overflow-x-auto p-0 sm:block ${SORT_DIM}`}>
             <table className="table">
               <thead>
                 <tr>
