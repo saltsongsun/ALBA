@@ -1060,7 +1060,12 @@ export default async function MePage(props: PageProps<'/me'>) {
                   )}
                   {/* 출근 전이고 근무가 끝나기 전: 늦으면 담당자에게 알리기 */}
                   {!todayAtt && !open && !notChosen && new Date() < scheduledEnd(todayShift(job), today) && (
-                    <LateNotice jobId={job.id} sent={lateSent.get(job.id) ?? null} />
+                    <LateNotice
+                      jobId={job.id}
+                      sent={lateSent.get(job.id) ?? null}
+                      startAt={kstAt(today, job.start_time).toISOString()}
+                      started={Date.now() > kstAt(today, job.start_time).getTime()}
+                    />
                   )}
                 </div>
               )

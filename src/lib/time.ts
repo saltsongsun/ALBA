@@ -125,3 +125,11 @@ export function ageOn(birth: string, on: string = kstDate()): number {
   const [y, m, d] = on.split('-').map(Number)
   return y - by - (m < bm || (m === bm && d < bd) ? 1 : 0)
 }
+
+/** 기다린(지난) 시간을 짧게: '5분째' · '3시간째' · '2일째' */
+export function waitedText(ms: number): string {
+  const min = Math.max(1, Math.floor(ms / 60_000))
+  if (min < 60) return `${min}분째`
+  if (min < 24 * 60) return `${Math.floor(min / 60)}시간째`
+  return `${Math.floor(min / (24 * 60))}일째`
+}

@@ -5,7 +5,7 @@ import { db } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
 import { fmtJoinCode, joinCodeOf } from '@/lib/joinCode'
 import type { AdminUser } from '@/lib/session'
-import { fmtDate, kstTime } from '@/lib/time'
+import { fmtDate, kstDate, kstTime, waitedText } from '@/lib/time'
 
 type Person = { id: string; name: string; phone: string }
 
@@ -38,6 +38,8 @@ export default async function Team({ admin }: { admin: AdminUser }) {
       ? (((await db().from('users').select('id, name, phone').in('id', ids)).data ?? []) as Person[]).map((p) => [p.id, p])
       : [],
   )
+  const now = Date.now()
+  const today = kstDate(now)
   const ownerNames = members.filter((m) => m.role === 'owner').map((m) => people.get(m.user_id)?.name).filter(Boolean)
   // 대표 관리자 먼저
   const sorted = [...members].sort((a, b) => (a.role === b.role ? 0 : a.role === 'owner' ? -1 : 1))
@@ -59,12 +61,22 @@ export default async function Team({ admin }: { admin: AdminUser }) {
           {reqs.map((r) => {
             const p = people.get(r.user_id)
             return (
-              <div key={r.user_id} className="flex items-center gap-2 rounded-xl bg-white p-3">
+              <div key={r.user_id} className="flex items-center gap-2 rounded-xl bg-white p-3" data-join-req={r.user_id}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-bold">{p?.name ?? '회원'}</span>
-                  <span className="block text-sm text-sub">{phoneFmt(p?.phone)}</span>
-                  <span className="block text-xs text-mute">
-                    {fmtDate(r.created_at.slice(0, 10))} {kstTime(r.created_at)} 신청
+                  {/* 아는 사람인지 바로 전화로 확인 (번호를 누르면 전화) */}
+                  {p?.phone ? (
+                    <a href={`tel:${p.phone.replace(/\D/g, '')}`} className="inline-flex min-h-8 items-center gap-1 text-sm font-semibold text-brand-700" data-join-req-call>
+                      <Icon name="phone" className="text-emerald-600" />
+                      {phoneFmt(p.phone)}
+                    </a>
+                  ) : null}
+                  {/* 한 줄로: 기다린 시간 · 오늘 신청이면 시각, 아니면 날짜 */}
+                  <span className="block truncate text-xs text-mute">
+                    <b className="font-semibold text-amber-700" data-join-req-waited>
+                      {waitedText(now - Date.parse(r.created_at))}
+                    </b>{' '}
+                    · {kstDate(r.created_at) === today ? kstTime(r.created_at) : fmtDate(kstDate(r.created_at)).replace(/\(.\)$/, '')} 신청
                   </span>
                 </span>
                 <form action={decideJoin.bind(null, r.user_id, false)} className="shrink-0">
@@ -80,7 +92,7 @@ export default async function Team({ admin }: { admin: AdminUser }) {
               </div>
             )
           })}
-          <p className="text-xs text-amber-800">승인하면 우리 회사 근무자 연락처·계좌를 볼 수 있어요. 아는 사람만 승인해 주세요.</p>
+          <p className="text-xs text-amber-800">승인하면 우리 회사 근무자 연락처·계좌를 볼 수 있어요. 번호를 눌러 아는 사람인지 확인한 뒤 승인해 주세요.</p>
         </div>
       )}
 

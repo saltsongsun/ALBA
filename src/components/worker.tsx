@@ -20,7 +20,7 @@ import {
 } from '@/app/actions/worker'
 import { BANKS } from '@/lib/privacy'
 import { fixTime } from '@/lib/signals'
-import { kstDate, kstTime } from '@/lib/time'
+import { kstDate, kstTime, minutesText } from '@/lib/time'
 import AccountDigits from './AccountDigits'
 import { onAccountPaste } from './accountPaste'
 import { onPhoneInput, phoneShown } from './phoneTyping'
@@ -732,39 +732,71 @@ export function FixRequest({
   )
 }
 
-/** 늦을 것 같을 때 담당자에게 몇 분 늦는지 알리기 (오늘 근무 카드, 출근 전) */
-export function LateNotice({ jobId, sent }: { jobId: string; sent: { minutes: number; eta: string; at: string } | null }) {
+const LATE_CHOICES = [10, 20, 30, 60]
+
+/**
+ * 늦을 것 같을 때 담당자에게 알리기 (오늘 근무 카드, 출근 전).
+ * 시작 전: '얼마나 늦을 것 같나요?' (시작에서 n분) · 시작 시각이 지났으면: '언제쯤 도착해요?' (지금부터 n분 뒤)
+ * 고르는 칸마다 도착 예정 시각을 함께 보여 줌
+ */
+export function LateNotice({
+  jobId,
+  sent,
+  startAt,
+  started,
+}: {
+  jobId: string
+  sent: { minutes: number; eta: string; at: string } | null
+  /** 오늘 근무 시작 시각 (ISO) */
+  startAt: string
+  /** 화면을 그릴 때 이미 시작 시각이 지났는지 */
+  started: boolean
+}) {
   const [state, action, pending] = useActionState(notifyLate.bind(null, jobId), null)
   const [openForm, setOpenForm] = useState(false)
-  const [minutes, setMinutes] = useState(sent?.minutes ?? 10)
+  const [minutes, setMinutes] = useState(sent && LATE_CHOICES.includes(sent.minutes) ? sent.minutes : 10)
+  // 도착 예정 시각의 기준 (칸을 연 때 · 서버도 '지금과 시작 중 늦은 때'에서 더함)
+  const [base, setBase] = useState(0)
   const done = state?.ok
   useEffect(() => {
     if (done) setOpenForm(false)
   }, [done])
+  const open = () => {
+    setBase(Math.max(Date.now(), Date.parse(startAt)))
+    setOpenForm(true)
+  }
+  const arrive = (m: number) => (base ? kstTime(new Date(base + m * 60_000)) : '')
   return (
     <div className="space-y-2">
       {sent && !state && (
         <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
-          🕒 {sent.at}에 담당자에게 <b>약 {sent.minutes}분 늦음</b>(도착 예정 {sent.eta})을 알렸어요.
+          🕒 {sent.at}에 담당자에게 <b>약 {minutesText(sent.minutes)} 늦음</b>(도착 예정 {sent.eta})을 알렸어요.
         </p>
       )}
       {!openForm ? (
-        <button type="button" onClick={() => setOpenForm(true)} className="btn-gray btn-sm w-full">
-          🕒 {sent || done ? '늦는 시간 다시 알리기' : '늦을 것 같아요 · 담당자에게 알리기'}
+        <button type="button" onClick={open} className="btn-gray btn-sm w-full" data-late-open={started ? 'started' : 'before'}>
+          🕒 {started ? (sent || done ? '도착 시간 다시 알리기' : '가는 중이에요 · 도착 시간 알리기') : sent || done ? '늦는 시간 다시 알리기' : '늦을 것 같아요 · 담당자에게 알리기'}
         </button>
       ) : (
         <form action={action} className="animate-pop space-y-3 rounded-xl bg-bg p-3.5">
-          <p className="text-sm font-bold">얼마나 늦을 것 같나요?</p>
-          <div className="grid grid-cols-4 gap-1.5">
-            {[10, 20, 30, 60].map((m) => (
+          <p className="text-sm font-bold">{started ? '언제쯤 도착해요?' : '얼마나 늦을 것 같나요?'}</p>
+          <div className="grid grid-cols-4 gap-1.5" data-late-choices>
+            {LATE_CHOICES.map((m) => (
               <label
                 key={m}
-                className={`cursor-pointer rounded-xl py-2.5 text-center text-sm font-bold ring-1 transition active:scale-95 ${
+                className={`flex cursor-pointer flex-col items-center rounded-xl py-2 text-center ring-1 transition active:scale-95 ${
                   minutes === m ? 'bg-brand-600 text-white ring-brand-600' : 'bg-white text-sub ring-line'
                 }`}
               >
                 <input type="radio" name="minutes" value={m} checked={minutes === m} onChange={() => setMinutes(m)} className="sr-only" />
-                {m === 60 ? '1시간' : `${m}분`}
+                <span className="text-sm font-bold whitespace-nowrap">
+                  {m === 60 ? '1시간' : `${m}분`}
+                  {started && ' 뒤'}
+                </span>
+                {/* 이 칸을 고르면 도착 예정 시각 (고른 칸은 톡) */}
+                <span key={minutes === m ? 'on' : 'off'} className={`text-[11px] tabular-nums ${minutes === m ? 'animate-pop text-white/90' : 'text-mute'}`} data-late-eta={arrive(m)}>
+                  {arrive(m)}
+                </span>
               </label>
             ))}
           </div>

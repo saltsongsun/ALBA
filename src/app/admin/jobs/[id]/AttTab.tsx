@@ -511,7 +511,7 @@ export default async function AttTab({
               photoAt: users.get(uid)?.photo_at ?? null,
               pos: posOf(uid),
               state: !a ? 'absent' : !a.clock_out ? 'working' : 'done',
-              hint: a ? undefined : arriveOf.has(uid) ? '출근 요청' : late ? `${late.minutes}분 늦음` : undefined,
+              hint: a ? undefined : arriveOf.has(uid) ? '출근 요청' : late ? `${minutesText(late.minutes)} 늦음` : undefined,
             }
           })}
           start={bulkClockIn.bind(null, job.id, date)}
@@ -575,7 +575,7 @@ export default async function AttTab({
             ? ask
               ? { label: '출근 요청', cls: 'bg-brand-600 text-white' }
               : late
-                ? { label: `${late.minutes}분 늦음`, cls: 'bg-amber-100 text-amber-800' }
+                ? { label: `${minutesText(late.minutes)} 늦음`, cls: 'bg-amber-100 text-amber-800' }
                 : notYet
                   ? { label: '출근 전', cls: 'bg-gray-100 text-mute' }
                   : { label: '미출근', cls: 'bg-rose-50 text-rose-600' }
@@ -674,7 +674,7 @@ export default async function AttTab({
                   )}
                   {late && !ask && (
                     <p className="mt-2.5 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                      🕒 {late.at}에 알림 · 약 {late.minutes}분 늦음, <b>{late.eta} 도착 예정</b>
+                      🕒 {late.at}에 알림 · 약 {minutesText(late.minutes)} 늦음, <b>{late.eta} 도착 예정</b>
                       {late.reason && <span className="text-amber-800"> · {late.reason}</span>}
                     </p>
                   )}

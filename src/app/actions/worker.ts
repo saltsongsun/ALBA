@@ -638,10 +638,14 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
   if (r.todaySent.filter((m) => signalOf(m.body) === 'late').length >= 3) return { error: '오늘은 이미 여러 번 알렸어요. 담당자에게 전화해 주세요.' }
   const reason = optStr(form, 'reason', 100)
   const start = kstAt(r.today, r.job.start_time)
+  // 시작 전이면 '시작에서 n분 늦게', 이미 시작 시각이 지났으면 '지금부터 n분 뒤 도착'
+  const started = Date.now() > start.getTime()
   const eta = new Date(Math.max(Date.now(), start.getTime()) + minutes * 60_000)
+  // 담당자에게는 시작 시각에서 실제로 얼마나 늦는지 (시작이 지났으면 지난 시간까지 더해서)
+  const lateMin = Math.max(minutes, Math.round((eta.getTime() - start.getTime()) / 60_000))
   const body = [
     SIGNAL.late,
-    `${r.job.title} · 약 ${minutes}분 늦어요 (도착 예정 ${kstTime(eta)})`,
+    `${r.job.title} · 약 ${lateMin}분 늦어요 (도착 예정 ${kstTime(eta)})`,
     reason && `사유: ${reason}`,
   ]
     .filter(Boolean)
@@ -651,7 +655,7 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
   const companyId = r.job.company_id
   after(async () =>
     sendAdminPush(companyId, {
-      title: `${SIGNAL.late} · ${minutes}분`,
+      title: `${SIGNAL.late} · ${lateMin}분`,
       body: `${user.name} · ${title} · ${kstTime(eta)} 도착 예정${reason ? ` · ${reason}` : ''}`,
       url: `/admin/jobs/${jobId}?tab=att&date=${r.today}`,
       tag: `late-${jobId}-${user.id}`,
@@ -659,7 +663,7 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
   )
   revalidatePath('/me')
   revalidatePath('/admin/chat')
-  return { ok: `담당자에게 약 ${minutes}분 늦는다고 알렸어요. 조심히 오세요!` }
+  return { ok: started ? `담당자에게 ${kstTime(eta)}쯤 도착한다고 알렸어요. 조심히 오세요!` : `담당자에게 약 ${minutes}분 늦는다고 알렸어요. 조심히 오세요!` }
 }
 
 /**

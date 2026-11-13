@@ -13,15 +13,8 @@ import { phoneFmt } from '@/lib/format'
 import { JOIN_NUDGE_SEC, joinNudgeKey } from '@/lib/joinCode'
 import { pushPublicKey } from '@/lib/push'
 import { adminCompanies, getUser } from '@/lib/session'
-import { fmtDate, kstDate, kstTime } from '@/lib/time'
+import { fmtDate, kstDate, kstTime, waitedText } from '@/lib/time'
 
-/** 신청하고 지난 시간: '5분째' · '3시간째' · '2일째' */
-function waitedText(ms: number): string {
-  const min = Math.max(1, Math.floor(ms / 60_000))
-  if (min < 60) return `${min}분째`
-  if (min < 24 * 60) return `${Math.floor(min / 60)}시간째`
-  return `${Math.floor(min / (24 * 60))}일째`
-}
 
 export const metadata: Metadata = { title: '관리자 승인 대기' }
 
