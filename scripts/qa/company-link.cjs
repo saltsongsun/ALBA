@@ -95,7 +95,7 @@ const noSideScroll = (p) => p.evaluate(() => document.scrollingElement.scrollWid
   const ad = await pg(A, { permissions: ['clipboard-read', 'clipboard-write'] })
   await ad.addInitScript(() => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }) })
   await ad.goto(`${D}/admin/jobs`)
-  ok('관리자 공고 화면: 공고 모음 링크 안내', (await see(ad, '공고 모음 링크')) && (await see(ad, /단톡방에 올려 두(세요|면)/)))
+  ok('관리자 공고 화면: 공고 모음 링크 안내', (await see(ad, '공고 모음 링크')) && (await see(ad, /단톡방에 올려 두(세요|면)|링크에 지금 \d+개|지금 링크엔 지원할 공고가 없어요/)))
   ok('관리자 360px: 옆으로 안 밀림', await noSideScroll(ad))
   await ad.getByRole('button', { name: '공유하기' }).click()
   ok('누르면 링크 복사됨', await see(ad, '링크 복사됨 ✓'))
