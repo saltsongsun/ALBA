@@ -358,7 +358,11 @@ export function RosterSkeleton() {
   return (
     <div aria-busy="true" aria-label="명단 불러오는 중" className="skeleton space-y-4" data-skeleton="roster">
       <div className="h-12 rounded-2xl bg-line/60" />
-      <div className={`h-7 w-28 ${bar}`} />
+      {/* 제목 '근무자 n명' + 오른쪽 정렬 고르기 (그려질 때 자리가 그대로) */}
+      <div className="flex items-center justify-between gap-2">
+        <div className={`h-7 w-28 ${bar}`} />
+        <div className="h-8 w-[9.5rem] rounded-full bg-line/70" data-skeleton-sort />
+      </div>
       <div className="flex gap-2">
         <div className="h-11 flex-1 rounded-2xl bg-line/60" />
         <div className="h-11 w-24 rounded-2xl bg-line/70" />
@@ -374,7 +378,11 @@ export function RosterSkeleton() {
             <div className="flex items-center gap-3">
               <div className="size-14 shrink-0 rounded-full bg-line/70" />
               <div className="min-w-0 flex-1 space-y-2">
-                <div className={`h-5 w-28 ${bar}`} />
+                {/* 이름 + 레벨 배지 자리 */}
+                <div className="flex items-center gap-1.5">
+                  <div className={`h-5 w-20 ${bar}`} />
+                  <div className="h-5 w-10 rounded-full bg-line/70" />
+                </div>
                 <div className={`h-3.5 w-16 ${bar}`} />
               </div>
             </div>

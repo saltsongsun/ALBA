@@ -26,6 +26,7 @@ import type { Application, Attendance, Job, SignedDoc, UserRow, WorkerRating } f
 import { isUuid } from '@/lib/validate'
 import { careerText } from '@/lib/careers'
 import { signalOf } from '@/lib/signals'
+import { companyLevels } from '@/lib/xpCompany'
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
@@ -122,6 +123,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   // 메모·관리자 표시는 이 회사 기준 (다른 회사 메모·소속은 보이지 않게)
   const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]
+  // 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 사용자 요청 2026-11-13 '레벨도 근무자명단에 표기'
+  const level = (u.member_type ?? 'worker') === 'worker' ? (await companyLevels(admin.companyId, [u])).get(u.id) : undefined
   const account = decrypt(u.bank_account_enc)
   const age = u.birth_date ? ageOn(u.birth_date, kstDate()) : null
   const jobs = new Map(apps.map((a) => [a.job_id, a.job]))
@@ -167,6 +170,15 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             </div>
             {/* 지난 근무 성실도 (출퇴근 기록 기준) */}
             <p className="mt-1.5 flex flex-wrap gap-1 text-xs font-semibold tabular-nums" data-worker-rel>
+              {level && (
+                <span
+                  className={`rounded-lg px-2 py-0.5 ${level.level >= 3 ? 'bg-amber-100 text-amber-800' : 'bg-amber-50 text-amber-700'}`}
+                  title={`우리 회사 기록으로 센 레벨${level.toNext > 0 ? ` · 근무 ${level.shiftsToNext}번 더 하면 Lv.${level.level + 1}` : ''}`}
+                  data-level={level.level}
+                >
+                  Lv.{level.level} {level.stage.name}
+                </span>
+              )}
               <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-emerald-700">근무 {rel.days}일</span>
               <span className={`rounded-lg px-2 py-0.5 ${rel.late ? 'bg-amber-50 text-amber-700' : 'bg-bg text-sub'}`}>지각 {rel.late}회</span>
               <span className={`rounded-lg px-2 py-0.5 ${rel.noShow ? 'bg-rose-50 text-rose-600' : 'bg-bg text-sub'}`}>노쇼 {rel.noShow}회</span>
