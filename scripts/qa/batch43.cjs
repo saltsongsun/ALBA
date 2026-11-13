@@ -37,11 +37,14 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   await bn.pressSequentially('22081')
   ok("쓰는 중: '5/10자리'", (await note(g)) === '5/10자리' && (await state(g)) === 'typing')
   await bn.pressSequentially('-62517')
-  ok('숫자만 남음 (줄표는 빠짐)', (await bn.inputValue()) === '2208162517')
+  // 묶음 243부터: 사업자등록증처럼 3-2-5 줄표가 저절로 (쳐 넣은 줄표는 겹치지 않음)
+  ok("3-2-5 줄표로 '220-81-62517'", (await bn.inputValue()) === '220-81-62517', await bn.inputValue())
   // 줄표 넣은 번호를 붙여 넣어도 잘리지 않음
   await bn.fill('220-81-62517')
-  ok("줄표 넣은 번호를 붙여 넣어도 그대로 10자리 (안 잘림)", (await bn.inputValue()) === '2208162517' && (await state(g)) === 'ok', await bn.inputValue())
-  ok("맞는 번호: '✓ 올바른 사업자등록번호예요' · 테두리 없음", (await note(g)).includes('올바른 사업자등록번호예요') && (await state(g)) === 'ok' && !(await amber(g)))
+  ok("줄표 넣은 번호를 붙여 넣어도 그대로 10자리 (안 잘림)", (await bn.inputValue()) === '220-81-62517' && (await state(g)) === 'ok', await bn.inputValue())
+  // 회사로 시작하기는 이미 쓰는 회사인지도 바로 확인 (묶음 243) → '✓ 올바른 번호예요 · 새로 시작할 수 있어요'
+  await g.waitForFunction(() => document.querySelector('#business_no-check')?.getAttribute('data-biz-check') === 'free', null, { timeout: 8000 }).catch(() => {})
+  ok("맞는 번호: '✓ 올바른 번호예요 · 새로 시작할 수 있어요' · 테두리 없음", (await note(g)).includes('✓ 올바른 번호예요') && (await state(g)) === 'ok' && !(await amber(g)), await note(g))
   await bn.fill('')
   await bn.pressSequentially('1234567890')
   ok("틀린 번호: '번호를 다시 확인해 주세요' + 노란 테두리", (await note(g)).includes('번호를 다시 확인해 주세요') && (await state(g)) === 'bad' && (await amber(g)))
