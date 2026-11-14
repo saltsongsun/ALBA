@@ -36,6 +36,22 @@ export function signalOf(body: string): SignalKind | null {
 }
 
 /**
+ * '🔔 일정 변경' 알림에서 무엇이 어떻게 바뀌었는지 (근무자 예정 카드에 바로 보여 줌)
+ * - 공고 수정 알림 줄: '시간: 09:00~18:00 → 10:00~19:00'
+ * - 근무시간 변경 요청: '… 근무시간이 09:00~18:00 → 10:00~19:00으로 바뀌었어요.'
+ */
+export function parseChanges(body: string): { label: string; from: string; to: string }[] {
+  const out: { label: string; from: string; to: string }[] = []
+  for (const line of body.split('\n').slice(1)) {
+    const m = line.match(/^(날짜|시간|장소|집결|급여|복장|준비물): (.+) → (.+)$/)
+    if (m) out.push({ label: m[1], from: m[2], to: m[3] })
+    const t = line.match(/근무시간이 (\S+) → (\S+?)으로 바뀌었어요/)
+    if (t) out.push({ label: '시간', from: t[1], to: t[2] })
+  }
+  return out
+}
+
+/**
  * 관리자 문의 목록: 근무자가 마지막으로 보낸 글이 답장을 기다리는 글인지.
  * 알리기만 하는 글(지각 알림 · 근무일/확정 취소 알림 · 늦은 종료 입력)은 답장이 없어도 되므로 뺌
  */

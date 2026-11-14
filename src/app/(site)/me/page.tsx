@@ -30,7 +30,7 @@ import { answerOvertime, answerShift, confirmComing } from '@/app/actions/worker
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { isComing, isFullTimeAsk, parseChanges, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import ApplySteps from '@/components/ApplySteps'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
@@ -238,18 +238,36 @@ export default async function MePage(props: PageProps<'/me'>) {
     <>
       {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700"><Icon name="pin" /> 배치 · {a.position}</p>}
       <ContractNote job={a.job} received={a.contract_received_at} compact />
-      {/* 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 */}
-      {(() => {
-        const n = latestNotice.get(a.job_id)
-        if (!n || signalOf(n.body) !== 'change') return null
-        return (
-          <p className="mt-1.5 inline-block rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-800 ring-1 ring-amber-200">
-            🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요 · 공고에서 확인
-          </p>
-        )
-      })()}
     </>
   )
+  // 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 — 무엇이 어떻게 바뀌었는지 바로 (공고까지 안 들어가도) · 안 읽었으면 '새'
+  // (카드 전체 너비 — 목록 카드의 좁은 왼쪽 칸에 넣으면 두 줄로 꺾이고 새 값이 잘림)
+  const changeNote = (a: AppWithJob) => {
+    const n = latestNotice.get(a.job_id)
+    if (!n || signalOf(n.body) !== 'change') return null
+    const ch = parseChanges(n.body)
+    return (
+      <Link
+        href={`/me/chat?co=${a.job.company_id}`}
+        className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]"
+        data-change-note={n.read_at ? 'read' : 'new'}
+      >
+        <span className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+          🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요
+          {!n.read_at && <span className="animate-pop rounded-full bg-rose-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white" data-notice-new>새</span>}
+        </span>
+        {ch.length ? (
+          ch.slice(0, 4).map((c) => (
+            <span key={c.label} className="mt-0.5 block truncate" data-change-row>
+              <span className="font-semibold text-amber-800">{c.label}</span> <s className="text-mute">{c.from}</s> → <b className="font-bold text-ink">{c.to}</b>
+            </span>
+          ))
+        ) : (
+          <span className="mt-0.5 block text-sub">공고에서 확인해 주세요</span>
+        )}
+      </Link>
+    )
+  }
   // 근무 전날: '내일 갈게요' 한 번 → 담당자 화면에 출근 확인으로 모임 (전날 밤 전화 돌리는 일을 줄임)
   const comingRow = (a: AppWithJob) =>
     firstDay(a) === tomorrow && a.job.status !== 'cancelled' &&
@@ -773,6 +791,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
               {nextApp.job.meeting_point && <p className="text-sm text-sub"><Icon name="flag" className="text-mute" /> 집결 {nextApp.job.meeting_point}</p>}
               {upcomingExtras(nextApp)}
+              {changeNote(nextApp)}
               {latestAnnounce.has(nextApp.job_id) && noticeBox(latestAnnounce.get(nextApp.job_id)!, nextApp.job.company_id, '📢 담당자 공지', 'line-clamp-3')}
               {/* 전날 미리 챙기기: 근무 날 오늘 근무 카드와 같은 체크가 이어짐 */}
               {(() => {
@@ -1119,6 +1138,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   </a>
                 </div>
               </div>
+              {changeNote(a)}
               {latestAnnounce.has(a.job_id) && noticeBox(latestAnnounce.get(a.job_id)!, a.job.company_id, '📢 담당자 공지', 'line-clamp-2')}
               {comingRow(a)}
               </div>
