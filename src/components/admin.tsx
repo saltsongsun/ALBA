@@ -348,8 +348,16 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
 function SetupNext({ left }: { left: number }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    const el = ref.current
+    if (!el) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    ref.current?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+    el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' })
+    // 저장 뒤 화면이 바뀌며(아래 저장 바가 사라지는 등) 부드러운 이동이 끊기면 한 번 더 — 느린 휴대폰에서도 카드가 화면 안에 보이게
+    const t = setTimeout(() => {
+      const r = el.getBoundingClientRect()
+      if (r.top < 56 || r.bottom > window.innerHeight) el.scrollIntoView({ behavior: 'auto', block: 'center' })
+    }, 800)
+    return () => clearTimeout(t)
   }, [])
   return (
     <div ref={ref} className="animate-pop space-y-3 rounded-2xl bg-emerald-50 p-4 ring-1 ring-emerald-200/70" data-settings-next={left === 0 ? 'done' : 'partial'}>
