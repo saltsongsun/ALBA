@@ -116,3 +116,11 @@ export function contactLabel(s: { contact_name?: string | null; contact_phone?: 
   return [s.contact_phone ? s.contact_name : null, phoneFmt(phone)].filter(Boolean).join(' ')
 }
 
+
+/** 이름 뒤 '로/으로' (받침이 없거나 ㄹ 받침이면 '로' · 한글이 아니면 '로') — 예) 새봄이벤트로 · 한빛산업으로 · 서울로 */
+export function roJosa(name: string): string {
+  const c = name.trim().charCodeAt(name.trim().length - 1)
+  if (!(c >= 0xac00 && c <= 0xd7a3)) return '로'
+  const jong = (c - 0xac00) % 28
+  return jong === 0 || jong === 8 ? '로' : '으로'
+}

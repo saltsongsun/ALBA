@@ -52,8 +52,8 @@ export default async function AttTab({
   myScores: Record<string, number>
   /** 배치로 거르기 ('-'는 미배치, null이면 전체) */
   pos: string | null
-  /** 상태로 거르기 (위 숫자 칸을 누름): 근무 중 · 종료 · 미출근 — 한 번 더 누르면 전체 */
-  st?: 'working' | 'done' | 'absent' | null
+  /** 상태로 거르기 (위 숫자 칸을 누름): 근무 중 · 종료 · 미출근 · 지각(명단 줄의 '지각 n') — 한 번 더 누르면 전체 */
+  st?: 'working' | 'done' | 'absent' | 'late' | null
   /** 근무시간 변경 칸을 펼쳐서 보여 줌 */
   openShift?: boolean
   /** 얼굴 명단으로 보기 (현장 입구에서 얼굴 확인용) */
@@ -172,7 +172,9 @@ export default async function AttTab({
   const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
   const byPos = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
   // 현황 복사 (행사 주최·윗선에 보고할 때): 이름·번호 없이 숫자만 — 확정 · 근무 중 · 퇴근 · 미출근 · 지각 · 배치별 나온 사람/확정
-  const lateN = dayAtts.filter((a) => (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000 > 5).length
+  // 지각: 시작 시각보다 5분 넘게 늦게 출근 (아래 줄마다 붙는 '지각 n분' 배지와 같은 기준)
+  const lateSet = new Set(dayAtts.filter((a) => (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000 > 5).map((a) => a.user_id))
+  const lateN = lateSet.size
   const statusText = (() => {
     const absentWord = notYet ? '출근 전' : dayOver ? '기록 없음' : '미출근'
     const head = `[${job.title}] ${fmtDate(date)}${date === today ? ` ${kstTime(new Date().toISOString())}` : ''} 출근 현황`
@@ -189,7 +191,7 @@ export default async function AttTab({
     const a = byUser.get(uid)
     return !a ? 'absent' : !a.clock_out ? 'working' : 'done'
   }
-  const shown = st ? byPos.filter((u) => stOf(u) === st) : byPos
+  const shown = st === 'late' ? byPos.filter((u) => lateSet.has(u)) : st ? byPos.filter((u) => stOf(u) === st) : byPos
   // 사람이 많으면(9명 이상) 자세히 목록을 한 줄씩 접어 둠 (위아래로 너무 길어지지 않게)
   const compact = roster.length > 8
   // 출석 체크는 오늘(진행 중인 공고)만
@@ -201,7 +203,7 @@ export default async function AttTab({
   const posHref = (p: string | null) => hrefOf(p, view, st)
   const viewHref = (v: 'list' | 'faces' | 'check') => hrefOf(pos, v, st)
   const stHref = (s: NonNullable<typeof st>) => hrefOf(pos, view, st === s ? null : s)
-  const ST_LABEL = { working: date < today ? '퇴근 기록 없음' : '근무 중', done: '종료', absent: notYet ? '출근 전' : '미출근' } as const
+  const ST_LABEL = { working: date < today ? '퇴근 기록 없음' : '근무 중', done: '종료', absent: notYet ? '출근 전' : '미출근', late: '지각' } as const
 
   return (
     <div className="space-y-4">
@@ -330,6 +332,19 @@ export default async function AttTab({
         <div className="mt-2 flex items-center justify-between gap-2 text-xs text-mute">
           <span>
             명단 {roster.length}명
+            {/* 지각한 사람만 보기 (정산·평가 때 누가 늦었는지 바로) · 한 번 더 누르면 전체 */}
+            {lateN > 0 && (
+              <Link
+                href={stHref('late')}
+                scroll={false}
+                data-att-stat="late"
+                aria-current={st === 'late' ? 'true' : undefined}
+                aria-label={`지각 ${lateN}명${st === 'late' ? ' · 전체 보기' : '만 보기'}`}
+                className={`tap ml-1.5 inline-block whitespace-nowrap rounded-full px-1.5 font-bold text-rose-600 underline-offset-2 transition active:scale-95 ${st === 'late' ? 'bg-rose-50 ring-1 ring-rose-200' : 'hover:underline'}`}
+              >
+                · 지각 {lateN}
+              </Link>
+            )}
             {(() => {
               const late = absent.filter((u) => lateOf.has(u)).length
               const ask = absent.filter((u) => arriveOf.has(u)).length

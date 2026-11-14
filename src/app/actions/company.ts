@@ -14,6 +14,7 @@ import { adminCompanies, COMPANY_COOKIE, createSession, getUser, requireAdmin, r
 import { isBizNo, isPin, isUuid, line, normalizePhone, optLine, optStr, str, weakPin } from '@/lib/validate'
 import { bizNoFmt } from '@/lib/members'
 import { bizNoOwners } from '@/lib/bizNo'
+import { roJosa } from '@/lib/format'
 import { sendAdminPush, sendPush, superAdminIds } from '@/lib/push'
 import { caughtByHoneypot, ipKey, overLimit } from '@/lib/ratelimit'
 import type { FormState } from './auth'
@@ -184,7 +185,8 @@ export async function signupCompany(_: FormState, form: FormData): Promise<FormS
   )
   ;(await cookies()).set(COMPANY_COOKIE, id, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', path: '/', maxAge: 60 * 60 * 24 * 365 })
   if (version !== null) await createSession(userId, version, 'admin')
-  redirect(`/admin?m=${encodeURIComponent(`${company_name}로 시작했어요! 회사 설정에서 주소·직인을 채우고 첫 공고를 올려 보세요.`)}`)
+  // 할 일은 바로 아래 '해피워크 시작하기'에 순서대로 있으니 환영 한 줄만 (같은 안내를 두 번 하지 않게) · '○○으로/로' 받침에 맞게
+  redirect(`/admin?m=${encodeURIComponent(`${company_name}${roJosa(company_name)} 시작했어요! 아래 순서대로 하나씩 하면 돼요.`)}`)
 }
 
 /** 회사 만들기 (최고 관리자만): 기본 서류 서식을 함께 넣고, 만든 사람을 대표 관리자로 */
