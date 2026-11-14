@@ -75,7 +75,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await p.goto(`${D}/me/chat?co=${CO}`)
   await p.locator('[data-quick-replies]').waitFor({ timeout: 10000 }).catch(() => {})
   const wc = await chips(p)
-  ok("회사 문의: '조금 늦을 것 같아요' 그대로", wc.some((t) => t.includes('조금 늦을 것 같아요')) && !wc.some((t) => t.includes('지원은 어떻게 하나요?')), wc.join(' / '))
+  // 묶음 250부터 오늘 이 회사에서 근무 중이면(가짜 데이터의 근무자는 출근해 있음) 근무 중 문의 ('근무 종료 버튼이 안 눌려요')
+  ok("회사 문의: 근무 날 문의 그대로 (근무 중이면 '근무 종료 버튼이 안 눌려요', 아니면 '조금 늦을 것 같아요')", wc.some((t) => t.includes('조금 늦을 것 같아요') || t.includes('근무 종료 버튼이 안 눌려요')) && !wc.some((t) => t.includes('지원은 어떻게 하나요?')), wc.join(' / '))
 
   // ── 5. 홈 칩 줄 ──
   await p.goto(`${D}/`)

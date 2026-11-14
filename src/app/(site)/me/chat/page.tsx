@@ -24,6 +24,10 @@ export const metadata: Metadata = { title: '문의' }
 /** 내 정보에서 '문의하기'로 왔을 때 맨 앞 빠른 답장 */
 const ASK_INFO = '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.'
 const QUICK_DAY = ['조금 늦을 것 같아요. 죄송합니다.', '집결 장소가 어디인가요?', '근무 시작 버튼이 안 눌려요.', '급여 지급일이 언제인가요?']
+/** 오늘 이 회사에서 근무 중이면 (이미 출근했는데 '늦어요'·'시작 버튼'은 맞지 않으니) */
+const QUICK_WORKING = ['근무 종료 버튼이 안 눌려요.', '쉬는 시간이 언제인가요?', '현장 담당자를 못 찾겠어요.', '급여 지급일이 언제인가요?']
+/** 오늘 이 회사 근무를 마쳤으면 */
+const QUICK_DONE = ['급여 지급일이 언제인가요?', '두고 온 물건이 있어요.', '다음 근무도 할 수 있나요?']
 const QUICK_JOB = ['아직 지원할 수 있나요?', '근무 시간 중 일부만 가능해요.', '식사가 제공되나요?', '주차할 수 있나요?']
 // 해피워크 고객센터(아직 지원한 회사가 없을 때): 근무 날 문의 대신 앱 사용 문의
 /** 지원하고 확정을 기다리는 사람 (늦어요·출근 버튼 같은 근무 날 문구 대신) */
@@ -110,6 +114,15 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           .is('read_at', null),
       ])
     : [[], null]
+  // 오늘 이 회사에서: 근무 중 · 마침 · 아직 (빠른 답장을 지금 상황에 맞게) — 이 회사 기록만
+  const todayAtts =
+    companyId && !support(companyId)
+      ? ((
+          await db().from('attendance').select('clock_in, clock_out').eq('company_id', companyId).eq('user_id', user.id).eq('work_date', kstDate())
+        ).data ?? []) as { clock_in: string | null; clock_out: string | null }[]
+      : []
+  const dayNow = todayAtts.some((a) => a.clock_in && !a.clock_out) ? 'working' : todayAtts.some((a) => a.clock_out) ? 'done' : null
+  const quickDay = dayNow === 'working' ? QUICK_WORKING : dayNow === 'done' ? QUICK_DONE : QUICK_DAY
 
   return (
     <div className="space-y-4">
@@ -166,7 +179,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : QUICK_DAY}
+          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">

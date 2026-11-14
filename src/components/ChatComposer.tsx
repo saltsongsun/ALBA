@@ -159,6 +159,8 @@ export default function ChatComposer({
   // 단체방(이모티콘 + @ 버튼 두 개): 글을 쓰기 시작하면 두 버튼을 '›' 하나로 접어 입력 칸을 넓힘 (360px에서 한 줄에 10자 → 14자쯤)
   // '›'를 누르면 다시 펼침 · 글을 다 지우거나 보내면 처음대로
   const [hasText, setHasText] = useState(false)
+  // 입력칸 글 (빠른 답장 칩이 '들어감 ✓'을 보이게)
+  const [typed, setTyped] = useState('')
   const [toolsOpen, setToolsOpen] = useState(false)
   const compact = !!mentions?.length && hasText && !toolsOpen && !picker
   const fit = () => {
@@ -168,6 +170,7 @@ export default function ChatComposer({
     el.style.height = `${Math.min(el.scrollHeight, 132)}px`
     const filled = el.value.trim().length > 0
     setHasText(filled)
+    setTyped(el.value)
     if (!filled) setToolsOpen(false)
   }
   // 쓰던 글: 보내기 전에 다른 화면에 다녀오거나 화면이 새로 열려도(휴대폰이 탭을 닫았다 다시 열 때) 남게
@@ -214,6 +217,7 @@ export default function ChatComposer({
       return
     }
     textRef.current.value = ''
+    setTyped('')
     // 보냈으니 쓰던 글은 지움 (이모티콘만 보낸 경우에는 쓰던 글이 입력칸에 남아 있으니 그대로 둠)
     try {
       sessionStorage.removeItem(draftKey.current)
@@ -244,21 +248,32 @@ export default function ChatComposer({
               <Icon name="sparkle" /> 버튼 보내기
             </button>
           )}
-          {quickReplies.map((q) => (
-            <button
-              key={q}
-              type="button"
-              className="shrink-0 rounded-full bg-white px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line transition active:scale-95"
-              onClick={() => {
-                const el = textRef.current!
-                el.value = el.value ? `${el.value} ${q}` : q
-                fit()
-                el.focus()
-              }}
-            >
-              {q}
-            </button>
-          ))}
+          {quickReplies.map((q) => {
+            // 입력칸에 이미 들어간 말은 ✓ · 한 번 더 누르면 뺌 (같은 말이 두 번 들어가지 않게)
+            const on = typed.includes(q)
+            return (
+              <button
+                key={q}
+                type="button"
+                aria-pressed={on}
+                data-quick-on={on ? '' : undefined}
+                className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold ring-1 transition-[background-color,color,transform] duration-200 active:scale-95 ${on ? 'bg-brand-50 text-brand-700 ring-brand-200' : 'bg-white text-sub ring-line'}`}
+                onClick={() => {
+                  const el = textRef.current!
+                  el.value = on
+                    ? el.value.replace(q, '').replace(/\s{2,}/g, ' ').trim()
+                    : el.value.trim()
+                      ? `${el.value.trim()} ${q}`
+                      : q
+                  el.dispatchEvent(new Event('input', { bubbles: true })) // 높이·쓰던 글 저장·보내기 버튼을 맞춤
+                  el.focus()
+                }}
+              >
+                {on && <span className="mr-0.5 inline-block animate-[pop_0.2s_var(--ease-spring)_both]">✓</span>}
+                {q}
+              </button>
+            )
+          })}
         </div>
       )}
       {context}
