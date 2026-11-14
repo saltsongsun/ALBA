@@ -377,8 +377,66 @@ function SetupNext({ left }: { left: number }) {
   )
 }
 
+/**
+ * 회사 설정: 근무자에게 우리 회사가 어떻게 보이는지 (상호 · 문의 담당 · 연락처) — 고치는 대로 바로 바뀜
+ * 여러 회사가 함께 쓰므로 근무자는 회사 이름·연락처로 우리 회사를 알아봄 · 실제 회사 화면(공고 모음)으로 가는 링크
+ */
+function WorkerViewPreview({ formId, companyId, name, contactName, phone }: { formId: string; companyId: string; name: string; contactName: string; phone: string }) {
+  const [v, setV] = useState({ name, contactName, phone: phoneShown(phone) })
+  const [edited, setEdited] = useState(false)
+  const [blink, setBlink] = useState(false)
+  useEffect(() => {
+    const form = document.getElementById(formId) as HTMLFormElement | null
+    if (!form) return
+    let t: ReturnType<typeof setTimeout> | undefined
+    const read = (e: Event) => {
+      const n = (e.target as HTMLInputElement | null)?.name
+      if (!['company_name', 'contact_name', 'contact_phone'].includes(n ?? '')) return
+      const get = (k: string) => ((form.elements.namedItem(k) as HTMLInputElement | null)?.value ?? '').trim()
+      // 번호 칸은 칸 자체의 입력 처리(하이픈 넣기)가 끝난 뒤에 읽음
+      setTimeout(() => setV({ name: get('company_name'), contactName: get('contact_name'), phone: get('contact_phone') }), 0)
+      setEdited(true)
+      // 바뀔 때 테두리가 잠깐 진해짐 (어디가 바뀌는지 보이게)
+      setBlink(true)
+      clearTimeout(t)
+      t = setTimeout(() => setBlink(false), 300)
+    }
+    form.addEventListener('input', read)
+    return () => {
+      form.removeEventListener('input', read)
+      clearTimeout(t)
+    }
+  }, [formId])
+  return (
+    <div className="space-y-1.5 border-t border-line pt-4" data-worker-preview>
+      <p className="flex items-center justify-between gap-2 text-xs font-semibold text-mute">
+        <span>{edited ? '저장하면 근무자에게 이렇게 보여요' : '근무자에게 이렇게 보여요'}</span>
+        <Link href={`/?co=${companyId}`} className="tap shrink-0 text-brand-600" data-preview-link>
+          회사 화면 보기 →
+        </Link>
+      </p>
+      <div
+        className={`flex items-center gap-2.5 rounded-xl bg-bg px-3 py-2.5 ring-1 transition-[box-shadow,background-color] duration-200 ${blink ? 'bg-brand-50 ring-brand-300' : 'ring-line'}`}
+        data-preview-card={blink ? 'changed' : ''}
+      >
+        <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-lg">
+          🏢
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block truncate" data-preview-name>
+            {v.name || '상호를 넣어 주세요'}
+          </b>
+          <span className="block truncate text-xs text-sub" data-preview-contact>
+            {v.phone ? `문의 ${v.contactName ? `${v.contactName} · ` : ''}${v.phone}` : '문의 연락처가 없어요 · 근무자가 연락할 곳이 없어요'}
+          </span>
+        </span>
+      </div>
+    </div>
+  )
+}
+
 /** firstJob: 이 회사가 아직 공고를 한 번도 안 올렸는지 (새 회사 → 저장 뒤 다음 할 일을 이어 줌) */
-export function SettingsForm({ s, firstJob = false, company }: { s: Settings; firstJob?: boolean; company?: string }) {
+export function SettingsForm({ s, firstJob = false, company, companyId }: { s: Settings; firstJob?: boolean; company?: string; companyId?: string }) {
   const [state, action] = useActionState(saveSettings, null)
   const left = [s.business_no, s.company_address, s.seal_image, s.contact_phone].filter((v) => !v).length
   return (
@@ -447,6 +505,7 @@ export function SettingsForm({ s, firstJob = false, company }: { s: Settings; fi
           </label>
           <WageDefault value={s.default_hourly_wage} />
         </div>
+        {companyId && <WorkerViewPreview formId="settings-form" companyId={companyId} name={s.company_name} contactName={s.contact_name ?? ''} phone={s.contact_phone ?? ''} />}
         <label className="flex items-start gap-2.5 text-sm">
           <input type="checkbox" name="workplace_5plus" defaultChecked={s.workplace_5plus} className="mt-0.5 size-5 accent-brand-600" />
           <span>

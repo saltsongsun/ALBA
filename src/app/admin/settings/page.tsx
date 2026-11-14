@@ -42,7 +42,7 @@ export default async function SettingsPage(props: PageProps<'/admin/settings'>) 
       </div>
       {/* 관리자 초대 코드·가입 신청 승인·관리자 목록 */}
       <Team admin={admin} />
-      <SettingsForm s={s} firstJob={jobsEver === 0} company={multi ? admin.companyName : undefined} />
+      <SettingsForm s={s} firstJob={jobsEver === 0} company={multi ? admin.companyName : undefined} companyId={admin.companyId} />
       {/* 이 휴대폰 화면 설정 (회사 설정과 별개) */}
       <div className="card p-4">
         <ThemeToggle />

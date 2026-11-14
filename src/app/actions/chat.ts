@@ -11,6 +11,7 @@ import { sendAdminPush, sendPush } from '@/lib/push'
 import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
 import { signalOf } from '@/lib/signals'
+import { kstDate } from '@/lib/time'
 import { badSticker, plainBody } from '@/lib/stickers'
 import { badButtons, hasButtonLine } from '@/lib/chatButtons'
 import { companyJob, companyWorkerIds, workerInCompany } from '@/lib/company'
@@ -158,7 +159,9 @@ export async function announceToJob(jobId: string, _: FormState, form: FormData)
   await audit(admin.id, 'job.announce', null, `${jobId} ${target} ${to.length}명`, admin.companyId)
   after(async () => {
     const job = await getJob(jobId)
-    await sendPush(to, { title: `📢 공지${job ? ` · ${job.title}` : ''}`, body, url: '/me', tag: `notice-${jobId}` }, { optional: true })
+    // 근무 날이 다 지난 공고(정산 안내 등)는 내 근무 카드에 안 나오므로 알림을 누르면 그 회사 문의함으로 (빈 화면에 내리지 않게)
+    const url = job && job.end_date < kstDate() ? `/me/chat?co=${admin.companyId}` : '/me'
+    await sendPush(to, { title: `📢 공지${job ? ` · ${job.title}` : ''}`, body, url, tag: `notice-${jobId}` }, { optional: true })
   })
   revalidatePath('/admin/chat')
   return { ok: `${to.length}명에게 앱으로 보냈어요` }
