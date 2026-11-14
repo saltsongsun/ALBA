@@ -26,11 +26,12 @@ import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
 import HashFlash from '@/components/HashFlash'
 import { won } from '@/lib/format'
-import { ackNotice, answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
+import { answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
+import { AckButton, AckMark, ChangeRows, type Notice } from '@/components/NoticeAck'
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { isComing, isFullTimeAsk, parseChanges, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import ApplySteps from '@/components/ApplySteps'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
@@ -244,7 +245,6 @@ export default async function MePage(props: PageProps<'/me'>) {
   const changeNote = (a: AppWithJob) => {
     const n = latestNotice.get(a.job_id)
     if (!n || signalOf(n.body) !== 'change') return null
-    const ch = parseChanges(n.body)
     return (
       <div className="mt-2 rounded-xl bg-amber-50 text-sm ring-1 ring-amber-200" data-change-note={n.read_at ? 'read' : 'new'}>
         <Link href={`/me/chat?co=${a.job.company_id}`} className="block rounded-xl px-3 py-2.5 transition active:scale-[0.98]">
@@ -252,15 +252,7 @@ export default async function MePage(props: PageProps<'/me'>) {
             🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요
             <AckMark n={n} />
           </span>
-          {ch.length ? (
-            ch.slice(0, 4).map((c) => (
-              <span key={c.label} className="mt-0.5 block truncate" data-change-row>
-                <span className="font-semibold text-amber-800">{c.label}</span> <s className="text-mute">{c.from}</s> → <b className="font-bold text-ink">{c.to}</b>
-              </span>
-            ))
-          ) : (
-            <span className="mt-0.5 block text-sub">공고에서 확인해 주세요</span>
-          )}
+          <ChangeRows body={n.body} />
         </Link>
         <AckButton n={n} />
       </div>
@@ -1261,30 +1253,5 @@ export default async function MePage(props: PageProps<'/me'>) {
         </section>
       )}
     </div>
-  )
-}
-
-type Notice = { id: number | string; job_id: string; body: string; created_at: string; read_at: string | null }
-
-/** 공지 머리줄 표시: 안 읽었으면 '새' · 방금(1분 안) 확인했으면 '✓ 확인함'이 톡 · 그 뒤로는 조용히 '✓ 확인함' */
-function AckMark({ n }: { n: Notice }) {
-  if (!n.read_at) return <span className="animate-pop rounded-full bg-rose-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white" data-notice-new>새</span>
-  const just = Date.now() - Date.parse(n.read_at) < 60_000
-  return (
-    <span className={`text-[11px] font-semibold text-emerald-700 ${just ? 'animate-pop' : ''}`} data-notice-acked={just ? 'just' : ''}>
-      ✓ 확인함
-    </span>
-  )
-}
-
-/** 홈에서 바로 '확인했어요' (문의함을 안 열어도 담당자 화면 '읽음'에 들어감) — 안 읽은 글에만 */
-function AckButton({ n }: { n: Notice }) {
-  if (n.read_at) return null
-  return (
-    <form action={ackNotice.bind(null, n.id)} className="-mt-1 flex justify-end px-3 pb-2.5">
-      <SubmitButton className="chip h-8 bg-white px-3 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200" pendingText="확인 중…" track="공지 확인했어요">
-        ✓ 확인했어요
-      </SubmitButton>
-    </form>
   )
 }

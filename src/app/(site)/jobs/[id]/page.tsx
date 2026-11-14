@@ -40,6 +40,8 @@ import { pushPublicKey } from '@/lib/push'
 import { ago, companyReviews } from '@/lib/community'
 import { featureOn } from '@/lib/flags'
 import { coworkersOnJob } from '@/lib/coworkers'
+import { AckButton, AckMark, ChangeRows, type Notice } from '@/components/NoticeAck'
+import { signalOf } from '@/lib/signals'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -88,7 +90,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt] = await Promise.all([
+  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt, lastChange] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -172,6 +174,18 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .limit(60)
           .then((r) => ((r.data ?? []) as MyAtt[]).sort((a, b) => a.work_date.localeCompare(b.work_date)))
       : ([] as MyAtt[]),
+    // 담당자가 이 공고를 고쳐 보낸 마지막 '🔔 일정 변경' (그 알림을 누르면 이 화면으로 옴 → 무엇이 바뀌었는지 맨 위에)
+    user
+      ? db()
+          .from('messages')
+          .select('id, job_id, body, created_at, read_at')
+          .eq('thread_user_id', user.id)
+          .eq('job_id', job.id)
+          .eq('from_admin', true)
+          .order('created_at', { ascending: false })
+          .limit(30)
+          .then((r) => ((r.data ?? []) as Notice[]).filter((m) => signalOf(m.body) === 'change').reduce<Notice | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null))
+      : null,
   ])
   const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
@@ -281,9 +295,22 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <p className="mt-1 text-sm text-rose-900">
             {app ? '지원·확정은 모두 취소됐어요. 사유는 문의함에서 볼 수 있어요.' : '이 행사는 열리지 않아요. 다른 모집 공고를 확인해 주세요.'}
           </p>
-          <Link href={app ? '/me/chat' : '/'} className="btn-gray btn-sm mt-3">
+          <Link href={app ? `/me/chat?co=${job.company_id}` : '/'} className="btn-gray btn-sm mt-3">
             {app ? '문의함 보기' : '모집 중인 알바 보기'}
           </Link>
+        </div>
+      )}
+      {/* 확정·지원한 공고를 담당자가 고쳤으면 맨 위에 무엇이 어떻게 바뀌었는지 (알림을 누르고 와도 어디가 바뀐 건지 찾지 않게) · 그 자리에서 '확인했어요' */}
+      {lastChange && app && ['approved', 'applied'].includes(app.status) && job.status !== 'cancelled' && job.end_date >= kstDate() && (
+        <div className="mb-3 animate-pop rounded-2xl bg-amber-50 text-sm ring-1 ring-amber-200" data-change-note={lastChange.read_at ? 'read' : 'new'} data-job-change>
+          <Link href={`/me/chat?co=${job.company_id}`} className="block rounded-2xl px-4 py-3 transition active:scale-[0.98]">
+            <span className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+              🔔 {fmtDate(kstDate(lastChange.created_at))}에 일정이 바뀌었어요
+              <AckMark n={lastChange} />
+            </span>
+            <ChangeRows body={lastChange.body} fallback="아래 공고 내용을 다시 확인해 주세요" />
+          </Link>
+          <AckButton n={lastChange} />
         </div>
       )}
       <div className="card">
