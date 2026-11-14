@@ -13,7 +13,7 @@ import RollCall from '@/components/RollCall'
 import ShiftChange from '@/components/ShiftChange'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
-import { phoneFmt, won } from '@/lib/format'
+import { phoneFmt, smsHead, won } from '@/lib/format'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
 import { DISMISS_NOTE, DISMISS_REASONS, FULL_TIME_MARK, isFullTimeAsk, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime, minutesText, toKstInput } from '@/lib/time'
@@ -40,6 +40,7 @@ export default async function AttTab({
   check = false,
   fix = null,
   fromPay = false,
+  company = '',
 }: {
   job: Job
   apps: AppRow[]
@@ -64,6 +65,8 @@ export default async function AttTab({
   fix?: string | null
   /** 정산 탭의 '시간 수정'으로 왔으면 저장한 뒤 정산 탭으로 돌아감 */
   fromPay?: boolean
+  /** 문자 머리에 회사 이름 */
+  company?: string
 }) {
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
   const changes = (
@@ -252,19 +255,20 @@ export default async function AttTab({
           href={`/admin/jobs/${job.id}?tab=apps${dates.length > 1 ? `&day=${date}` : ''}`}
           className="flex items-center justify-between gap-2 rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700 ring-1 ring-rose-200 transition active:scale-[0.99]"
         >
-          <span>
+          {/* 날짜는 바로 위 날짜 칩에 있으니 빼고 한 줄로 (360px에서 'n명 부족'만 다음 줄로 떨어지던 것) */}
+          <span className="min-w-0 whitespace-nowrap">
             {tbd ? (
               <>
                 {/* 짧게 한 줄 (오른쪽 '이날 가능한 대기자 →'와 함께 360px에 들어가게 · 지원자 탭 칩과 같은 말) */}
-                ⚠️ {fmtDate(date)} 확정 <b>0명</b>
+                ⚠️ 확정 <b>0명</b>
               </>
             ) : (
               <>
-                ⚠️ {fmtDate(date)} 확정 <b>{byDay[date]}</b>/{job.headcount}명 · <b>{job.headcount - byDay[date]}명 부족</b>
+                ⚠️ 확정 <b>{byDay[date]}</b>/{job.headcount}명 · <b>{job.headcount - byDay[date]}명 부족</b>
               </>
             )}
           </span>
-          <span className="shrink-0 font-semibold">{waitToday > 0 ? `이날 가능한 대기자 ${waitToday}명 →` : '지원자 보기 →'}</span>
+          <span className="shrink-0 font-semibold whitespace-nowrap">{waitToday > 0 ? `대기자 ${waitToday}명 →` : '지원자 보기 →'}</span>
         </Link>
       )}
 
@@ -382,8 +386,8 @@ export default async function AttTab({
               label={dayOver ? `기록 없음 ${absent.length}명 문자` : `미출근 ${absent.length}명 문자`}
               body={
                 dayOver
-                  ? `[${job.title}] ${fmtDate(date)} 근무의 출퇴근 기록이 없어요. 근무하셨다면 이 문자로 알려 주세요.`
-                  : `[${job.title}] 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`
+                  ? `${smsHead(company, job.title)} ${fmtDate(date)} 근무의 출퇴근 기록이 없어요. 근무하셨다면 이 문자로 알려 주세요.`
+                  : `${smsHead(company, job.title)} 출근 확인 부탁드립니다. 현장에 도착하면 앱에서 '근무 시작'을 눌러 주세요.`
               }
             />
           )}
@@ -404,7 +408,7 @@ export default async function AttTab({
               </ConfirmSubmit>
             </form>
           )}
-          <GroupContact copy={false} className="chip" phones={roster.map((u) => users.get(u)?.phone)} label={`전체 ${roster.length}명 문자`} body={`[${job.title}] `} />
+          <GroupContact copy={false} className="chip" phones={roster.map((u) => users.get(u)?.phone)} label={`전체 ${roster.length}명 문자`} body={`${smsHead(company, job.title)} `} />
           <CopyButton text={roster.map((u) => phoneFmt(users.get(u)?.phone)).filter(Boolean).join(', ')} label="번호 복사" className="chip" />
           {/* 보고용 현황: 숫자만 (이름·번호 없이 바로 보낼 수 있게) */}
           <CopyButton text={statusText} label="현황 복사" className="chip" />

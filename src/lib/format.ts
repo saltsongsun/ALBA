@@ -124,3 +124,9 @@ export function roJosa(name: string): string {
   const jong = (c - 0xac00) % 28
   return jong === 0 || jong === 8 ? '로' : '으로'
 }
+
+/** 근무자에게 보내는 단체 문자 머리: '[회사 · 공고]' — 여러 회사에서 일하는 사람이 모르는 번호로 받아도 어느 회사 일인지 알게 */
+export function smsHead(company: string | null | undefined, title: string): string {
+  const c = (company ?? '').trim()
+  return `[${c ? `${c} · ` : ''}${title}]`
+}

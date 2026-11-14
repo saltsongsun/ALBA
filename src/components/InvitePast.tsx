@@ -1,5 +1,6 @@
 'use client'
 
+import { smsHead } from '@/lib/format'
 import { useActionState, useMemo, useState } from 'react'
 import { inviteToJob } from '@/app/actions/chat'
 import Avatar from './Avatar'
@@ -23,7 +24,7 @@ export type PastWorker = {
 }
 
 /** 예전에 일한 근무자를 골라 새 공고 모집을 앱 알림·단체 문자로 (노쇼 없는 사람을 기본으로 고름) */
-export default function InvitePast({ jobId, jobTitle, link, workers }: { jobId: string; jobTitle: string; link: string; workers: PastWorker[] }) {
+export default function InvitePast({ jobId, jobTitle, company = '', link, workers }: { jobId: string; jobTitle: string; company?: string; link: string; workers: PastWorker[] }) {
   const [state, action] = useActionState(inviteToJob.bind(null, jobId), null)
   const [onlyReliable, setOnlyReliable] = useState(true)
   const [picked, setPicked] = useState(() => new Set(workers.filter((w) => w.noShow === 0 && !w.dismissed).map((w) => w.id)))
@@ -88,7 +89,7 @@ export default function InvitePast({ jobId, jobTitle, link, workers }: { jobId: 
             className="btn-soft btn-sm"
             phones={chosen.map((w) => w.phone)}
             label={`문자로 보내기 (${chosen.length}명)`}
-            body={`[${jobTitle}] 새 모집이 열렸어요! 지원하기: ${link}`}
+            body={`${smsHead(company, jobTitle)} 새 모집이 열렸어요! 지원하기: ${link}`}
           />
         </div>
       </form>

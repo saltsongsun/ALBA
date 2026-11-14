@@ -31,8 +31,8 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   ok('다 찬 날: 부족 알림 없음', (await see(p, '근무 중')) && !(await see(p, '명 부족', 1000)))
   await p.goto(`${D}/admin/jobs/${J}?tab=att&date=${d1}`)
   ok('모자란 날: 확정 0/1 · 1명 부족', await see(p, /확정 0\/1명 · 1명 부족/))
-  ok('이날 가능한 대기자 안내', await see(p, '이날 가능한 대기자 1명 →'))
-  await p.getByText('이날 가능한 대기자 1명 →').click()
+  ok('이날 가능한 대기자 안내 (짧게)', await see(p, '대기자 1명 →'))
+  await p.getByText('대기자 1명 →').click()
   await p.waitForURL(new RegExp(`tab=apps&day=${d1}`)).then(() => ok('누르면 그날 가능한 지원자 화면', true), () => ok('누르면 그날 가능한 지원자 화면', false, p.url()))
 
   // 지원자 탭: 날짜별 확정 인원, 그날 가능한 사람만

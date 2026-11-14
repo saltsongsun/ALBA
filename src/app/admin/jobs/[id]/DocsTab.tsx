@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { smsHead } from '@/lib/format'
 import { nudgeWorkers, rerequestDoc, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
 import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
@@ -23,6 +24,7 @@ export default function DocsTab({
   users,
   origin,
   lastNudge = null,
+  company = '',
 }: {
   job: Job
   approved: AppRow[]
@@ -32,6 +34,8 @@ export default function DocsTab({
   origin: string
   /** 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 시각 (없으면 null) */
   lastNudge?: string | null
+  /** 문자 머리에 회사 이름 */
+  company?: string
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -178,7 +182,7 @@ export default function DocsTab({
             <GroupContact
               phones={unsigned.map((u) => users.get(u)?.phone)}
               label="문자"
-              body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
+              body={`${smsHead(company, job.title)} 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
               className="btn-white btn-sm"
               copyClassName="btn-white btn-sm"
             />

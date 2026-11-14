@@ -473,6 +473,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         <Announce
           jobId={job.id}
           jobTitle={job.title}
+          company={admin.companyName}
           last={lastNotice && lastNoticeAgo ? { body: lastNotice.body, when: lastNoticeAgo.when, recent: lastNoticeAgo.recent, reads: noticeReads } : null}
           recipients={approved.map((a) => ({ phone: a.user.phone, dates: a.available_dates, position: a.position }))}
           dates={dates.map((d) => ({ value: d, label: fmtDate(d) }))}
@@ -514,6 +515,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
 
       {tab === 'apps' && (
         <AppsTab
+          company={admin.companyName}
           job={job}
           apps={apps}
           origin={origin}
@@ -522,9 +524,9 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           canAddDirect={admin.companyVerified}
         />
       )}
-      {tab === 'att' && <AttTab job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
-      {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
-      {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} />}
+      {tab === 'att' && <AttTab company={admin.companyName} job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
+      {tab === 'pay' && <PayTab company={admin.companyName} job={job} atts={atts} users={users} origin={origin} />}
+      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} />}
     </div>
   )
 }

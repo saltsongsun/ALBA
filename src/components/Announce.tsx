@@ -1,5 +1,6 @@
 'use client'
 
+import { smsHead } from '@/lib/format'
 import Icon from '@/components/Icon'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { announceToJob } from '@/app/actions/chat'
@@ -16,12 +17,15 @@ const TEMPLATES = ['집결 장소·시간이 바뀌었어요: ', '내일 근무 
 export default function Announce({
   jobId,
   jobTitle,
+  company = '',
   recipients,
   dates,
   last = null,
 }: {
   jobId: string
   jobTitle: string
+  /** 문자 머리에 회사 이름 (여러 회사에서 일하는 사람이 알아보게) */
+  company?: string
   recipients: Recipient[]
   /** 여러 날 행사면 날짜별로 골라 보냄 */
   dates: { value: string; label: string }[]
@@ -106,7 +110,7 @@ export default function Announce({
                 className="btn-white btn-sm shrink-0"
                 phones={reads.unread.map((u) => u.phone)}
                 label={`문자 ${reads.unread.length}명`}
-                body={`[${jobTitle}] ${last.body}`}
+                body={`${smsHead(company, jobTitle)} ${last.body}`}
               />
             </div>
           ) : (
@@ -196,7 +200,7 @@ export default function Announce({
             className="btn-soft btn-sm"
             phones={pick(sent.target).map((r) => r.phone)}
             label={`같은 내용 문자로 보내기 (${pick(sent.target).length}명)`}
-            body={`[${jobTitle}] ${sent.body}`}
+            body={`${smsHead(company, jobTitle)} ${sent.body}`}
           />
         </div>
       )}

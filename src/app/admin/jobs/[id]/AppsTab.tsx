@@ -32,7 +32,7 @@ import { MEMBER_TYPES } from '@/lib/members'
 import { careerText } from '@/lib/careers'
 import SlotBar from '@/components/SlotBar'
 import KeepChipInView from '@/components/KeepChipInView'
-import { won } from '@/lib/format'
+import { smsHead, won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
@@ -146,6 +146,7 @@ export default async function AppsTab({
   sort = 'time',
   day = null,
   canAddDirect = true,
+  company = '',
 }: {
   job: Job
   apps: AppRow[]
@@ -155,6 +156,8 @@ export default async function AppsTab({
   sort?: string
   /** 여러 날 행사: 이날 근무 가능한 사람만 보기 */
   day?: string | null
+  /** 문자 머리에 회사 이름 */
+  company?: string
 }) {
   const ids = apps.map((a) => a.user_id)
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
@@ -457,7 +460,7 @@ export default async function AppsTab({
             </span>
           )}
         </p>
-        <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`[${job.title}] `} copyClassName="btn-white btn-sm" />
+        <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`${smsHead(company, job.title)} `} copyClassName="btn-white btn-sm" />
         <div className="flex flex-wrap gap-2">
           {/* 끝난 행사: '미선발 알림'이 먼저(파란 버튼) · '모두 확정'은 흰 버튼으로 뒤에 (밤에 끝난 행사를 통째로 확정하는 실수 막기) */}
           {canRejectWaiting && jobEnded && (
@@ -592,7 +595,7 @@ export default async function AppsTab({
           }))}
         />
       )}
-      {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} link={`${origin}/jobs/${job.id}`} workers={past} />}
+      {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} company={company} link={`${origin}/jobs/${job.id}`} workers={past} />}
       {apps.length === 0 ? (
         // 빈 화면: 다음에 할 일을 알려 줌 (모집 중일 때만 — 끝난 공고엔 권하지 않음)
         <Empty icon="📣" title="아직 지원자가 없어요">

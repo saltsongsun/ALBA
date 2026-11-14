@@ -7,7 +7,7 @@ import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
-import { maskAccount, won } from '@/lib/format'
+import { maskAccount, smsHead, won } from '@/lib/format'
 import { calcDay, settle, TAX_LABEL, workingToday, roundCut } from '@/lib/pay'
 import { fmtDate, kstDate, kstDateTime, minutesText } from '@/lib/time'
 import { paydayGuess } from '@/lib/payday'
@@ -26,7 +26,7 @@ import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
 
-export default async function PayTab({ job, atts, users, origin }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string }) {
+export default async function PayTab({ job, atts, users, origin, company = '' }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string }) {
   // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
   const vpays = await db()
     .from('vendor_payments')
@@ -218,7 +218,7 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             className="chip-primary"
             phones={noAccount.map((r) => r.user?.phone)}
             label={`${noAccount.length}명에게 계좌 등록 요청`}
-            body={`[${job.title}] 급여를 보내 드리려면 계좌가 필요해요. 앱의 내 정보에서 급여 계좌를 등록해 주세요.\n${origin}/me/profile`}
+            body={`${smsHead(company, job.title)} 급여를 보내 드리려면 계좌가 필요해요. 앱의 내 정보에서 급여 계좌를 등록해 주세요.\n${origin}/me/profile`}
           />
           {/* 앱 문의함 + 휴대폰 알림 (누르면 바로 등록 화면으로) · 마지막으로 보낸 때를 옆에 */}
           <form action={nudgeWorkers.bind(null, job.id, 'account', null)}>
