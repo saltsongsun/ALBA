@@ -955,6 +955,15 @@ html[data-text='lg'] {
     outline-offset: 3px;
   }
 }
+/* 칩을 눌러 입력칸을 채웠을 때 (예: '지난 공지 불러오기'): 한 번 퍼져 나가 채워졌다는 표시 · 움직임 줄이기면 없음 */
+[data-filled] {
+  animation: flash-ring 0.3s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-filled] {
+    animation: none;
+  }
+}
 /* '지도 ↓'처럼 같은 화면 안 바로 가기로 내려온 곳: 한 번 퍼져 나가 어디인지 보이게 (움직임 줄이기면 없음) */
 [data-target-flash]:target {
   animation: flash-ring 1s ease-out 1;

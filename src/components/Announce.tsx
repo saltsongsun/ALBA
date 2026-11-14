@@ -18,12 +18,15 @@ export default function Announce({
   jobTitle,
   recipients,
   dates,
+  last = null,
 }: {
   jobId: string
   jobTitle: string
   recipients: Recipient[]
   /** 여러 날 행사면 날짜별로 골라 보냄 */
   dates: { value: string; label: string }[]
+  /** 마지막으로 보낸 공지 (언제 · 글) — 접힌 칸에 한 줄로, 펼치면 '지난 공지 불러오기' */
+  last?: { body: string; when: string; recent: boolean } | null
 }) {
   const [state, action] = useActionState(announceToJob.bind(null, jobId), null)
   const [target, setTarget] = useState('all')
@@ -51,7 +54,16 @@ export default function Announce({
           <Icon name="megaphone" className="text-brand-600" /> 확정자에게 공지
         </span>
       }
-      summary={`확정 ${recipients.length}명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요`}>
+      summary={
+        last ? (
+          // 마지막 공지를 접힌 채로도 (같은 공지를 또 보내지 않게) — 한 줄 · 넘치면 …
+          <span data-last-notice={last.recent ? 'recent' : 'old'}>
+            <b className={last.recent ? 'text-amber-700' : 'text-sub'}>마지막 공지 {last.when}</b> · {last.body.replace(/\s+/g, ' ')}
+          </span>
+        ) : (
+          `확정 ${recipients.length}명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요`
+        )
+      }>
       <form
         action={action}
         onReset={keepInputs}
@@ -75,6 +87,25 @@ export default function Announce({
           ))}
         </select>
         <div className="fade-x flex gap-1.5 overflow-x-auto pb-0.5">
+          {/* 지난 공지를 고쳐서 다시 보낼 때 (처음부터 다시 쓰지 않게) */}
+          {last && (
+            <button
+              type="button"
+              data-reuse-notice
+              className="shrink-0 rounded-full bg-brand-50 px-3 py-1.5 text-[13px] font-semibold text-brand-700 transition active:scale-95"
+              onClick={() => {
+                const el = bodyRef.current!
+                el.value = last.body
+                el.focus()
+                // 입력칸이 한 번 퍼져 나가듯 반짝 (채워졌다는 표시 · 다시 눌러도 다시) — 움직임 줄이기면 없음
+                el.removeAttribute('data-filled')
+                void el.offsetWidth
+                el.setAttribute('data-filled', '')
+              }}
+            >
+              ↺ 지난 공지 불러오기
+            </button>
+          )}
           {TEMPLATES.map((t) => (
             <button
               key={t}
@@ -97,6 +128,7 @@ export default function Announce({
           maxLength={2000}
           required
           className="input"
+          onAnimationEnd={(e) => e.currentTarget.removeAttribute('data-filled')}
           placeholder="예) 내일 집결이 08:30 촉석문 앞 운영본부로 바뀌었어요."
         />
         <FormMessage state={state} />

@@ -6,6 +6,11 @@ import { kstDate, kstDateTime, kstTime } from './time'
  * 서류 탭 '서명 요청' · 정산 탭 '계좌 등록 요청'이 같은 알림을 금방 또 보내지 않게 화면에 보여 줌
  */
 export async function lastNudgeAt(companyId: string, jobId: string, head: string): Promise<string | null> {
+  return (await lastNudge(companyId, jobId, head))?.at ?? null
+}
+
+/** 위와 같지만 글도 함께 (머리말 줄은 뺌) — 확정자 공지 칸의 '마지막 공지' */
+export async function lastNudge(companyId: string, jobId: string, head: string): Promise<{ at: string; body: string } | null> {
   const { data } = await db()
     .from('messages')
     .select('created_at, body')
@@ -14,8 +19,11 @@ export async function lastNudgeAt(companyId: string, jobId: string, head: string
     .eq('from_admin', true)
     .order('created_at', { ascending: false })
     .limit(300)
-  // 가장 늦은 때 (정렬에 기대지 않고 직접 고름)
-  return ((data ?? []) as { created_at: string; body: string }[]).filter((m) => m.body.startsWith(head)).map((m) => m.created_at).sort().at(-1) ?? null
+  // 가장 늦은 것 (정렬에 기대지 않고 직접 고름)
+  const last = ((data ?? []) as { created_at: string; body: string }[])
+    .filter((m) => m.body.startsWith(head))
+    .reduce<{ created_at: string; body: string } | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null)
+  return last ? { at: last.created_at, body: last.body.split('\n').slice(1).join('\n').trim() } : null
 }
 
 /** 마지막 알림 때: '방금' · 'n분 전' · '오늘 14:02' · '11/13(금) 14:02' + 30분 안이면 recent (다시 보낼 때 한 번 더 확인) */

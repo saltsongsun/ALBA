@@ -23,7 +23,7 @@ import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime, kstTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
 import { isComing, SIGN_NUDGE, SIGNAL } from '@/lib/signals'
-import { lastNudgeAt } from '@/lib/nudge'
+import { lastNudge, lastNudgeAt, nudgeAgo } from '@/lib/nudge'
 import { phoneFmt } from '@/lib/format'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
@@ -162,6 +162,10 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 서류 탭: 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 (금방 또 보내 같은 알림이 겹치지 않게) · 우리 회사 문의함에서만
   const lastSignNudge = tab === 'docs' && pendingDocs > 0 ? await lastNudgeAt(admin.companyId, job.id, SIGN_NUDGE) : null
+  // 확정자 공지 칸: 마지막으로 보낸 공지 (같은 공지를 또 보내지 않게 · 고쳐서 다시 보낼 때 불러오기) — 공지 칸이 보일 때만
+  const showAnnounce = approved.length > 0 && !['done', 'cancelled'].includes(job.status)
+  const lastNotice = showAnnounce ? await lastNudge(admin.companyId, job.id, '📢 공지') : null
+  const lastNoticeAgo = nudgeAgo(lastNotice?.at)
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   // 공고 지급총액 (세전 · 정산 탭과 같은 계산)
@@ -455,10 +459,11 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         )}
       </div>
 
-      {approved.length > 0 && !['done', 'cancelled'].includes(job.status) && (
+      {showAnnounce && (
         <Announce
           jobId={job.id}
           jobTitle={job.title}
+          last={lastNotice && lastNoticeAgo ? { body: lastNotice.body, when: lastNoticeAgo.when, recent: lastNoticeAgo.recent } : null}
           recipients={approved.map((a) => ({ phone: a.user.phone, dates: a.available_dates, position: a.position }))}
           dates={dates.map((d) => ({ value: d, label: fmtDate(d) }))}
         />
