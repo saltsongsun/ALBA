@@ -16,6 +16,7 @@ import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
 import { payState } from '@/lib/vendors'
 import { weeklyPayMap } from '@/lib/weekly'
+import { lastNudgeAt, nudgeAgo } from '@/lib/nudge'
 
 /** 정산 탭 위 한 줄용 짧은 세금 이름 (자세한 설명은 '세금 계산 방법'에) */
 // 정산 탭 '골라서 지급 완료' 폼 (체크칸이 form 속성으로 묶임)
@@ -66,6 +67,8 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
   const unconfirmed = rows.reduce((t, r) => t + r.unconfirmed, 0)
   // 계좌가 없으면 입금을 못 하므로 정산 전에 한 번에 요청
   const noAccount = rows.filter((r) => !r.user?.bank_account_enc)
+  // 마지막 '계좌 등록 요청' 앱 알림 때 (같은 알림을 금방 또 보내지 않게) — 이 공고 · 우리 회사 문의함에서만
+  const accountAgo = noAccount.length ? nudgeAgo(await lastNudgeAt(job.company_id, job.id, SIGNAL.account)) : null
   const unpaid = rows.filter((r) => r.done > 0 && !r.paid)
   // 계약 종료 시각 이후 기록이 있는데 아직 서로 확인이 안 끝난 근무 (금액에서 빠져 있음)
   const otWaiting = atts.filter((a) => a.clock_out && calcDay(job, a).otOpen).length
@@ -217,12 +220,17 @@ export default async function PayTab({ job, atts, users, origin }: { job: Job; a
             label={`${noAccount.length}명에게 계좌 등록 요청`}
             body={`[${job.title}] 급여를 보내 드리려면 계좌가 필요해요. 앱의 내 정보에서 급여 계좌를 등록해 주세요.\n${origin}/me/profile`}
           />
-          {/* 앱 문의함 + 휴대폰 알림 (누르면 바로 등록 화면으로) */}
+          {/* 앱 문의함 + 휴대폰 알림 (누르면 바로 등록 화면으로) · 마지막으로 보낸 때를 옆에 */}
           <form action={nudgeWorkers.bind(null, job.id, 'account', null)}>
-            <ConfirmSubmit className="chip" confirmText={`${noAccount.length}명에게 보낼까요?`}>
+            <ConfirmSubmit className="chip" confirmText={accountAgo ? accountAgo.confirm(noAccount.length) : `${noAccount.length}명에게 보낼까요?`}>
               앱 알림
             </ConfirmSubmit>
           </form>
+          {accountAgo && (
+            <span className={`text-xs ${accountAgo.recent ? 'font-semibold text-amber-700' : 'text-rose-600/80'} ${accountAgo.when === '방금' ? 'inline-block animate-pop' : ''}`} data-last-nudge={accountAgo.recent ? 'recent' : 'old'}>
+              {accountAgo.when} 보냄
+            </span>
+          )}
         </div>
       )}
       {live > 0 && (

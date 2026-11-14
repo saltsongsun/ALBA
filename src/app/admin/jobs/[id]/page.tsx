@@ -23,6 +23,7 @@ import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime, kstTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
 import { isComing, SIGN_NUDGE, SIGNAL } from '@/lib/signals'
+import { lastNudgeAt } from '@/lib/nudge'
 import { phoneFmt } from '@/lib/format'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
@@ -160,18 +161,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 서류 탭: 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 (금방 또 보내 같은 알림이 겹치지 않게) · 우리 회사 문의함에서만
-  const lastSignNudge =
-    tab === 'docs' && pendingDocs > 0
-      ? await db()
-          .from('messages')
-          .select('created_at, body')
-          .eq('company_id', admin.companyId)
-          .eq('job_id', job.id)
-          .eq('from_admin', true)
-          .order('created_at', { ascending: false })
-          .limit(300)
-          .then((r) => ((r.data ?? []) as { created_at: string; body: string }[]).filter((m) => m.body.startsWith(SIGN_NUDGE)).map((m) => m.created_at).sort().at(-1) ?? null)
-      : null
+  const lastSignNudge = tab === 'docs' && pendingDocs > 0 ? await lastNudgeAt(admin.companyId, job.id, SIGN_NUDGE) : null
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   // 공고 지급총액 (세전 · 정산 탭과 같은 계산)

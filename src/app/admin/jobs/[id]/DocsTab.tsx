@@ -4,7 +4,8 @@ import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { kstDate, kstDateTime, kstTime } from '@/lib/time'
+import { kstDateTime } from '@/lib/time'
+import { nudgeAgo } from '@/lib/nudge'
 import type { Job, SignedDoc } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 import { contractNameOf } from '@/lib/members'
@@ -40,19 +41,8 @@ export default function DocsTab({
     : [...new Map(live.map((d) => [d.template_id ?? d.title, { id: d.template_id ?? d.title, title: d.title }])).values()]
   const signedCount = live.filter((d) => d.status === 'signed').length
   const unsigned = [...new Set(live.filter((d) => d.status === 'pending').map((d) => d.user_id))]
-  // 마지막 '서명 요청' 알림: 방금 · n분 전 · 오늘 14:02 · 11/13(금) 14:02 — 30분 안이면 다시 보낼 때 한 번 더 확인
-  const nudgeMin = lastNudge ? Math.max(0, Math.floor((Date.now() - new Date(lastNudge).getTime()) / 60_000)) : null
-  const nudgeWhen =
-    lastNudge == null || nudgeMin == null
-      ? null
-      : nudgeMin < 1
-        ? '방금'
-        : nudgeMin < 60
-          ? `${nudgeMin}분 전`
-          : kstDate(lastNudge) === kstDate()
-            ? `오늘 ${kstTime(lastNudge)}`
-            : kstDateTime(lastNudge)
-  const recentNudge = nudgeMin != null && nudgeMin < 30
+  // 마지막 '서명 요청' 알림 때 (방금 · n분 전 · 오늘 14:02) — 30분 안이면 다시 보낼 때 한 번 더 확인
+  const ago = nudgeAgo(lastNudge)
 
   // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 사람마다 받았는지 기록
   const outside = job.contract_method !== 'app'
@@ -173,15 +163,15 @@ export default function DocsTab({
         <div className="card space-y-2.5 p-3.5" data-unsigned-tools>
           <p className="flex items-baseline justify-between gap-2 text-sm">
             <b className="shrink-0">서명 안 한 {unsigned.length}명</b>
-            {nudgeWhen && (
-              <span className={`min-w-0 truncate text-xs ${recentNudge ? 'font-semibold text-amber-700' : 'text-mute'}`} data-last-nudge={recentNudge ? 'recent' : 'old'}>
-                앱 알림 {nudgeWhen} 보냄
+            {ago && (
+              <span className={`min-w-0 truncate text-xs ${ago.recent ? 'font-semibold text-amber-700' : 'text-mute'} ${ago.when === '방금' ? 'inline-block animate-pop' : ''}`} data-last-nudge={ago.recent ? 'recent' : 'old'}>
+                앱 알림 {ago.when} 보냄
               </span>
             )}
           </p>
           <div className="flex flex-wrap gap-2">
             <form action={nudgeWorkers.bind(null, job.id, 'sign', null)}>
-              <ConfirmSubmit className="btn-soft btn-sm" confirmText={recentNudge ? `${nudgeWhen === '방금' ? '방금' : `${nudgeWhen}에`} 보냈어요 · 또 보낼까요?` : `${unsigned.length}명에게 보낼까요?`}>
+              <ConfirmSubmit className="btn-soft btn-sm" confirmText={ago ? ago.confirm(unsigned.length) : `${unsigned.length}명에게 보낼까요?`}>
                 앱 알림
               </ConfirmSubmit>
             </form>
