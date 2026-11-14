@@ -123,13 +123,13 @@ export default async function MePage(props: PageProps<'/me'>) {
     // 담당자가 공고 확정자에게 보낸 공지 (오늘 근무 카드에 최근 것 하나)
     db()
       .from('messages')
-      .select('job_id, body, created_at')
+      .select('job_id, body, created_at, read_at')
       .eq('thread_user_id', user.id)
       .eq('from_admin', true)
       .not('job_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(30)
-      .then((r) => must(r) as { job_id: string; body: string; created_at: string }[]),
+      .then((r) => (must(r) as { job_id: string; body: string; created_at: string; read_at: string | null }[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
     // 오늘 내가 담당자에게 보낸 현장 알림 (늦어요 등)
     db()
       .from('messages')
@@ -191,8 +191,31 @@ export default async function MePage(props: PageProps<'/me'>) {
   const tomorrow = kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + 86_400_000))
   const comingSent = new Map<string, string>()
   for (const m of mySignals) if (isComing(m.body, tomorrow) && !comingSent.has(m.job_id)) comingSent.set(m.job_id, kstTime(m.created_at))
-  const latestNotice = new Map<string, { body: string; created_at: string }>()
+  const latestNotice = new Map<string, { body: string; created_at: string; read_at: string | null }>()
   for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
+  // 다음 근무 카드엔 '📢 공지'만 (일정 변경은 아래 🔔 줄이 따로 알림) — 전날 보낸 '내일 집결은…'을 홈에서 바로
+  const latestAnnounce = new Map<string, { body: string; created_at: string; read_at: string | null }>()
+  for (const n of notices) if (n.body.startsWith('📢 공지') && !latestAnnounce.has(n.job_id)) latestAnnounce.set(n.job_id, n)
+  // 공지 칸: 누르면 그 회사 문의함으로 바로 (여러 회사에서 일하면 대화 목록부터 나와 한 번 더 골라야 하던 것) · 안 읽었으면 '새'
+  const noticeBox = (n: { body: string; created_at: string; read_at: string | null }, companyId: string, label: string, clamp: string) => {
+    const at = kstDate(n.created_at) === today ? kstTime(n.created_at) : `${fmtDate(kstDate(n.created_at))} ${kstTime(n.created_at)}`
+    return (
+      <Link
+        href={`/me/chat?co=${companyId}`}
+        className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]"
+        data-job-notice={n.read_at ? 'read' : 'new'}
+      >
+        <span className="flex items-center justify-between gap-2 text-xs font-bold text-amber-800">
+          <span className="flex min-w-0 items-center gap-1.5">
+            {label}
+            {!n.read_at && <span className="animate-pop rounded-full bg-rose-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white" data-notice-new>새</span>}
+          </span>
+          <span className="shrink-0 font-medium whitespace-nowrap text-amber-700">{at}</span>
+        </span>
+        <span className={`mt-0.5 ${clamp} block whitespace-pre-wrap text-ink`}>{n.body.replace(/^.*\n?/, '')}</span>
+      </Link>
+    )
+  }
   const photoAt = me?.photo_at ?? null
   const hasAccount = !!me?.bank_account_enc
 
@@ -750,12 +773,14 @@ export default async function MePage(props: PageProps<'/me'>) {
               {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
               {nextApp.job.meeting_point && <p className="text-sm text-sub"><Icon name="flag" className="text-mute" /> 집결 {nextApp.job.meeting_point}</p>}
               {upcomingExtras(nextApp)}
+              {latestAnnounce.has(nextApp.job_id) && noticeBox(latestAnnounce.get(nextApp.job_id)!, nextApp.job.company_id, '📢 담당자 공지', 'line-clamp-3')}
               {/* 전날 미리 챙기기: 근무 날 오늘 근무 카드와 같은 체크가 이어짐 */}
               {(() => {
                 const items = [...new Set(`${nextApp.job.dress_code ?? ''},${nextApp.job.supplies ?? ''}`.split(/[,·、/\n]+/).map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 20))].slice(0, 8)
                 return items.length >= 2 ? <PrepChecklist storageKey={`prep-${nextApp.job_id}-${firstDay(nextApp)}`} items={items} /> : null
               })()}
-              <p className="text-xs text-mute">오늘은 예정된 근무가 없어요. 근무 날 이 화면에서 출퇴근을 눌러요.</p>
+              {/* 360px에서 한 줄 (두 줄로 넘어가 '출퇴근을 눌러요.'만 떨어지던 것) */}
+              <p className="text-xs text-mute" data-next-hint>오늘은 쉬는 날 · 근무 날 여기서 출퇴근해요</p>
               {/* 전날 미리: 휴대폰 달력에 넣기(.ics) · 가는 길 보기 (좌표가 있으면 길찾기, 주소만 있으면 지도) */}
               <div className="flex flex-wrap gap-1.5">
                 <a href={`/me/calendar/${nextApp.id}`} className="chip h-8 px-3 text-xs" data-next-calendar>
@@ -854,17 +879,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     )}
                     {(() => {
                       const n = latestNotice.get(job.id)
-                      if (!n) return null
-                      const at = kstDate(n.created_at) === today ? kstTime(n.created_at) : fmtDate(kstDate(n.created_at))
-                      return (
-                        <Link href="/me/chat" className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]">
-                          <span className="flex items-center justify-between gap-2 text-xs font-bold text-amber-800">
-                            {signalOf(n.body) === 'change' ? SIGNAL.change : '📢 담당자 공지'}
-                            <span className="font-medium text-amber-700">{at}</span>
-                          </span>
-                          <span className="mt-0.5 line-clamp-3 block whitespace-pre-wrap text-ink">{n.body.replace(/^.*\n?/, '')}</span>
-                        </Link>
-                      )
+                      return n ? noticeBox(n, job.company_id, signalOf(n.body) === 'change' ? SIGNAL.change : '📢 담당자 공지', 'line-clamp-3') : null
                     })()}
                     {(() => {
                       // 현장 담당 번호가 없으면 회사 문의 담당자 (전화·문자 버튼은 같은 자리)
@@ -1104,6 +1119,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                   </a>
                 </div>
               </div>
+              {latestAnnounce.has(a.job_id) && noticeBox(latestAnnounce.get(a.job_id)!, a.job.company_id, '📢 담당자 공지', 'line-clamp-2')}
               {comingRow(a)}
               </div>
             ))}
