@@ -16,6 +16,7 @@ import PhotoPrompt from '@/components/PhotoPrompt'
 import PushNudge from '@/components/PushNudge'
 import { pushPublicKey } from '@/lib/push'
 import { fmtDate, kstDate } from '@/lib/time'
+import { DUE_TONE, payDue } from '@/lib/due'
 
 export const metadata: Metadata = { title: '전문가·외주 파트너' }
 
@@ -199,16 +200,25 @@ export default async function ProHome(props: PageProps<'/pro'>) {
         <section>
           <h2 className="section-title">💸 받을 대금</h2>
           <div className="card divide-y divide-line py-1">
-            {unpaid.slice(0, 4).map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 py-3">
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold text-mute">{p.company}</span>
-                  <span className="block truncate font-semibold">{p.title}</span>
-                  <span className="block text-xs text-sub">{p.due_date ? `지급 예정 ${fmtDate(p.due_date)}` : '지급일 협의 중'}</span>
-                </span>
-                <span className="shrink-0 font-extrabold whitespace-nowrap tabular-nums">{won(p.amount)}</span>
-              </div>
-            ))}
+            {unpaid.slice(0, 4).map((p) => {
+              // 늦은 대금이 바로 눈에 띄게: 오른쪽 금액 아래 'n일 지남' · '오늘 지급' · 'D-n'
+              const due = payDue(p.due_date, p.paid_at, today)
+              return (
+                <div key={p.id} className="flex items-center justify-between gap-3 py-3" data-pay-row={p.title}>
+                  <span className="min-w-0">
+                    <span className="block truncate text-xs font-semibold text-mute">{p.company}</span>
+                    <span className="block truncate font-semibold">{p.title}</span>
+                    <span className={`block text-xs ${due.tone === 'late' ? 'font-semibold text-rose-600' : 'text-sub'}`}>{p.due_date ? `지급 예정 ${fmtDate(p.due_date)}` : '지급일 협의 중'}</span>
+                  </span>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <span className="font-extrabold whitespace-nowrap tabular-nums">{won(p.amount)}</span>
+                    <span className={`badge tabular-nums ${DUE_TONE[due.tone]}`} data-pay-due={due.tone}>
+                      {due.label}
+                    </span>
+                  </span>
+                </div>
+              )
+            })}
           </div>
           <Link href="/pro/money#pay" className="mt-2 inline-block text-sm font-semibold text-brand-600">
             대금 전체 보기 →

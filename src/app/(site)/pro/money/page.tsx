@@ -7,6 +7,7 @@ import { partnerCompanies, partnerPayments, partnerQuotes, type PartnerQuote } f
 import { PartnerShareCard } from '@/components/pro'
 import { requireUser } from '@/lib/session'
 import { fmtDate, kstDate } from '@/lib/time'
+import { DUE_TONE, payDue } from '@/lib/due'
 
 export const metadata: Metadata = { title: '견적 · 대금' }
 
@@ -39,6 +40,8 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
   const unpaid = pays.filter((p) => !p.paid_at)
   const paid = pays.filter((p) => p.paid_at)
   const sum = (list: typeof pays) => list.reduce((n, p) => n + p.amount, 0)
+  // 지급일이 지났는데 아직 못 받은 대금 (받을 대금 칸에 한 줄로)
+  const late = unpaid.filter((p) => payDue(p.due_date, p.paid_at, today).tone === 'late')
   // 견적·대금이 하나도 없으면: 나를 외주사로 등록해 둔 회사가 있는지 (없으면 회사에 알려 줄 번호를 보여 줌)
   const linked = allQuotes.length === 0 && allPays.length === 0 ? await partnerCompanies(user.id) : []
   return (
@@ -91,6 +94,11 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
         <div className="rounded-2xl bg-brand-50 px-4 py-3">
           <p className="text-xs font-semibold text-brand-700">받을 대금 {unpaid.length}건</p>
           <p className="text-lg font-extrabold whitespace-nowrap text-brand-700 tabular-nums">{won(sum(unpaid))}</p>
+          {late.length > 0 && (
+            <p className="text-xs font-semibold whitespace-nowrap text-rose-600" data-pay-late>
+              지급일 지난 {late.length}건
+            </p>
+          )}
         </div>
         <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-line">
           <p className="text-xs font-semibold text-mute">받은 대금 {paid.length}건</p>
@@ -140,22 +148,25 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
         ) : (
           <div className="card divide-y divide-line py-1">
             {pays.map((p) => {
-              const overdue = !p.paid_at && p.due_date && p.due_date < today
+              // 지급 완료 · n일 지남 · 오늘 지급 · D-n · 협의 중 (짧은 배지 하나로)
+              const due = payDue(p.due_date, p.paid_at, today)
               return (
-                <div key={p.id} className="flex items-center justify-between gap-3 py-3">
+                <div key={p.id} className="flex items-center justify-between gap-3 py-3" data-pay-row={p.title}>
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-semibold text-mute">{p.company}</span>
                     <span className="block truncate font-semibold">{p.title}</span>
-                    <span className="block text-xs text-sub">
-                      {p.paid_at ? `${fmtDate(p.paid_at)} 지급 완료` : p.due_date ? <span className={overdue ? 'text-rose-600' : ''}>지급 예정 {fmtDate(p.due_date)}</span> : '지급일 협의 중'}
-                      {' · '}
+                    {/* 날짜 한 줄 · 계산서 한 줄 (한 줄에 이어 쓰면 360px에서 '필요'만 아래로 떨어져서) */}
+                    <span className={`block truncate text-xs ${due.tone === 'late' ? 'font-semibold text-rose-600' : 'text-sub'}`}>
+                      {p.paid_at ? `받은 날 ${fmtDate(p.paid_at.slice(0, 10))}` : p.due_date ? `지급 예정 ${fmtDate(p.due_date)}` : '지급일 협의 중'}
+                    </span>
+                    <span className={`block truncate text-xs ${p.invoice_at ? 'text-mute' : 'text-amber-700'}`} data-invoice={p.invoice_at ? 'in' : 'need'}>
                       {p.invoice_at ? '세금계산서 접수됨' : '세금계산서 발행 필요'}
                     </span>
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     <span className="font-extrabold whitespace-nowrap tabular-nums">{won(p.amount)}</span>
-                    <span className={`badge ${p.paid_at ? 'bg-emerald-50 text-emerald-700' : overdue ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-700'}`}>
-                      {p.paid_at ? '지급 완료' : overdue ? '지급일 지남' : '지급 예정'}
+                    <span className={`badge tabular-nums ${DUE_TONE[due.tone]}`} data-pay-due={due.tone}>
+                      {due.label}
                     </span>
                   </span>
                 </div>
