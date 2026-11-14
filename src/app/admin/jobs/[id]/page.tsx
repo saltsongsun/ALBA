@@ -166,6 +166,16 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const showAnnounce = approved.length > 0 && !['done', 'cancelled'].includes(job.status)
   const lastNotice = showAnnounce ? await lastNudge(admin.companyId, job.id, '📢 공지') : null
   const lastNoticeAgo = nudgeAgo(lastNotice?.at)
+  // 그 공지를 지금 확정자 중 몇 명이 읽었는지 · 안 읽은 사람 (문자로 한 번 더 보낼 수 있게)
+  const approvedIds = new Set(approved.map((a) => a.user_id))
+  const noticeTo = (lastNotice?.to ?? []).filter((t) => approvedIds.has(t.uid))
+  const noticeReads = noticeTo.length
+    ? {
+        read: noticeTo.filter((t) => t.read).length,
+        total: noticeTo.length,
+        unread: noticeTo.filter((t) => !t.read).map((t) => ({ name: users.get(t.uid)?.name ?? '근무자', phone: users.get(t.uid)?.phone ?? '' })),
+      }
+    : null
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   // 공고 지급총액 (세전 · 정산 탭과 같은 계산)
@@ -463,7 +473,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         <Announce
           jobId={job.id}
           jobTitle={job.title}
-          last={lastNotice && lastNoticeAgo ? { body: lastNotice.body, when: lastNoticeAgo.when, recent: lastNoticeAgo.recent } : null}
+          last={lastNotice && lastNoticeAgo ? { body: lastNotice.body, when: lastNoticeAgo.when, recent: lastNoticeAgo.recent, reads: noticeReads } : null}
           recipients={approved.map((a) => ({ phone: a.user.phone, dates: a.available_dates, position: a.position }))}
           dates={dates.map((d) => ({ value: d, label: fmtDate(d) }))}
         />

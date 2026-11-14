@@ -9,21 +9,33 @@ export async function lastNudgeAt(companyId: string, jobId: string, head: string
   return (await lastNudge(companyId, jobId, head))?.at ?? null
 }
 
-/** 위와 같지만 글도 함께 (머리말 줄은 뺌) — 확정자 공지 칸의 '마지막 공지' */
-export async function lastNudge(companyId: string, jobId: string, head: string): Promise<{ at: string; body: string } | null> {
+type NudgeRow = { created_at: string; body: string; thread_user_id: string; read_at: string | null }
+
+/**
+ * 위와 같지만 글도 함께 (머리말 줄은 뺌) — 확정자 공지 칸의 '마지막 공지'
+ * + 그때 한 번에 받은 사람과 읽었는지 (같은 글 · 1분 안에 보낸 묶음) — 이 공고·우리 회사 문의함에서만
+ */
+export async function lastNudge(
+  companyId: string,
+  jobId: string,
+  head: string,
+): Promise<{ at: string; body: string; to: { uid: string; read: boolean }[] } | null> {
   const { data } = await db()
     .from('messages')
-    .select('created_at, body')
+    .select('created_at, body, thread_user_id, read_at')
     .eq('company_id', companyId)
     .eq('job_id', jobId)
     .eq('from_admin', true)
     .order('created_at', { ascending: false })
     .limit(300)
+  const rows = ((data ?? []) as NudgeRow[]).filter((m) => m.body.startsWith(head))
   // 가장 늦은 것 (정렬에 기대지 않고 직접 고름)
-  const last = ((data ?? []) as { created_at: string; body: string }[])
-    .filter((m) => m.body.startsWith(head))
-    .reduce<{ created_at: string; body: string } | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null)
-  return last ? { at: last.created_at, body: last.body.split('\n').slice(1).join('\n').trim() } : null
+  const last = rows.reduce<NudgeRow | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null)
+  if (!last) return null
+  const t = Date.parse(last.created_at)
+  const by = new Map<string, boolean>()
+  for (const m of rows) if (m.body === last.body && Math.abs(Date.parse(m.created_at) - t) < 60_000) by.set(m.thread_user_id, (by.get(m.thread_user_id) ?? false) || !!m.read_at)
+  return { at: last.created_at, body: last.body.split('\n').slice(1).join('\n').trim(), to: [...by].map(([uid, read]) => ({ uid, read })) }
 }
 
 /** 마지막 알림 때: '방금' · 'n분 전' · '오늘 14:02' · '11/13(금) 14:02' + 30분 안이면 recent (다시 보낼 때 한 번 더 확인) */

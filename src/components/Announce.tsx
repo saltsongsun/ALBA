@@ -26,7 +26,13 @@ export default function Announce({
   /** 여러 날 행사면 날짜별로 골라 보냄 */
   dates: { value: string; label: string }[]
   /** 마지막으로 보낸 공지 (언제 · 글) — 접힌 칸에 한 줄로, 펼치면 '지난 공지 불러오기' */
-  last?: { body: string; when: string; recent: boolean } | null
+  last?: {
+    body: string
+    when: string
+    recent: boolean
+    /** 그 공지를 지금 확정자 중 몇 명이 읽었는지 · 안 읽은 사람 */
+    reads?: { read: number; total: number; unread: { name: string; phone: string }[] } | null
+  } | null
 }) {
   const [state, action] = useActionState(announceToJob.bind(null, jobId), null)
   const [target, setTarget] = useState('all')
@@ -34,6 +40,8 @@ export default function Announce({
   const bodyRef = useRef<HTMLTextAreaElement>(null)
   const lastBody = useRef('')
 
+  const reads = last?.reads ?? null
+  const allRead = !!reads && reads.read >= reads.total
   const positions = [...new Set(recipients.map((r) => r.position).filter((p): p is string => !!p))]
   const pick = (t: string) =>
     recipients.filter((r) =>
@@ -54,6 +62,14 @@ export default function Announce({
           <Icon name="megaphone" className="text-brand-600" /> 확정자에게 공지
         </span>
       }
+      badge={
+        // 마지막 공지를 몇 명이 읽었는지 (접혀 있어도) — 짧게
+        reads ? (
+          <span className={`badge tabular-nums ${allRead ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`} data-notice-read-count>
+            {allRead ? '모두 읽음' : `읽음 ${reads.read}/${reads.total}`}
+          </span>
+        ) : undefined
+      }
       summary={
         last ? (
           // 마지막 공지를 접힌 채로도 (같은 공지를 또 보내지 않게) — 한 줄 · 넘치면 …
@@ -64,6 +80,42 @@ export default function Announce({
           `확정 ${recipients.length}명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요`
         )
       }>
+      {/* 마지막 공지 읽음: 막대가 차오름 · 안 읽은 사람만 골라 같은 내용을 문자로 */}
+      {reads && last && (
+        <div className="rounded-xl bg-bg px-3.5 py-3 text-sm" data-notice-reads>
+          <p className="flex items-center justify-between gap-2">
+            <span className="min-w-0 font-semibold">
+              마지막 공지 읽음 <b className={`tabular-nums ${allRead ? 'text-emerald-600' : 'text-amber-600'}`}>{reads.read}</b>/{reads.total}명
+            </span>
+            <span className="shrink-0 text-xs text-mute">{last.when}</span>
+          </p>
+          <span className="mt-1.5 block h-1.5 overflow-hidden rounded-full bg-line" aria-hidden>
+            <span
+              className={`block h-full origin-left animate-grow rounded-full [animation-delay:0ms] [animation-duration:300ms] ${allRead ? 'bg-emerald-500' : 'bg-amber-400'}`}
+              style={{ width: `${Math.round((reads.read / reads.total) * 100)}%` }}
+              data-read-bar
+            />
+          </span>
+          {reads.unread.length > 0 ? (
+            <div className="mt-2 flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate text-sub" data-unread-names>
+                안 읽음 · {reads.unread.map((u) => u.name).join(' · ')}
+              </span>
+              <GroupContact
+                copy={false}
+                className="btn-white btn-sm shrink-0"
+                phones={reads.unread.map((u) => u.phone)}
+                label={`문자 ${reads.unread.length}명`}
+                body={`[${jobTitle}] ${last.body}`}
+              />
+            </div>
+          ) : (
+            <p className="mt-2 font-semibold text-emerald-700" data-all-read>
+              ✓ 모두 읽었어요
+            </p>
+          )}
+        </div>
+      )}
       <form
         action={action}
         onReset={keepInputs}
