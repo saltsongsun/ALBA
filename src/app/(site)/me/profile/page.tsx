@@ -67,7 +67,8 @@ export default async function ProfilePage() {
     <div className="space-y-4">
       <OpenOnHash />
       <Link href={vendor ? '/pro' : '/me'} className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
-        {vendor ? '← 홈' : '← 내 근무'}
+        {/* 아래 탭 이름과 같게 (전문가는 '내 일') */}
+        {vendor ? '← 홈' : type === 'expert' ? '← 내 일' : '← 내 근무'}
       </Link>
       {doneN < checks.length && (
         <section className="card space-y-3 ring-brand-100">
@@ -75,7 +76,7 @@ export default async function ProfilePage() {
             <h2 className="font-bold">
               정보 채우기 <span className="tabular-nums text-brand-700">{doneN}/{checks.length}</span>
             </h2>
-            <span className="text-xs text-mute">다 채우면 확정·급여가 빨라져요</span>
+            <span className="text-xs text-mute">다 채우면 확정·{type === 'expert' ? '대금이' : '급여가'} 빨라져요</span>
           </div>
           {/* 채운 칸이 왼쪽부터 차례로 차오름 (짧게 · '움직임 줄이기'면 바로) */}
           <div className="flex gap-1" aria-hidden data-profile-bar>

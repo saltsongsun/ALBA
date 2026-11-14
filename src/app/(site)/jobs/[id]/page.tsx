@@ -831,7 +831,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   maxLength={300}
                 />
                 {/* 전문가 의뢰는 회사가 고를 때 궁금한 말(경험·장비·포트폴리오)로 */}
-                <MessageChips target="message" pro={expert} />
+                <MessageChips target="message" pro={expert} multiDay={dates.length > 1} />
               </div>
               {/* 실수로 눌러 지원되지 않게: 첫 번째 누름은 확인 문구만, 한 번 더 눌러야 지원 */}
               <ConfirmSubmit className="btn-primary w-full py-3.5 text-base" track={expert ? '의뢰 지원하기' : '지원하기'} confirmText={`한 번 더 누르면 ${expert ? '의뢰에 ' : ''}지원돼요`}>

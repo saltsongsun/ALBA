@@ -171,6 +171,19 @@ export default async function AttTab({
   const positions = [...new Set(apps.map((a) => a.position).filter((p): p is string => !!p))].sort((a, b) => a.localeCompare(b, 'ko'))
   const ordered = [...roster].sort((a, b) => (posOf(a) || '\uffff').localeCompare(posOf(b) || '\uffff', 'ko'))
   const byPos = pos === null ? ordered : ordered.filter((u) => posOf(u) === (pos === '-' ? '' : pos))
+  // 현황 복사 (행사 주최·윗선에 보고할 때): 이름·번호 없이 숫자만 — 확정 · 근무 중 · 퇴근 · 미출근 · 지각 · 배치별 나온 사람/확정
+  const lateN = dayAtts.filter((a) => (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000 > 5).length
+  const statusText = (() => {
+    const absentWord = notYet ? '출근 전' : dayOver ? '기록 없음' : '미출근'
+    const head = `[${job.title}] ${fmtDate(date)}${date === today ? ` ${kstTime(new Date().toISOString())}` : ''} 출근 현황`
+    const nums = `확정 ${roster.length}명 · 근무 중 ${working} · 퇴근 ${done} · ${absentWord} ${absent.length}${lateN ? ` · 지각 ${lateN}` : ''}`
+    const groups = positions.length ? [...positions, ...(roster.some((u) => !posOf(u)) ? [''] : [])] : []
+    const byGroup = groups.map((p) => {
+      const g = roster.filter((u) => posOf(u) === p)
+      return `${p || '미배치'} ${g.filter((u) => byUser.has(u)).length}/${g.length}`
+    })
+    return [head, nums, ...(byGroup.length ? [byGroup.join(' · ')] : [])].join('\n')
+  })()
   // 상태로 거르기: 위 숫자 칸(근무 중·종료·미출근)을 누르면 그 사람들만 (사람이 많은 날 미출근자만 골라 연락하기 쉽게)
   const stOf = (uid: string) => {
     const a = byUser.get(uid)
@@ -378,6 +391,8 @@ export default async function AttTab({
           )}
           <GroupContact copy={false} className="chip" phones={roster.map((u) => users.get(u)?.phone)} label={`전체 ${roster.length}명 문자`} body={`[${job.title}] `} />
           <CopyButton text={roster.map((u) => phoneFmt(users.get(u)?.phone)).filter(Boolean).join(', ')} label="번호 복사" className="chip" />
+          {/* 보고용 현황: 숫자만 (이름·번호 없이 바로 보낼 수 있게) */}
+          <CopyButton text={statusText} label="현황 복사" className="chip" />
           {/* 단톡방·현장 공유용 명단: 배치별로 이름·연락처 */}
           <CopyButton
             text={[
