@@ -26,7 +26,7 @@ import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
 import HashFlash from '@/components/HashFlash'
 import { won } from '@/lib/format'
-import { answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
+import { ackNotice, answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
@@ -123,13 +123,13 @@ export default async function MePage(props: PageProps<'/me'>) {
     // 담당자가 공고 확정자에게 보낸 공지 (오늘 근무 카드에 최근 것 하나)
     db()
       .from('messages')
-      .select('job_id, body, created_at, read_at')
+      .select('id, job_id, body, created_at, read_at')
       .eq('thread_user_id', user.id)
       .eq('from_admin', true)
       .not('job_id', 'is', null)
       .order('created_at', { ascending: false })
       .limit(30)
-      .then((r) => (must(r) as { job_id: string; body: string; created_at: string; read_at: string | null }[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
+      .then((r) => (must(r) as Notice[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
     // 오늘 내가 담당자에게 보낸 현장 알림 (늦어요 등)
     db()
       .from('messages')
@@ -191,29 +191,28 @@ export default async function MePage(props: PageProps<'/me'>) {
   const tomorrow = kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + 86_400_000))
   const comingSent = new Map<string, string>()
   for (const m of mySignals) if (isComing(m.body, tomorrow) && !comingSent.has(m.job_id)) comingSent.set(m.job_id, kstTime(m.created_at))
-  const latestNotice = new Map<string, { body: string; created_at: string; read_at: string | null }>()
+  const latestNotice = new Map<string, Notice>()
   for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
   // 다음 근무 카드엔 '📢 공지'만 (일정 변경은 아래 🔔 줄이 따로 알림) — 전날 보낸 '내일 집결은…'을 홈에서 바로
-  const latestAnnounce = new Map<string, { body: string; created_at: string; read_at: string | null }>()
+  const latestAnnounce = new Map<string, Notice>()
   for (const n of notices) if (n.body.startsWith('📢 공지') && !latestAnnounce.has(n.job_id)) latestAnnounce.set(n.job_id, n)
   // 공지 칸: 누르면 그 회사 문의함으로 바로 (여러 회사에서 일하면 대화 목록부터 나와 한 번 더 골라야 하던 것) · 안 읽었으면 '새'
-  const noticeBox = (n: { body: string; created_at: string; read_at: string | null }, companyId: string, label: string, clamp: string) => {
+  const noticeBox = (n: Notice, companyId: string, label: string, clamp: string) => {
     const at = kstDate(n.created_at) === today ? kstTime(n.created_at) : `${fmtDate(kstDate(n.created_at))} ${kstTime(n.created_at)}`
     return (
-      <Link
-        href={`/me/chat?co=${companyId}`}
-        className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]"
-        data-job-notice={n.read_at ? 'read' : 'new'}
-      >
-        <span className="flex items-center justify-between gap-2 text-xs font-bold text-amber-800">
-          <span className="flex min-w-0 items-center gap-1.5">
-            {label}
-            {!n.read_at && <span className="animate-pop rounded-full bg-rose-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white" data-notice-new>새</span>}
+      <div className="mt-2 rounded-xl bg-amber-50 text-sm ring-1 ring-amber-200" data-job-notice={n.read_at ? 'read' : 'new'}>
+        <Link href={`/me/chat?co=${companyId}`} className="block rounded-xl px-3 py-2.5 transition active:scale-[0.98]">
+          <span className="flex items-center justify-between gap-2 text-xs font-bold text-amber-800">
+            <span className="flex min-w-0 items-center gap-1.5">
+              {label}
+              <AckMark n={n} />
+            </span>
+            <span className="shrink-0 font-medium whitespace-nowrap text-amber-700">{at}</span>
           </span>
-          <span className="shrink-0 font-medium whitespace-nowrap text-amber-700">{at}</span>
-        </span>
-        <span className={`mt-0.5 ${clamp} block whitespace-pre-wrap text-ink`}>{n.body.replace(/^.*\n?/, '')}</span>
-      </Link>
+          <span className={`mt-0.5 ${clamp} block whitespace-pre-wrap text-ink`}>{n.body.replace(/^.*\n?/, '')}</span>
+        </Link>
+        <AckButton n={n} />
+      </div>
     )
   }
   const photoAt = me?.photo_at ?? null
@@ -247,25 +246,24 @@ export default async function MePage(props: PageProps<'/me'>) {
     if (!n || signalOf(n.body) !== 'change') return null
     const ch = parseChanges(n.body)
     return (
-      <Link
-        href={`/me/chat?co=${a.job.company_id}`}
-        className="mt-2 block rounded-xl bg-amber-50 px-3 py-2.5 text-sm ring-1 ring-amber-200 transition active:scale-[0.98]"
-        data-change-note={n.read_at ? 'read' : 'new'}
-      >
-        <span className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
-          🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요
-          {!n.read_at && <span className="animate-pop rounded-full bg-rose-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white" data-notice-new>새</span>}
-        </span>
-        {ch.length ? (
-          ch.slice(0, 4).map((c) => (
-            <span key={c.label} className="mt-0.5 block truncate" data-change-row>
-              <span className="font-semibold text-amber-800">{c.label}</span> <s className="text-mute">{c.from}</s> → <b className="font-bold text-ink">{c.to}</b>
-            </span>
-          ))
-        ) : (
-          <span className="mt-0.5 block text-sub">공고에서 확인해 주세요</span>
-        )}
-      </Link>
+      <div className="mt-2 rounded-xl bg-amber-50 text-sm ring-1 ring-amber-200" data-change-note={n.read_at ? 'read' : 'new'}>
+        <Link href={`/me/chat?co=${a.job.company_id}`} className="block rounded-xl px-3 py-2.5 transition active:scale-[0.98]">
+          <span className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
+            🔔 {fmtDate(kstDate(n.created_at))}에 일정이 바뀌었어요
+            <AckMark n={n} />
+          </span>
+          {ch.length ? (
+            ch.slice(0, 4).map((c) => (
+              <span key={c.label} className="mt-0.5 block truncate" data-change-row>
+                <span className="font-semibold text-amber-800">{c.label}</span> <s className="text-mute">{c.from}</s> → <b className="font-bold text-ink">{c.to}</b>
+              </span>
+            ))
+          ) : (
+            <span className="mt-0.5 block text-sub">공고에서 확인해 주세요</span>
+          )}
+        </Link>
+        <AckButton n={n} />
+      </div>
     )
   }
   // 근무 전날: '내일 갈게요' 한 번 → 담당자 화면에 출근 확인으로 모임 (전날 밤 전화 돌리는 일을 줄임)
@@ -1263,5 +1261,30 @@ export default async function MePage(props: PageProps<'/me'>) {
         </section>
       )}
     </div>
+  )
+}
+
+type Notice = { id: number | string; job_id: string; body: string; created_at: string; read_at: string | null }
+
+/** 공지 머리줄 표시: 안 읽었으면 '새' · 방금(1분 안) 확인했으면 '✓ 확인함'이 톡 · 그 뒤로는 조용히 '✓ 확인함' */
+function AckMark({ n }: { n: Notice }) {
+  if (!n.read_at) return <span className="animate-pop rounded-full bg-rose-500 px-1.5 py-px text-[10px] leading-4 font-bold text-white" data-notice-new>새</span>
+  const just = Date.now() - Date.parse(n.read_at) < 60_000
+  return (
+    <span className={`text-[11px] font-semibold text-emerald-700 ${just ? 'animate-pop' : ''}`} data-notice-acked={just ? 'just' : ''}>
+      ✓ 확인함
+    </span>
+  )
+}
+
+/** 홈에서 바로 '확인했어요' (문의함을 안 열어도 담당자 화면 '읽음'에 들어감) — 안 읽은 글에만 */
+function AckButton({ n }: { n: Notice }) {
+  if (n.read_at) return null
+  return (
+    <form action={ackNotice.bind(null, n.id)} className="-mt-1 flex justify-end px-3 pb-2.5">
+      <SubmitButton className="chip h-8 bg-white px-3 text-xs font-bold text-emerald-700 ring-1 ring-emerald-200" pendingText="확인 중…" track="공지 확인했어요">
+        ✓ 확인했어요
+      </SubmitButton>
+    </form>
   )
 }

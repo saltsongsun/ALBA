@@ -22,6 +22,7 @@ import { ageOn, dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, 
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
 import { isDate, isPin, isUuid, line, normalizePhone, optLine, optStr, parseRrn, str, weakPin } from '@/lib/validate'
 import { canOpenJobDocs } from '@/lib/doc-access'
+import { validMessageId } from '@/lib/deleted'
 import { canApplyTo, myWorkTab, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
 import type { FormState } from './auth'
@@ -670,6 +671,23 @@ export async function notifyLate(jobId: string, _: FormState, form: FormData): P
  * 근무 전날 '내일 갈게요': 확정된 근무자가 내일 온다고 한 번 눌러 알림 → 담당자 공고 화면에 '출근 확인 n/m명'으로 모임.
  * 문의함에 기록으로 남기되 읽은 것으로 넣고 휴대폰 알림도 보내지 않음 (전날 밤 확정자 수만큼 안 읽은 문의·알림이 쌓이지 않게)
  */
+/**
+ * 홈 카드의 담당자 공지·일정 변경 '✓ 확인했어요': 그 글 하나만 읽음으로 (문의함을 안 열어도 담당자 '읽음 n/m'에 들어감)
+ * 내 문의함에 온 담당자 글만 · 이미 읽은 건 그대로
+ */
+export async function ackNotice(id: number | string) {
+  const user = await requireUser('/me')
+  if (!validMessageId(id)) return
+  await db()
+    .from('messages')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('thread_user_id', user.id)
+    .eq('from_admin', true)
+    .is('read_at', null)
+  revalidatePath('/me')
+}
+
 export async function confirmComing(appId: string) {
   const user = await requireUser()
   if (!isUuid(appId)) back('/me', '잘못된 요청입니다.')

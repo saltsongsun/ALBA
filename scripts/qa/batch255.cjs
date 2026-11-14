@@ -61,9 +61,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const rows = (await note.locator('[data-change-row]').allTextContents()).map(one)
   ok("바뀐 것 두 줄: '시간 09:00~18:00 → 10:00~18:00' · '집결 없음 → 정문 앞 안내 천막'", JSON.stringify(rows) === JSON.stringify(['시간 09:00~18:00 → 10:00~18:00', '집결 없음 → 정문 앞 안내 천막']), JSON.stringify(rows))
   ok('예전 값은 줄 긋고 (s) 새 값은 굵게 (b)', one(await note.locator('[data-change-row] s').first().textContent().catch(() => '')) === '09:00~18:00' && one(await note.locator('[data-change-row] b').first().textContent().catch(() => '')) === '10:00~18:00')
-  ok("'공고에서 확인'만 쓰던 줄 없음", !one(await note.textContent()).includes('공고에서 확인'))
+  ok("'공고에서 확인'만 쓰던 줄 없음", !one(await note.locator('a').first().textContent()).includes('공고에서 확인'))
   ok("안 읽음: '새' (톡)", (await note.getAttribute('data-change-note')) === 'new' && ((await note.locator('[data-notice-new]').getAttribute('class').catch(() => '')) ?? '').includes('animate-pop'))
-  const hs = await note.evaluate((el) => [...el.children].map((c) => Math.round(c.getBoundingClientRect().height)))
+  const hs = await note.evaluate((el) => [...el.querySelector('a').children].map((c) => Math.round(c.getBoundingClientRect().height)))
   ok('줄마다 한 줄 (360px)', hs.every((h) => h < 24), JSON.stringify(hs))
   ok('360px 옆으로 안 밀림', await noSide(w))
   if (SHOTS) {
@@ -73,8 +73,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   }
 
   // ── 3. 누르면 그 회사 문의함 → 읽으면 '새' 없음
-  ok('변경 칸을 누르면 그 회사 문의함으로 (?co=)', (await note.getAttribute('href')) === `/me/chat?co=${C1}`, await note.getAttribute('href'))
-  await note.click()
+  ok('변경 칸을 누르면 그 회사 문의함으로 (?co=)', (await note.locator('a').first().getAttribute('href')) === `/me/chat?co=${C1}`, await note.locator('a').first().getAttribute('href'))
+  await note.locator('a').first().click()
   await w.waitForURL((u) => u.pathname === '/me/chat', { timeout: 15000 }).catch(() => {})
   await w.locator('[data-chat-intro]').waitFor({ timeout: 15000 }).catch(() => {})
   await w.waitForLoadState('networkidle')
@@ -93,7 +93,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await rest('messages', 'POST', { id: 925502, thread_user_id: W, sender_id: A, from_admin: true, company_id: C1, job_id: J2, body: '🔔 일정 변경\n자세한 건 공고를 봐 주세요.', read_at: null, created_at: new Date(Date.now() + 1000).toISOString() })
   await w.goto(`${D}/me`, { waitUntil: 'networkidle' })
   await note.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("모양을 모르면 '공고에서 확인해 주세요'", (await note.locator('[data-change-row]').count()) === 0 && one(await note.textContent()).endsWith('공고에서 확인해 주세요'), one(await note.textContent()))
+  ok("모양을 모르면 '공고에서 확인해 주세요'", (await note.locator('[data-change-row]').count()) === 0 && one(await note.locator('a').first().textContent()).endsWith('공고에서 확인해 주세요'), one(await note.locator('a').first().textContent()))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()

@@ -55,11 +55,11 @@ const msg = (id, job, co, ago, body) => ({ id, thread_user_id: W, sender_id: A, 
   const box = card(J2).locator('[data-job-notice]')
   await box.waitFor({ timeout: 15000 }).catch(() => {})
   const head = one(await box.locator('span').first().innerText().catch(() => ''))
-  ok("내일 공고 카드: '📢 담당자 공지 새 HH:MM' (어제 보낸 것이면 '11/14(토) 22:21') + 공지 내용", /^📢 담당자 공지 새 (\d{1,2}:\d\d|\d{1,2}\/\d{1,2}\([일월화수목금토]\) \d{1,2}:\d\d)$/.test(head) && one(await box.innerText()).endsWith('내일 집결은 08:30 정문이에요. 늦지 않게 와 주세요. 주차는 안 돼요.'), head)
+  ok("내일 공고 카드: '📢 담당자 공지 새 HH:MM' (어제 보낸 것이면 '11/14(토) 22:21') + 공지 내용", /^📢 담당자 공지 새 (\d{1,2}:\d\d|\d{1,2}\/\d{1,2}\([일월화수목금토]\) \d{1,2}:\d\d)$/.test(head) && one(await box.locator('a').first().innerText()).endsWith('내일 집결은 08:30 정문이에요. 늦지 않게 와 주세요. 주차는 안 돼요.'), head)
   ok("안 읽음 표시 (data-job-notice='new' · '새' 톡)", (await box.getAttribute('data-job-notice')) === 'new' && ((await box.locator('[data-notice-new]').getAttribute('class')) ?? '').includes('animate-pop'))
-  ok('공지 칸은 그 회사 문의함으로 (?co=우리 회사)', (await box.getAttribute('href')) === `/me/chat?co=${C1}`, await box.getAttribute('href'))
+  ok('공지 칸은 그 회사 문의함으로 (?co=우리 회사)', (await box.locator('a').first().getAttribute('href')) === `/me/chat?co=${C1}`, await box.locator('a').first().getAttribute('href'))
   ok('다른 회사 공고 카드엔 공지 칸 없음', (await card(J3).count()) === 1 && (await card(J3).locator('[data-job-notice]').count()) === 0)
-  const lines = await box.evaluate((el) => { const t = el.lastElementChild; return Math.round(t.getBoundingClientRect().height / parseFloat(getComputedStyle(t).lineHeight)) })
+  const lines = await box.evaluate((el) => { const t = el.querySelector('a').lastElementChild; return Math.round(t.getBoundingClientRect().height / parseFloat(getComputedStyle(t).lineHeight)) })
   ok('목록 카드에선 공지 두 줄까지 (넘치면 …)', lines <= 2, String(lines))
   ok('360px 옆으로 안 밀림', await noSide(p))
   if (SHOTS) {
@@ -69,7 +69,7 @@ const msg = (id, job, co, ago, body) => ({ id, thread_user_id: W, sender_id: A, 
   }
 
   // ── 2. 누르면 우리 회사 문의함 (다른 회사 말이 더 최근이어도) → 돌아오면 '새' 없어짐
-  await box.click()
+  await box.locator('a').first().click()
   await p.waitForURL((u) => u.pathname === '/me/chat', { timeout: 15000 }).catch(() => {})
   await p.locator('[data-chat-intro]').waitFor({ timeout: 15000 }).catch(() => {})
   await p.waitForLoadState('networkidle')
@@ -89,7 +89,7 @@ const msg = (id, job, co, ago, body) => ({ id, thread_user_id: W, sender_id: A, 
   await open()
   const today = p.locator('#today-work [data-job-notice]').first()
   await today.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("오늘 근무 카드: '📢 담당자 공지 새' · ?co=우리 회사", (await today.getAttribute('href')) === `/me/chat?co=${C1}` && one(await today.innerText()).includes('점심은 12시 운영본부 천막에서 받아요.') && (await today.getAttribute('data-job-notice')) === 'new', await today.getAttribute('href'))
+  ok("오늘 근무 카드: '📢 담당자 공지 새' · ?co=우리 회사", (await today.locator('a').first().getAttribute('href')) === `/me/chat?co=${C1}` && one(await today.innerText()).includes('점심은 12시 운영본부 천막에서 받아요.') && (await today.getAttribute('data-job-notice')) === 'new', await today.locator('a').first().getAttribute('href'))
 
   // ── 5. 오늘 근무가 없는 날: 큰 '다음 근무' 카드에 공지
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
@@ -98,7 +98,7 @@ const msg = (id, job, co, ago, body) => ({ id, thread_user_id: W, sender_id: A, 
   const hero = p.locator('[data-next-work]')
   await hero.waitFor({ timeout: 15000 }).catch(() => {})
   const hb = hero.locator('[data-job-notice]')
-  ok("다음 근무(내일) 큰 카드에 공지 · 그 회사 문의함으로", (await hero.innerText().catch(() => '')).includes('내일 박람회 안내') && (await hb.count()) === 1 && (await hb.getAttribute('href')) === `/me/chat?co=${C1}` && one(await hb.innerText()).includes('내일 집결은 08:30 정문이에요.'), one(await hb.innerText().catch(() => '')))
+  ok("다음 근무(내일) 큰 카드에 공지 · 그 회사 문의함으로", (await hero.innerText().catch(() => '')).includes('내일 박람회 안내') && (await hb.count()) === 1 && (await hb.locator('a').first().getAttribute('href')) === `/me/chat?co=${C1}` && one(await hb.innerText()).includes('내일 집결은 08:30 정문이에요.'), one(await hb.innerText().catch(() => '')))
   const hint = hero.locator('[data-next-hint]')
   ok("다음 근무 카드 안내 한 줄 '오늘은 쉬는 날 · 근무 날 여기서 출퇴근해요'", one(await hint.innerText().catch(() => '')) === '오늘은 쉬는 날 · 근무 날 여기서 출퇴근해요' && (await hint.evaluate((el) => el.getBoundingClientRect().height < 22).catch(() => false)))
   ok('360px 옆으로 안 밀림 (다음 근무 카드)', await noSide(p))
