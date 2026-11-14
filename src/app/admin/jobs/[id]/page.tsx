@@ -22,7 +22,7 @@ import { recruitText, scheduleText } from '@/lib/docs'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime, kstTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
-import { isComing, SIGNAL } from '@/lib/signals'
+import { isComing, SIGN_NUDGE, SIGNAL } from '@/lib/signals'
 import { phoneFmt } from '@/lib/format'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
@@ -159,6 +159,19 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 보류한 지원자는 '대기'에서 빼고 (지원자 탭 '보류'에 따로)
   const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
+  // 서류 탭: 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 (금방 또 보내 같은 알림이 겹치지 않게) · 우리 회사 문의함에서만
+  const lastSignNudge =
+    tab === 'docs' && pendingDocs > 0
+      ? await db()
+          .from('messages')
+          .select('created_at, body')
+          .eq('company_id', admin.companyId)
+          .eq('job_id', job.id)
+          .eq('from_admin', true)
+          .order('created_at', { ascending: false })
+          .limit(300)
+          .then((r) => ((r.data ?? []) as { created_at: string; body: string }[]).filter((m) => m.body.startsWith(SIGN_NUDGE)).map((m) => m.created_at).sort().at(-1) ?? null)
+      : null
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   // 공고 지급총액 (세전 · 정산 탭과 같은 계산)
@@ -506,7 +519,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       )}
       {tab === 'att' && <AttTab job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
       {tab === 'pay' && <PayTab job={job} atts={atts} users={users} origin={origin} />}
-      {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} />}
+      {tab === 'docs' && <DocsTab job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} />}
     </div>
   )
 }

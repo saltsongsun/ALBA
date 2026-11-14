@@ -4,7 +4,7 @@ import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { kstDateTime } from '@/lib/time'
+import { kstDate, kstDateTime, kstTime } from '@/lib/time'
 import type { Job, SignedDoc } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 import { contractNameOf } from '@/lib/members'
@@ -21,6 +21,7 @@ export default function DocsTab({
   templates,
   users,
   origin,
+  lastNudge = null,
 }: {
   job: Job
   approved: AppRow[]
@@ -28,6 +29,8 @@ export default function DocsTab({
   templates: { id: string; title: string }[]
   users: Map<string, WorkerLite>
   origin: string
+  /** 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 시각 (없으면 null) */
+  lastNudge?: string | null
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -37,6 +40,19 @@ export default function DocsTab({
     : [...new Map(live.map((d) => [d.template_id ?? d.title, { id: d.template_id ?? d.title, title: d.title }])).values()]
   const signedCount = live.filter((d) => d.status === 'signed').length
   const unsigned = [...new Set(live.filter((d) => d.status === 'pending').map((d) => d.user_id))]
+  // 마지막 '서명 요청' 알림: 방금 · n분 전 · 오늘 14:02 · 11/13(금) 14:02 — 30분 안이면 다시 보낼 때 한 번 더 확인
+  const nudgeMin = lastNudge ? Math.max(0, Math.floor((Date.now() - new Date(lastNudge).getTime()) / 60_000)) : null
+  const nudgeWhen =
+    lastNudge == null || nudgeMin == null
+      ? null
+      : nudgeMin < 1
+        ? '방금'
+        : nudgeMin < 60
+          ? `${nudgeMin}분 전`
+          : kstDate(lastNudge) === kstDate()
+            ? `오늘 ${kstTime(lastNudge)}`
+            : kstDateTime(lastNudge)
+  const recentNudge = nudgeMin != null && nudgeMin < 30
 
   // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 사람마다 받았는지 기록
   const outside = job.contract_method !== 'app'
@@ -141,19 +157,6 @@ export default function DocsTab({
           서명 완료 <b className="text-ink">{signedCount}</b> / {live.length}건
         </p>
         <div className="flex flex-wrap gap-2">
-          <GroupContact
-            phones={unsigned.map((u) => users.get(u)?.phone)}
-            label={`서명 안 한 ${unsigned.length}명에게 문자`}
-            body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
-            copyClassName="btn-white btn-sm"
-          />
-          {unsigned.length > 0 && (
-            <form action={nudgeWorkers.bind(null, job.id, 'sign', null)}>
-              <ConfirmSubmit className="btn-soft btn-sm" confirmText={`${unsigned.length}명에게 보낼까요?`}>
-                서명 안 한 {unsigned.length}명 앱 알림
-              </ConfirmSubmit>
-            </form>
-          )}
           {/* 이 공고의 서명 완료 서류를 한 PDF로 (인쇄·보관) · 전체 목록은 '서류' 메뉴 */}
           {signedCount > 0 && (
             <a href={`/admin/docs/pdf?job=${job.id}&status=signed`} download className="btn-white btn-sm" data-job-docs-pdf>
@@ -165,6 +168,33 @@ export default function DocsTab({
           </Link>
         </div>
       </div>
+      {/* 서명 안 한 사람에게 연락: 누구에게(서명 안 한 n명)는 한 번만 쓰고 버튼은 짧게 · 마지막 앱 알림 때를 옆에 (같은 알림을 금방 또 보내지 않게) */}
+      {unsigned.length > 0 && (
+        <div className="card space-y-2.5 p-3.5" data-unsigned-tools>
+          <p className="flex items-baseline justify-between gap-2 text-sm">
+            <b className="shrink-0">서명 안 한 {unsigned.length}명</b>
+            {nudgeWhen && (
+              <span className={`min-w-0 truncate text-xs ${recentNudge ? 'font-semibold text-amber-700' : 'text-mute'}`} data-last-nudge={recentNudge ? 'recent' : 'old'}>
+                앱 알림 {nudgeWhen} 보냄
+              </span>
+            )}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <form action={nudgeWorkers.bind(null, job.id, 'sign', null)}>
+              <ConfirmSubmit className="btn-soft btn-sm" confirmText={recentNudge ? `${nudgeWhen === '방금' ? '방금' : `${nudgeWhen}에`} 보냈어요 · 또 보낼까요?` : `${unsigned.length}명에게 보낼까요?`}>
+                앱 알림
+              </ConfirmSubmit>
+            </form>
+            <GroupContact
+              phones={unsigned.map((u) => users.get(u)?.phone)}
+              label="문자"
+              body={`[${job.title}] 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
+              className="btn-white btn-sm"
+              copyClassName="btn-white btn-sm"
+            />
+          </div>
+        </div>
+      )}
       {cols.length === 0 ? (
         <Empty icon="📄" title="서명받을 서류가 없어요">
           <Link href={`/admin/jobs/${job.id}/edit#docs`} className="font-semibold text-brand-600" data-empty-next="docs">

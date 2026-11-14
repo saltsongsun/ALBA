@@ -21,7 +21,7 @@ import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGN_NUDGE, SIGNAL, signalOf } from '@/lib/signals'
 import { requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { bizNoOwners } from '@/lib/bizNo'
@@ -1606,7 +1606,7 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
         : `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
   const [title, text] = {
-    sign: ['✍️ 서류 서명 요청', `${job.title} ${job.audience === 'expert' ? '시작' : '근무'} 전에 앱 '${myWorkTab(job.audience)}'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
+    sign: [SIGN_NUDGE, `${job.title} ${job.audience === 'expert' ? '시작' : '근무'} 전에 앱 '${myWorkTab(job.audience)}'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
     clockin: ['⏰ 출근 확인', `${job.title} · 근무 시작 시각(${hhmm(job.start_time)})이 지났어요. 현장에 도착했으면 앱에서 '근무 시작'을 눌러 주세요.`],
     clockout: ['🏁 근무 종료 확인', `${job.title} · 일이 끝났으면 앱에서 '근무 종료'를 눌러 주세요. 계약 시간 이후는 서로 확인한 뒤에만 급여에 들어가요.`],
     account: [SIGNAL.account, `${job.title} 급여를 보내 드리려면 계좌가 필요해요. 앱 '내 정보'에서 은행·계좌번호·예금주를 등록해 주세요.`],
