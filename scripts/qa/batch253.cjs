@@ -55,7 +55,7 @@ const msg = (id, job, co, ago, body) => ({ id, thread_user_id: W, sender_id: A, 
   const box = card(J2).locator('[data-job-notice]')
   await box.waitFor({ timeout: 15000 }).catch(() => {})
   const head = one(await box.locator('span').first().innerText().catch(() => ''))
-  ok("내일 공고 카드: '📢 담당자 공지 새 HH:MM' + 공지 내용", /^📢 담당자 공지 새 \d{1,2}:\d\d$/.test(head) && one(await box.innerText()).endsWith('내일 집결은 08:30 정문이에요. 늦지 않게 와 주세요. 주차는 안 돼요.'), head)
+  ok("내일 공고 카드: '📢 담당자 공지 새 HH:MM' (어제 보낸 것이면 '11/14(토) 22:21') + 공지 내용", /^📢 담당자 공지 새 (\d{1,2}:\d\d|\d{1,2}\/\d{1,2}\([일월화수목금토]\) \d{1,2}:\d\d)$/.test(head) && one(await box.innerText()).endsWith('내일 집결은 08:30 정문이에요. 늦지 않게 와 주세요. 주차는 안 돼요.'), head)
   ok("안 읽음 표시 (data-job-notice='new' · '새' 톡)", (await box.getAttribute('data-job-notice')) === 'new' && ((await box.locator('[data-notice-new]').getAttribute('class')) ?? '').includes('animate-pop'))
   ok('공지 칸은 그 회사 문의함으로 (?co=우리 회사)', (await box.getAttribute('href')) === `/me/chat?co=${C1}`, await box.getAttribute('href'))
   ok('다른 회사 공고 카드엔 공지 칸 없음', (await card(J3).count()) === 1 && (await card(J3).locator('[data-job-notice]').count()) === 0)
