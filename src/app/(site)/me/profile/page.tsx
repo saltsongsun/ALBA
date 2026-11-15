@@ -29,15 +29,47 @@ import type { MemberType } from '@/lib/types'
 
 export const metadata: Metadata = { title: '내 정보' }
 
-// '내 정보를 보는 회사'에 처음 보이는 수 (나머지는 '외 n곳 더 보기')
-const SEEN_SHOWN = 6
-
-function SeenChip({ c }: { c: { id: string; name: string } }) {
+/**
+ * 여러 회사가 함께 쓰는 앱: 내 계좌·연락처·사진을 어느 회사가 보는지 (지원했거나 소속된 회사만 — 관리자 화면과 같은 기준)
+ * 접힌 한 줄에 첫 글자·곳 수 · 펼치면 회사 이름 (누르면 그 회사 화면)
+ */
+function SeenBy({ list }: { list: { id: string; name: string }[] }) {
   return (
-    <Link href={`/?co=${c.id}`} className="flex max-w-full items-center gap-1.5 rounded-full bg-bg py-1 pr-3 pl-1 text-sm font-semibold transition active:scale-95" data-seen-co>
-      <CompanyMark name={c.name} className="size-6 rounded-full text-xs" />
-      <span className="truncate">{c.name}</span>
-    </Link>
+    <details id="seen-by" className="group scroll-mt-20 border-t border-line pt-3" data-seen-by>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm [&::-webkit-details-marker]:hidden">
+        <Icon name="shield" className="shrink-0 text-brand-600" />
+        <b className="min-w-0 flex-1 truncate">내 정보를 보는 회사</b>
+        {/* 첫 글자 겹쳐 보이기 (3곳까지) */}
+        {list.length > 0 && (
+          <span aria-hidden className="flex shrink-0 -space-x-1.5" data-seen-marks>
+            {list.slice(0, 3).map((c) => (
+              <CompanyMark key={c.id} name={c.name} className="size-6 rounded-full text-xs ring-2 ring-white" />
+            ))}
+          </span>
+        )}
+        <span className="shrink-0 font-semibold text-sub tabular-nums" data-seen-count>
+          {list.length}곳
+        </span>
+        <svg aria-hidden viewBox="0 0 20 20" className="size-4 shrink-0 text-mute transition-transform duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+          <path d="m5 8 5 5 5-5" />
+        </svg>
+      </summary>
+      <p className="mt-2 text-sm text-sub" data-seen-note>
+        {list.length ? '지원한 회사 담당자만 볼 수 있어요' : '아직 없어요 · 지원하면 그 회사 담당자만 봐요'}
+      </p>
+      {list.length > 0 && (
+        <ul className="mt-2 flex flex-wrap gap-1.5">
+          {list.map((c, i) => (
+            <li key={c.id} className="max-w-full animate-pop" style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}>
+              <Link href={`/?co=${c.id}`} className="flex max-w-full items-center gap-1.5 rounded-full bg-bg py-1 pr-3 pl-1 text-sm font-semibold transition active:scale-95" data-seen-co>
+                <CompanyMark name={c.name} className="size-6 rounded-full text-xs" />
+                <span className="truncate">{c.name}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </details>
   )
 }
 
@@ -153,6 +185,7 @@ export default async function ProfilePage() {
               문의하기 →
             </Link>
           </p>
+          {seenBy && <SeenBy list={seenBy} />}
         </div>
       )}
       {/* 가입 유형: 아르바이트 ↔ 전문가 (외주 업체는 사업자라 그대로) */}
@@ -233,47 +266,6 @@ export default async function ProfilePage() {
         ownName={type === 'worker' ? me.name : undefined}
       />
       </div>
-      {/* 여러 회사가 함께 쓰는 앱: 내 계좌·연락처·사진을 어느 회사가 보는지 (지원한 회사만 · 누르면 그 회사 화면) */}
-      {seenBy && (
-        <section id="seen-by" className="card scroll-mt-20 space-y-2.5" data-seen-by>
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="flex items-center gap-1.5 font-bold">
-              <Icon name="shield" className="text-brand-600" />내 정보를 보는 회사
-            </h2>
-            <span className="text-sm font-semibold text-sub tabular-nums" data-seen-count>
-              {seenBy.length}곳
-            </span>
-          </div>
-          <p className="text-sm text-sub" data-seen-note>
-            {seenBy.length ? '지원한 회사 담당자만 볼 수 있어요' : '아직 없어요 · 지원하면 그 회사 담당자만 봐요'}
-          </p>
-          {seenBy.length > 0 && (
-            <ul className="flex flex-wrap gap-1.5">
-              {seenBy.slice(0, SEEN_SHOWN).map((c, i) => (
-                <li key={c.id} className="max-w-full animate-pop" style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
-                  <SeenChip c={c} />
-                </li>
-              ))}
-              {seenBy.length > SEEN_SHOWN && (
-                <li className="w-full">
-                  <details className="group">
-                    <summary className="tap cursor-pointer list-none text-sm font-semibold text-brand-600" data-seen-more>
-                      외 {seenBy.length - SEEN_SHOWN}곳 더 보기
-                    </summary>
-                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                      {seenBy.slice(SEEN_SHOWN).map((c) => (
-                        <li key={c.id} className="max-w-full animate-pop">
-                          <SeenChip c={c} />
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
-                </li>
-              )}
-            </ul>
-          )}
-        </section>
-      )}
       {!vendor && (
         <div id="careers" className="scroll-mt-20">
           <CareerForm initial={(me.careers as Career[] | null) ?? []} />

@@ -1,7 +1,8 @@
 // 묶음 263 (정기 개선 2026-11-15 15:35 KST)
-// · 근무자 '내 정보': '내 정보를 보는 회사 n곳' — 내 계좌·연락처·사진을 볼 수 있는 회사 (지원한 적이 있거나 소속된 곳 · 관리자 화면과 같은 기준)
-//   회사마다 첫 글자 표시 + 이름 칩 (누르면 그 회사 화면) · 7곳 이상이면 6곳 + '외 n곳 더 보기' · 지원 안 한 회사는 안 나옴
-//   아직 없으면 '아직 없어요 · 지원하면 그 회사 담당자만 봐요' · 전문가 화면엔 없음 · 칩은 차례로 톡 나타남 (움직임 줄이기면 바로)
+// · 근무자 '내 정보' 맨 위 카드: '내 정보를 보는 회사 [다][테] 2곳 ⌄' 접힌 한 줄 — 내 계좌·연락처·사진을 볼 수 있는 회사
+//   (지원한 적이 있거나 소속된 곳 · 관리자 화면과 같은 기준 · 지원 안 한 회사는 안 나옴) · 첫 글자는 3곳까지 겹쳐서
+//   펼치면 '지원한 회사 담당자만 볼 수 있어요' + 회사 이름 칩 (누르면 그 회사 화면 · 차례로 톡 나타남, 움직임 줄이기면 바로)
+//   아직 없으면 '0곳' · '아직 없어요 · 지원하면 그 회사 담당자만 봐요' · 전문가 화면엔 없음
 // · 문의함: 회사 줄이 같은 건물 아이콘 대신 회사 이름 첫 글자 ('주식회사' 같은 말은 빼고)
 // node scripts/qa/batch263.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
@@ -48,24 +49,32 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
   const box = p.locator('[data-seen-by]')
 
-  // ── 1. 두 회사에 지원한 근무자: '2곳' · 이름 순 칩 · 첫 글자
+  // ── 1. 두 회사에 지원한 근무자: 접힌 한 줄 '내 정보를 보는 회사 [다][테] 2곳' → 펼치면 이름 순 칩
   await as(W)
   await p.goto(`${D}/me/profile`, { waitUntil: 'networkidle' })
   await box.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("'내 정보를 보는 회사 2곳' · '지원한 회사 담당자만 볼 수 있어요'", one(await box.locator('h2').textContent().catch(() => '')) === '내 정보를 보는 회사' && one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '2곳' && one(await box.locator('[data-seen-note]').textContent().catch(() => '')) === '지원한 회사 담당자만 볼 수 있어요')
+  const summary = box.locator('summary')
+  const marks = async () => (await box.locator('[data-seen-marks] [data-company-mark]').allTextContents()).map(one)
+  ok("맨 위 카드 안 접힌 한 줄: '내 정보를 보는 회사' · 첫 글자 [다, 테] · '2곳'", (await box.evaluate((el) => !el.open && !!el.closest('[data-profile-hero]')).catch(() => false)) && one(await summary.locator('b').textContent().catch(() => '')) === '내 정보를 보는 회사' && JSON.stringify(await marks()) === '["다","테"]' && one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '2곳', JSON.stringify(await marks()))
+  ok('접힌 줄은 한 줄 높이', (await summary.evaluate((el) => el.getBoundingClientRect().height).catch(() => 99)) < 32)
+  await summary.click()
   const chips = box.locator('[data-seen-co]')
+  await chips.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
+  ok("펼치면 '지원한 회사 담당자만 볼 수 있어요'", one(await box.locator('[data-seen-note]').textContent().catch(() => '')) === '지원한 회사 담당자만 볼 수 있어요')
   const names = (await chips.allTextContents()).map(one)
   ok("칩: ['다(주)다른기획', '테주식회사 테스트'] (첫 글자 + 이름 · '(주)'·'주식회사'는 첫 글자에서 뺌)", JSON.stringify(names) === JSON.stringify(['다(주)다른기획', '테주식회사 테스트']), JSON.stringify(names))
   ok('지원 안 한 회사는 안 나옴', !names.some((n) => n.includes('지원 안 한')))
   ok('칩을 누르면 그 회사 화면 (/?co=)', (await chips.nth(0).getAttribute('href')) === `/?co=${C2}` && (await chips.nth(1).getAttribute('href')) === `/?co=${C1}`)
   const anim = await box.locator('li').first().evaluate((el) => ({ name: getComputedStyle(el).animationName, dur: getComputedStyle(el).animationDuration })).catch(() => null)
-  ok('칩이 톡 나타남 (0.32초 이하)', anim?.name === 'pop' && parseFloat(anim.dur) <= 0.32, JSON.stringify(anim))
+  ok('칩이 톡 나타남 (0.32초 이하) · 펼침 화살표가 돌아감', anim?.name === 'pop' && parseFloat(anim.dur) <= 0.32 && (await summary.locator('svg').evaluate((el) => getComputedStyle(el).transform !== 'none').catch(() => false)), JSON.stringify(anim))
   const hs = await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
   ok('칩 한 줄 · 360px 옆으로 안 밀림', hs.every((h) => h < 40) && (await noSide(p)), JSON.stringify(hs))
   if (SHOTS) {
-    await box.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+    const hero = p.locator('[data-profile-hero]')
+    await hero.evaluate((el) => el.scrollIntoView({ block: 'start' }))
+    await p.evaluate(() => scrollBy(0, -70))
     await p.waitForTimeout(500)
-    await box.screenshot({ path: `${SHOTS}/profile-seen-by.png` }).catch(() => {})
+    await hero.screenshot({ path: `${SHOTS}/profile-seen-by.png` }).catch(() => {})
   }
   await chips.nth(0).click()
   await p.waitForURL((u) => u.search.includes(C2), { timeout: 15000 }).catch(() => {})
@@ -73,16 +82,16 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 2. 문의함: 회사 줄은 첫 글자
   await p.goto(`${D}/me/chat`, { waitUntil: 'networkidle' })
-  const marks = await p.locator('[data-chat-row="company"]').evaluateAll((els) => els.map((el) => ({ t: el.querySelector('b')?.textContent?.trim(), m: el.querySelector('[data-company-mark]')?.textContent?.trim(), svg: !!el.querySelector('span[aria-hidden] > svg') })))
-  const byT = Object.fromEntries(marks.map((x) => [x.t, x.m]))
-  ok("문의함 회사 줄: '(주)다른기획' → '다' · '주식회사 테스트' → '테' (건물 아이콘 대신)", byT['(주)다른기획'] === '다' && byT['주식회사 테스트'] === '테' && marks.every((x) => !x.svg), JSON.stringify(marks))
+  const rowMarks = await p.locator('[data-chat-row="company"]').evaluateAll((els) => els.map((el) => ({ t: el.querySelector('b')?.textContent?.trim(), m: el.querySelector('[data-company-mark]')?.textContent?.trim(), svg: !!el.querySelector('span[aria-hidden] > svg') })))
+  const byT = Object.fromEntries(rowMarks.map((x) => [x.t, x.m]))
+  ok("문의함 회사 줄: '(주)다른기획' → '다' · '주식회사 테스트' → '테' (건물 아이콘 대신)", byT['(주)다른기획'] === '다' && byT['주식회사 테스트'] === '테' && rowMarks.every((x) => !x.svg), JSON.stringify(rowMarks))
   if (SHOTS) {
     await p.waitForTimeout(400)
     const list = p.locator('[data-chat-row="company"]').first().locator('xpath=ancestor::ul[1]')
     await list.screenshot({ path: `${SHOTS}/inbox-marks.png` }).catch(() => {})
   }
 
-  // ── 3. 7곳 이상: 6곳 + '외 n곳 더 보기'
+  // ── 3. 8곳: 첫 글자는 3곳까지 · '8곳' · 펼치면 8곳 모두
   for (let i = 0; i < 6; i++) {
     const cid = `99999999-0000-4000-8000-00000026310${i}`
     await rest('companies', 'POST', { ...c1, id: cid, company_name: `행사회사${i + 1}` })
@@ -93,17 +102,17 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   }
   await p.goto(`${D}/me/profile`, { waitUntil: 'networkidle' })
   await box.waitFor({ timeout: 15000 }).catch(() => {})
-  const more = box.locator('[data-seen-more]')
-  ok("8곳: '8곳' · 칩 6개 + '외 2곳 더 보기'", one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '8곳' && (await chips.evaluateAll((els) => els.filter((e) => e.checkVisibility()).length)) === 6 && one(await more.textContent().catch(() => '')) === '외 2곳 더 보기')
-  await more.click().catch(() => {})
+  ok("8곳: 첫 글자 3개 · '8곳' · 접힌 줄 한 줄", (await marks()).length === 3 && one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '8곳' && (await summary.evaluate((el) => el.getBoundingClientRect().height).catch(() => 99)) < 32)
+  await summary.click()
   await p.waitForTimeout(300)
-  ok("'더 보기'를 누르면 8곳 모두", (await chips.evaluateAll((els) => els.filter((e) => e.checkVisibility()).length)) === 8)
+  ok('펼치면 8곳 모두', (await chips.evaluateAll((els) => els.filter((e) => e.checkVisibility()).length)) === 8)
 
   // ── 4. 지원한 곳이 없는 새 근무자
   await as(NEW)
   await p.goto(`${D}/me/profile`, { waitUntil: 'networkidle' })
   await box.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("새 근무자: '0곳' · '아직 없어요 · 지원하면 그 회사 담당자만 봐요' · 칩 없음", one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '0곳' && one(await box.locator('[data-seen-note]').textContent().catch(() => '')) === '아직 없어요 · 지원하면 그 회사 담당자만 봐요' && (await chips.count()) === 0)
+  await summary.click().catch(() => {})
+  ok("새 근무자: '0곳' · 첫 글자 없음 · 펼치면 '아직 없어요 · 지원하면 그 회사 담당자만 봐요' · 칩 없음", (await marks()).length === 0 && one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '0곳' && one(await box.locator('[data-seen-note]').textContent().catch(() => '')) === '아직 없어요 · 지원하면 그 회사 담당자만 봐요' && (await chips.count()) === 0)
 
   // ── 5. 전문가 화면엔 없음
   await as(PRO)

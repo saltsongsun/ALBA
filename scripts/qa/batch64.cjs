@@ -57,7 +57,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   ok('예금주·비상연락처 한 줄', !!holder && !!emer && Math.abs(holder.y - emer.y) < 2 && emer.x > holder.x)
   ok('내 정보: 옆으로 안 밀림', await wk.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   const profileH = await height(wk)
-  ok('내 정보 높이 2100px 아래 (예전 2263px)', profileH < 2100, `${profileH}px`)
+  // 2026-11-15: 맨 위 카드에 '내 정보를 보는 회사' 접힌 한 줄(약 50px)이 더해져 2150으로
+  ok('내 정보 높이 2150px 아래 (예전 2263px)', profileH < 2150, `${profileH}px`)
 
   // ── 4. 내 근무: 계좌·사진 안내 한 카드 ──
   await wk.goto(`${D}/me`)
