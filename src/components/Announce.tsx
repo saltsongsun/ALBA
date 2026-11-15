@@ -66,6 +66,7 @@ export default function Announce({
     <Fold
       id="announce"
       open={open}
+      flash={open}
       title={
         <span className="inline-flex items-center gap-1.5">
           <Icon name="megaphone" className="text-brand-600" /> 확정자에게 공지

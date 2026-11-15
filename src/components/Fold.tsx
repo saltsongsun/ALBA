@@ -8,6 +8,7 @@ export default function Fold({
   open = false,
   id,
   badge,
+  flash = false,
   className = 'space-y-4',
   children,
 }: {
@@ -17,11 +18,13 @@ export default function Fold({
   id?: string
   /** 제목 옆 작은 표시 (예: 필수, 3건) */
   badge?: React.ReactNode
+  /** 다른 화면에서 이 칸을 열려고 왔을 때 처음 그려지면서 테두리가 한 번 반짝 (어디로 왔는지 보이게 · 움직임 줄이기면 없음) */
+  flash?: boolean
   className?: string
   children: React.ReactNode
 }) {
   return (
-    <details id={id} open={open} className="fold-card group scroll-mt-32">
+    <details id={id} open={open} className="fold-card group scroll-mt-32" data-ring-once={flash ? '' : undefined}>
       <summary className="flex cursor-pointer items-center gap-3 rounded-2xl px-5 py-4 transition-colors select-none before:hidden active:bg-bg">
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2 font-bold">

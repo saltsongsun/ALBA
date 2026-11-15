@@ -968,6 +968,15 @@ html[data-text='lg'] {
 [data-target-flash]:target {
   animation: flash-ring 1s ease-out 1;
 }
+/* 접은 칸을 열려고 다른 화면에서 왔을 때: 처음 그려지면서 테두리가 짧게 한 번 (대시보드 '확인할 일' → 공고의 그 칸) */
+[data-ring-once] {
+  animation: flash-ring 0.3s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ring-once] {
+    animation: none;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   [data-target-flash]:target {
     animation: none;

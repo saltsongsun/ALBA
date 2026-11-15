@@ -792,33 +792,3 @@ export function QrSkeleton() {
     </div>
   )
 }
-
-/** 외주 견적 요청(문자 링크로 여는 화면): 회사 줄 · 요청 카드(받는 분 · 제목 · 마감 · 내용) · 견적 보내기 칸 (휴대폰 데이터로 열 때 빈 화면 대신 같은 모양) */
-export function QuoteSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="견적 요청 불러오는 중" className="skeleton mx-auto max-w-xl space-y-4 px-4 pt-6 pb-16" data-skeleton="quote">
-      <div className="flex items-center gap-2">
-        <div className="size-8 rounded-xl bg-line/70" />
-        <div className={`h-5 w-28 ${bar}`} />
-        <div className={`h-4 w-16 ${bar}`} />
-      </div>
-      <div className="card space-y-3">
-        <div className={`h-4 w-32 ${bar}`} />
-        <div className={`h-6 w-3/5 ${bar}`} />
-        <div className={`h-4 w-40 ${bar}`} />
-        <div className={`h-4 w-4/5 ${bar}`} />
-      </div>
-      <div className="card space-y-3">
-        <div className={`h-5 w-24 ${bar}`} />
-        <div className={`h-4 w-28 ${bar}`} />
-        <div className="h-12 rounded-xl bg-line/50" />
-        <div className="grid grid-cols-2 gap-2">
-          <div className="h-10 rounded-xl bg-line/60" />
-          <div className="h-10 rounded-xl bg-line/40" />
-        </div>
-        <div className="h-24 rounded-xl bg-line/40" />
-        <div className="h-12 rounded-xl bg-line/70" />
-      </div>
-    </div>
-  )
-}
