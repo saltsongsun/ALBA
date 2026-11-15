@@ -12,8 +12,10 @@ export function companyInitial(name: string): string {
 }
 
 export default function CompanyMark({ name, className = '' }: { name: string; className?: string }) {
+  // 바탕색을 따로 주면 그것만 (두 bg 클래스가 겹치면 어느 쪽이 이길지 모름)
+  const bg = /(^|\s)bg-/.test(className) ? '' : 'bg-brand-50'
   return (
-    <span aria-hidden data-company-mark className={`grid shrink-0 place-items-center bg-brand-50 font-extrabold text-brand-700 ${className}`}>
+    <span aria-hidden data-company-mark className={`grid shrink-0 place-items-center font-extrabold text-brand-700 ${bg} ${className}`}>
       {companyInitial(name)}
     </span>
   )

@@ -10,6 +10,7 @@ import type { DocTemplate, Settings } from '@/lib/types'
 import { DocBody } from './DocSheet'
 import { onPhoneInput, phoneShown } from './phoneTyping'
 import SealField from './SealField'
+import CompanyMark, { companyInitial } from './CompanyMark'
 import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
 import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 import SetupChecklist from './SetupChecklist'
@@ -419,9 +420,8 @@ function WorkerViewPreview({ formId, companyId, name, contactName, phone }: { fo
         className={`flex items-center gap-2.5 rounded-xl bg-bg px-3 py-2.5 ring-1 transition-[box-shadow,background-color] duration-200 ${blink ? 'bg-brand-50 ring-brand-300' : 'ring-line'}`}
         data-preview-card={blink ? 'changed' : ''}
       >
-        <span aria-hidden className="grid size-9 shrink-0 place-items-center rounded-xl bg-white text-lg">
-          🏢
-        </span>
+        {/* 근무자 화면(문의함·회사 화면·내 정보)과 같은 회사 첫 글자 · 상호 첫 글자가 바뀌면 한 번 톡 */}
+        <CompanyMark key={companyInitial(v.name || '?')} name={v.name || '?'} className="size-9 animate-pop rounded-full bg-white text-base" />
         <span className="min-w-0 flex-1">
           <b className="block truncate" data-preview-name>
             {v.name || '상호를 넣어 주세요'}

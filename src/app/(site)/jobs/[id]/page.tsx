@@ -42,6 +42,7 @@ import { featureOn } from '@/lib/flags'
 import { coworkersOnJob } from '@/lib/coworkers'
 import { AckButton, AckMark, ChangeRows, type Notice } from '@/components/NoticeAck'
 import { signalOf } from '@/lib/signals'
+import { workerInCompany } from '@/lib/company'
 
 async function load(id: string) {
   return isUuid(id) ? getJob(id) : null
@@ -212,6 +213,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const needPhoto = !!user && asWorker && user.memberType !== 'vendor' && !photoAt
   const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
+  // 처음 지원하는 회사 (여러 회사가 함께 쓰는 앱): 지원하면 그 회사 담당자가 내 정보(연락처·계좌·사진)를 보게 됨 → 지원 버튼 위에 한 줄
+  // '내 정보를 보는 회사'(내 정보 화면)와 같은 기준 · 못 읽으면 안내 안 함
+  const firstHere = !!user && asWorker && !app && canApply && !wrongType ? !(await workerInCompany(job.company_id, user.id).catch(() => true)) : false
   // 확정을 기다리던 중에 행사가 끝남(마지막 날 근무 시간까지 지남): '확정되면 알려 드릴게요' 대신 결과를 바로
   // (끝난 행사를 계속 기다리거나 '확정됐나요?' 문의하지 않게 · 관리자가 미선발 알림을 안 보냈어도)
   const lapsed = app?.status === 'applied' && job.status !== 'cancelled' && (ended || workOver(job, job.end_date))
@@ -860,6 +864,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 {/* 전문가 의뢰는 회사가 고를 때 궁금한 말(경험·장비·포트폴리오)로 */}
                 <MessageChips target="message" pro={expert} multiDay={dates.length > 1} />
               </div>
+              {firstHere && (
+                <p className="flex items-start gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-first-company>
+                  <Icon name="shield" className="mt-0.5 shrink-0 text-brand-600" />
+                  <span className="min-w-0">
+                    <b className="font-semibold text-ink">{company.company_name}</b>에 처음 지원해요
+                    <span className="block text-xs">지원하면 이 회사 담당자가 내 정보를 봐요</span>
+                  </span>
+                </p>
+              )}
               {/* 실수로 눌러 지원되지 않게: 첫 번째 누름은 확인 문구만, 한 번 더 눌러야 지원 */}
               <ConfirmSubmit className="btn-primary w-full py-3.5 text-base" track={expert ? '의뢰 지원하기' : '지원하기'} confirmText={`한 번 더 누르면 ${expert ? '의뢰에 ' : ''}지원돼요`}>
                 {expert ? `${user.name}님으로 의뢰 지원하기` : `${user.name}님으로 지원하기`}

@@ -22,6 +22,7 @@ import { featureOn } from '@/lib/flags'
 import { coworkerCounts } from '@/lib/coworkers'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
+import CompanyMark from '@/components/CompanyMark'
 
 /** 회사 공고 모음 링크(/?co=회사)를 보내면: 미리보기에 회사 이름 · 모집 중 공고 수 · 그림 */
 export async function generateMetadata(props: PageProps<'/'>): Promise<Metadata> {
@@ -338,9 +339,8 @@ export default async function HomePage(props: PageProps<'/'>) {
         // 회사 공고 모음: 어느 회사 공고인지 + 가입·로그인 뒤 이 화면으로 돌아오게
         <section className="card mb-5 space-y-3 p-4">
           <div className="flex items-center gap-3">
-            <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-full bg-brand-50 text-xl">
-              🏢
-            </span>
+            {/* 회사 이름 첫 글자 (문의함·내 정보와 같은 표시 — 여러 회사 중 어느 회사인지 한눈에) */}
+            <CompanyMark name={company.company_name} className="size-11 rounded-full text-lg" />
             <span className="min-w-0 flex-1">
               <span className="block truncate font-bold">{company.company_name}</span>
               {/* 링크로 처음 온 근무자가 믿을 만한 회사인지 · 지금 지원할 수 있는 공고가 몇 개인지 */}
