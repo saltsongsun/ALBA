@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { breakWindow, siteConditions } from '@/lib/conditions'
 import { canWrite, myReviewedJobs, newCommentsOnMine, reviewNudge } from '@/lib/community'
 import LevelCard from '@/components/LevelCard'
 import { computeXp, shiftFacts } from '@/lib/xp'
@@ -780,6 +781,16 @@ export default async function MePage(props: PageProps<'/me'>) {
               </p>
               {nextApp.available_dates && <p className="text-sm font-semibold text-brand-700"><Icon name="calendar" /> 내 근무일 {nextApp.available_dates.map(fmtDate).join(' · ')}</p>}
               {nextApp.job.meeting_point && <p className="text-sm text-sub"><Icon name="flag" className="text-mute" /> 집결 {nextApp.job.meeting_point}</p>}
+              {/* 미리 알아 두면 좋은 휴게·식사 (공고에 적힌 그대로 · 한 줄씩) */}
+              {(() => {
+                const { brk, meal } = siteConditions(nextApp.job.conditions)
+                return (
+                  <>
+                    {brk && <p className="truncate text-sm text-sub" data-next-break><Icon name="clock" className="text-mute" /> 휴게 {brk.value}</p>}
+                    {meal && <p className="truncate text-sm text-sub" data-next-meal><Icon name="meal" className="text-mute" /> 식사 {meal.value}</p>}
+                  </>
+                )
+              })()}
               {upcomingExtras(nextApp)}
               {changeNote(nextApp)}
               {latestAnnounce.has(nextApp.job_id) && noticeBox(latestAnnounce.get(nextApp.job_id)!, nextApp.job.company_id, '📢 담당자 공지', 'line-clamp-3')}
@@ -856,9 +867,32 @@ export default async function MePage(props: PageProps<'/me'>) {
                       })()}
                       {job.location_name && ` · ${job.location_name}`}
                     </p>
-                    {/* 출근 전에 챙길 것: 집결 장소·복장·준비물 */}
-                    {(job.meeting_point || job.dress_code || job.supplies) && (
+                    {/* 출근 전에 챙길 것: 집결 장소·복장·준비물 + 현장에서 자주 묻는 휴게·식사 (담당자가 공고에 적은 그대로) */}
+                    {(() => {
+                      const { brk, meal } = siteConditions(job.conditions)
+                      const win = brk ? breakWindow(brk.value) : null
+                      const nowT = kstTime(new Date())
+                      // 근무 중이고 지금이 휴게 시간이면: '지금 휴게 시간 · 13:00까지' (초록 점이 천천히 깜빡 · 움직임 줄이기면 멈춤)
+                      const breakNow = !!(open && win && nowT >= win.start && nowT < win.end)
+                      if (!(job.meeting_point || job.dress_code || job.supplies || brk || meal)) return null
+                      return (
                       <ul className="mt-2 space-y-1 rounded-xl bg-bg px-3 py-2.5 text-sm">
+                        {brk &&
+                          (breakNow ? (
+                            <li className="flex items-center gap-1.5 font-semibold text-emerald-700" data-break-now>
+                              <span aria-hidden className="size-2 shrink-0 animate-pulse rounded-full bg-emerald-500" />
+                              지금 휴게 시간 · {win!.end}까지
+                            </li>
+                          ) : (
+                            <li className="truncate" data-break>
+                              <Icon name="clock" className="text-mute" /> <b className="font-semibold text-sub">휴게</b> {brk.value}
+                            </li>
+                          ))}
+                        {meal && (
+                          <li className="truncate" data-meal>
+                            <Icon name="meal" className="text-mute" /> <b className="font-semibold text-sub">식사</b> {meal.value}
+                          </li>
+                        )}
                         {job.meeting_point && (
                           <li>
                             <Icon name="flag" className="text-mute" /> <b className="font-semibold text-sub">집결</b> {job.meeting_point}
@@ -875,7 +909,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                           </li>
                         )}
                       </ul>
-                    )}
+                      )
+                    })()}
                     {/* 준비물·복장 하나씩 체크 (2개 이상일 때) */}
                     {(() => {
                       const items = [...new Set(`${job.dress_code ?? ''},${job.supplies ?? ''}`.split(/[,·、/\n]+/).map((x) => x.trim()).filter((x) => x.length > 0 && x.length <= 20))].slice(0, 8)

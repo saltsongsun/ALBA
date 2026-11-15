@@ -37,6 +37,8 @@ const PATHS = {
   pen: <path d="M14.5 4.5l5 5L9 20H4v-5zM12.5 6.5l5 5" />,
   flag: <path d="M5 21V4m0 0h11l-2 4 2 4H5" />,
   shirt: <path d="M8 3.5 4 6l1.5 4L8 9v11.5h8V9l2.5 1L20 6l-4-2.5a4 4 0 0 1-8 0z" />,
+  // 식사 (숟가락·포크)
+  meal: <path d="M7 3v6a2 2 0 0 0 4 0V3M9 9v12M16.5 3c-1.6 1.2-2.5 3.4-2.5 6 0 1.8.9 3 2.5 3V21" />,
   bag: (
     <>
       <path d="M5 8.5h14l-1 12H6z" />
