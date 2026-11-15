@@ -191,7 +191,24 @@ export default async function HomePage(props: PageProps<'/'>) {
     loosen.splice(2)
   }
   // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
-  const todayJob = jobs.find((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
+  const todayCands = jobs.filter((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
+  // 오늘 근무가 여럿이면 (예: 낮엔 A회사, 밤엔 B회사) 지금 할 근무로 — 근무 중 → 아직 안 끝난 근무(이른 시작 순) → 마친 근무 → 기록 없이 지난 근무
+  // (전엔 첫 번째 근무만 봐서 이미 끝난 낮 근무의 '서명'을 띄우고 밤 근무 시작을 놓치게 했음)
+  const candAtts: { job_id: string; clock_in: string | null; clock_out: string | null }[] =
+    todayCands.length > 1 && user
+      ? await db()
+          .from('attendance')
+          .select('job_id, clock_in, clock_out')
+          .eq('user_id', user.id)
+          .eq('work_date', today)
+          .in('job_id', todayCands.map((j) => j.id))
+          .then((r) => (r.data ?? []) as { job_id: string; clock_in: string | null; clock_out: string | null }[], () => [])
+      : []
+  const candRank = (j: (typeof todayCands)[number]) => {
+    const a = candAtts.find((t) => t.job_id === j.id)
+    return a?.clock_in && !a.clock_out ? 0 : !a && !workOver(j, today) ? 1 : a?.clock_out ? 2 : 3
+  }
+  const todayJob = todayCands.length > 1 ? [...todayCands].sort((x, y) => candRank(x) - candRank(y) || x.start_time.localeCompare(y.start_time))[0] : todayCands[0]
   // 오늘 근무에 아직 서명 안 한 서류가 있으면 카드가 '서명'으로 바로 (현장에 가서야 근무 시작이 잠긴 걸 알지 않게)
   // 오늘 출퇴근 상태도 함께 (근무 중·마침이면 카드 문구를 지금 상태에 맞게 — '출퇴근 전'이라고 잘못 말하지 않게)
   const [todaySignId, todayAtt] =

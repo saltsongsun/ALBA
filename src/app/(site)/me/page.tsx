@@ -220,11 +220,21 @@ export default async function MePage(props: PageProps<'/me'>) {
   const photoAt = me?.photo_at ?? null
   const hasAccount = !!me?.bank_account_enc
 
+
   const openAtt = atts.find((a) => !a.clock_out) ?? null
   const approved = apps.filter((a) => a.status === 'approved')
   const todayApps = approved.filter(
     (a) => (a.job.start_date <= today && a.job.end_date >= today) || openAtt?.job_id === a.job_id,
   )
+  // 출근 기록 없이 오늘 근무 시간이 다 지남 (도착 알림도 안 보냄) — 오늘 근무 카드에서 '시간이 지났어요'로 · 맨 아래로
+  const overNoRecord = (a: AppWithJob) =>
+    openAtt?.job_id !== a.job_id &&
+    !atts.some((t) => t.job_id === a.job_id && t.work_date === today) &&
+    !arriveSent.has(a.job_id) &&
+    !(a.available_dates && !a.available_dates.includes(today)) &&
+    Date.now() >= scheduledEnd(todayShift(a.job), today).getTime()
+  const todayRank = (a: AppWithJob) =>
+    openAtt?.job_id === a.job_id ? 0 : overNoRecord(a) ? 3 : atts.some((t) => t.job_id === a.job_id && t.work_date === today && t.clock_out) ? 2 : 1
   // 여러 날 행사는 사람마다 근무일이 다름 (고른 날 중 오늘 이후 첫날)
   const firstDay = (a: AppWithJob) => (a.available_dates ?? [a.job.start_date]).filter((d) => d >= today).sort()[0] ?? a.job.start_date
   const upcoming = approved.filter((a) => a.job.start_date > today).sort((a, b) => firstDay(a).localeCompare(firstDay(b)))
@@ -830,7 +840,11 @@ export default async function MePage(props: PageProps<'/me'>) {
           )
         ) : (
           <div className="stagger space-y-3">
-            {todayApps.map((a) => {
+            {[...todayApps]
+              // 오늘 근무가 여럿이면 (예: 낮엔 A회사, 밤엔 B회사) 지금 할 근무가 맨 위:
+              // 근무 중 → 아직 남은 근무 → 마친 근무 → 기록 없이 시간이 지난 근무 (지난 근무가 다음 근무를 아래로 밀지 않게)
+              .sort((x, y) => todayRank(x) - todayRank(y))
+              .map((a) => {
               const job = a.job
               const todayAtt = atts.find((t) => t.job_id === job.id && t.work_date === today)
               const open = openAtt?.job_id === job.id ? openAtt : null
@@ -840,8 +854,10 @@ export default async function MePage(props: PageProps<'/me'>) {
               const map = mapLinks({ name: job.location_name, address: job.address, lat: job.lat, lng: job.lng })
               // 지난 근무를 종료하지 않고 그 근무 시간도 끝났으면: 끝난 시각을 따로 받음 (지금 누르면 다음 날 시각이 찍힘)
               const forgot = open && open.work_date < today && Date.now() >= scheduledEnd(shiftOf(job, open), open.work_date).getTime() ? open : null
+              // 기록 없이 근무 시간이 지난 근무: 서명·출근 안내 대신 '시간이 지났어요' 한 칸 (휴게·준비물 줄도 뺌)
+              const over = overNoRecord(a)
               return (
-                <div key={a.id} className="card relative space-y-4 ring-1 ring-brand-100">
+                <div key={a.id} className={`card relative space-y-4 ring-1 ${over ? 'ring-line' : 'ring-brand-100'}`} data-today-card={over ? 'over' : ''}>
                   <div>
                     <p className="truncate text-xs font-semibold text-mute">
                       {[job.company?.company_name && `🏢 ${job.company.company_name}`, job.event_name].filter(Boolean).join(' · ')}
@@ -874,7 +890,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       const nowT = kstTime(new Date())
                       // 근무 중이고 지금이 휴게 시간이면: '지금 휴게 시간 · 13:00까지' (초록 점이 천천히 깜빡 · 움직임 줄이기면 멈춤)
                       const breakNow = !!(open && win && nowT >= win.start && nowT < win.end)
-                      if (!(job.meeting_point || job.dress_code || job.supplies || brk || meal)) return null
+                      if (over || !(job.meeting_point || job.dress_code || job.supplies || brk || meal)) return null
                       return (
                       <ul className="mt-2 space-y-1 rounded-xl bg-bg px-3 py-2.5 text-sm">
                         {brk &&
@@ -1002,7 +1018,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                         </Link>
                       )}
                     </div>
-                  ) : docsLeft > 0 ? (
+                  ) : docsLeft > 0 && !over ? (
                     // 누르면 바로 그 서류 서명 화면 (위로 올라가 찾지 않게) · 여러 건이면 서명 뒤 다음 서류로 이어짐
                     <Link
                       id={signAnchorJob === job.id ? 'sign-docs' : undefined}
@@ -1091,6 +1107,12 @@ export default async function MePage(props: PageProps<'/me'>) {
                       >
                         출근했다면 담당자에게 알리기 →
                       </Link>
+                      {docsLeft > 0 && (
+                        // 출근했는데 기록만 빠졌다면 서류도 필요 (작게 · 큰 '서명하면 시작' 안내는 시간이 지나 맞지 않음)
+                        <Link href={`/docs/${jobDocs[0].id}`} className="tap block text-sm font-semibold text-amber-700" data-shift-over-sign>
+                          서명할 서류 {docsLeft}건 ›
+                        </Link>
+                      )}
                       <details className="text-sm">
                         <summary className="cursor-pointer py-1 font-semibold text-sub">지금 근무를 시작해야 하나요?</summary>
                         <div className="mt-2">
