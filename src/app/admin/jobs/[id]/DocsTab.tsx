@@ -4,6 +4,7 @@ import { nudgeWorkers, rerequestDoc, setContractReceived, setContractReceivedSel
 import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
+import HashFlash from '@/components/HashFlash'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import { nudgeAgo } from '@/lib/nudge'
@@ -211,7 +212,9 @@ export default function DocsTab({
       </div>
       {/* 서명 안 한 사람에게 연락: 누구에게(서명 안 한 n명)는 한 번만 쓰고 버튼은 짧게 · 마지막 앱 알림 때를 옆에 (같은 알림을 금방 또 보내지 않게) */}
       {unsigned.length > 0 && (
-        <div className="card space-y-2.5 p-3.5" data-unsigned-tools>
+        <div id="unsigned" className="card scroll-mt-24 space-y-2.5 p-3.5" data-unsigned-tools>
+          {/* 대시보드 '서명 안 함'으로 왔으면 '앱 알림' 버튼이 화면 가운데에서 번쩍 */}
+          <HashFlash id="unsigned" />
           <p className="flex items-baseline justify-between gap-2 text-sm">
             <b className="shrink-0">서명 안 한 {unsigned.length}명</b>
             {ago && (

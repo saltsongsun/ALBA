@@ -251,8 +251,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 확인할 일: 공고마다 흩어진 '답을 기다리는 일'을 한곳에 (공고·날짜별로 묶어 바로 그 화면으로)
   const titleOf = new Map(activeJobs.map((j) => [j.id, j.title]))
   const outsideJobs = activeJobs.filter((j) => j.contract_method !== 'app' && j.start_date <= soon)
-  // 내일 근무하는데 앱 서류(근로계약서 등)에 아직 서명 안 한 확정자 (현장에서 출근이 막히지 않게 하루 전에)
-  const tomorrowJobs = activeJobs.filter((j) => j.start_date <= tomorrow && j.end_date >= tomorrow && j.contract_method !== 'paper' && j.contract_method !== 'external')
+  // 오늘·내일 근무하는데 앱 서류(근로계약서 등)에 아직 서명 안 한 확정자
+  // (오늘: 서명 전이면 근무 시작이 막히고 근로계약서는 일하기 전에 줘야 해서 가장 먼저 · 내일: 현장에서 막히지 않게 하루 전에)
+  const appSign = (j: JobWithAppStatus) => j.contract_method !== 'paper' && j.contract_method !== 'external'
+  const covers = (j: JobWithAppStatus, d: string) => j.start_date <= d && j.end_date >= d
+  const signJobs = activeJobs.filter((j) => appSign(j) && (covers(j, today) || covers(j, tomorrow)))
   // 내일 시작하는 공고: 근무자가 '내일 갈게요'를 누른 수 (공고 카드에 한 마디 — 공고마다 들어가 보지 않아도 되게). 아래 조회들과 함께 기다림
   const startTomorrow = activeJobs.filter((j) => j.start_date === tomorrow && (counts[j.id] ?? 0) > 0)
   const comingP: Promise<Map<string, number>> = startTomorrow.length
@@ -303,7 +306,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   noticeUnreadP.catch(() => {})
   // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
   todayP.catch(() => {})
-  const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
+  const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedBy, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
@@ -356,25 +359,31 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           .eq('status', 'approved')
           .then((r) => (must(r) as { job_id: string; contract_received_at: string | null }[]).filter((a) => !a.contract_received_at))
       : [],
-    tomorrowJobs.length
+    signJobs.length
       ? Promise.all([
           db()
             .from('applications')
             .select('job_id, user_id, available_dates').eq('company_id', admin.companyId)
-            .in('job_id', tomorrowJobs.map((j) => j.id))
+            .in('job_id', signJobs.map((j) => j.id))
             .eq('status', 'approved')
             .then((r) => must(r) as { job_id: string; user_id: string; available_dates: string[] | null }[]),
           db()
             .from('signed_docs')
             .select('job_id, user_id, status').eq('company_id', admin.companyId)
-            .in('job_id', tomorrowJobs.map((j) => j.id))
+            .in('job_id', signJobs.map((j) => j.id))
             .eq('status', 'pending')
             .then((r) => (must(r) as { job_id: string; user_id: string; status: string }[]).filter((d) => d.status === 'pending')),
         ]).then(([apps, docs]) => {
           const pending = new Set(docs.map((d) => `${d.job_id}|${d.user_id}`))
-          return apps.filter((a) => (!a.available_dates || a.available_dates.includes(tomorrow)) && pending.has(`${a.job_id}|${a.user_id}`))
+          const jobOf = new Map(signJobs.map((j) => [j.id, j]))
+          const works = (a: { job_id: string; available_dates: string[] | null }, d: string) =>
+            !!jobOf.get(a.job_id) && covers(jobOf.get(a.job_id)!, d) && (!a.available_dates || a.available_dates.includes(d))
+          const unsigned = apps.filter((a) => pending.has(`${a.job_id}|${a.user_id}`))
+          // 오늘 근무하는 사람은 '오늘'에만 (여러 날 행사에서 같은 사람이 두 줄에 겹치지 않게)
+          const todayRows = unsigned.filter((a) => works(a, today))
+          return { today: todayRows, tomorrow: unsigned.filter((a) => !todayRows.includes(a) && works(a, tomorrow)) }
         })
-      : [],
+      : { today: [], tomorrow: [] },
     // 오늘 근무자가 보낸 기록 정정 요청과 그 답 (답하지 않은 것만 셈)
     todayIds.length
       ? db()
@@ -471,12 +480,21 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       href: `/admin/jobs/${j.id}?tab=apps&notice=1#announce`,
       tone: 'text-amber-700',
     })),
-    ...group(unsignedTomorrow, (a) => a.job_id).map((g) => ({
+    // 오늘 근무인데 서명 전: 근무 시작이 막혀 있어서 빨갛게 · 누르면 서류 탭 '서명 안 한 n명'의 앱 알림 버튼이 번쩍
+    ...group(unsignedBy.today, (a) => a.job_id).map((g) => ({
+      key: `unsigned-today-${g[0].job_id}`,
+      icon: 'pen' as const,
+      text: `오늘 근무 · 서명 안 함 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=docs#unsigned`,
+      tone: 'text-rose-600',
+    })),
+    ...group(unsignedBy.tomorrow, (a) => a.job_id).map((g) => ({
       key: `unsigned-${g[0].job_id}`,
       icon: 'pen' as const,
       text: `내일 근무 · 서명 안 함 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
       n: g.length,
-      href: `/admin/jobs/${g[0].job_id}?tab=docs`,
+      href: `/admin/jobs/${g[0].job_id}?tab=docs#unsigned`,
       tone: 'text-amber-700',
     })),
     ...group(otAsk, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
@@ -1119,7 +1137,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       <div className="stagger grid grid-cols-2 gap-3 lg:grid-cols-4" data-dash-stats>
         <Stat label="지금 근무 중" value={working.length} href="/admin/jobs" icon="working" tone="bg-emerald-50 text-emerald-600" />
         <Stat label="확정 대기 지원" value={pendingTotal} href="#pending" icon="pending" tone="bg-amber-50 text-amber-600" />
-        <Stat label="서명 대기 서류" value={pendingDocs.count ?? 0} href="/admin/jobs" icon="docs" tone="bg-brand-50 text-brand-600" />
+        <Stat label="서명 대기 서류" value={pendingDocs.count ?? 0} href="/admin/docs?status=pending" icon="docs" tone="bg-brand-50 text-brand-600" />
         <Stat label={admin.companyVerified ? '가입 근무자' : '우리 지원자'} value={workerCount.count ?? 0} href="/admin/workers" icon="people" tone="bg-gray-100 text-sub" />
       </div>
       )}

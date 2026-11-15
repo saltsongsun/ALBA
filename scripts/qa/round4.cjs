@@ -120,7 +120,8 @@ const errs = []
   // ── 10. 대시보드: 내일 근무인데 서명 안 함 ──
   await rest(MD, `jobs?id=eq.${J}`, 'PATCH', { end_date: tomorrow })
   await a.goto(`${D}/admin`)
-  ok('10. 확인할 일: 내일 근무 · 서명 안 함', await see(a, /내일 근무 · 서명 안 함 ·/))
+  // (오늘도 일하는 사람은 '오늘 근무 · 서명 안 함' 한 줄에만 나옴 — 묶음 271)
+  ok('10. 확인할 일: 오늘·내일 근무 · 서명 안 함', await see(a, /(오늘|내일) 근무 · 서명 안 함 ·/))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
