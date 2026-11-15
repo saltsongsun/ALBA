@@ -66,7 +66,7 @@ const TEXT = '내일 집결은 08:30 정문이에요.'
   await card.waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
   const head = one(await card.locator('p').first().textContent().catch(() => ''))
   ok("펼치면 '마지막 공지 읽음 1/2명 · 방금'", /^마지막 공지 읽음 1\/2명 ?(방금|1분 전)$/.test(head), head)
-  ok("'안 읽음 · 김지원'", one(await card.locator('[data-unread-names]').textContent().catch(() => '')) === '안 읽음 · 김지원')
+  ok("'안 읽음 [📞 김지원]' (누르면 전화)", JSON.stringify((await card.locator('[data-unread-person]').allTextContents()).map((t) => one(t).replace('🔕', '').trim())) === '["김지원"]' && (await card.locator('[data-unread-person]').first().getAttribute('href')) === 'tel:01077778888')
   const sms = card.locator('a[href^="sms:"]')
   const href = decodeURIComponent((await sms.getAttribute('href').catch(() => '')) ?? '')
   ok("[문자 1명] — 안 읽은 사람 번호만 · 같은 내용", one(await sms.textContent().catch(() => '')) === '문자 1명' && href.includes('01077778888') && !href.includes('01033334444') && href.includes(TEXT), href)

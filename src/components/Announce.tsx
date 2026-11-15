@@ -35,7 +35,7 @@ export default function Announce({
     when: string
     recent: boolean
     /** 그 공지를 지금 확정자 중 몇 명이 읽었는지 · 안 읽은 사람 */
-    reads?: { read: number; total: number; unread: { name: string; phone: string }[] } | null
+    reads?: { read: number; total: number; unread: { name: string; phone: string; pushOff?: boolean }[] } | null
   } | null
 }) {
   const [state, action] = useActionState(announceToJob.bind(null, jobId), null)
@@ -101,18 +101,46 @@ export default function Announce({
             />
           </span>
           {reads.unread.length > 0 ? (
-            <div className="mt-2 flex items-center gap-2">
-              <span className="min-w-0 flex-1 truncate text-sub" data-unread-names>
-                안 읽음 · {reads.unread.map((u) => u.name).join(' · ')}
-              </span>
-              <GroupContact
-                copy={false}
-                className="btn-white btn-sm shrink-0"
-                phones={reads.unread.map((u) => u.phone)}
-                label={`문자 ${reads.unread.length}명`}
-                body={`${smsHead(company, jobTitle)} ${last.body}`}
-              />
-            </div>
+            <>
+              {/* 안 읽은 사람: 누르면 바로 전화 · 알림을 꺼 둔 사람(🔕)이 먼저 — 앱 공지를 못 봤을 수 있음 */}
+              <div className="mt-2 flex flex-wrap items-center gap-1.5" data-unread-names>
+                <span className="text-xs font-semibold text-sub">안 읽음</span>
+                {reads.unread.slice(0, 6).map((u, i) => {
+                  const tel = u.phone.replace(/\D/g, '')
+                  return (
+                    <a
+                      key={`${u.name}-${i}`}
+                      href={tel ? `tel:${tel}` : undefined}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[13px] font-semibold text-ink ring-1 ring-line transition active:scale-95"
+                      aria-label={`${u.name}${u.pushOff ? ' (알림 꺼짐)' : ''} 전화`}
+                      data-unread-person={u.pushOff ? 'push-off' : ''}
+                    >
+                      <Icon name="phone" className="text-emerald-600" />
+                      {u.name}
+                      {u.pushOff && <span aria-hidden>🔕</span>}
+                    </a>
+                  )
+                })}
+                {reads.unread.length > 6 && <span className="text-xs text-mute">외 {reads.unread.length - 6}명</span>}
+              </div>
+              {/* 아래 줄: (알림 꺼진 사람이 있으면) 짧은 안내 + 안 읽은 사람에게만 같은 내용 문자 */}
+              <div className="mt-2 flex items-center justify-between gap-2">
+                {reads.unread.some((u) => u.pushOff) ? (
+                  <span className="min-w-0 truncate text-xs text-mute" data-push-off-note>
+                    🔕 알림을 꺼 둔 사람이에요
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <GroupContact
+                  copy={false}
+                  className="btn-white btn-sm shrink-0"
+                  phones={reads.unread.map((u) => u.phone)}
+                  label={`문자 ${reads.unread.length}명`}
+                  body={`${smsHead(company, jobTitle)} ${last.body}`}
+                />
+              </div>
+            </>
           ) : (
             <p className="mt-2 font-semibold text-emerald-700" data-all-read>
               ✓ 모두 읽었어요

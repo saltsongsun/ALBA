@@ -1,4 +1,5 @@
 import { headcountTbd } from '@/lib/jobFields'
+import { pushEnabledIds } from '@/lib/push'
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -169,11 +170,16 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 그 공지를 지금 확정자 중 몇 명이 읽었는지 · 안 읽은 사람 (문자로 한 번 더 보낼 수 있게)
   const approvedIds = new Set(approved.map((a) => a.user_id))
   const noticeTo = (lastNotice?.to ?? []).filter((t) => approvedIds.has(t.uid))
+  // 안 읽은 사람 중 휴대폰 알림을 꺼 둔 사람 (앱 공지를 못 봤을 수 있음 → 문자·전화로) — 먼저 보이게
+  const unreadIds = noticeTo.filter((t) => !t.read).map((t) => t.uid)
+  const pushOn = unreadIds.length ? await pushEnabledIds(unreadIds) : new Set<string>()
   const noticeReads = noticeTo.length
     ? {
         read: noticeTo.filter((t) => t.read).length,
         total: noticeTo.length,
-        unread: noticeTo.filter((t) => !t.read).map((t) => ({ name: users.get(t.uid)?.name ?? '근무자', phone: users.get(t.uid)?.phone ?? '' })),
+        unread: unreadIds
+          .map((uid) => ({ name: users.get(uid)?.name ?? '근무자', phone: users.get(uid)?.phone ?? '', pushOff: !pushOn.has(uid) }))
+          .sort((a, b) => Number(b.pushOff) - Number(a.pushOff)),
       }
     : null
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
