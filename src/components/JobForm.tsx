@@ -34,7 +34,7 @@ type ConditionRow = JobCondition & { key: number; hint?: string }
  * 공고에 보일 내용: 기본 항목(휴게·공제 등)은 켜고 끄고, 필요한 조건은 더하고 빼기.
  * 기본 항목을 끄면 공고 화면·홈 공고 카드·모집 문구에서 빠짐 (근로계약서에는 영향 없음)
  */
-function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: string[] }) {
+function PostingEditor({ initial, hidden, recent = [] }: { initial: JobCondition[]; hidden: string[]; recent?: JobCondition[] }) {
   const [shown, setShown] = useState(() => new Set<string>(JOB_FIELDS.map((f) => f.key).filter((k) => !hidden.includes(k))))
   const [rows, setRows] = useState<ConditionRow[]>(() => initial.map((c, i) => ({ ...c, key: i })))
   const nextKey = useRef(initial.length)
@@ -62,6 +62,30 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
       else next.delete(key)
       return next
     })
+  // 새 공고: 지난 공고 조건을 한 번에 (같은 이름 줄이 있으면 빈 내용만 채움 · 새 줄은 톡 나타남)
+  const filledRef = useRef<number[]>([])
+  const loadRecent = () => {
+    const next = [...rows]
+    const filled: number[] = []
+    for (const c of recent) {
+      const i = next.findIndex((x) => x.label.trim() === c.label)
+      if (i < 0) next.push({ key: nextKey.current++, label: c.label, value: c.value })
+      else if (!next[i].value.trim()) {
+        next[i] = { ...next[i], value: c.value }
+        filled.push(next[i].key)
+      }
+    }
+    filledRef.current = filled
+    setRows(next)
+  }
+  // 이미 있던 줄의 빈 내용을 채웠으면 그 칸이 한 번 반짝 (새 줄은 톡 나타남 · 움직임 줄이기면 없음)
+  useEffect(() => {
+    for (const key of filledRef.current) {
+      const el = document.querySelector<HTMLElement>(`[data-cond="${key}-value"]`)
+      if (el) el.dataset.filled = String(Date.now())
+    }
+    filledRef.current = []
+  }, [rows])
   // 법정 휴게 문구 대신 직접 쓰기: 기본 휴게를 끄고 '휴게 시간' 조건 줄로
   const writeBreak = () => {
     toggle('break', false)
@@ -75,7 +99,7 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
       title="공고에 보일 내용"
       summary={[
         shown.size === JOB_FIELDS.length ? '기본 항목 모두 보임' : `기본 항목 ${JOB_FIELDS.length - shown.size}개 숨김`,
-        saved.length ? `추가 조건 ${saved.map((c) => c.label).join(', ')}` : '',
+        saved.length ? `추가 조건 ${saved.map((c) => c.label).join(', ')}` : recent.length ? `지난 공고 조건 ${recent.length}개 불러오기` : '',
       ]
         .filter(Boolean)
         .join(' · ')}
@@ -112,6 +136,13 @@ function PostingEditor({ initial, hidden }: { initial: JobCondition[]; hidden: s
       </ul>
 
       <p className="text-sm font-semibold text-sub">추가 조건</p>
+      {/* 지난 공고와 거의 같은 조건(휴게·식사·교통…)을 다시 치지 않게 — 누르면 ✓ */}
+      <RecentChips
+        name="conditions"
+        label="최근"
+        items={recent.length ? [{ key: 'last', text: `지난 공고 조건 ${recent.length}개 · ${recent.map((c) => c.label).join(', ')}` }] : []}
+        onPick={loadRecent}
+      />
       {rows.length > 0 && (
         <ul className="space-y-2">
           {rows.map((r) => (
@@ -809,7 +840,7 @@ export default function JobForm({
         )}
       </Fold>
 
-      <PostingEditor initial={job?.conditions ?? []} hidden={job?.hidden_fields ?? []} />
+      <PostingEditor initial={job?.conditions ?? []} hidden={job?.hidden_fields ?? []} recent={job ? [] : (recent?.conditions ?? [])} />
 
       <Fold
         id="docs"

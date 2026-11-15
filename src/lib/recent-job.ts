@@ -1,13 +1,18 @@
-import type { Job } from './types'
+import type { Job, JobCondition } from './types'
 
 /** 새 공고 등록에서 한 번에 넣을 수 있는 '최근 값' (이 회사의 지난 공고에서 — 장소·지급일 안내·현장 담당자) */
 export type RecentJobValues = {
   places: { name: string; address: string; lat: number | null; lng: number | null; radius: number | null }[]
   payDays: string[]
   managers: { name: string; phone: string }[]
+  /** 가장 최근 공고의 추가 조건 (휴게 시간·식사·교통 등 — 회사마다 거의 같아 한 번에 불러옴) */
+  conditions: JobCondition[]
 }
 
-type Row = Pick<Job, 'location_name' | 'address' | 'lat' | 'lng' | 'gps_radius_m' | 'pay_day' | 'manager_name' | 'manager_phone'> & { created_at?: string | null }
+type Row = Pick<Job, 'location_name' | 'address' | 'lat' | 'lng' | 'gps_radius_m' | 'pay_day' | 'manager_name' | 'manager_phone'> & {
+  created_at?: string | null
+  conditions?: JobCondition[] | null
+}
 
 function uniq<T>(list: T[], key: (t: T) => string, max: number): T[] {
   const seen = new Set<string>()
@@ -38,5 +43,10 @@ export function recentJobValues(rows: Row[]): RecentJobValues {
       (j) => `${t(j.manager_name)}|${t(j.manager_phone).replace(/\D/g, '')}`,
       2,
     ).map((j) => ({ name: t(j.manager_name), phone: t(j.manager_phone) })),
+    conditions:
+      jobs
+        .map((j) => (Array.isArray(j.conditions) ? j.conditions : []).filter((c) => t(c?.label) && t(c?.value)).map((c) => ({ label: t(c.label), value: t(c.value) })))
+        .find((list) => list.length > 0)
+        ?.slice(0, 10) ?? [],
   }
 }
