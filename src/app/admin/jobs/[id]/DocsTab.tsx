@@ -147,9 +147,29 @@ export default function DocsTab({
         </>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm text-sub">
-          서명 완료 <b className="text-ink">{signedCount}</b> / {live.length}건
-        </p>
+        {/* 서명 진행: 숫자 아래 얇은 막대가 0에서 차오름 (다 받으면 ✓) */}
+        <div className="min-w-0 flex-1 basis-40 space-y-1.5">
+          <p className="text-sm text-sub">
+            서명 완료 <b className="text-ink">{signedCount}</b> / {live.length}건
+            {live.length > 0 && signedCount === live.length && <b className="ml-1 inline-block animate-pop text-emerald-600">✓ 모두</b>}
+          </p>
+          {live.length > 0 && (
+            <div
+              className="h-1.5 max-w-48 overflow-hidden rounded-full bg-line"
+              role="progressbar"
+              aria-label="서명 진행"
+              aria-valuenow={Math.round((signedCount / live.length) * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              data-signed-bar={`${signedCount}/${live.length}`}
+            >
+              <div
+                className={`h-full origin-left animate-grow rounded-full [animation-delay:0ms] [animation-duration:300ms] ${signedCount === live.length ? 'bg-emerald-500' : 'bg-brand-500'}`}
+                style={{ transform: `scaleX(${signedCount / live.length})` }}
+              />
+            </div>
+          )}
+        </div>
         <div className="flex flex-wrap gap-2">
           {/* 이 공고의 서명 완료 서류를 한 PDF로 (인쇄·보관) · 전체 목록은 '서류' 메뉴 */}
           {signedCount > 0 && (

@@ -51,7 +51,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   const today = kstDate()
   type WorkJob = { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string }
   const [{ data: worker }, messages, , myApps, todayAtts] = await Promise.all([
-    db().from('users').select('id, name, phone, photo_at').eq('id', userId).maybeSingle(),
+    db().from('users').select('id, name, phone, photo_at, member_type').eq('id', userId).maybeSingle(),
     db()
       .from('messages')
       .select(CHAT_MESSAGE_COLS).eq('company_id', admin.companyId)
@@ -212,6 +212,30 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     }
   }
 
+  // 외주 업체·전문가와의 대화: 이름 아래 '지급 전 1건 · 1,500,000원' + 챙길 것('지급일 지남 1 · 계산서 안 받음 1') (이 회사에 등록된 그 업체 대금만 · 누르면 외주사 화면)
+  const member = (worker as { member_type?: string | null }).member_type
+  const isPro = member === 'vendor' || member === 'expert'
+  let vendorLine: { id: string; unpaid: number; sum: number; overdue: number; noInvoice: number } | null = null
+  if (isPro) {
+    const { data: vs } = await db().from('vendors').select('id, company_id, active').eq('company_id', admin.companyId).eq('user_id', userId)
+    const mine = ((vs ?? []) as { id: string; company_id: string; active: boolean }[]).filter((v) => v.company_id === admin.companyId)
+    if (mine.length) {
+      const ids = mine.map((v) => v.id)
+      const { data: pays } = await db().from('vendor_payments').select('amount, paid_at, invoice_at, due_date, company_id, vendor_id').eq('company_id', admin.companyId).in('vendor_id', ids)
+      const list = ((pays ?? []) as { amount: number; paid_at: string | null; invoice_at: string | null; due_date: string | null; company_id: string; vendor_id: string }[]).filter(
+        (p) => p.company_id === admin.companyId && ids.includes(p.vendor_id),
+      )
+      const unpaid = list.filter((p) => !p.paid_at)
+      vendorLine = {
+        id: (mine.find((v) => v.active) ?? mine[0]).id,
+        unpaid: unpaid.length,
+        sum: unpaid.reduce((n, p) => n + p.amount, 0),
+        overdue: unpaid.filter((p) => p.due_date && p.due_date < today).length,
+        noInvoice: list.filter((p) => !p.invoice_at).length,
+      }
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       {/* 회사를 바꿔서 이 대화를 열었을 때: '○○ 화면으로 바꿨어요' */}
@@ -251,9 +275,16 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         <div className="flex min-w-0 items-center gap-3">
           <Avatar id={worker.id} name={worker.name} photoAt={worker.photo_at} />
           <div className="min-w-0">
-            <Link href={`/admin/workers/${worker.id}`} className="text-lg font-bold hover:text-brand-600">
-              {worker.name}
-            </Link>
+            <p className="flex min-w-0 items-center gap-1.5">
+              <Link href={`/admin/workers/${worker.id}`} className="truncate text-lg font-bold hover:text-brand-600">
+                {worker.name}
+              </Link>
+              {isPro && (
+                <span className="shrink-0 rounded bg-violet-50 px-1.5 text-[11px] font-bold leading-5 text-violet-700" data-thread-member={member}>
+                  {member === 'vendor' ? '외주' : '전문가'}
+                </span>
+              )}
+            </p>
             {/* 이 회사 오늘 근무 상태(또는 다음 근무) 한 줄 · 누르면 그 공고 */}
             {workLine && (
               <Link href={workLine.href} className="flex min-w-0 items-center gap-1.5 text-xs text-sub" data-chat-work>
@@ -266,6 +297,37 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           </div>
         </div>
         <ContactButtons phone={worker.phone} name={worker.name} />
+        {/* 외주 대금 요약: 계산서·대금 이야기를 할 때 외주 관리 화면을 따로 찾지 않게 */}
+        {vendorLine && (
+          <Link
+            href={`/admin/vendors/${vendorLine.id}`}
+            className="flex min-w-0 basis-full items-center gap-2 rounded-xl bg-bg px-3 py-2 text-xs text-sub transition-colors duration-200 hover:bg-brand-50 motion-reduce:transition-none"
+            data-thread-vendor
+          >
+            <span className="min-w-0 flex-1">
+              <span className="block truncate" data-vendor-due>
+                {vendorLine.unpaid ? (
+                  <>
+                    지급 전 {vendorLine.unpaid}건 · <b className="font-bold text-ink tabular-nums">{won(vendorLine.sum)}</b>
+                  </>
+                ) : (
+                  '지급할 대금 없음'
+                )}
+              </span>
+              {/* 챙길 것만 둘째 줄에 색으로 (없으면 줄 없음) */}
+              {(vendorLine.overdue > 0 || vendorLine.noInvoice > 0) && (
+                <span className="block truncate font-semibold" data-vendor-flags>
+                  {vendorLine.overdue > 0 && <span className="text-rose-600">지급일 지남 {vendorLine.overdue}</span>}
+                  {vendorLine.overdue > 0 && vendorLine.noInvoice > 0 && <span className="text-mute"> · </span>}
+                  {vendorLine.noInvoice > 0 && <span className="text-amber-700">계산서 안 받음 {vendorLine.noInvoice}</span>}
+                </span>
+              )}
+            </span>
+            <span aria-hidden className="shrink-0 font-bold text-mute">
+              ›
+            </span>
+          </Link>
+        )}
       </div>
       {messages.length === 0 ? (
         <Empty icon="✉️" title="아직 주고받은 메시지가 없어요">
