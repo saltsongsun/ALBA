@@ -12,7 +12,8 @@ import { wageBadge } from '@/components/JobCard'
 import JobActions from '@/components/JobActions'
 import JobTools from '@/components/JobTools'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { getSettings, wageTotal } from '@/lib/data'
+import { getSettings, hasSeal, wageTotal } from '@/lib/data'
+import { missingSetup } from '@/lib/setup'
 import { won } from '@/lib/format'
 import { companyJob, jobInMyOtherCompany } from '@/lib/company'
 import OtherCompanyJob from '@/components/OtherCompanyJob'
@@ -162,7 +163,14 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 서류 탭: 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 (금방 또 보내 같은 알림이 겹치지 않게) · 우리 회사 문의함에서만
-  const lastSignNudge = tab === 'docs' && pendingDocs > 0 ? await lastNudgeAt(admin.companyId, job.id, SIGN_NUDGE) : null
+  // 서류 탭: 계약서에 들어갈 회사 정보(사업자번호·주소·직인·연락처) 중 빈 것 — 서명 전에 채우게 (서명된 서류는 그때 정보 그대로)
+  const [lastSignNudge, docsMissing] =
+    tab === 'docs'
+      ? await Promise.all([
+          pendingDocs > 0 ? lastNudgeAt(admin.companyId, job.id, SIGN_NUDGE) : null,
+          job.contract_method === 'external' ? [] : hasSeal(admin.companyId).then((seal) => missingSetup(settings, seal), () => []),
+        ])
+      : [null, []]
   // 확정자 공지 칸: 마지막으로 보낸 공지 (같은 공지를 또 보내지 않게 · 고쳐서 다시 보낼 때 불러오기) — 공지 칸이 보일 때만
   const showAnnounce = approved.length > 0 && !['done', 'cancelled'].includes(job.status)
   const lastNotice = showAnnounce ? await lastNudge(admin.companyId, job.id, '📢 공지') : null
@@ -533,7 +541,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       )}
       {tab === 'att' && <AttTab company={admin.companyName} job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
       {tab === 'pay' && <PayTab company={admin.companyName} job={job} atts={atts} users={users} origin={origin} />}
-      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} />}
+      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} missing={docsMissing} />}
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import CompanyMark from '@/components/CompanyMark'
 import { ReviewForm } from '@/components/community'
 import { canWrite, workedJob } from '@/lib/community'
 import { db } from '@/lib/db'
@@ -29,9 +30,15 @@ export default async function ReviewPage(props: PageProps<'/me/review/[jobId]'>)
       </Link>
       <div>
         <h1 className="text-2xl font-extrabold">{had ? '내 후기 고치기' : '후기 남기기'}</h1>
-        <p className="mt-1 text-sm text-sub">
-          <b className="text-ink">{j.title}</b>
-          {j.company?.company_name && <> · 🏢 {j.company.company_name}</>}
+        {/* 어느 회사·어느 일 후기인지: 회사(첫 글자 표시)는 한 줄, 공고 이름은 그 아래 (360px에서 '· 🏢'만 남고 회사 이름이 다음 줄로 넘어가지 않게) */}
+        {j.company?.company_name && (
+          <p className="mt-2 flex min-w-0 items-center gap-1.5 text-sm text-sub" data-review-company>
+            <CompanyMark name={j.company.company_name} className="size-5 rounded-md text-[11px]" />
+            <span className="min-w-0 truncate font-semibold">{j.company.company_name}</span>
+          </p>
+        )}
+        <p className="mt-0.5 text-sm font-semibold text-pretty text-ink" data-review-job>
+          {j.title}
         </p>
       </div>
       {!canWrite(user) ? (

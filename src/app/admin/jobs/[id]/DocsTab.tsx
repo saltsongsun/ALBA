@@ -25,6 +25,7 @@ export default function DocsTab({
   origin,
   lastNudge = null,
   company = '',
+  missing = [],
 }: {
   job: Job
   approved: AppRow[]
@@ -36,6 +37,8 @@ export default function DocsTab({
   lastNudge?: string | null
   /** 문자 머리에 회사 이름 */
   company?: string
+  /** 계약서에 들어갈 회사 정보 중 빈 것 (회사 설정 순서 · 종이·앱 계약서만) */
+  missing?: readonly { key: string; label: string }[]
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -55,8 +58,32 @@ export default function DocsTab({
   // 안 받은 사람이 둘 이상이면 골라서 한 번에 '받음'
   const pickRcv = notReceived.length > 1
 
+  // 아직 서명이 다 끝나지 않았는데 계약서에 들어갈 회사 정보가 비어 있으면: 서명 전에 채우게 (서명된 서류는 그때 정보 그대로 남음)
+  // (앱 서명: 서류가 모두 서명됨 · 종이: 확정자 계약서를 모두 받음)
+  const allDone = outside ? approved.length > 0 && notReceived.length === 0 : live.length > 0 && signedCount === live.length
+  const showMissing = missing.length > 0 && !allDone
+  const missingLabels = missing.map((m) => m.label).join(' · ')
+
   return (
     <div className="space-y-4">
+      {showMissing && (
+        <Link
+          href={`/admin/settings?job=${job.id}#${missing[0].key}`}
+          className="flex animate-pop items-center gap-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200/70 transition active:scale-[0.98] motion-reduce:transition-none"
+          data-docs-missing={missing.map((m) => m.key).join(' ')}
+        >
+          <span className="min-w-0 flex-1">
+            {/* 둘까지는 이름을 한 줄에, 셋 이상이면 'n곳'만 크게 두고 이름은 아래 작게 */}
+            <b className="block truncate" data-docs-missing-head>
+              {missing.length <= 2 ? `계약서에 ${missingLabels} 빈칸` : `계약서에 회사 정보 ${missing.length}곳이 빈칸`}
+            </b>
+            <span className="block text-xs text-pretty text-amber-800" data-docs-missing-sub>
+              {missing.length <= 2 ? `${outside ? '출력' : '서명'} 전에 채우면 계약서에 들어가요` : missingLabels}
+            </span>
+          </span>
+          <span className="shrink-0 font-bold whitespace-nowrap">채우기 ›</span>
+        </Link>
+      )}
       {outside && (
         <>
         <section className="card space-y-3 p-4">

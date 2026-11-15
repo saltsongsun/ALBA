@@ -346,7 +346,7 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
  * 저장 버튼이 아래 탭 위의 바에도 있어, 어디서 저장했든 보이게 화면 가운데로 옮김
  * left: 계약서에 들어가는 정보 4가지 가운데 아직 빈 것
  */
-function SetupNext({ left }: { left: number }) {
+function SetupNext({ left, back }: { left: number; back?: string }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = ref.current
@@ -368,12 +368,27 @@ function SetupNext({ left }: { left: number }) {
         </span>
         <p className="min-w-0 flex-1 text-sm text-emerald-900">
           <b className="block">{left === 0 ? '회사 정보를 다 채웠어요' : '저장했어요'}</b>
-          <span className="block text-xs text-emerald-800">{left === 0 ? '다음은 첫 공고 올리기예요' : `남은 ${left}가지는 계약서 보내기 전에 채워 주세요`}</span>
+          <span className="block text-xs text-emerald-800">
+            {back
+              ? left === 0
+                ? '서명 전 계약서에 바로 들어가요'
+                : `남은 ${left}가지도 채우면 좋아요`
+              : left === 0
+                ? '다음은 첫 공고 올리기예요'
+                : `남은 ${left}가지는 계약서 보내기 전에 채워 주세요`}
+          </span>
         </p>
       </div>
-      <Link href="/admin/jobs/new" className="btn-primary btn-sm min-h-10 w-full">
-        첫 공고 올리기 →
-      </Link>
+      {/* 공고 '서류' 탭의 '채우기'로 왔으면 그 공고 서류로 돌아가기, 새 회사면 첫 공고 올리기 */}
+      {back ? (
+        <Link href={`/admin/jobs/${back}?tab=docs`} className="btn-primary btn-sm min-h-10 w-full" transitionTypes={['nav-back']} data-settings-back>
+          공고 서류로 돌아가기 →
+        </Link>
+      ) : (
+        <Link href="/admin/jobs/new" className="btn-primary btn-sm min-h-10 w-full">
+          첫 공고 올리기 →
+        </Link>
+      )}
     </div>
   )
 }
@@ -436,8 +451,22 @@ function WorkerViewPreview({ formId, companyId, name, contactName, phone }: { fo
 }
 
 /** firstJob: 이 회사가 아직 공고를 한 번도 안 올렸는지 (새 회사 → 저장 뒤 다음 할 일을 이어 줌) */
-export function SettingsForm({ s, firstJob = false, company, companyId }: { s: Settings; firstJob?: boolean; company?: string; companyId?: string }) {
+export function SettingsForm({
+  s,
+  firstJob = false,
+  company,
+  companyId,
+  backJob,
+}: {
+  s: Settings
+  firstJob?: boolean
+  company?: string
+  companyId?: string
+  /** 공고 '서류' 탭의 '채우기'로 왔을 때 그 공고 (저장 뒤 돌아가는 버튼) */
+  backJob?: string
+}) {
   const [state, action] = useActionState(saveSettings, null)
+  const nextCard = (firstJob || !!backJob) && !!state?.ok
   const left = [s.business_no, s.company_address, s.seal_image, s.contact_phone].filter((v) => !v).length
   return (
     <form id="settings-form" action={action} onReset={keepInputs} className="space-y-5">
@@ -515,7 +544,7 @@ export function SettingsForm({ s, firstJob = false, company, companyId }: { s: S
         </label>
       </section>
       {/* 새 회사는 '저장했습니다' 대신 저장 버튼 아래에 다음 할 일 카드 하나로 (같은 말을 두 번 하지 않게) */}
-      {!(firstJob && state?.ok) && <FormMessage state={state} />}
+      {!nextCard && <FormMessage state={state} />}
       {/* 여러 회사를 맡은 관리자: 버튼에도 어느 회사 설정인지 (두 줄 · 긴 이름은 줄임) */}
       <SubmitButton track="설정 저장" className={company ? 'btn-primary max-w-full py-2' : 'btn-primary'}>
         {company ? (
@@ -529,7 +558,7 @@ export function SettingsForm({ s, firstJob = false, company, companyId }: { s: S
           '설정 저장'
         )}
       </SubmitButton>
-      {firstJob && state?.ok && <SetupNext left={left} />}
+      {nextCard && <SetupNext left={left} back={backJob} />}
     </form>
   )
 }
