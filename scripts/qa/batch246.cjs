@@ -59,9 +59,10 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const paidLine = one(await row('리허설 음향').locator('span.text-xs').nth(1).innerText())
   ok("받은 대금은 '받은 날 11/14(토)'처럼 날짜로 (배지 '지급 완료'와 같은 말 반복 없이)", /^받은 날 \d{1,2}\/\d{1,2}\([일월화수목금토]\)$/.test(paidLine), paidLine)
   // 날짜 · 계산서는 각각 한 줄 (360px에서 한 단어만 아래로 떨어지지 않게)
-  const lines = await p.locator('[data-pay-row]').evaluateAll((els) => els.map((el) => [...el.querySelectorAll('span.text-xs')].slice(1).map((s) => s.getClientRects().length)))
+  const lines = await p.locator('[data-pay-row]').evaluateAll((els) => els.map((el) => [...el.querySelectorAll('span.text-xs, a.text-xs')].slice(1).map((s) => s.getClientRects().length)))
   ok('대금 줄마다 날짜 한 줄 · 계산서 한 줄', lines.length === 5 && lines.every((l) => l.length === 2 && l.every((n) => n === 1)), JSON.stringify(lines))
-  ok("계산서: '세금계산서 발행 필요' / '세금계산서 접수됨'", one(await row('개막식 음향').locator('[data-invoice]').innerText()) === '세금계산서 발행 필요' && one(await row('워크숍 음향').locator('[data-invoice]').innerText()) === '세금계산서 접수됨')
+  // (2026-11-16부터 '발행 필요' 줄은 누르면 그 회사에 '보냈어요'를 알리는 링크 — '세금계산서 발행 필요 · 알리기 ›')
+  ok("계산서: '세금계산서 발행 필요 · 알리기 ›' / '세금계산서 접수됨'", one(await row('개막식 음향').locator('[data-invoice]').innerText()) === '세금계산서 발행 필요 · 알리기 ›' && one(await row('워크숍 음향').locator('[data-invoice]').innerText()) === '세금계산서 접수됨')
   ok('360px 옆으로 안 밀림 (견적·대금)', await noSide(p))
   if (SHOTS) {
     await p.locator('#pay').evaluate((el) => el.scrollIntoView({ block: 'start' }))
