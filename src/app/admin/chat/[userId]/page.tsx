@@ -18,7 +18,9 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_CONFIRM, ASK_MISSED, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, invoiceTag, parsePayday, SIGNAL } from '@/lib/signals'
+import { markInvoice } from '@/app/actions/vendor'
+import { won } from '@/lib/format'
 import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
 import { fmtDate, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
@@ -187,6 +189,29 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     if (pick?.job) waitingApp = { appId: pick.id, jobId: pick.job_id, title: pick.job.title, start: pick.job.start_date }
   }
 
+  // 외주 업체 '세금계산서를 보냈어요. ○○ · 1,500,000원' → 이 회사의 그 업체 대금에 '계산서 받음'을 바로 (외주 관리 화면을 찾아가지 않게)
+  let invoice: { id: string; title: string; amount: number; at: string | null } | null = null
+  if (lastAsk?.body.startsWith(ASK_INVOICE)) {
+    const { data: vs } = await db().from('vendors').select('id, company_id').eq('company_id', admin.companyId).eq('user_id', userId)
+    const vids = ((vs ?? []) as { id: string; company_id: string }[]).filter((v) => v.company_id === admin.companyId).map((v) => v.id)
+    if (vids.length) {
+      const { data: pays } = await db()
+        .from('vendor_payments')
+        .select('id, title, amount, invoice_at, due_date, company_id, vendor_id')
+        .eq('company_id', admin.companyId)
+        .in('vendor_id', vids)
+      const list = ((pays ?? []) as { id: string; title: string; amount: number; invoice_at: string | null; due_date: string | null; company_id: string; vendor_id: string }[]).filter(
+        (p) => p.company_id === admin.companyId && vids.includes(p.vendor_id),
+      )
+      // 글에 적힌 대금 (이름 · 금액) — 없으면 계산서를 아직 안 받은 것 중 지급일이 가장 이른 것
+      const told = lastAsk.body.slice(ASK_INVOICE.length).trim()
+      const pick =
+        list.find((p) => told === invoiceTag(p.title, won(p.amount))) ??
+        list.filter((p) => !p.invoice_at).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9'))[0]
+      if (pick) invoice = { id: pick.id, title: pick.title, amount: pick.amount, at: pick.invoice_at }
+    }
+  }
+
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       {/* 회사를 바꿔서 이 대화를 열었을 때: '○○ 화면으로 바꿨어요' */}
@@ -278,6 +303,25 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           <span className="shrink-0 text-sm font-bold text-brand-600">지원자 보기 →</span>
         </Link>
       )}
+      {/* 업체가 세금계산서를 보냈다고 함: 그 대금 '계산서 받음' 한 번에 (받은 뒤엔 초록 한 줄) */}
+      {invoice &&
+        (invoice.at ? (
+          <p className="card flex animate-pop items-center gap-2 px-4 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200" data-invoice-done>
+            ✓ 계산서 받음 · <span className="min-w-0 truncate font-normal text-sub">{invoice.title}</span>
+          </p>
+        ) : (
+          <form action={markInvoice.bind(null, invoice.id, true)} className="card flex animate-pop items-center gap-3 px-4 py-3 ring-1 ring-amber-200" data-invoice-ask>
+            <span className="min-w-0 flex-1">
+              <b className="block text-sm">🧾 세금계산서를 보냈대요</b>
+              <span className="block truncate text-xs text-sub">
+                {invoice.title} · <span className="tabular-nums">{won(invoice.amount)}</span>
+              </span>
+            </span>
+            <SubmitButton className="btn-primary btn-sm shrink-0" pendingText="표시 중…">
+              계산서 받음
+            </SubmitButton>
+          </form>
+        ))}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         <ChatComposer buttons={ADMIN_CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
         />

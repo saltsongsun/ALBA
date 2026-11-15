@@ -8,6 +8,8 @@ import { PartnerShareCard } from '@/components/pro'
 import { requireUser } from '@/lib/session'
 import { fmtDate, kstDate } from '@/lib/time'
 import { DUE_TONE, payDue } from '@/lib/due'
+import { db } from '@/lib/db'
+import { ASK_INVOICE, invoiceTag } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '견적 · 대금' }
 
@@ -23,7 +25,27 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
   const user = await requireUser('/pro/money')
   const sp = await props.searchParams
   const today = kstDate()
-  const [allQuotes, allPays] = await Promise.all([partnerQuotes(user.id), partnerPayments(user.id)])
+  const [allQuotes, allPays, sentInvoice] = await Promise.all([
+    partnerQuotes(user.id),
+    partnerPayments(user.id),
+    // '세금계산서를 보냈어요'를 이미 알린 대금 (회사|대금 표시) — 같은 알림을 또 보내지 않게 '알렸어요 · 확인 전'으로
+    db()
+      .from('messages')
+      .select('company_id, body, from_admin')
+      .eq('thread_user_id', user.id)
+      .eq('from_admin', false)
+      .order('created_at', { ascending: false })
+      .limit(300)
+      .then(
+        (r) =>
+          new Set(
+            ((r.data ?? []) as { company_id: string; body: string; from_admin: boolean }[])
+              .filter((m) => !m.from_admin && m.body.startsWith(ASK_INVOICE))
+              .map((m) => `${m.company_id}|${m.body.slice(ASK_INVOICE.length).trim()}`),
+          ),
+        () => new Set<string>(),
+      ),
+  ])
   // 거래하는 회사 (견적을 요청했거나 대금이 있는 곳) — 두 곳 이상이면 회사별로 골라 볼 수 있게. 받을 대금이 큰 순서
   const firms = new Map<string, { id: string; name: string; unpaid: number }>()
   for (const q of allQuotes) if (q.request) firms.set(q.request.company_id, { id: q.request.company_id, name: q.company, unpaid: 0 })
@@ -159,9 +181,25 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
                     <span className={`block truncate text-xs ${due.tone === 'late' ? 'font-semibold text-rose-600' : 'text-sub'}`}>
                       {p.paid_at ? `받은 날 ${fmtDate(p.paid_at.slice(0, 10))}` : p.due_date ? `지급 예정 ${fmtDate(p.due_date)}` : '지급일 협의 중'}
                     </span>
-                    <span className={`block truncate text-xs ${p.invoice_at ? 'text-mute' : 'text-amber-700'}`} data-invoice={p.invoice_at ? 'in' : 'need'}>
-                      {p.invoice_at ? '세금계산서 접수됨' : '세금계산서 발행 필요'}
-                    </span>
+                    {p.invoice_at ? (
+                      <span className="block truncate text-xs text-mute" data-invoice="in">
+                        세금계산서 접수됨
+                      </span>
+                    ) : sentInvoice.has(`${p.company_id}|${invoiceTag(p.title, won(p.amount))}`) ? (
+                      // 보냈다고 알렸고 회사가 아직 '받음'을 누르기 전
+                      <span className="block truncate text-xs text-sub" data-invoice="told">
+                        ✓ 계산서 보냈다고 알렸어요 · 확인 전
+                      </span>
+                    ) : (
+                      // 계산서를 보냈으면 그 회사 문의함으로 바로 (보낼 글이 빠른 답장에 준비됨 → 회사 화면엔 '계산서 받음' 버튼)
+                      <Link
+                        href={`/me/chat?co=${p.company_id}&ask=invoice&pay=${p.id}`}
+                        className="tap block truncate text-xs font-semibold text-amber-700"
+                        data-invoice="need"
+                      >
+                        세금계산서 발행 필요 · 알리기 ›
+                      </Link>
+                    )}
                   </span>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     <span className="font-extrabold whitespace-nowrap tabular-nums">{won(p.amount)}</span>

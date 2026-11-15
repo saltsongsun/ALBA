@@ -8,6 +8,13 @@ import { fmtDate, kstDate } from './time'
 export const ASK_MISSED = '오늘 출근했는데 근무 시작을 못 눌렀어요. 기록 부탁드려요.'
 /** 근무자 '곧 시작인데 아직 확정 전이에요' → 담당자에게 문의 (빠른 답장) · 관리자 문의 화면은 이 글로 시작하면 '지원자 보기'와 답장 제안을 보여 줌 */
 export const ASK_CONFIRM = '지원했는데 확정 여부가 궁금해요.'
+/**
+ * 외주 업체 '세금계산서를 보냈어요' → 그 회사 문의함 (빠른 답장 · 대금 이름·금액이 뒤에 붙음)
+ * 관리자 문의 화면은 이 글로 시작하면 그 대금의 '계산서 받음' 버튼을 바로 보여 줌 (업체마다 계산서 받았는지 일일이 묻지 않게)
+ */
+export const ASK_INVOICE = '세금계산서를 보냈어요.'
+/** 위 문구 뒤에 붙는 대금 표시 ('개막식 음향 · 1,500,000원') */
+export const invoiceTag = (title: string, amountText: string) => `${title} · ${amountText}`
 
 /** 담당자 → 서명 안 한 확정자: 서류 탭 '앱 알림' 첫 줄 (서류 탭에서 마지막으로 보낸 때를 다시 읽음) */
 export const SIGN_NUDGE = '✍️ 서류 서명 요청'

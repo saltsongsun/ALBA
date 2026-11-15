@@ -338,7 +338,9 @@ export async function markInvoice(paymentId: string, received: boolean) {
   if (!isUuid(paymentId)) return
   must(await db().from('vendor_payments').update({ invoice_at: received ? kstDate() : null }).eq('id', paymentId).eq('company_id', admin.companyId))
   await audit(admin.id, received ? 'vpay.invoice' : 'vpay.invoice_undo', null, paymentId, admin.companyId)
-  refresh()
+  // 업체가 '세금계산서를 보냈어요'라고 한 문의 화면에서도 누름 → 그 화면도 바로 '받음'으로
+  refresh('/pro/money')
+  revalidatePath('/admin/chat/[userId]', 'page')
 }
 
 /** 지급 완료 표시 (오늘 날짜) / 취소 */

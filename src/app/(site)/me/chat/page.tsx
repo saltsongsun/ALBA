@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ASK_CONFIRM, ASK_MISSED } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, invoiceTag } from '@/lib/signals'
+import { partnerCompanies, partnerPayments } from '@/lib/partners'
+import { won } from '@/lib/format'
 import { sendInquiry } from '@/app/actions/chat'
 import AutoRefresh from '@/components/AutoRefresh'
 import Icon from '@/components/Icon'
@@ -51,6 +53,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const askInfo = sp.ask === 'info'
   const askMissed = sp.ask === 'missed'
   const askConfirm = sp.ask === 'confirm'
+  // 외주 업체 '견적·대금'에서 '세금계산서 보냈으면 알리기' (어느 대금인지 · 내 대금일 때만 글을 채움)
+  const payId = sp.ask === 'invoice' && typeof sp.pay === 'string' && isUuid(sp.pay) ? sp.pay : null
   // 문의함은 회사마다 따로: 지원했거나 문의를 주고받은 회사들 (처음이면 기본 회사)
   // 단체방 목록(여러 번 읽음)은 먼저 출발시키고, 회사 이름 읽기와 함께 기다림
   const roomsP = workerRooms(user.id)
@@ -71,7 +75,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       .then((r) => must(r) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }[]),
     platformCompanyId(),
   ])
-  const related = [...new Set([...threads.map((t) => t.company_id), ...apps.map((a) => a.company_id)])]
+  // 나를 외주사로 등록한 회사 (대화가 아직 없어도 그 회사 문의함을 열 수 있게 — 계산서 알리기 · 고른 회사일 때만 읽음)
+  const partnerCo = wantCo && payId && !threads.some((t) => t.company_id === wantCo) && !apps.some((a) => a.company_id === wantCo) ? ((await partnerCompanies(user.id)).includes(wantCo) ? wantCo : null) : null
+  const related = [...new Set([...threads.map((t) => t.company_id), ...apps.map((a) => a.company_id), ...(partnerCo ? [partnerCo] : [])])]
   const companyId = job?.company_id ?? (wantCo && related.includes(wantCo) ? wantCo : null) ?? threads[0]?.company_id ?? related[0] ?? platformId
   const ids = [...new Set([...related, ...(companyId ? [companyId] : [])])]
   const [{ data: companyRows }, rooms] = await Promise.all([
@@ -124,6 +130,9 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       : []
   const dayNow = todayAtts.some((a) => a.clock_in && !a.clock_out) ? 'working' : todayAtts.some((a) => a.clock_out) ? 'done' : null
   const quickDay = dayNow === 'working' ? QUICK_WORKING : dayNow === 'done' ? QUICK_DONE : QUICK_DAY
+  // 이 회사에서 받을 내 대금이면: '세금계산서를 보냈어요. 개막식 음향 · 1,500,000원'을 첫 빠른 답장으로
+  const invoicePay = payId && companyId ? (await partnerPayments(user.id).catch(() => [])).find((x) => x.id === payId && x.company_id === companyId && !x.invoice_at) : null
+  const invoiceAsk = invoicePay ? `${ASK_INVOICE} ${invoiceTag(invoicePay.title, won(invoicePay.amount))}` : null
 
   return (
     <div className="space-y-4">
@@ -180,7 +189,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
+          quickReplies={invoiceAsk ? [invoiceAsk] : askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">
