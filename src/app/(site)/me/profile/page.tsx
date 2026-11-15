@@ -2,6 +2,7 @@ import PushLevel from '@/components/PushLevel'
 import { myPushLevel } from '@/app/actions/push'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Icon from '@/components/Icon'
 import CareerForm from '@/components/CareerForm'
 import OpenOnHash from '@/components/OpenOnHash'
 import PhotoUpload from '@/components/PhotoUpload'
@@ -22,9 +23,23 @@ import { NicknameForm } from '@/components/community'
 import LiveNumber from '@/components/LiveNumber'
 import { myActivity } from '@/lib/community'
 import { bizNoFmt, MEMBER_TYPES } from '@/lib/members'
+import { companiesSeeingWorker } from '@/lib/company'
+import CompanyMark from '@/components/CompanyMark'
 import type { MemberType } from '@/lib/types'
 
 export const metadata: Metadata = { title: '내 정보' }
+
+// '내 정보를 보는 회사'에 처음 보이는 수 (나머지는 '외 n곳 더 보기')
+const SEEN_SHOWN = 6
+
+function SeenChip({ c }: { c: { id: string; name: string } }) {
+  return (
+    <Link href={`/?co=${c.id}`} className="flex max-w-full items-center gap-1.5 rounded-full bg-bg py-1 pr-3 pl-1 text-sm font-semibold transition active:scale-95" data-seen-co>
+      <CompanyMark name={c.name} className="size-6 rounded-full text-xs" />
+      <span className="truncate">{c.name}</span>
+    </Link>
+  )
+}
 
 export default async function ProfilePage() {
   const user = await requireUser('/me/profile')
@@ -35,7 +50,8 @@ export default async function ProfilePage() {
     .single()
   if (!me) return null
   // 커뮤니티 별명 (따로 읽음: 못 읽어도 내 정보 화면은 그대로)
-  const [nickname, activity] = await Promise.all([
+  const type: MemberType = me.member_type === 'expert' || me.member_type === 'vendor' ? me.member_type : 'worker'
+  const [nickname, activity, seenBy] = await Promise.all([
     db()
       .from('users')
       .select('nickname')
@@ -43,8 +59,9 @@ export default async function ProfilePage() {
       .maybeSingle()
       .then((r) => (r.data as { nickname: string | null } | null)?.nickname ?? ''),
     me.member_type === 'vendor' ? { posts: 0, comments: 0, likes: 0 } : myActivity(user.id),
+    // 내 정보를 볼 수 있는 회사 (알바만 · 못 읽으면 칸을 숨김 — '아무도 못 봐요'로 잘못 보이지 않게)
+    type === 'worker' ? companiesSeeingWorker(user.id).catch(() => null) : null,
   ])
-  const type: MemberType = me.member_type === 'expert' || me.member_type === 'vendor' ? me.member_type : 'worker'
   const vendor = type === 'vendor'
   // 정보 채우기: 비어 있는 항목을 눌러 바로 그 칸으로 (급여·현장 연락이 빨라지게). 유형마다 다름
   const checks = vendor
@@ -216,6 +233,47 @@ export default async function ProfilePage() {
         ownName={type === 'worker' ? me.name : undefined}
       />
       </div>
+      {/* 여러 회사가 함께 쓰는 앱: 내 계좌·연락처·사진을 어느 회사가 보는지 (지원한 회사만 · 누르면 그 회사 화면) */}
+      {seenBy && (
+        <section id="seen-by" className="card scroll-mt-20 space-y-2.5" data-seen-by>
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="flex items-center gap-1.5 font-bold">
+              <Icon name="shield" className="text-brand-600" />내 정보를 보는 회사
+            </h2>
+            <span className="text-sm font-semibold text-sub tabular-nums" data-seen-count>
+              {seenBy.length}곳
+            </span>
+          </div>
+          <p className="text-sm text-sub" data-seen-note>
+            {seenBy.length ? '지원한 회사 담당자만 볼 수 있어요' : '아직 없어요 · 지원하면 그 회사 담당자만 봐요'}
+          </p>
+          {seenBy.length > 0 && (
+            <ul className="flex flex-wrap gap-1.5">
+              {seenBy.slice(0, SEEN_SHOWN).map((c, i) => (
+                <li key={c.id} className="max-w-full animate-pop" style={{ animationDelay: `${Math.min(i, 6) * 40}ms` }}>
+                  <SeenChip c={c} />
+                </li>
+              ))}
+              {seenBy.length > SEEN_SHOWN && (
+                <li className="w-full">
+                  <details className="group">
+                    <summary className="tap cursor-pointer list-none text-sm font-semibold text-brand-600" data-seen-more>
+                      외 {seenBy.length - SEEN_SHOWN}곳 더 보기
+                    </summary>
+                    <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                      {seenBy.slice(SEEN_SHOWN).map((c) => (
+                        <li key={c.id} className="max-w-full animate-pop">
+                          <SeenChip c={c} />
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                </li>
+              )}
+            </ul>
+          )}
+        </section>
+      )}
       {!vendor && (
         <div id="careers" className="scroll-mt-20">
           <CareerForm initial={(me.careers as Career[] | null) ?? []} />

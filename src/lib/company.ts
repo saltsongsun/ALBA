@@ -66,6 +66,27 @@ export async function workerInCompany(companyId: string, userId: string): Promis
   return (apps ?? 0) > 0 || (member ?? 0) > 0
 }
 
+/**
+ * 근무자 정보를 볼 수 있는 회사 — 위 workerInCompany와 같은 기준 (지원한 적이 있거나 소속된 회사)
+ * 근무자 '내 정보'에서 보여 줌 (여러 회사가 함께 쓰니 내 계좌·연락처를 어느 회사가 보는지 알 수 있게) · 못 읽으면 null
+ */
+export async function companiesSeeingWorker(userId: string): Promise<{ id: string; name: string }[] | null> {
+  if (!isUuid(userId)) return null
+  const [apps, members] = await Promise.all([
+    db().from('applications').select('company_id').eq('user_id', userId).limit(2000),
+    db().from('company_members').select('company_id').eq('user_id', userId),
+  ])
+  if (apps.error || members.error) return null
+  const ids = [...new Set([...(apps.data ?? []), ...(members.data ?? [])].map((r) => (r as { company_id: string | null }).company_id).filter((id): id is string => !!id))]
+  if (!ids.length) return []
+  const { data, error } = await db().from('companies').select('id, company_name').in('id', ids)
+  if (error) return null
+  return ((data ?? []) as { id: string; company_name: string }[])
+    .filter((c) => ids.includes(c.id))
+    .map((c) => ({ id: c.id, name: c.company_name }))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+}
+
 /** 이 회사 근무자들의 id (지원한 적이 있는 사람) */
 export async function companyWorkerIds(companyId: string): Promise<string[]> {
   const { data } = await db().from('applications').select('user_id').eq('company_id', companyId)

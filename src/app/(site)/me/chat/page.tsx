@@ -4,6 +4,7 @@ import { ASK_CONFIRM, ASK_MISSED } from '@/lib/signals'
 import { sendInquiry } from '@/app/actions/chat'
 import AutoRefresh from '@/components/AutoRefresh'
 import Icon from '@/components/Icon'
+import { companyInitial } from '@/components/CompanyMark'
 import { CHAT_MESSAGE_COLS, ChatMessages, type ChatMessage } from '@/components/Chat'
 import ChatComposer, { ScrollToEnd } from '@/components/ChatComposer'
 import { ContactButtons } from '@/components/Contact'
@@ -288,8 +289,10 @@ async function ChatList({
           ) : r.icon === 'support' ? (
             <Icon name="help" className="!size-6 text-amber-600" />
           ) : (
-            // 회사 문의도 단체방처럼 선 아이콘 (이모지 대신 · 다른 화면과 같은 모양)
-            <Icon name="building" className="!size-6 text-brand-600" />
+            // 회사 문의: 회사 이름 첫 글자 (같은 건물 아이콘이 여러 줄이면 어느 회사인지 한눈에 안 보임)
+            <span data-company-mark className="text-lg font-extrabold text-brand-700">
+              {companyInitial(r.title)}
+            </span>
           )}
         </span>
         <span className="min-w-0 flex-1">
