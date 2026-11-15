@@ -19,9 +19,13 @@ let fails = 0
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
 const one = (s) => (s ?? '').replace(/\s+/g, ' ').trim()
 const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)
+const rest = (p, method = 'GET', b) => fetch(`${MD}/rest/v1/${p}`, { method, headers: { 'content-type': 'application/json' }, body: b && JSON.stringify(b) }).then((r) => r.json().catch(() => null))
 const body = async (loc) => { const h = (await loc.getAttribute('href').catch(() => '')) ?? ''; return decodeURIComponent(h.split(/[?&]body=/)[1] ?? '') }
 
 ;(async () => {
+  // 저녁에도 그대로 돌게: 오늘 근무가 끝나면(18:00) 부족 경고를 숨기므로 끝나는 시각을 늦춤 (2026-11-15 19:35 회차에서 저녁 실패)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59' })
+  for (const app of (await rest(`applications?job_id=eq.${J}`)) ?? []) await rest(`applications?id=eq.${app.id}`, 'PATCH', { job: { ...app.job, end_time: '23:59' } })
   const b = await chromium.launch()
   const errs = []
   const ctx = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
