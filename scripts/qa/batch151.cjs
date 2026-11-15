@@ -22,6 +22,9 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   w.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
   // 출근 전 상태로 (가짜 DB의 근무자는 이미 근무 중 · 근무 중이면 '근무 종료'가 먼저 — batch154)
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
+  // 저녁에도 그대로 돌게: 2026-11-15부터 출근 기록 없이 근무 시간(18:00)이 지나면 '서명하면 시작' 대신 '시간이 지났어요'라 끝나는 시각을 늦춤
+  await rest(`jobs?id=eq.cccccccc-0000-4000-8000-000000000003`, 'PATCH', { end_time: '23:59' })
+  for (const app of (await rest(`applications?job_id=eq.cccccccc-0000-4000-8000-000000000003`)) ?? []) await rest(`applications?id=eq.${app.id}`, 'PATCH', { job: { ...app.job, end_time: '23:59' } })
   await w.goto(`${D}/me`)
   const note = w.locator('[data-sign-before-start]')
   await note.waitFor({ timeout: 15000 }).catch(() => {})

@@ -40,6 +40,9 @@ const kstDay = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
   // ════ 1. 내 근무: 오늘 근무의 서류는 한 번만 ════
   const att0 = await rest(`attendance?user_id=eq.${W}`)
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
+  // 저녁에도 그대로 돌게: 2026-11-15부터 출근 기록 없이 근무 시간(18:00)이 지나면 '서명하면 시작' 대신 '시간이 지났어요'라 끝나는 시각을 늦춤
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59' })
+  for (const app of (await rest(`applications?job_id=eq.${J}`)) ?? []) await rest(`applications?id=eq.${app.id}`, 'PATCH', { job: { ...app.job, end_time: '23:59' } })
   const w = await pg(W)
   const card = w.locator('[data-sign-card]')
   const before = w.locator('[data-sign-before-start]')

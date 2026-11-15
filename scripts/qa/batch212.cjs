@@ -75,6 +75,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 3. 서류(서명) 화면을 여는 동안: 같은 모양의 불러오는 화면
   await rest(`attendance?user_id=eq.${W}`, 'DELETE') // 출근 전 → 오늘의 근무 카드에 '서명 ›'
+  // 저녁에도 그대로 돌게: 2026-11-15부터 출근 기록 없이 근무 시간(18:00)이 지나면 '서명하면 시작' 대신 '시간이 지났어요'라 끝나는 시각을 늦춤
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_time: '23:59' })
+  for (const app of (await rest(`applications?job_id=eq.${J}`)) ?? []) await rest(`applications?id=eq.${app.id}`, 'PATCH', { job: { ...app.job, end_time: '23:59' } })
   await w.goto(`${D}/me`, { waitUntil: 'networkidle' })
   const sign = w.locator('[data-sign-before-start]').first()
   await sign.waitFor({ timeout: 15000 }).catch(() => {})
