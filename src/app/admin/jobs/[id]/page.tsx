@@ -480,6 +480,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           jobId={job.id}
           jobTitle={job.title}
           company={admin.companyName}
+          open={sp.notice === '1'}
           last={lastNotice && lastNoticeAgo ? { body: lastNotice.body, when: lastNoticeAgo.when, recent: lastNoticeAgo.recent, reads: noticeReads } : null}
           recipients={approved.map((a) => ({ phone: a.user.phone, dates: a.available_dates, position: a.position }))}
           dates={dates.map((d) => ({ value: d, label: fmtDate(d) }))}

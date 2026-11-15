@@ -18,6 +18,7 @@ export default function Announce({
   jobId,
   jobTitle,
   company = '',
+  open = false,
   recipients,
   dates,
   last = null,
@@ -26,6 +27,8 @@ export default function Announce({
   jobTitle: string
   /** 문자 머리에 회사 이름 (여러 회사에서 일하는 사람이 알아보게) */
   company?: string
+  /** 대시보드 '공지 안 읽음'에서 왔으면 펼친 채로 */
+  open?: boolean
   recipients: Recipient[]
   /** 여러 날 행사면 날짜별로 골라 보냄 */
   dates: { value: string; label: string }[]
@@ -61,6 +64,8 @@ export default function Announce({
 
   return (
     <Fold
+      id="announce"
+      open={open}
       title={
         <span className="inline-flex items-center gap-1.5">
           <Icon name="megaphone" className="text-brand-600" /> 확정자에게 공지

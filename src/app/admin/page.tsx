@@ -1,4 +1,5 @@
 import { headcountTbd } from '@/lib/jobFields'
+import { lastNudge } from '@/lib/nudge'
 import PushLevel from '@/components/PushLevel'
 import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
@@ -279,6 +280,27 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 끝난 행사(지난 30일)인데 결과를 못 들은 대기 지원자: 공고마다 한 줄 + 바로 '미선발 알림'
   // (끝난 행사는 위 '확정 대기'에 안 나와 잊기 쉬움 → 지원자는 계속 기다리거나 '확정됐나요?' 문의 · 보류한 사람은 빼고)
   const lapsedP = lapsedWaiting(admin.companyId, today).catch(() => [] as { id: string; title: string; n: number }[])
+  // 오늘·내일 근무가 있는 공고: 마지막 공지를 아직 안 읽은 확정자 (현장 전에 놓치지 않게 — 누르면 공고의 공지 칸이 펼쳐진 채로)
+  const noticeJobs = activeJobs.filter((j) => j.start_date <= tomorrow && j.end_date >= today && (counts[j.id] ?? 0) > 0).slice(0, 8)
+  const noticeUnreadP: Promise<{ id: string; title: string; n: number }[]> = noticeJobs.length
+    ? Promise.all([
+        db()
+          .from('applications')
+          .select('job_id, user_id')
+          .eq('company_id', admin.companyId)
+          .in('job_id', noticeJobs.map((j) => j.id))
+          .eq('status', 'approved')
+          .then((r) => new Set(((r.data ?? []) as { job_id: string; user_id: string }[]).map((a) => `${a.job_id}|${a.user_id}`))),
+        Promise.all(noticeJobs.map((j) => lastNudge(admin.companyId, j.id, '📢 공지').catch(() => null))),
+      ]).then(
+        ([ok, lasts]) =>
+          noticeJobs
+            .map((j, i) => ({ id: j.id, title: j.title, n: (lasts[i]?.to ?? []).filter((t) => !t.read && ok.has(`${j.id}|${t.uid}`)).length }))
+            .filter((x) => x.n > 0),
+        () => [],
+      )
+    : Promise.resolve([])
+  noticeUnreadP.catch(() => {})
   // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
   todayP.catch(() => {})
   const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedTomorrow, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
@@ -371,7 +393,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     unpaidByJob(admin.companyId, today),
   ])])
   const comingBy = await comingP
-  const lapsedJobs = await lapsedP
+  const [lapsedJobs, noticeUnread] = await Promise.all([lapsedP, noticeUnreadP])
   const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
   const absentBy: Record<string, number> = {}
   const absentIds: Record<string, string[]> = {}
@@ -440,6 +462,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
       tone: 'text-violet-700',
+    })),
+    ...noticeUnread.map((j) => ({
+      key: `notice-${j.id}`,
+      icon: 'megaphone' as const,
+      text: `공지 안 읽음 · ${j.title}`,
+      n: j.n,
+      href: `/admin/jobs/${j.id}?tab=apps&notice=1#announce`,
+      tone: 'text-amber-700',
     })),
     ...group(unsignedTomorrow, (a) => a.job_id).map((g) => ({
       key: `unsigned-${g[0].job_id}`,
