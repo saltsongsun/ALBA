@@ -531,7 +531,12 @@ export default async function MePage(props: PageProps<'/me'>) {
                 <>
                   <span className="text-[11px] leading-none font-semibold opacity-80">{i === 0 ? '오늘' : label}</span>
                   <span className="text-base leading-tight font-extrabold tabular-nums">{Number(d.slice(8))}</span>
-                  <span aria-hidden className={`size-1.5 rounded-full ${w.length ? 'bg-white' : wait.length ? 'ring-1 ring-brand-500' : 'bg-transparent'}`} />
+                  {/* 근무 하나에 점 하나 (같은 날 두 회사 근무면 점 둘 · 3개까지) */}
+                  <span aria-hidden className="flex gap-0.5" data-week-dots={w.length}>
+                    {Array.from({ length: Math.max(1, Math.min(w.length, 3)) }, (_, k) => (
+                      <span key={k} className={`size-1.5 rounded-full ${w.length ? 'bg-white' : wait.length ? 'ring-1 ring-brand-500' : 'bg-transparent'}`} />
+                    ))}
+                  </span>
                 </>
               )
               return (

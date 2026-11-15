@@ -16,7 +16,7 @@ import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
 import { ConfirmSubmit } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
-import { askTag, needsReply } from '@/lib/signals'
+import { ASK_INVOICE, askTag, needsReply } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -27,7 +27,7 @@ type Row = {
   body: string
   created_at: string
   read_at: string | null
-  user: { id: string; name: string; phone: string; photo_at: string | null } | null
+  user: { id: string; name: string; phone: string; photo_at: string | null; member_type?: string | null } | null
 }
 
 export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
@@ -46,7 +46,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const rows = must(
     await db()
       .from('messages')
-      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at)').eq('company_id', admin.companyId)
+      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at, member_type)').eq('company_id', admin.companyId)
       .order('created_at', { ascending: false })
       .limit(1000),
   ) as unknown as Row[]
@@ -242,7 +242,14 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
                   <p className="truncate font-bold">
-                    {last.user!.name} <span className="text-xs font-medium text-mute">{phoneFmt(last.user!.phone)}</span>
+                    {last.user!.name}{' '}
+                    {/* 외주 업체·전문가가 보낸 문의는 근무자 문의와 구분되게 (계산서·견적 이야기) */}
+                    {(last.user!.member_type === 'vendor' || last.user!.member_type === 'expert') && (
+                      <span className="mr-1 rounded bg-violet-50 px-1 align-[1px] text-[11px] font-bold text-violet-700" data-inbox-member={last.user!.member_type}>
+                        {last.user!.member_type === 'vendor' ? '외주' : '전문가'}
+                      </span>
+                    )}
+                    <span className="text-xs font-medium text-mute">{phoneFmt(last.user!.phone)}</span>
                   </p>
                   <span className="shrink-0 text-xs text-mute">{kstDate(last.created_at) === today ? kstTime(last.created_at) : fmtDate(kstDate(last.created_at))}</span>
                 </div>
@@ -251,9 +258,10 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                     // 메시지 내용으로 찾았으면 그 메시지를 보여 줌 (이름·번호로 찾았으면 마지막 메시지)
                     const hit = term && !last.user!.name.toLowerCase().includes(low) ? hitOf.get(last.thread_user_id) : undefined
                     const m = hit ?? last
-                    // 바로 처리할 요청이면 종류를 짧게 (출근 확인 · 출근 기록 · 기록 정정 · 확정 문의) — 머리말 줄은 같은 말이라 빼고 내용만
+                    // 바로 처리할 요청이면 종류를 짧게 (출근 확인 · 출근 기록 · 기록 정정 · 확정 문의 · 계산서) — 머리말 줄은 같은 말이라 빼고 내용만
                     const tag = !hit && !m.from_admin ? askTag(m.body) : null
-                    const rest = tag && /^(📍|✏️)/.test(m.body) ? m.body.split('\n').slice(1).join(' ').trim() : ''
+                    // 머리말과 같은 말은 빼고 내용만 (계산서: '개막식 음향 · 1,500,000원')
+                    const rest = tag && /^(📍|✏️)/.test(m.body) ? m.body.split('\n').slice(1).join(' ').trim() : tag && m.body.startsWith(ASK_INVOICE) ? m.body.slice(ASK_INVOICE.length).trim() : ''
                     return (
                       <p className={`truncate text-sm ${unread ? 'font-semibold text-ink' : 'text-sub'}`} data-chat-snippet>
                         {m.from_admin && <span className="text-mute">답장: </span>}

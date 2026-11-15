@@ -74,6 +74,7 @@ export function askTag(body: string): { label: string; urgent: boolean } | null 
   if (head.startsWith(ASK_MISSED.slice(0, 20))) return { label: '출근 기록', urgent: true }
   if (head.startsWith(SIGNAL.fix)) return { label: '기록 정정', urgent: false }
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
+  if (head.startsWith(ASK_INVOICE)) return { label: '계산서', urgent: false }
   return null
 }
 
