@@ -36,7 +36,7 @@ export const metadata: Metadata = { title: '내 정보' }
 function SeenBy({ list }: { list: { id: string; name: string }[] }) {
   return (
     <details id="seen-by" className="group scroll-mt-20 border-t border-line pt-3" data-seen-by>
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm select-none before:hidden [&::-webkit-details-marker]:hidden">
         <Icon name="shield" className="shrink-0 text-brand-600" />
         <b className="min-w-0 flex-1 truncate">내 정보를 보는 회사</b>
         {/* 첫 글자 겹쳐 보이기 (3곳까지) */}

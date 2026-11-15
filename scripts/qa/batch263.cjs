@@ -56,7 +56,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const summary = box.locator('summary')
   const marks = async () => (await box.locator('[data-seen-marks] [data-company-mark]').allTextContents()).map(one)
   ok("맨 위 카드 안 접힌 한 줄: '내 정보를 보는 회사' · 첫 글자 [다, 테] · '2곳'", (await box.evaluate((el) => !el.open && !!el.closest('[data-profile-hero]')).catch(() => false)) && one(await summary.locator('b').textContent().catch(() => '')) === '내 정보를 보는 회사' && JSON.stringify(await marks()) === '["다","테"]' && one(await box.locator('[data-seen-count]').textContent().catch(() => '')) === '2곳', JSON.stringify(await marks()))
-  ok('접힌 줄은 한 줄 높이', (await summary.evaluate((el) => el.getBoundingClientRect().height).catch(() => 99)) < 32)
+  ok('접힌 줄은 한 줄 높이 · 화살표는 오른쪽 하나만 (기본 왼쪽 화살표 없음)', (await summary.evaluate((el) => el.getBoundingClientRect().height).catch(() => 99)) < 32 && (await summary.evaluate((el) => getComputedStyle(el, '::before').display).catch(() => '')) === 'none')
   await summary.click()
   const chips = box.locator('[data-seen-co]')
   await chips.first().waitFor({ state: 'visible', timeout: 5000 }).catch(() => {})
@@ -65,8 +65,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok("칩: ['다(주)다른기획', '테주식회사 테스트'] (첫 글자 + 이름 · '(주)'·'주식회사'는 첫 글자에서 뺌)", JSON.stringify(names) === JSON.stringify(['다(주)다른기획', '테주식회사 테스트']), JSON.stringify(names))
   ok('지원 안 한 회사는 안 나옴', !names.some((n) => n.includes('지원 안 한')))
   ok('칩을 누르면 그 회사 화면 (/?co=)', (await chips.nth(0).getAttribute('href')) === `/?co=${C2}` && (await chips.nth(1).getAttribute('href')) === `/?co=${C1}`)
+  await p.waitForTimeout(300) // 화살표 도는 움직임(0.2초)이 끝난 뒤
   const anim = await box.locator('li').first().evaluate((el) => ({ name: getComputedStyle(el).animationName, dur: getComputedStyle(el).animationDuration })).catch(() => null)
-  ok('칩이 톡 나타남 (0.32초 이하) · 펼침 화살표가 돌아감', anim?.name === 'pop' && parseFloat(anim.dur) <= 0.32 && (await summary.locator('svg').evaluate((el) => getComputedStyle(el).transform !== 'none').catch(() => false)), JSON.stringify(anim))
+  ok('칩이 톡 나타남 (0.32초 이하) · 펼침 화살표가 돌아감', anim?.name === 'pop' && parseFloat(anim.dur) <= 0.32 && (await summary.locator('svg').last().evaluate((el) => { const s = getComputedStyle(el); return s.rotate === '180deg' || s.transform !== 'none' }).catch(() => false)), JSON.stringify(anim))
   const hs = await chips.evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)))
   ok('칩 한 줄 · 360px 옆으로 안 밀림', hs.every((h) => h < 40) && (await noSide(p)), JSON.stringify(hs))
   if (SHOTS) {
