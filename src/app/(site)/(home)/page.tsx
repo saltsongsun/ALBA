@@ -23,6 +23,11 @@ import { coworkerCounts } from '@/lib/coworkers'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
 import CompanyMark from '@/components/CompanyMark'
+import MoreJobs from '@/components/MoreJobs'
+
+/** 홈 공고 목록: 한 번에 보이는 공고 수 · '더 보기' 한 번에 늘어나는 수 · 최대 */
+const MORE_STEP = 50
+const MORE_MAX = 500
 
 /** 회사 공고 모음 링크(/?co=회사)를 보내면: 미리보기에 회사 이름 · 모집 중 공고 수 · 그림 */
 export async function generateMetadata(props: PageProps<'/'>): Promise<Metadata> {
@@ -67,18 +72,22 @@ export default async function HomePage(props: PageProps<'/'>) {
   const reviewsOn = await featureOn('job_reviews')
   const rating = company && me && reviewsOn ? await companyRating(company.id).catch(() => null) : null
   const jobsQuery = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('audience', 'worker').in('status', ['open', 'closed']).gte('end_date', today)
-  const [user, jobs, myApps] = await Promise.all([
+  // 여러 회사 공고가 쌓여도 끝까지 볼 수 있게: 50개씩 '공고 더 보기' (?n=100 …, 한 번에 최대 500개)
+  // 하나 더 읽어서 더 있는지 앎 · 같은 날 시작하는 공고끼리도 순서가 바뀌지 않게 id로 한 번 더 정렬
+  const shown = Math.min(MORE_MAX, Math.max(MORE_STEP, Math.ceil((Number(sp.n) || MORE_STEP) / MORE_STEP) * MORE_STEP))
+  const [user, rows, myApps] = await Promise.all([
     getUser(),
     (company ? jobsQuery.eq('company_id', company.id) : jobsQuery)
       .order('start_date')
-      .limit(50)
+      .order('id')
+      .limit(shown + 1)
       .then((r) => must(r) as JobWithAppStatus[]),
     // 내 지원 상태도 공고 목록과 함께 읽음
     getUser().then((u) =>
       u
         ? db()
             .from('applications')
-            .select('job_id, status, available_dates, job:jobs(start_date, end_date, start_time, end_time, status)')
+            .select('job_id, status, available_dates, job:jobs(start_date, end_date, start_time, end_time, status, company_id, audience)')
             .eq('user_id', u.id)
             .then(
               (r) =>
@@ -86,12 +95,14 @@ export default async function HomePage(props: PageProps<'/'>) {
                   job_id: string
                   status: string
                   available_dates: string[] | null
-                  job: Pick<JobWithAppStatus, 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
+                  job: Pick<JobWithAppStatus, 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status' | 'company_id' | 'audience'> | null
                 }[],
             )
         : [],
     ),
   ])
+  const hasMore = rows.length > shown
+  const jobs = rows.slice(0, shown)
   const counts = countApps(jobs, 'approved')
   // 회사별 근무자 후기 별점 (가입한 회원에게만, 카드에 ★4.5)
   const [ratings, palCounts] = user
@@ -103,9 +114,14 @@ export default async function HomePage(props: PageProps<'/'>) {
   const openCount = jobs.filter((j) => j.status === 'open' && !doneToday(j)).length
   const mine: Record<string, string> = {}
   for (const r of myApps) mine[r.job_id] = r.status
+  // 내 지원 가운데 아직 끝나지 않은 근무 (목록과 같은 기준: 근무자 공고 · 취소 안 됨 · 이 회사 공고 모음이면 이 회사만)
+  // 확정·대기 수와 오늘 근무는 목록(앞의 50개)이 아니라 내 지원에서 셈 — 공고가 많아 목록에 안 들어간 내 근무도 빠지지 않게
+  const myLive = myApps.filter(
+    (r) => r.job && r.job.audience === 'worker' && r.job.status !== 'cancelled' && r.job.end_date >= today && (!company || r.job.company_id === company.id),
+  )
   // 회사 공고 모음: 이 회사의 지금 공고 가운데 내가 확정된 것 · 확정을 기다리는 것
-  const hereApproved = company ? jobs.filter((j) => mine[j.id] === 'approved').length : 0
-  const hereWaiting = company ? jobs.filter((j) => mine[j.id] === 'applied').length : 0
+  const hereApproved = company ? myLive.filter((r) => r.status === 'approved').length : 0
+  const hereWaiting = company ? myLive.filter((r) => r.status === 'applied').length : 0
   // 회사 공고 모음: 이 회사 담당자가 보낸 답장 가운데 아직 안 읽은 것 ('문의' 버튼에 숫자로)
   const coUnread =
     company && user && hereApproved + hereWaiting > 0
@@ -147,6 +163,8 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 지원할 수 있는 공고를 위에, 오늘 근무가 끝난 공고는 맨 아래 따로 (제목의 숫자는 위쪽만)
   const live = listed.filter((j) => !doneToday(j))
   const done = listed.filter(doneToday)
+  // '공고 더 보기'로 새로 붙은 묶음의 첫 공고 (#more-n으로 내려와 잠깐 테두리)
+  const firstNew = shown > MORE_STEP ? [...live, ...done].find((j) => jobs.indexOf(j) >= shown - MORE_STEP)?.id : undefined
   // 볼 공고가 없거나 오늘 근무가 끝난 공고만 남음 (가입 안내를 '미리 가입해 두세요'로)
   const noLive = jobs.every(doneToday)
   const jobCard = (j: JobWithAppStatus) => (
@@ -162,17 +180,27 @@ export default async function HomePage(props: PageProps<'/'>) {
       track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
       // 회사 공고 모음에서는 위 카드에 회사 이름·확인 표시·별점이 이미 있음 → 카드마다 되풀이하지 않음
       hideCompany={!!company}
+      anchorId={j.id === firstNew ? `more-${shown - MORE_STEP}` : undefined}
     />
   )
-  const filterHref = (w: string | null, a: boolean, g: boolean = good) => {
+  const filterQuery = (w: string | null, a: boolean, g: boolean) => {
     const q = new URLSearchParams()
     if (company) q.set('co', company.id)
     if (w) q.set('when', w)
     if (a) q.set('avail', '1')
     if (g) q.set('good', '1')
-    const s = q.toString()
+    return q
+  }
+  const filterHref = (w: string | null, a: boolean, g: boolean = good) => {
+    const s = filterQuery(w, a, g).toString()
     return s ? `/?${s}#jobs` : '/#jobs'
   }
+  // 같은 거르기 그대로 50개 더 · 새로 붙은 첫 공고로 내려감
+  const moreHref = (() => {
+    const q = filterQuery(when, avail, good)
+    q.set('n', String(shown + MORE_STEP))
+    return `/?${q}#more-${shown}`
+  })()
   // 거른 결과가 없을 때: 조건을 하나 풀면 몇 개가 있는지 (빈 화면에서 막히지 않게 · 최대 2개)
   const loosen: { label: string; n: number; href: string }[] = []
   if (listed.length === 0 && jobs.length > 0) {
@@ -191,7 +219,19 @@ export default async function HomePage(props: PageProps<'/'>) {
     loosen.splice(2)
   }
   // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
-  const todayCands = jobs.filter((j) => mine[j.id] === 'approved' && j.start_date <= today && j.end_date >= today)
+  // 목록에 없는 오늘 근무(앞의 공고가 많아 50개 밖)는 따로 읽음 — 보통은 목록에 있어 더 읽지 않음
+  const todayIds = myLive.filter((r) => r.status === 'approved' && r.job!.start_date <= today).map((r) => r.job_id)
+  const outside = todayIds.filter((id) => !jobs.some((j) => j.id === id))
+  const todayCands = [
+    ...jobs.filter((j) => todayIds.includes(j.id)),
+    ...(outside.length > 0 && user
+      ? await db()
+          .from('jobs')
+          .select(JOB_WITH_APP_STATUS)
+          .in('id', outside)
+          .then((r) => ((r.data ?? []) as JobWithAppStatus[]).filter((j) => outside.includes(j.id)), () => [])
+      : []),
+  ]
   // 오늘 근무가 여럿이면 (예: 낮엔 A회사, 밤엔 B회사) 지금 할 근무로 — 근무 중 → 아직 안 끝난 근무(이른 시작 순) → 마친 근무 → 기록 없이 지난 근무
   // (전엔 첫 번째 근무만 봐서 이미 끝난 낮 근무의 '서명'을 띄우고 밤 근무 시작을 놓치게 했음)
   const candAtts: { job_id: string; clock_in: string | null; clock_out: string | null }[] =
@@ -269,8 +309,8 @@ export default async function HomePage(props: PageProps<'/'>) {
           ? '근무 시작을 아직 안 눌렀어요'
           : '오늘 근무가 있어요'
   // 로그인한 근무자: 소개 배너 대신 한 줄 인사 + 내 근무 현황 (공고 목록이 첫 화면에 보이게)
-  const upcomingCount = jobs.filter((j) => mine[j.id] === 'approved' && j.id !== todayJob?.id).length
-  const waitingCount = jobs.filter((j) => mine[j.id] === 'applied').length
+  const upcomingCount = myLive.filter((r) => r.status === 'approved' && r.job_id !== todayJob?.id).length
+  const waitingCount = myLive.filter((r) => r.status === 'applied').length
 
   return (
     <>
@@ -465,7 +505,8 @@ export default async function HomePage(props: PageProps<'/'>) {
       )}
 
       <h2 id="jobs" className="section-title scroll-mt-20">
-        모집 중인 알바 {live.length > 0 && <span className="text-brand-600">{live.length}</span>}
+        {/* 더 있으면 '50+' (지금 보이는 것만 센 수라서) */}
+        모집 중인 알바 {live.length > 0 && <span className="text-brand-600">{live.length}{hasMore && '+'}</span>}
       </h2>
       {jobs.length > 0 && (
         <div className="fade-x -mt-1 mb-3 flex gap-1.5 overflow-x-auto pb-1" data-chip-row>
@@ -518,7 +559,7 @@ export default async function HomePage(props: PageProps<'/'>) {
       {/* 거르기를 켜면 몇 개가 남았는지 바로 */}
       {jobs.length > 0 && (when || avail || good) && listed.length > 0 && (
         <p key={`${when}-${avail}-${good}`} className="-mt-1 mb-2 animate-pop text-sm text-sub" data-filter-count>
-          조건에 맞는 공고 <b className="text-brand-700 tabular-nums">{listed.length}</b>개
+          조건에 맞는 공고 <b className="text-brand-700 tabular-nums">{listed.length}{hasMore && '+'}</b>개
         </p>
       )}
       {jobs.length === 0 ? (
@@ -573,6 +614,7 @@ export default async function HomePage(props: PageProps<'/'>) {
           <div className="stagger space-y-3">
             {live.map(jobCard)}
           </div>
+          {hasMore && <MoreJobs href={moreHref} />}
           {/* 오늘 근무가 끝난 공고: 맨 아래 한 줄 제목 아래로 · 살짝 흐리게 (지원 버튼이 없는 공고라 눈에 덜 띄게) */}
           {done.length > 0 && (
             <section className="mt-5 space-y-3" data-done-today>

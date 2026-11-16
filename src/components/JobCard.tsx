@@ -38,6 +38,7 @@ export default function JobCard({
   pals = 0,
   track,
   hideCompany = false,
+  anchorId,
 }: {
   /** company: 공고를 낸 회사 (여러 회사가 함께 쓰므로 카드에 표시) */
   job: Job & { company?: { company_name: string; verified?: boolean | null } | null }
@@ -55,6 +56,8 @@ export default function JobCard({
   track?: string
   /** 한 회사 공고만 모은 화면: 회사 이름 줄을 카드마다 되풀이하지 않음 */
   hideCompany?: boolean
+  /** 홈 '공고 더 보기'로 새로 붙은 첫 공고 (#more-n으로 내려와 잠깐 테두리) */
+  anchorId?: string
 }) {
   const full = approved >= job.headcount
   const when = dday(job, kstDate())
@@ -65,7 +68,14 @@ export default function JobCard({
   const showCount = shows(job, 'headcount') && !tbd
   const dayEst = job.pay_type !== 'daily' && job.hourly_wage > 0 && shows(job, 'estimate') ? estimateDay(job).gross : null
   return (
-    <Link href={`/jobs/${job.id}`} className="card-link block" transitionTypes={['nav-forward']} data-track={track}>
+    <Link
+      href={`/jobs/${job.id}`}
+      id={anchorId}
+      className={`card-link block${anchorId ? ' scroll-mt-24' : ''}`}
+      data-target-flash={anchorId ? '' : undefined}
+      transitionTypes={['nav-forward']}
+      data-track={track}
+    >
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {job.audience === 'expert' && <span className="badge bg-violet-50 text-violet-700">🎛️ 전문가 의뢰</span>}
         {when && <span className="badge bg-ink text-white">{when}</span>}
