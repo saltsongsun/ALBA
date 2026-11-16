@@ -13,6 +13,8 @@ export const ASK_CONFIRM = '지원했는데 확정 여부가 궁금해요.'
  * 관리자 문의 화면은 이 글로 시작하면 그 대금의 '계산서 받음' 버튼을 바로 보여 줌 (업체마다 계산서 받았는지 일일이 묻지 않게)
  */
 export const ASK_INVOICE = '세금계산서를 보냈어요.'
+/** 외주 업체: 지급일이 지난 대금 물어보기 (뒤에 대금 표시 · 지급 예정일) */
+export const ASK_PAYDUE = '대금 지급일이 지났어요. 확인 부탁드려요.'
 /** 위 문구 뒤에 붙는 대금 표시 ('개막식 음향 · 1,500,000원') */
 export const invoiceTag = (title: string, amountText: string) => `${title} · ${amountText}`
 
@@ -132,6 +134,7 @@ export function askTag(body: string): { label: string; urgent: boolean } | null 
   if (head.startsWith(SIGNAL.fix)) return { label: '기록 정정', urgent: false }
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
   if (head.startsWith(ASK_INVOICE)) return { label: '계산서', urgent: false }
+  if (head.startsWith(ASK_PAYDUE)) return { label: '대금 문의', urgent: false }
   return null
 }
 

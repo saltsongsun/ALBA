@@ -9,7 +9,7 @@ import { requireUser } from '@/lib/session'
 import { fmtDate, kstDate } from '@/lib/time'
 import { DUE_TONE, payDue } from '@/lib/due'
 import { db } from '@/lib/db'
-import { ASK_INVOICE, invoiceTag } from '@/lib/signals'
+import { ASK_INVOICE, ASK_PAYDUE, invoiceTag } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '견적 · 대금' }
 
@@ -25,10 +25,11 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
   const user = await requireUser('/pro/money')
   const sp = await props.searchParams
   const today = kstDate()
-  const [allQuotes, allPays, sentInvoice] = await Promise.all([
+  const [allQuotes, allPays, sent] = await Promise.all([
     partnerQuotes(user.id),
     partnerPayments(user.id),
     // '세금계산서를 보냈어요'를 이미 알린 대금 (회사|대금 표시) — 같은 알림을 또 보내지 않게 '알렸어요 · 확인 전'으로
+    // '대금 지급일이 지났어요'를 이미 물어본 대금 (회사|대금 표시 (지급 예정 날짜)) — '✓ 물어봄 ›'으로 (답은 그 회사 문의함에서 · 360px 한 줄에 들어가게 짧게)
     db()
       .from('messages')
       .select('company_id, body, from_admin')
@@ -39,9 +40,15 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
       .then(
         (r) =>
           new Set(
-            ((r.data ?? []) as { company_id: string; body: string; from_admin: boolean }[])
-              .filter((m) => !m.from_admin && m.body.startsWith(ASK_INVOICE))
-              .map((m) => `${m.company_id}|${m.body.slice(ASK_INVOICE.length).trim()}`),
+            ((r.data ?? []) as { company_id: string; body: string; from_admin: boolean }[]).flatMap((m) =>
+              m.from_admin
+                ? []
+                : m.body.startsWith(ASK_INVOICE)
+                  ? [`invoice|${m.company_id}|${m.body.slice(ASK_INVOICE.length).trim()}`]
+                  : m.body.startsWith(ASK_PAYDUE)
+                    ? [`paydue|${m.company_id}|${m.body.slice(ASK_PAYDUE.length).trim()}`]
+                    : [],
+            ),
           ),
         () => new Set<string>(),
       ),
@@ -180,12 +187,27 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
                     {/* 날짜 한 줄 · 계산서 한 줄 (한 줄에 이어 쓰면 360px에서 '필요'만 아래로 떨어져서) */}
                     <span className={`block truncate text-xs ${due.tone === 'late' ? 'font-semibold text-rose-600' : 'text-sub'}`}>
                       {p.paid_at ? `받은 날 ${fmtDate(p.paid_at.slice(0, 10))}` : p.due_date ? `지급 예정 ${fmtDate(p.due_date)}` : '지급일 협의 중'}
+                      {/* 지급일이 지났으면 그 회사 문의함으로 바로 (물어볼 글이 빠른 답장에 준비됨) · 물어본 뒤엔 답을 보러 */}
+                      {due.tone === 'late' && !p.paid_at && p.due_date && (
+                        <>
+                          {' · '}
+                          {sent.has(`paydue|${p.company_id}|${invoiceTag(p.title, won(p.amount))} (지급 예정 ${fmtDate(p.due_date)})`) ? (
+                            <Link href={`/me/chat?co=${p.company_id}`} className="tap font-normal text-sub" data-paydue-ask="asked">
+                              ✓ 물어봄 ›
+                            </Link>
+                          ) : (
+                            <Link href={`/me/chat?co=${p.company_id}&ask=paydue&pay=${p.id}`} className="tap underline-offset-2 hover:underline" data-paydue-ask="new">
+                              물어보기 ›
+                            </Link>
+                          )}
+                        </>
+                      )}
                     </span>
                     {p.invoice_at ? (
                       <span className="block truncate text-xs text-mute" data-invoice="in">
                         세금계산서 접수됨
                       </span>
-                    ) : sentInvoice.has(`${p.company_id}|${invoiceTag(p.title, won(p.amount))}`) ? (
+                    ) : sent.has(`invoice|${p.company_id}|${invoiceTag(p.title, won(p.amount))}`) ? (
                       // 보냈다고 알렸고 회사가 아직 '받음'을 누르기 전
                       <span className="block truncate text-xs text-sub" data-invoice="told">
                         ✓ 계산서 보냈다고 알렸어요 · 확인 전
@@ -194,10 +216,11 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
                       // 계산서를 보냈으면 그 회사 문의함으로 바로 (보낼 글이 빠른 답장에 준비됨 → 회사 화면엔 '계산서 받음' 버튼)
                       <Link
                         href={`/me/chat?co=${p.company_id}&ask=invoice&pay=${p.id}`}
-                        className="tap block truncate text-xs font-semibold text-amber-700"
+                        className="tap block truncate text-xs text-sub"
                         data-invoice="need"
                       >
-                        세금계산서 발행 필요 · 알리기 ›
+                        {/* 여러 줄에 같은 주황 문장이 되풀이되지 않게: 상태는 회색 · 할 일만 강조색 */}
+                        세금계산서 발행 필요 · <span className="font-semibold text-brand-600">알리기 ›</span>
                       </Link>
                     )}
                   </span>

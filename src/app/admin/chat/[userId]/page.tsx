@@ -18,7 +18,7 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
 import { markInvoice } from '@/app/actions/vendor'
 import { won } from '@/lib/format'
 import { paydayLabel } from '@/lib/payday'
@@ -40,6 +40,8 @@ function repliesFor(last: ChatMessage | undefined): string[] {
   if (head.startsWith('⚠️ 근무시간')) return ['알겠어요. 원래 시간에 마쳐 주세요.', '괜찮아요. 일정은 따로 상의해요.']
   if (head.startsWith('🕒 근무 종료 늦게 입력')) return ['확인했어요. 다음엔 근무 종료를 꼭 눌러 주세요.']
   if (head.startsWith(ASK_MISSED.slice(0, 20))) return ['출근 기록을 넣었어요. 확인해 주세요.', '몇 시에 도착했는지 알려 주세요.']
+  // 외주 업체 '대금 지급일이 지났어요' (지급일 지난 대금 물어보기)
+  if (head.startsWith(ASK_PAYDUE)) return ['확인해 보고 오늘 안에 알려 드릴게요.', '늦어서 죄송해요. 이번 주 안에 지급할게요.']
   // '지원했는데 확정 여부가 궁금해요' (곧 시작인데 아직 확정 전인 지원자)
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return ['확정했어요. 내 근무에서 확인해 주세요.', '검토 중이에요. 오늘 안에 알려 드릴게요.', '이번에는 인원이 다 찼어요. 다음에 꼭 함께해요.']
   return []
