@@ -792,3 +792,54 @@ export function QrSkeleton() {
     </div>
   )
 }
+
+/** 관리자 '서류' 메뉴: 제목 · 두 칸 탭 · 찾기 · 거르기 두 개 · 상태 칩 · PDF 받기 카드 · 공고별 묶음 (그려질 때 자리가 그대로) */
+export function AdminDocsSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="서류 불러오는 중" className="skeleton space-y-4" data-skeleton="admin-docs">
+      <div className={`h-8 w-16 ${bar}`} />
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-line/40 p-1">
+        <div className="h-9 rounded-xl bg-line/80" />
+        <div className="h-9 rounded-xl" />
+      </div>
+      <div className="h-11 rounded-2xl bg-line/60" />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="h-11 rounded-2xl bg-line/60" />
+        <div className="h-11 rounded-2xl bg-line/60" />
+      </div>
+      <div className="flex gap-2 overflow-hidden">
+        {['w-16', 'w-24', 'w-24'].map((w, i) => (
+          <div key={i} className={`h-9 ${w} shrink-0 rounded-full bg-line/70`} />
+        ))}
+      </div>
+      <div className="card flex items-center gap-3">
+        <div className="size-11 shrink-0 rounded-xl bg-line/70" />
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className={`h-4 w-24 ${bar}`} />
+          <div className={`h-3.5 w-36 ${bar}`} />
+        </div>
+        <div className="h-10 w-20 shrink-0 rounded-xl bg-line/70" />
+      </div>
+      {[3, 2].map((rows, g) => (
+        <div key={g} className="card space-y-0 overflow-hidden p-0">
+          <div className="flex items-center gap-3 px-4 py-3.5">
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className={`h-5 w-4/5 ${bar}`} />
+              <div className={`h-3.5 w-2/5 ${bar}`} />
+            </div>
+            <div className="h-9 w-16 shrink-0 rounded-full bg-line/60" />
+          </div>
+          {Array.from({ length: rows }, (_, i) => (
+            <div key={i} className="flex items-center gap-3 border-t border-line/70 px-4 py-3">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className={`h-4 w-32 ${bar}`} />
+                <div className={`h-3.5 w-28 ${bar}`} />
+              </div>
+              <div className="h-9 w-12 shrink-0 rounded-full bg-line/60" />
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}

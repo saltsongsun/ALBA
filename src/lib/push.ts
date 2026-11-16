@@ -1,7 +1,7 @@
 import 'server-only'
 import { createECDH, hkdfSync } from 'node:crypto'
 import webpush from 'web-push'
-import { db, must } from './db'
+import { byIds, db, must } from './db'
 
 // 휴대폰 알림(웹 푸시). 서명 키(VAPID)는 따로 비밀값을 두지 않고 SESSION_SECRET에서 매번 같은 값으로 만들어 씀
 // (SESSION_SECRET을 바꾸면 기존 알림 등록은 다시 해야 함)
@@ -55,12 +55,12 @@ export async function sendPush(userIds: string[], msg: PushMessage, opts: { opti
     if (!ids.length || !vapidKeys()) return
     if (opts.optional) ids = await allLevelOnly(ids)
     if (!ids.length) return
-    const subs = must(await db().from('push_subscriptions').select('id, endpoint, p256dh, auth').in('user_id', ids)) as {
-      id: string
-      endpoint: string
-      p256dh: string
-      auth: string
-    }[]
+    // 받을 사람이 많아도(새 모집 알림 등) 통째로 실패하지 않게 100명씩 나눠 물음
+    const subs = must(
+      await byIds<{ id: string; endpoint: string; p256dh: string; auth: string }>(ids, (part) =>
+        db().from('push_subscriptions').select('id, endpoint, p256dh, auth').in('user_id', part),
+      ),
+    )
     const gone: string[] = []
     const payload = JSON.stringify({ ...msg, body: msg.body.slice(0, 300) })
     await Promise.all(
@@ -73,7 +73,7 @@ export async function sendPush(userIds: string[], msg: PushMessage, opts: { opti
         }
       }),
     )
-    if (gone.length) await db().from('push_subscriptions').delete().in('id', gone)
+    if (gone.length) await byIds(gone, (part) => db().from('push_subscriptions').delete().in('id', part))
   } catch {
     // 알림 실패는 무시 (본래 작업은 이미 끝남)
   }

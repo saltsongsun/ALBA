@@ -6,7 +6,7 @@ import Flash from '@/components/Flash'
 import { ConfirmSubmit } from '@/components/ui'
 import { setCompanyVerified } from '@/app/actions/company'
 import { ago } from '@/lib/community'
-import { db } from '@/lib/db'
+import { allPages, db } from '@/lib/db'
 import { requireOpsOwner } from '@/lib/session'
 import { kstDate } from '@/lib/time'
 import { ROLE_LABEL, screenName } from '@/lib/usage'
@@ -72,11 +72,12 @@ export default async function OpsPage(props: PageProps<'/ops'>) {
     rows<Co>(db().from('companies').select('id, company_name, ceo_name, business_no, verified, active, created_at').order('created_at')),
     count(db().from('users').select('id', { count: 'exact', head: true }).eq('role', 'worker').eq('active', true)),
     rows<{ created_at: string; member_type: string | null }>(db().from('users').select('created_at, member_type').eq('role', 'worker').gte('created_at', since7).limit(5000)),
-    rows<{ company_id: string; created_at: string }>(db().from('applications').select('company_id, created_at').gte('created_at', since7).limit(20000)),
-    rows<{ company_id: string; work_date: string; user_id: string }>(db().from('attendance').select('company_id, work_date, user_id').gte('work_date', days[0]).limit(20000)),
+    // 1000줄이 넘으면 DB가 말없이 잘라서 끝까지 나눠 받음 (바쁜 주에 지원·근무 숫자가 적게 보이지 않게)
+    allPages<{ company_id: string; created_at: string }>((a, b) => db().from('applications').select('company_id, created_at').gte('created_at', since7).order('id').range(a, b)).catch(() => []),
+    allPages<{ company_id: string; work_date: string; user_id: string }>((a, b) => db().from('attendance').select('company_id, work_date, user_id').gte('work_date', days[0]).order('id').range(a, b)).catch(() => []),
     rows<{ company_id: string; end_date: string; status: string }>(db().from('jobs').select('company_id, end_date, status').eq('status', 'open').gte('end_date', today).limit(5000)),
     count(db().from('community_reports').select('id', { count: 'exact', head: true }).is('resolved_at', null)),
-    rows<Ev>(db().from('usage_events').select('session, role, path, kind, label, at').gte('at', since7).order('at', { ascending: false }).limit(50000)),
+    allPages<Ev>((a, b) => db().from('usage_events').select('session, role, path, kind, label, at').gte('at', since7).order('at', { ascending: false }).order('id', { ascending: false }).range(a, b)).catch(() => [] as Ev[]),
   ])
 
   // ── 회사 ── (사용 중인 회사만)

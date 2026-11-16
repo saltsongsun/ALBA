@@ -1,6 +1,6 @@
 import { chatText, forbidden, txtDownload } from '@/lib/chatExport'
 import { audit } from '@/lib/data'
-import { db } from '@/lib/db'
+import { allPages, byIds, db } from '@/lib/db'
 import { phoneFmt } from '@/lib/format'
 import { overLimit } from '@/lib/ratelimit'
 import { getUser, requireAdmin } from '@/lib/session'
@@ -15,17 +15,17 @@ export async function GET() {
   const admin = await requireAdmin()
   // 계정이 털려도 대화를 마구 빼 가지 못하게
   if (await overLimit(`chat-export:${admin.id}`, 20, 3600)) return new Response('내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.', { status: 429 })
-  const [{ data: m1 }, { data: m2 }] = await Promise.all([
-    db().from('messages').select('thread_user_id, from_admin, body, created_at, sender_id').eq('company_id', admin.companyId).order('created_at').limit(20000),
-    db().from('job_chat').select('job_id, from_admin, body, created_at, sender_id').eq('company_id', admin.companyId).order('created_at').limit(20000),
+  // 대화가 1000개를 넘어도 빠짐없이 (예전: 2만 개를 달라고 했지만 DB가 1000개에서 말없이 잘랐음) · 최대 5만 개씩
+  const [dms, rooms] = await Promise.all([
+    allPages<Msg>((a, b) => db().from('messages').select('thread_user_id, from_admin, body, created_at, sender_id').eq('company_id', admin.companyId).order('created_at').order('id').range(a, b)).catch(() => [] as Msg[]),
+    allPages<RoomMsg>((a, b) => db().from('job_chat').select('job_id, from_admin, body, created_at, sender_id').eq('company_id', admin.companyId).order('created_at').order('id').range(a, b)).catch(() => [] as RoomMsg[]),
   ])
-  const dms = (m1 ?? []) as Msg[]
-  const rooms = (m2 ?? []) as RoomMsg[]
   const userIds = [...new Set([...dms.map((m) => m.thread_user_id), ...dms.map((m) => m.sender_id), ...rooms.map((m) => m.sender_id)].filter((x): x is string => !!x))]
   const jobIds = [...new Set(rooms.map((m) => m.job_id))]
   const [{ data: users }, { data: jobs }] = await Promise.all([
-    userIds.length ? db().from('users').select('id, name, phone').in('id', userIds) : { data: [] },
-    jobIds.length ? db().from('jobs').select('id, title').in('id', jobIds) : { data: [] },
+    // 사람·방이 많아도 이름이 빠지지 않게 100개씩 나눠 물음
+    byIds(userIds, (ids) => db().from('users').select('id, name, phone').in('id', ids)),
+    byIds(jobIds, (ids) => db().from('jobs').select('id, title').in('id', ids)),
   ])
   const who = new Map(((users ?? []) as { id: string; name: string; phone: string }[]).map((u) => [u.id, u]))
   const title = new Map(((jobs ?? []) as { id: string; title: string }[]).map((j) => [j.id, j.title]))

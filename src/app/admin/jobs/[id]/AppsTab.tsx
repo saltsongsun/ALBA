@@ -20,7 +20,7 @@ import { APP_STATUS } from '@/components/JobCard'
 const adminLabel = (status: keyof typeof APP_STATUS) => (status === 'applied' ? '확정 대기' : APP_STATUS[status].label)
 import { scoresByUser, StarAvg } from '@/components/Stars'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { db, must } from '@/lib/db'
+import { allByIds, byIds, db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
 import { estimateDay, startedTodayOnly, workOver } from '@/lib/pay'
@@ -106,21 +106,18 @@ async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
   const ids = [...new Set(rows.map((r) => r.user_id))].filter((u) => !applied.has(u)).slice(0, 200)
   if (!ids.length) return []
   const [users, rel, ratings] = await Promise.all([
-    db()
-      .from('users')
-      // 레벨을 세려고 내 정보 채움 여부(계좌·비상연락처·주소·경력)도 받음 — 값은 화면에 넘기지 않음
-      .select('id, name, phone, photo_at, active, role, member_type, bank_account_enc, emergency_phone, address, careers')
-      .in('id', ids)
-      .then(
-        (r) =>
-          must(r) as ({ id: string; name: string; phone: string; active: boolean; role: string; member_type: string | null } & LevelUser)[],
-      ),
+    // 사람이 많아도 빠지지 않게 100명씩 나눠 물음
+    byIds<{ id: string; name: string; phone: string; active: boolean; role: string; member_type: string | null } & LevelUser>(ids, (part) =>
+      db()
+        .from('users')
+        // 레벨을 세려고 내 정보 채움 여부(계좌·비상연락처·주소·경력)도 받음 — 값은 화면에 넘기지 않음
+        .select('id, name, phone, photo_at, active, role, member_type, bank_account_enc, emergency_phone, address, careers')
+        .in('id', part),
+    ).then((r) => must(r)),
     reliabilityFor(job.company_id, ids),
-    db()
-      .from('worker_ratings')
-      .select('user_id, score').eq('company_id', job.company_id)
-      .in('user_id', ids)
-      .then((r) => must(r) as { user_id: string; score: number }[]),
+    allByIds<{ user_id: string; score: number }>(ids, (part, a, b) =>
+      db().from('worker_ratings').select('id, user_id, score').eq('company_id', job.company_id).in('user_id', part).order('id').range(a, b),
+    ),
   ])
   const scores = scoresByUser(ratings)
   const active = users.filter((u) => u.active && u.role === 'worker')
@@ -181,28 +178,24 @@ export default async function AppsTab({
   const relP = ids.length
     ? Promise.all([
         reliabilityFor(job.company_id, ids, job.id),
-        db()
-          .from('worker_ratings')
-          .select('user_id, score').eq('company_id', job.company_id)
-          .in('user_id', ids)
-          .then((r) => must(r) as { user_id: string; score: number }[]),
+        // 지원자가 많아도(수백 명) 빠지지 않게 100명씩 나눠 묻고, 1000줄이 넘으면 끝까지 나눠 받음
+        allByIds<{ user_id: string; score: number }>(ids, (part, a, b) =>
+          db().from('worker_ratings').select('id, user_id, score').eq('company_id', job.company_id).in('user_id', part).order('id').range(a, b),
+        ),
         // 같은 사람이 다른 행사에 확정된 근무 (같은 시간에 겹치면 표시)
-        db()
-          .from('applications')
-          .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)').eq('company_id', job.company_id)
-          .in('user_id', ids)
-          .eq('status', 'approved')
-          .neq('job_id', job.id)
-          .then(
-            (r) =>
-              must(r) as unknown as OtherApp[],
-          ),
+        allByIds<OtherApp>(ids, (part, a, b) =>
+          db()
+            .from('applications')
+            .select('id, user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+            .eq('company_id', job.company_id)
+            .in('user_id', part)
+            .eq('status', 'approved')
+            .neq('job_id', job.id)
+            .order('id')
+            .range(a, b),
+        ),
         // 시나리오: 지난번에 문제가 있던 사람이 또 지원 → 우리 회사 메모를 지원 카드에 (근무자에게는 안 보임)
-        db()
-          .from('company_worker_notes')
-          .select('user_id, memo')
-          .eq('company_id', job.company_id)
-          .in('user_id', ids)
+        byIds<{ user_id: string; memo: string | null }>(ids, (part) => db().from('company_worker_notes').select('user_id, memo').eq('company_id', job.company_id).in('user_id', part))
           .then(
             (r) => new Map(((r.data ?? []) as { user_id: string; memo: string | null }[]).filter((n) => n.memo?.trim()).map((n) => [n.user_id, n.memo!.trim()])),
             () => new Map<string, string>(),

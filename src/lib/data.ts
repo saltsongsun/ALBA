@@ -1,6 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
-import { db, must } from './db'
+import { allByIds, allPages, db, must } from './db'
 import { withWeeklyPay } from './weekly'
 import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
@@ -301,10 +301,11 @@ export async function otherCompaniesTodo(
  * 급여 지급을 빠뜨리지 않게 대시보드 '확인할 일'·지난 공고 목록에 표시
  */
 export async function unpaidByJob(companyId: string, today: string): Promise<Record<string, { title: string; n: number }>> {
+  // 1000줄이 넘으면 DB가 말없이 잘라서 끝까지 나눠 받음 (지급 안 한 사람이 빠지지 않게)
   const rows = (
-    must(
-      await db().from('attendance').select('job_id, user_id, clock_out, paid').eq('company_id', companyId).eq('paid', false).limit(3000),
-    ) as { job_id: string; user_id: string; clock_out: string | null; paid: boolean }[]
+    await allPages<{ job_id: string; user_id: string; clock_out: string | null; paid: boolean }>((a, b) =>
+      db().from('attendance').select('job_id, user_id, clock_out, paid').eq('company_id', companyId).eq('paid', false).order('id').range(a, b),
+    )
   ).filter((r) => !r.paid && r.clock_out)
   const ids = [...new Set(rows.map((r) => r.job_id))]
   if (!ids.length) return {}
@@ -340,9 +341,11 @@ export function wageTotal(job: Job, atts: Attendance[]): JobWage {
 /** 공고 목록용: 이 회사 공고들의 지급총액 (세전) · 실수령 · 지급 완료 금액 */
 export async function wageTotals(companyId: string, jobs: Job[]): Promise<Record<string, JobWage>> {
   if (!jobs.length) return {}
-  const raw = must(
-    await db().from('attendance').select('*').eq('company_id', companyId).in('job_id', jobs.map((j) => j.id)).limit(20000),
-  ) as Attendance[]
+  // 1000줄이 넘으면 DB가 말없이 잘라서 끝까지 나눠 받음 (큰 행사의 지급총액이 적게 보이지 않게 · 공고가 많으면 100개씩)
+  const raw = await allByIds<Attendance>(
+    jobs.map((j) => j.id),
+    (ids, a, b) => db().from('attendance').select('*').eq('company_id', companyId).in('job_id', ids).order('id').range(a, b),
+  )
   // 주휴수당도 함께 (정산 탭과 같은 금액)
   const atts = await withWeeklyPay(raw, companyId)
   return Object.fromEntries(jobs.map((j) => [j.id, wageTotal(j, atts)]))

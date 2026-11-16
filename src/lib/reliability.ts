@@ -1,5 +1,5 @@
 import 'server-only'
-import { db, must } from './db'
+import { allByIds, db } from './db'
 import { DISMISS_NOTE } from './signals'
 import { dateList, kstAt, kstDate } from './time'
 
@@ -19,32 +19,18 @@ export async function reliabilityFor(companyId: string, userIds: string[], excep
   if (!userIds.length) return out
   for (const u of userIds) out[u] = { days: 0, late: 0, noShow: 0, dismissed: 0 }
   const today = kstDate()
-  let attQ = db()
-    .from('attendance')
-    .select('user_id, job_id, work_date, clock_in, note, job:jobs(start_time)')
-    .eq('company_id', companyId)
-    .in('user_id', userIds)
-  let appQ = db()
-    .from('applications')
-    .select('user_id, job_id, available_dates, job:jobs(start_date, end_date)')
-    .eq('company_id', companyId)
-    .in('user_id', userIds)
-    .eq('status', 'approved')
-  if (exceptJobId) {
-    attQ = attQ.neq('job_id', exceptJobId)
-    appQ = appQ.neq('job_id', exceptJobId)
-  }
+  // 근무자가 많거나 기록이 쌓여도 빠짐없이: 100명씩 나눠 묻고, 1000줄이 넘으면 끝까지 나눠 받음 (지각·노쇼 숫자가 적게 보이지 않게)
   const [atts, apps] = await Promise.all([
-    attQ.then((r) => must(r) as unknown as { user_id: string; job_id: string; work_date: string; clock_in: string; note: string | null; job: { start_time: string } | null }[]),
-    appQ.then(
-      (r) =>
-        must(r) as unknown as {
-          user_id: string
-          job_id: string
-          available_dates: string[] | null
-          job: { start_date: string; end_date: string } | null
-        }[],
-    ),
+    allByIds<{ user_id: string; job_id: string; work_date: string; clock_in: string; note: string | null; job: { start_time: string } | null }>(userIds, (ids, a, b) => {
+      let q = db().from('attendance').select('id, user_id, job_id, work_date, clock_in, note, job:jobs(start_time)').eq('company_id', companyId).in('user_id', ids)
+      if (exceptJobId) q = q.neq('job_id', exceptJobId)
+      return q.order('id').range(a, b)
+    }),
+    allByIds<{ user_id: string; job_id: string; available_dates: string[] | null; job: { start_date: string; end_date: string } | null }>(userIds, (ids, a, b) => {
+      let q = db().from('applications').select('id, user_id, job_id, available_dates, job:jobs(start_date, end_date)').eq('company_id', companyId).in('user_id', ids).eq('status', 'approved')
+      if (exceptJobId) q = q.neq('job_id', exceptJobId)
+      return q.order('id').range(a, b)
+    }),
   ])
   const worked = new Set<string>()
   for (const a of atts) {
@@ -59,11 +45,11 @@ export async function reliabilityFor(companyId: string, userIds: string[], excep
   const pastApps = apps.filter((a) => a.job && a.job.start_date < today)
   const jobIds = [...new Set(pastApps.map((a) => a.job_id))]
   const tracked = new Set(
-    jobIds.length
-      ? (must(await db().from('attendance').select('job_id, work_date').in('job_id', jobIds)) as { job_id: string; work_date: string }[]).map(
-          (t) => `${t.job_id}|${t.work_date}`,
-        )
-      : [],
+    (
+      await allByIds<{ job_id: string; work_date: string }>(jobIds, (ids, a, b) =>
+        db().from('attendance').select('id, job_id, work_date').in('job_id', ids).order('id').range(a, b),
+      )
+    ).map((t) => `${t.job_id}|${t.work_date}`),
   )
   for (const a of pastApps) {
     for (const d of dateList(a.job!.start_date, a.job!.end_date)) {

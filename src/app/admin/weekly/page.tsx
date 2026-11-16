@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import LiveNumber from '@/components/LiveNumber'
-import { db } from '@/lib/db'
+import { byIds, db } from '@/lib/db'
 import { won } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
 import { dateList, fmtDate, kstDate } from '@/lib/time'
@@ -74,13 +74,10 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
     )
   ).flat()
   const userIds = [...new Set([...checks.map((c) => c.userId), ...extra.map((x) => x.uid)])]
-  const names = userIds.length
-    ? await db()
-        .from('users')
-        .select('id, name')
-        .in('id', userIds)
-        .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name])))
-    : new Map<string, string>()
+  // 사람이 많아도 이름이 빠지지 않게 100명씩 나눠 물음
+  const names = await byIds<{ id: string; name: string }>(userIds, (ids) => db().from('users').select('id, name').in('id', ids)).then(
+    (r) => new Map(r.data.map((u) => [u.id, u.name])),
+  )
 
   // 공고별: 이 주에 잡힌 날 · 확정 인원 · 예정대로 일했을 때 예상 지급액 (세전, 연장·야간·수당 포함, 주휴는 아래 따로)
   const jobRows = jobs.map((j) => {

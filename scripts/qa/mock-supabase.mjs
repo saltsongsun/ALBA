@@ -169,10 +169,27 @@ function filter(rows, params) {
 }
 
 let reqs = 0
+let maxRows = 0
+let maxUrl = 0
 let lat = LAT
 let bytes = 0
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x')
+  // 운영 DB 한도 흉내 (켤 때만 · 데이터가 쌓였을 때 빠지는 문제 확인용): /__limits?rows=1000&url=16384 · 끄기 /__limits
+  //   rows: 한 번에 돌려주는 줄 수 상한 (Supabase 기본 1000 — 넘는 줄은 말없이 잘림) · 나눠 받기(offset)도 그때만 따름
+  //   url: 주소 길이 상한 (넘으면 414 — 긴 id 목록을 한 번에 넣으면 앞단에서 거절됨)
+  if (url.pathname === '/__limits') {
+    maxRows = Number(url.searchParams.get('rows')) || 0
+    maxUrl = Number(url.searchParams.get('url')) || 0
+    res.end(JSON.stringify({ maxRows, maxUrl }))
+    return
+  }
+  if (maxUrl && req.url.length > maxUrl) {
+    reqs++
+    res.writeHead(414, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({ message: 'URI Too Long' }))
+    return
+  }
   // 테스트에서 느린 서버 흉내 (불러오는 중 화면 확인용): /__latency?ms=800
   if (url.pathname === '/__latency') {
     lat = Math.max(0, Number(url.searchParams.get('ms')) || 0)
@@ -264,7 +281,13 @@ const server = http.createServer(async (req, res) => {
     req.resume()
     return send(201, [])
   }
-  const out = rows.map((r) => project(r, url.searchParams.get('select')))
+  let out = rows.map((r) => project(r, url.searchParams.get('select')))
+  // 한도를 켰을 때만: 나눠 받기(offset·limit)를 따르고, 한 번에 maxRows줄까지만 (운영처럼 말없이 잘림)
+  if (maxRows && req.headers.accept?.includes('vnd.pgrst.object') !== true) {
+    const off = Number(url.searchParams.get('offset')) || 0
+    const lim = url.searchParams.has('offset') ? Number(url.searchParams.get('limit')) || maxRows : maxRows
+    out = out.slice(off, off + Math.min(lim, maxRows))
+  }
   if ((req.headers.accept ?? '').includes('vnd.pgrst.object')) {
     return out.length === 1 ? send(200, out[0]) : send(406, { code: 'PGRST116', message: 'not single' })
   }

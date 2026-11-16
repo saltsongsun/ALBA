@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Empty from '@/components/Empty'
-import { db } from '@/lib/db'
+import { allPages, db } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { AGE_BANDS, ageBand, GENDER_LABEL, ROLE_LABEL, screenName } from '@/lib/usage'
 
@@ -59,8 +59,12 @@ export default async function InsightsPage(props: { searchParams: Promise<Record
   const days = sp.d === '7' ? 7 : sp.d === '90' ? 90 : 30
   const dim: Dim = sp.dim === 'gender' || sp.dim === 'age' ? sp.dim : 'role'
   const since = new Date(Date.now() - days * 86_400_000).toISOString()
-  const { data } = await db().from('usage_events').select('session, role, gender, age_band, path, prev, kind, ms, depth, label, at').gte('at', since).order('at', { ascending: false }).limit(50000)
-  const ev = ((data ?? []) as Ev[]).filter((e) => e.at >= since)
+  // 기간 안의 기록을 빠짐없이 (예전: 한 번에 5만 줄을 달라고 했지만 DB가 1000줄에서 말없이 잘라 최근 몇 시간만 보였음) · 최대 5만 줄
+  const ev = (
+    await allPages<Ev>((a, b) =>
+      db().from('usage_events').select('session, role, gender, age_band, path, prev, kind, ms, depth, label, at').gte('at', since).order('at', { ascending: false }).order('id', { ascending: false }).range(a, b),
+    ).catch(() => [] as Ev[])
+  ).filter((e) => e.at >= since)
   const views = ev.filter((e) => e.kind === 'view')
   const leaves = ev.filter((e) => e.kind === 'leave' && e.ms)
   const acts = (kind: Ev['kind']) => ev.filter((e) => e.kind === kind && e.label)
@@ -170,13 +174,21 @@ export default async function InsightsPage(props: { searchParams: Promise<Record
   if (bigExit) hints.push({ tone: 'brand', text: `'${screenName(bigExit[0])}'을 본 뒤 앱을 닫는 경우가 ${pct(bigExit[1], screenTotals.get(bigExit[0]) ?? 1)}%로 가장 많아요` })
 
   // 단계: 이 기간에 지원한 근로자 → 확정 → 서명 → 출근 (성별·나이대별, 실제 기록 기준)
-  const { data: appsData } = await db().from('applications').select('user_id, job_id, status, created_at').gte('created_at', since).limit(20000)
-  const apps = ((appsData ?? []) as { user_id: string; job_id: string; status: string; created_at: string }[]).filter((a) => a.created_at >= since)
+  const apps = (
+    await allPages<{ user_id: string; job_id: string; status: string; created_at: string }>((a, b) =>
+      db().from('applications').select('user_id, job_id, status, created_at').gte('created_at', since).order('id').range(a, b),
+    ).catch(() => [])
+  ).filter((a) => a.created_at >= since)
   const appUsers = [...new Set(apps.map((a) => a.user_id))]
   const [people, signed, worked] = await Promise.all([
     inChunks(appUsers, (c) => db().from('users').select('id, gender, birth_date, role, member_type').in('id', c).then((r) => (r.data ?? []) as { id: string; gender: string | null; birth_date: string | null; role: string; member_type: string | null }[])),
-    inChunks(appUsers, (c) => db().from('signed_docs').select('user_id, job_id, status').in('user_id', c).eq('status', 'signed').then((r) => (r.data ?? []) as { user_id: string; job_id: string; status: string }[])),
-    inChunks(appUsers, (c) => db().from('attendance').select('user_id, job_id, clock_in').in('user_id', c).not('clock_in', 'is', null).then((r) => (r.data ?? []) as { user_id: string; job_id: string; clock_in: string | null }[])),
+    // 100명씩이어도 기록은 1000줄이 넘을 수 있어 끝까지 나눠 받음 (서명·출근 단계가 적게 보이지 않게)
+    inChunks(appUsers, (c) =>
+      allPages<{ user_id: string; job_id: string; status: string }>((a, b) => db().from('signed_docs').select('user_id, job_id, status').in('user_id', c).eq('status', 'signed').order('id').range(a, b)).catch(() => []),
+    ),
+    inChunks(appUsers, (c) =>
+      allPages<{ user_id: string; job_id: string; clock_in: string | null }>((a, b) => db().from('attendance').select('user_id, job_id, clock_in').in('user_id', c).not('clock_in', 'is', null).order('id').range(a, b)).catch(() => []),
+    ),
   ])
   const personOf = new Map(people.map((p) => [p.id, p]))
   const funnelDim: Dim = dim === 'role' ? 'gender' : dim

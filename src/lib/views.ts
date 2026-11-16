@@ -1,5 +1,5 @@
 import 'server-only'
-import { db, must } from './db'
+import { allByIds, db, must } from './db'
 
 /** 마지막으로 본 지 이 시간 안이면 '지금 보는 중' (공고 화면은 30초마다 신호를 보냄) */
 export const LIVE_SEC = 75
@@ -90,7 +90,10 @@ export async function viewStats(jobIds: string[]): Promise<Record<string, ViewSt
   const out: Record<string, ViewStats> = {}
   for (const id of jobIds) out[id] = { total: 0, members: 0, live: 0 }
   if (!jobIds.length) return out
-  const rows = must(await db().from('job_views').select('job_id, viewer, user_id, first_seen, last_seen').in('job_id', jobIds).limit(20000)) as ViewRow[]
+  // 많이 본 공고도 빠짐없이 (1000줄이 넘으면 DB가 말없이 잘라서 끝까지 나눠 받음 · 공고가 많으면 100개씩)
+  const rows = await allByIds<ViewRow>(jobIds, (ids, a, b) =>
+    db().from('job_views').select('job_id, viewer, user_id, first_seen, last_seen').in('job_id', ids).order('job_id').order('viewer').range(a, b),
+  )
   const byJob = new Map<string, ViewRow[]>()
   for (const r of rows) if (out[r.job_id]) byJob.set(r.job_id, [...(byJob.get(r.job_id) ?? []), r])
   const liveFrom = Date.now() - LIVE_SEC * 1000

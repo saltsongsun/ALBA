@@ -1,6 +1,6 @@
 import { decrypt } from '@/lib/crypto'
 import { audit } from '@/lib/data'
-import { db, must } from '@/lib/db'
+import { allPages, byIds, db, must } from '@/lib/db'
 import { calcDay, settle } from '@/lib/pay'
 import { monthlyRows, toCsv } from '@/lib/reports'
 import { withWeeklyPay } from '@/lib/weekly'
@@ -42,11 +42,12 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     // 주휴수당 (같은 회사 여러 공고를 합쳐 주마다 확인 · 정산 탭과 같은 금액)
     const atts = await withWeeklyPay(raw, job.company_id)
     const ids = [...new Set(atts.map((a) => a.user_id))]
-    const users = ids.length
-      ? (must(
-          await db().from('users').select('id, name, phone, birth_date, bank_name, bank_account_enc, account_holder').in('id', ids),
-        ) as Pick<UserRow, 'id' | 'name' | 'phone' | 'birth_date' | 'bank_name' | 'bank_account_enc' | 'account_holder'>[])
-      : []
+    // 근무자가 많아도 빠지지 않게 100명씩 나눠 물음
+    const users = must(
+      await byIds<Pick<UserRow, 'id' | 'name' | 'phone' | 'birth_date' | 'bank_name' | 'bank_account_enc' | 'account_holder'>>(ids, (part) =>
+        db().from('users').select('id, name, phone, birth_date, bank_name, bank_account_enc, account_holder').in('id', part),
+      ),
+    )
     const rows = users
       .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
       .map((u) => {
@@ -95,15 +96,18 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     // 이 회사에 지원한 근무자만 (다른 회사 관리자 계정이 근무자로 지원한 경우 포함 · 이 회사 관리자는 빼고)
     const [ids, memberRows] = await Promise.all([companyWorkerIds(admin.companyId), db().from('company_members').select('user_id').eq('company_id', admin.companyId)])
     const staff = new Set(((memberRows.data ?? []) as { user_id: string }[]).map((m) => m.user_id))
-    const users = ids.length
-      ? (
-          must(await db().from('users').select('id, name, gender, birth_date, phone, address, active, created_at').in('id', ids).order('name')) as Pick<
-            UserRow,
-            'id' | 'name' | 'gender' | 'birth_date' | 'phone' | 'address' | 'active' | 'created_at'
-          >[]
-        ).filter((u) => !staff.has(u.id))
-      : []
-    const atts = must(await db().from('attendance').select('user_id, job_id, work_date').eq('company_id', admin.companyId)) as Pick<Attendance, 'user_id' | 'job_id' | 'work_date'>[]
+    // 근무자가 많아도 빠지지 않게 100명씩 나눠 물음 (나눠 물으니 이름 순서는 받은 뒤 맞춤)
+    const users = must(
+      await byIds<Pick<UserRow, 'id' | 'name' | 'gender' | 'birth_date' | 'phone' | 'address' | 'active' | 'created_at'>>(ids, (part) =>
+        db().from('users').select('id, name, gender, birth_date, phone, address, active, created_at').in('id', part),
+      ),
+    )
+      .filter((u) => !staff.has(u.id))
+      .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    // 출퇴근 기록은 1000줄이 넘으면 말없이 잘려서 끝까지 나눠 받음 (근무일수가 줄어 보이지 않게)
+    const atts = await allPages<Pick<Attendance, 'user_id' | 'job_id' | 'work_date'>>((a, b) =>
+      db().from('attendance').select('user_id, job_id, work_date').eq('company_id', admin.companyId).order('id').range(a, b),
+    )
     const rows = users.map((u) => {
       const mine = atts.filter((a) => a.user_id === u.id).map((a) => a.work_date).sort()
       return [

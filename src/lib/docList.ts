@@ -1,6 +1,6 @@
 import 'server-only'
 import { getJob, getSettings } from './data'
-import { db } from './db'
+import { byIds, db } from './db'
 import { buildDocVars, renderTemplate, type DocPerson } from './docs'
 import type { PdfDoc } from './docPdf'
 import { phoneFmt } from './format'
@@ -59,9 +59,10 @@ export async function companyDocs(companyId: string, f: DocFilter): Promise<{ ro
   const docs = ((data ?? []) as (DocRow & { company_id: string })[]).filter((d) => d.company_id === companyId && (!f.job || d.job_id === f.job))
   const userIds = [...new Set(docs.map((d) => d.user_id))]
   const jobIds = [...new Set(docs.map((d) => d.job_id))]
+  // 사람·공고가 많아도 이름이 빠지지 않게 100개씩 나눠 물음 (한 번에 수백 개면 주소가 너무 길어 거절됨)
   const [{ data: users }, { data: jobs }] = await Promise.all([
-    userIds.length ? db().from('users').select('id, name, phone').in('id', userIds) : { data: [] },
-    jobIds.length ? db().from('jobs').select('id, title, start_date, end_date, company_id').in('id', jobIds).eq('company_id', companyId) : { data: [] },
+    byIds<{ id: string; name: string; phone: string }>(userIds, (ids) => db().from('users').select('id, name, phone').in('id', ids)),
+    byIds<DocRow['job'] & { company_id: string }>(jobIds, (ids) => db().from('jobs').select('id, title, start_date, end_date, company_id').in('id', ids).eq('company_id', companyId)),
   ])
   const userOf = new Map(((users ?? []) as { id: string; name: string; phone: string }[]).map((u) => [u.id, u]))
   const jobOf = new Map(((jobs ?? []) as (DocRow['job'] & { company_id: string })[]).filter((j) => j!.company_id === companyId).map((j) => [j!.id, j]))

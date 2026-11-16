@@ -1,5 +1,5 @@
 import 'server-only'
-import { db } from './db'
+import { allPages, db } from './db'
 import { kstAt } from './time'
 import { computeXp, shiftFacts, type XpState } from './xp'
 
@@ -26,33 +26,8 @@ type Att = {
 }
 
 const CHUNK = 100 // 한 번에 묻는 사람 수 (주소가 너무 길어지지 않게)
-const PAGE = 1000 // 한 번에 받는 줄 수 (Supabase 기본 상한)
-
-const BATCH = 4 // 기록이 많을 때 한 번에 함께 받는 쪽 수
-
-/**
- * 상한(1000줄)에 걸려 잘리지 않게 끝까지 나눠 받기.
- * 첫 쪽이 꽉 차면 다음 쪽들은 몇 개씩 한꺼번에 받음 (예전: 한 쪽씩 차례로 기다려서 기록이 쌓일수록 느려졌음)
- */
-async function all<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown }>): Promise<T[]> {
-  const first = ((await page(0, PAGE - 1)).data ?? []) as T[]
-  const out: T[] = [...first]
-  if (first.length < PAGE) return out
-  for (let from = PAGE; from < 50 * PAGE; from += BATCH * PAGE) {
-    const pages = await Promise.all(Array.from({ length: BATCH }, (_, i) => page(from + i * PAGE, from + (i + 1) * PAGE - 1)))
-    let last = false
-    for (const { data } of pages) {
-      const rows = (data ?? []) as T[]
-      out.push(...rows)
-      if (rows.length < PAGE) {
-        last = true
-        break
-      }
-    }
-    if (last) break
-  }
-  return out
-}
+/** 예전처럼 못 읽은 쪽은 빈 것으로 (레벨은 덤 · 화면을 막지 않게) */
+const all = <T,>(page: (from: number, to: number) => PromiseLike<{ data: unknown; error?: { message: string } | null }>) => allPages<T>(page).catch(() => [] as T[])
 
 const chunks = (ids: string[]) => Array.from({ length: Math.ceil(ids.length / CHUNK) }, (_, i) => ids.slice(i * CHUNK, (i + 1) * CHUNK))
 

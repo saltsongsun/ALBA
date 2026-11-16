@@ -1,5 +1,5 @@
 import 'server-only'
-import { db } from './db'
+import { allPages, db } from './db'
 import { calcDay, scheduledEnd, shiftOf, type PayRule } from './pay'
 import { dateList, kstAt } from './time'
 import type { Job } from './types'
@@ -220,26 +220,50 @@ type WeekData = { ws: string; we: string; apps: WeekApp[]; atts: WeekAtt[]; jobs
 async function loadWeekData(companyId: string, from: string, to: string, userIds?: string[]): Promise<WeekData> {
   const ws = weekStart(from)
   const we = addDays(weekStart(to), 6)
-  let appsQ = db()
-    .from('applications')
-    .select(`user_id, job_id, available_dates, status, job:jobs(${JOB_COLS})`)
-    .eq('company_id', companyId)
-    .eq('status', 'approved')
-  let attsQ = db()
-    .from('attendance')
-    .select('id, user_id, job_id, work_date, clock_in, clock_out, adj_out, sched_start, sched_end')
-    .eq('company_id', companyId)
-    .gte('work_date', ws)
-    .lte('work_date', we)
-  if (userIds) {
-    appsQ = appsQ.in('user_id', userIds)
-    attsQ = attsQ.in('user_id', userIds)
-  }
-  const [{ data: appRows }, { data: attRows }] = await Promise.all([appsQ.limit(5000), attsQ.limit(20000)])
-  const apps = ((appRows ?? []) as unknown as WeekApp[]).filter(
+  // 빠짐없이 읽기 (주휴 규칙은 그대로 · 읽는 방법만 바꿈):
+  // 예전엔 이 회사의 모든 확정 지원을 한 번에 읽어서, 1000줄이 넘으면 DB가 말없이 잘라 그 주 확정이 빠질 수 있었음.
+  // 이제 그 주에 걸친 공고만 먼저 고르고 그 공고들의 확정만 읽음 · 출퇴근도 1000줄이 넘으면 끝까지 나눠 받음 · 사람이 많으면 100명씩
+  const by100 = (ids: string[]) => Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, (i + 1) * 100))
+  const groups: (string[] | undefined)[] = userIds ? by100(userIds) : [undefined]
+  const attsOf = (ids?: string[]) =>
+    allPages<WeekAtt>((a, b) => {
+      let q = db()
+        .from('attendance')
+        .select('id, user_id, job_id, work_date, clock_in, clock_out, adj_out, sched_start, sched_end')
+        .eq('company_id', companyId)
+        .gte('work_date', ws)
+        .lte('work_date', we)
+      if (ids) q = q.in('user_id', ids)
+      return q.order('id').range(a, b)
+    })
+  // 못 읽으면 예전처럼 빈 것으로 (화면을 막지 않음)
+  const [jobRows, attRows] = await Promise.all([
+    allPages<WeekJob>((a, b) => db().from('jobs').select(JOB_COLS).eq('company_id', companyId).lte('start_date', we).gte('end_date', ws).order('id').range(a, b)).catch(
+      () => [] as WeekJob[],
+    ),
+    Promise.all(groups.map((g) => attsOf(g))).then((r) => r.flat(), () => [] as WeekAtt[]),
+  ])
+  const winJobs = new Map(jobRows.filter((j) => j.company_id === companyId && j.start_date <= we && j.end_date >= ws).map((j) => [j.id, j]))
+  const appRows = winJobs.size
+    ? await Promise.all(
+        by100([...winJobs.keys()]).flatMap((jids) =>
+          groups.map((g) =>
+            allPages<Omit<WeekApp, 'job'>>((a, b) => {
+              let q = db().from('applications').select('id, user_id, job_id, available_dates, status').eq('company_id', companyId).eq('status', 'approved').in('job_id', jids)
+              if (g) q = q.in('user_id', g)
+              return q.order('id').range(a, b)
+            }),
+          ),
+        ),
+      ).then(
+        (r) => r.flat().map((a): WeekApp => ({ ...a, job: winJobs.get(a.job_id) ?? null })),
+        () => [] as WeekApp[],
+      )
+    : []
+  const apps = appRows.filter(
     (a) => a.status === 'approved' && !!a.job && a.job.company_id === companyId && a.job.start_date <= we && a.job.end_date >= ws && (!userIds || userIds.includes(a.user_id)),
   )
-  const atts = ((attRows ?? []) as WeekAtt[]).filter((a) => a.work_date >= ws && a.work_date <= we && (!userIds || userIds.includes(a.user_id)))
+  const atts = attRows.filter((a) => a.work_date >= ws && a.work_date <= we && (!userIds || userIds.includes(a.user_id)))
   const jobs = new Map(apps.map((a) => [a.job!.id, a.job!]))
   // 기록만 있고 지원(확정)이 없는 공고도 (관리자가 직접 넣은 기록 등)
   const missingJobs = [...new Set(atts.map((a) => a.job_id).filter((id) => !jobs.has(id)))]
