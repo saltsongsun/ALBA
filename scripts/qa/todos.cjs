@@ -21,6 +21,8 @@ const errs = []
   const a = await pg(D)
   // (새 문의도 할 일에 들어가므로, 처음 들어 있는 근무자 문의를 읽은 것으로)
   await send(MD, 'messages?from_admin=eq.false', 'PATCH', { read_at: new Date().toISOString() })
+  // (오늘 근무인데 서명 안 한 확정자도 할 일에 들어가므로 — 묶음 271 — 서명 전 서류를 서명한 것으로)
+  await send(MD, 'signed_docs?status=eq.pending', 'PATCH', { status: 'signed', signed_at: new Date().toISOString() })
   await a.goto(`${D}/admin`)
   ok('할 일이 없으면 카드 없음', (await a.getByText('확인할 일').count()) === 0)
   // 어제 근무인데 종료 안 누름 + 연장 확인 요청 + 시간 변경 답 대기 + 종이 계약서 미수령
