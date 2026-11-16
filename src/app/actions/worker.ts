@@ -16,7 +16,7 @@ import { parseCareers } from '@/lib/careers'
 import { EMERGENCY_MEMO, joinOk } from '@/lib/emergency'
 import { note, overLimit, recent } from '@/lib/ratelimit'
 import { agreedShiftFor, applyAgreedShift, changeWord, span } from '@/lib/shift'
-import { comingBody, FULL_TIME_MARK, fixTime, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { comingBody, FIX_DAYS, fixDayTag, FULL_TIME_MARK, fixTime, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { adminCompanies, clientInfo, createSession, destroySession, requireUser } from '@/lib/session'
 import { ageOn, dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, DocTemplate, Job, ShiftChange, SignedDoc, UserRow } from '@/lib/types'
@@ -404,8 +404,12 @@ export async function clockOut(attendanceId: string, lat: number | null, lng: nu
   return { ok: '근무를 종료했어요. 수고하셨습니다!' }
 }
 
+/** 정정 요청을 받는 가장 이른 근무 날 (오늘 포함 FIX_DAYS일) */
+const fixOldest = () => kstDate(new Date(Date.now() - (FIX_DAYS - 1) * 86_400_000))
+
 /**
- * 오늘 기록된 출근·종료 시각이 틀렸을 때 (종료를 실수로 일찍 누름 등): 담당자에게 정정 요청.
+ * 최근 며칠(FIX_DAYS) 근무에 기록된 출근·종료 시각이 틀렸을 때 (종료를 실수로 일찍 누름 등): 담당자에게 정정 요청.
+ * 지난 근무는 '지난 근무' 화면의 날짜별 기록에서 · 담당자는 문의 대화에서 한 번에 고치거나 그대로 둠
  * 담당자가 출퇴근 탭에서 한 번에 고치거나 그대로 둠 (근무자가 직접 고치지는 않음)
  */
 export async function requestFix(attendanceId: string, _: FormState, form: FormData): Promise<FormState> {
@@ -426,7 +430,8 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
       })
     | null
   if (!att || att.user_id !== user.id || !att.job) return { error: '근무 기록을 찾을 수 없습니다.' }
-  if (att.work_date !== kstDate()) return { error: '오늘 근무만 여기서 요청할 수 있어요. 지난 근무는 문의함으로 알려 주세요.' }
+  // 최근 며칠 근무까지 (지난 근무도 담당자가 대화에서 한 번에 고칠 수 있게 · 그 전 근무는 문의함으로)
+  if (att.work_date > kstDate() || att.work_date < fixOldest()) return { error: `최근 ${FIX_DAYS}일 근무만 여기서 요청할 수 있어요. 그 전 근무는 문의함으로 알려 주세요.` }
   if (!att.clock_out) return { error: '근무를 종료한 뒤에 요청할 수 있어요.' }
   if (att.paid) return { error: '이미 급여가 지급된 기록이에요. 문의함으로 알려 주세요.' }
   const curIn = new Date(att.adj_in ?? att.clock_in)
@@ -444,8 +449,8 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
     .eq('from_admin', false)
     .gte('created_at', kstAt(att.work_date, '00:00').toISOString())
     .limit(50)
-  const asked = ((sent ?? []) as { body: string; created_at: string }[]).filter((m) => kstDate(m.created_at) === att.work_date && signalOf(m.body) === 'fix')
-  if (asked.length >= 3) return { error: '오늘은 이미 여러 번 요청했어요. 담당자에게 전화해 주세요.' }
+  const asked = ((sent ?? []) as { body: string; created_at: string }[]).filter((m) => signalOf(m.body) === 'fix' && m.body.includes(fixDayTag(att.work_date)))
+  if (asked.length >= 3) return { error: '이날 근무는 이미 여러 번 요청했어요. 담당자에게 전화해 주세요.' }
 
   const word = field === 'in' ? '출근' : '종료'
   const body = [
@@ -468,6 +473,7 @@ export async function requestFix(attendanceId: string, _: FormState, form: FormD
     }),
   )
   revalidatePath('/me')
+  revalidatePath('/me/history')
   revalidatePath('/admin/chat')
   revalidatePath(`/admin/jobs/${jobId}`)
   return { ok: `담당자에게 ${word} ${time}(으)로 정정을 요청했어요. 고쳐지면 알려 드려요.` }

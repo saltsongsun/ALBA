@@ -632,8 +632,11 @@ export function FixRequest({
   inText,
   outText,
   sent,
+  compact = false,
 }: {
   attendanceId: string
+  /** 지난 근무 화면의 날짜별 줄 안: 작은 글자 링크 ('이날 기록 정정 요청') */
+  compact?: boolean
   /** 근무 날 (YYYY-MM-DD) · 지금 기록된 출근·종료 (ISO) — 고른 시각을 서버와 같은 방식으로 바로 확인 */
   workDate: string
   inAt: string
@@ -664,10 +667,11 @@ export function FixRequest({
   return (
     <div className="space-y-2">
       {done ? (
-        <p className="rounded-xl bg-violet-50 px-3.5 py-2.5 text-sm font-semibold text-violet-800">✏️ {done}</p>
+        <p className={`animate-pop bg-violet-50 font-semibold text-violet-800 ${compact ? 'rounded-lg px-2.5 py-1.5 text-xs' : 'rounded-xl px-3.5 py-2.5 text-sm'}`}>✏️ {done}</p>
       ) : (
         sent && (
-          <p className="rounded-xl bg-violet-50 px-3.5 py-2.5 text-sm text-violet-900">
+          // 날짜별 줄 안에서는 작게 (목록이 무거워지지 않게)
+          <p className={`bg-violet-50 text-violet-900 ${compact ? 'rounded-lg px-2.5 py-1.5 text-xs' : 'rounded-xl px-3.5 py-2.5 text-sm'}`}>
             ✏️ {sent.at}에 <b>실제 {sent.field === 'in' ? '출근' : '종료'} {sent.time}</b>(으)로 정정을 요청했어요 · 담당자 확인 중
           </p>
         )
@@ -679,9 +683,10 @@ export function FixRequest({
             setOpen(true)
             setTime(field === 'in' ? inText : outText)
           }}
-          className="w-full text-center text-sm font-semibold text-sub underline underline-offset-4"
+          className={compact ? 'tap text-xs font-semibold text-brand-600' : 'w-full text-center text-sm font-semibold text-sub underline underline-offset-4'}
+          data-fix-open
         >
-          {sent || done ? '다시 요청하기' : '시각이 잘못 찍혔나요? 정정 요청'}
+          {sent || done ? '다시 요청하기' : compact ? '이날 기록 정정 요청' : '시각이 잘못 찍혔나요? 정정 요청'}
         </button>
       ) : (
         <form action={action} onReset={keepInputs} className="animate-pop space-y-3 rounded-xl bg-bg p-3.5">
@@ -724,13 +729,13 @@ export function FixRequest({
               onInput={(e) => setTime(e.currentTarget.value)}
               required
               aria-invalid={fixHint?.warn ? true : undefined}
-              aria-describedby="fix-hint"
+              aria-describedby={`fix-hint-${attendanceId}`}
               className={`input bg-white ${fixHint?.warn ? 'border-amber-400 ring-2 ring-amber-200' : ''}`}
             />
           </label>
           {fixHint && (
             <p
-              id="fix-hint"
+              id={`fix-hint-${attendanceId}`}
               className={`-mt-1.5 text-xs ${fixHint.warn ? 'font-semibold text-amber-700' : 'text-mute'}`}
               data-fix-hint={fixHint.warn ? 'warn' : 'note'}
               role="status"

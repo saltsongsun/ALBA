@@ -169,16 +169,36 @@ export function parseFix(body: string): { field: 'in' | 'out'; time: string } | 
   return m ? { field: m[1] === '출근' ? 'in' : 'out', time: m[2] } : null
 }
 
+/** 기록 정정 요청은 최근 며칠 근무까지 보낼 수 있음 (오늘 포함 · 지급 전 · 종료 기록이 있는 날) */
+export const FIX_DAYS = 3
+/** 정정 요청 본문의 근무 날 줄 ('공고 · 11/14(토) 근무') — 어느 날 근무에 대한 요청인지 이 글자로 찾음 */
+export const fixDayTag = (date: string) => `· ${fmtDate(date)} 근무`
+
+/**
+ * 정정 요청이 어느 날 근무에 대한 것인지 (본문의 'M/D(요일) 근무' · 연도는 보낸 날에 맞춤, 연말·연초 넘어가는 것 고려).
+ * 못 찾으면 보낸 날
+ */
+export function fixDateOf(body: string, sentAt: string): string {
+  const sent = kstDate(sentAt)
+  const x = body.match(/· (\d{1,2})\/(\d{1,2})\([^)]*\) 근무/)
+  if (!x) return sent
+  const mo = Number(x[1])
+  const sentMo = Number(sent.slice(5, 7))
+  const y = Number(sent.slice(0, 4)) + (mo > sentMo + 6 ? -1 : mo < sentMo - 6 ? 1 : 0)
+  return `${y}-${String(mo).padStart(2, '0')}-${String(Number(x[2])).padStart(2, '0')}`
+}
+
 /**
  * 그날(date) 근무에 대해 아직 답하지 않은 정정 요청 (가장 최근 것).
- * 그 뒤에 담당자가 이날 근무에 대해 고침·그대로 둠으로 답했으면 없음
+ * 그 뒤에 담당자가 이날 근무에 대해 고침·그대로 둠으로 답했으면 없음.
+ * 요청은 본문의 근무 날로 찾음 (지난 근무를 다음 날 요청해도 그날 근무의 요청)
  */
 export function pendingFix<T extends { body: string; created_at: string; from_admin: boolean }>(msgs: T[], date: string): T | null {
   const day = fmtDate(date)
   for (const m of [...msgs].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
     const kind = signalOf(m.body)
     if (m.from_admin && (kind === 'fixDone' || kind === 'fixNo') && m.body.includes(day)) return null
-    if (!m.from_admin && kind === 'fix' && kstDate(m.created_at) === date && parseFix(m.body)) return m
+    if (!m.from_admin && kind === 'fix' && fixDateOf(m.body, m.created_at) === date && parseFix(m.body)) return m
   }
   return null
 }

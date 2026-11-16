@@ -12,7 +12,8 @@ import type { Attendance, Job, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { canWrite, myReviewedJobs } from '@/lib/community'
 import { paydayLabel } from '@/lib/payday'
-import { parsePayday, SIGNAL } from '@/lib/signals'
+import { FIX_DAYS, parseFix, parsePayday, pendingFix, SIGNAL } from '@/lib/signals'
+import { FixRequest } from '@/components/worker'
 
 export const metadata: Metadata = { title: '지난 근무' }
 
@@ -46,6 +47,21 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     // 후기를 이미 쓴 공고 (못 읽어도 화면은 그대로)
     myReviewedJobs(user.id).catch(() => new Set<string>()),
   ])
+  // 최근 며칠 근무의 기록 정정 요청과 그 답 (날짜별 기록에서 이미 보낸 요청은 '담당자 확인 중'으로)
+  const today = kstDate()
+  const fixFrom = kstDate(new Date(Date.now() - (FIX_DAYS - 1) * 86_400_000))
+  const fixMsgsP = db()
+    .from('messages')
+    .select('job_id, body, created_at, from_admin')
+    .eq('thread_user_id', user.id)
+    .like('body', '%기록 정정%')
+    .gte('created_at', new Date(Date.now() - FIX_DAYS * 86_400_000).toISOString())
+    .order('created_at', { ascending: false })
+    .limit(100)
+    .then(
+      (r) => (r.data ?? []) as { job_id: string | null; body: string; created_at: string; from_admin: boolean }[],
+      () => [],
+    )
   // 담당자가 알린 정산 예정일 (공고별 마지막 안내) · 못 읽으면 공고의 지급일 글자로
   const paydayMsgs = await db()
     .from('messages')
@@ -60,6 +76,16 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
       () => [],
     )
   const told = new Map<string, string>()
+  // 이날 보낸 정정 요청 중 담당자가 아직 답하지 않은 것 (공고 · 근무 날)
+  const fixMsgs = await fixMsgsP
+  const fixSentOf = (jobId: string, date: string) => {
+    const req = pendingFix(
+      fixMsgs.filter((m) => m.job_id === jobId),
+      date,
+    )
+    const f = req && parseFix(req.body)
+    return req && f ? { ...f, at: kstTime(req.created_at) } : null
+  }
   for (const m of paydayMsgs) {
     const label = parsePayday(m.body)
     if (m.job_id && label && !told.has(m.job_id)) told.set(m.job_id, label)
@@ -102,6 +128,11 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
           out: t.end ? kstTime(t.end) : '',
           paidMin: calcDay(job, r).paidMin,
           live: !t.end && r.work_date === kstDate(),
+          // 지난 며칠 근무(오늘은 '내 근무'에서)이고 종료 기록이 있고 지급 전이면: 이 줄에서 바로 정정 요청
+          fix:
+            t.end && !r.paid && r.work_date >= fixFrom && r.work_date < today
+              ? { inAt: t.start.toISOString(), outAt: t.end.toISOString(), sent: fixSentOf(job.id, r.work_date) }
+              : null,
         }
       }),
   }))
@@ -387,17 +418,21 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                       <summary className="tap cursor-pointer text-xs font-semibold text-sub">날짜별 기록 {days.length}일</summary>
                       <ul className="mt-1.5 space-y-1 text-[13px] tabular-nums">
                         {days.map((d) => (
-                          <li key={d.id} className="flex items-baseline justify-between gap-3">
-                            <span className="min-w-0 truncate">
-                              <b className="font-semibold">{fmtDate(d.date)}</b>
-                              <span className="text-sub">
-                                {' '}
-                                {d.in}~{d.out}
+                          <li key={d.id} className="space-y-1" data-history-day={d.date}>
+                            <div className="flex items-baseline justify-between gap-3">
+                              <span className="min-w-0 truncate">
+                                <b className="font-semibold">{fmtDate(d.date)}</b>
+                                <span className="text-sub">
+                                  {' '}
+                                  {d.in}~{d.out}
+                                </span>
                               </span>
-                            </span>
-                            <span className={`shrink-0 font-semibold ${d.live ? 'text-emerald-600' : d.out ? '' : 'text-amber-600'}`}>
-                              {d.live ? '오늘 근무 중' : d.out ? minutesText(d.paidMin) : '종료 기록 없음'}
-                            </span>
+                              <span className={`shrink-0 font-semibold ${d.live ? 'text-emerald-600' : d.out ? '' : 'text-amber-600'}`}>
+                                {d.live ? '오늘 근무 중' : d.out ? minutesText(d.paidMin) : '종료 기록 없음'}
+                              </span>
+                            </div>
+                            {/* 지난 며칠 근무: 시각이 틀렸으면 여기서 바로 정정 요청 (담당자가 문의 대화에서 한 번에 고침) */}
+                            {d.fix && <FixRequest attendanceId={d.id} workDate={d.date} inAt={d.fix.inAt} outAt={d.fix.outAt} inText={d.in} outText={d.out} sent={d.fix.sent} compact />}
                           </li>
                         ))}
                       </ul>

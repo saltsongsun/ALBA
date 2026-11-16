@@ -26,7 +26,7 @@ import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, no
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
-import { isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
@@ -305,6 +305,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
   // 오늘 행사의 미출근: 오늘 근무하기로 한 확정자 중 출근 기록이 없는 사람 (시작 시각이 지난 행사만 표시)
   const todayIds = todayJobs.map((j) => j.id)
+  // 기록 정정 요청을 받는 가장 이른 근무 날 (근무자 쪽과 같게 오늘 포함 FIX_DAYS일)
+  const fixFrom = kstDate(new Date(Date.now() - (FIX_DAYS - 1) * 86_400_000))
   const todayP = todayIds.length
     ? Promise.all([
         db()
@@ -464,20 +466,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           return { today: todayRows, tomorrow: unsigned.filter((a) => !todayRows.includes(a) && works(a, tomorrow)) }
         })
       : { today: [], tomorrow: [] },
-    // 오늘 근무자가 보낸 기록 정정 요청과 그 답 (답하지 않은 것만 셈)
-    todayIds.length
-      ? db()
-          .from('messages')
-          .select('thread_user_id, job_id, body, created_at, from_admin').eq('company_id', admin.companyId)
-          .in('job_id', todayIds)
-          .gte('created_at', kstAt(today, '00:00').toISOString())
-          .limit(500)
-          .then((r) =>
-            (must(r) as { thread_user_id: string; job_id: string; body: string; created_at: string; from_admin: boolean }[]).filter((m) =>
-              ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''),
-            ),
-          )
-      : [],
+    // 최근 며칠 근무에 대한 기록 정정 요청과 그 답 (답하지 않은 것만 셈 · 지난 근무를 다음 날 요청할 수 있어서 며칠 치)
+    db()
+      .from('messages')
+      .select('thread_user_id, job_id, body, created_at, from_admin').eq('company_id', admin.companyId)
+      .not('job_id', 'is', null)
+      .like('body', '%기록 정정%')
+      .gte('created_at', kstAt(fixFrom, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(500)
+      .then((r) =>
+        (must(r) as { thread_user_id: string; job_id: string; body: string; created_at: string; from_admin: boolean }[]).filter((m) =>
+          ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''),
+        ),
+      ),
     // 끝난 행사인데 아직 '지급 완료'로 처리하지 않은 근무자 (급여 지급을 빠뜨리지 않게)
     unpaidByJob(admin.companyId, today),
   ])])
@@ -501,8 +503,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       ? ((((await db().from('users').select('id, name, phone').in('id', callIds)).data ?? []) as { id: string; name: string; phone: string | null }[]).map((u) => [u.id, u]))
       : [],
   )
-  const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}`)
-    .map((g) => pendingFix(g, today))
+  // 공고 · 사람 · 근무 날마다 아직 답하지 않은 요청
+  const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}|${fixDateOf(m.body, m.created_at)}`)
+    .map((g) => pendingFix(g, fixDateOf(g[0].body, g[0].created_at)))
     .filter((m) => m !== null)
   // notify: 줄 오른쪽에 바로 '미선발 알림' (끝난 행사의 대기 지원자 · 그 공고 id)
   // sub: 아래 작은 줄 (줄 글자가 잘려도 어떤 공고인지 보이게 공고 이름을 위로)
@@ -543,15 +546,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
       tone: 'text-brand-700',
     })),
-    ...group(fixWait, (m) => m.job_id).map((g) => ({
-      key: `fix-${g[0].job_id}`,
-      icon: 'pen' as const,
-      // 일찍 끝났지만 근로조건대로 인정해 달라는 요청은 '시간 인정 요청'으로
-      text: `${g.every((m) => isFullTimeAsk(m.body)) ? '시간 인정 요청' : g.some((m) => isFullTimeAsk(m.body)) ? '정정·시간 인정 요청' : '기록 정정 요청'} · ${titleOf.get(g[0].job_id) ?? '공고'}`,
-      n: g.length,
-      href: `/admin/jobs/${g[0].job_id}?tab=att&date=${today}`,
-      tone: 'text-violet-700',
-    })),
+    // 공고 · 근무 날마다 한 줄 (지난 근무에 대한 요청이면 아래 작은 줄에 그날 · 누르면 그날 출퇴근 탭)
+    ...group(fixWait, (m) => `${m.job_id}|${fixDateOf(m.body, m.created_at)}`).map((g) => {
+      const day = fixDateOf(g[0].body, g[0].created_at)
+      return {
+        key: `fix-${g[0].job_id}-${day}`,
+        icon: 'pen' as const,
+        // 일찍 끝났지만 근로조건대로 인정해 달라는 요청은 '시간 인정 요청'으로
+        text: `${g.every((m) => isFullTimeAsk(m.body)) ? '시간 인정 요청' : g.some((m) => isFullTimeAsk(m.body)) ? '정정·시간 인정 요청' : '기록 정정 요청'} · ${titleOf.get(g[0].job_id) ?? g[0].body.split('\n')[1]?.split(' · ')[0] ?? '공고'}`,
+        n: g.length,
+        href: `/admin/jobs/${g[0].job_id}?tab=att&date=${day}`,
+        tone: 'text-violet-700',
+        ...(day !== today ? { sub: `${fmtDate(day)} 근무` } : {}),
+      }
+    }),
     ...noticeUnread.map((j) => ({
       key: `notice-${j.id}`,
       icon: 'megaphone' as const,

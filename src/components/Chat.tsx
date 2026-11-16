@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { deleteMessage } from '@/app/actions/chat'
 import { approveArrival, decideFix } from '@/app/actions/admin'
 import { deletedText, isDeleted } from '@/lib/deleted'
-import { ARRIVE_OK, isAutoNotice, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { ARRIVE_OK, fixDateOf, isAutoNotice, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { plainBody, stickerOf } from '@/lib/stickers'
 import { splitButtons, type ChatButton } from '@/lib/chatButtons'
 import Icon from './Icon'
@@ -45,7 +45,8 @@ export function adminActionFor(m: Pick<ChatMessage, 'from_admin' | 'body' | 'cre
     return `${y}-${String(mo).padStart(2, '0')}-${String(Number(x[2])).padStart(2, '0')}`
   }
   const att = (d: string | null) => ({ href: `${base}?tab=att${d ? `&date=${d}` : ''}`, label: '출퇴근 탭에서 처리 →' })
-  if ([SIGNAL.late, SIGNAL.arrive, SIGNAL.fix].some((s) => head.startsWith(s))) return att(sent)
+  if (head.startsWith(SIGNAL.fix)) return att(fixDateOf(m.body, m.created_at))
+  if ([SIGNAL.late, SIGNAL.arrive].some((s) => head.startsWith(s))) return att(sent)
   if (head.startsWith('🕒 근무 종료 늦게 입력') || head.startsWith('⚠️ 근무시간')) return att(mdDate())
   if (head.startsWith('⚠️ 근무일 취소')) {
     const d = mdDate()
@@ -66,7 +67,8 @@ function quickFor(m: ChatMessage, all: ChatMessage[]): Quick | null {
   if (m.from_admin || !m.job || !m.sender_id) return null
   const jobId = m.job.id
   const kind = signalOf(m.body)
-  const date = kstDate(m.created_at)
+  // 정정 요청은 본문의 근무 날 (지난 근무를 다음 날 요청할 수 있음) · 출근 확인은 보낸 날
+  const date = kind === 'fix' ? fixDateOf(m.body, m.created_at) : kstDate(m.created_at)
   if (kind === 'fix') {
     const fix = parseFix(m.body)
     if (!fix || pendingFix(all.filter((x) => x.job?.id === jobId), date)?.id !== m.id) return null

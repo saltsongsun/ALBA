@@ -99,7 +99,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const [att] = await rest(`attendance?user_id=eq.${W}`)
   const today = kstDay(Date.now()), yest = kstDay(Date.now() - 864e5)
   const days = w.locator(`[data-history-job="${J}"] [data-history-days]`)
-  const rowText = async () => ((await days.locator('li').first().innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
+  // 줄 본문 (날짜 · 시각 · 시간) — 지난 며칠 근무는 그 아래 '이날 기록 정정 요청'이 따로 붙음 (2026-11-17)
+  const row = () => days.locator('li').first().locator('> div').first()
+  const rowText = async () => ((await row().innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
   const openDays = async () => {
     await w.goto(`${D}/me/history`)
     await days.waitFor({ timeout: 15000 }).catch(() => {})
@@ -118,7 +120,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await openDays()
   const t2 = await rowText()
   ok(`끝난 날: '${fmtDate(yest)} 10:00~15:00 n시간'`, new RegExp(`^${fmtDate(yest).replace(/[()]/g, '\\$&')} 10:00~15:00 (\\d+시간( \\d+분)?|\\d+분)$`).test(t2), t2)
-  ok('한 줄 · 360px 옆으로 안 밀림', (await days.locator('li').first().evaluate((el) => el.getBoundingClientRect().height < 24)) && (await noSide(w)))
+  ok('한 줄 · 360px 옆으로 안 밀림', (await row().evaluate((el) => el.getBoundingClientRect().height < 24)) && (await noSide(w)))
   if (SHOTS) await w.locator(`[data-history-job="${J}"]`).screenshot({ path: `${SHOTS}/history-days.png` }).catch(() => {})
   // 종료 기록이 없는 지난 날
   await rest(`attendance?id=eq.${att.id}`, 'PATCH', { clock_out: null })
