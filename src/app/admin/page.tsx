@@ -905,9 +905,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <h1 className="text-2xl font-extrabold">{fmtDate(today)} 현황</h1>
           <AutoRefresh />
         </div>
-        <Link href="/admin/jobs/new" className="btn-primary">
-          + 새 공고 등록
-        </Link>
+        {/* 공고를 한 번도 안 올린 새 회사는 '시작하기'와 공고 칸에 같은 버튼이 있어 위쪽은 뺌 (같은 버튼 세 번 → 한 번 · 화면 단순하게) */}
+        {!fresh && (
+          <Link href="/admin/jobs/new" className="btn-primary" data-dash-new-job>
+            + 새 공고 등록
+          </Link>
+        )}
       </div>
       {/* 새 소식 한 줄 (회사마다 바뀐 규칙 알리기 · 닫으면 다시 안 보임 · 이달 말까지) */}
       {today <= '2026-11-30' && !fresh && (

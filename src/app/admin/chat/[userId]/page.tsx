@@ -18,7 +18,7 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, invoiceTag, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
 import { markInvoice } from '@/app/actions/vendor'
 import { won } from '@/lib/format'
 import { paydayLabel } from '@/lib/payday'
@@ -112,6 +112,8 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
 
   // 시나리오: '돈 언제 들어와요?' 문의 → 가장 최근 일한 공고의 정산 예정일로 답장 제안 (알린 날짜가 있으면 그것, 없으면 공고의 지급일)
   const lastAsk = messages.filter((m) => !m.from_admin).at(-1)
+  // 그 요청(정정·출근 확인)을 이미 버튼으로 처리했으면 그 요청에 맞춘 답장('확인해 보고 다시 알려 드릴게요' 등)은 권하지 않음
+  const askOpen = lastAsk && !messages.some((m) => m.from_admin && isRequestAnswer(m) && m.created_at > lastAsk.created_at) ? lastAsk : undefined
   let payReply: string | null = null
   if (lastAsk && /정산|입금|급여|월급|돈|지급|언제 들어/.test(lastAsk.body)) {
     const { data: worked } = await db()
@@ -386,7 +388,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           </form>
         ))}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
-        <ChatComposer buttons={ADMIN_CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(lastAsk), ...QUICK_REPLIES])]}
+        <ChatComposer buttons={ADMIN_CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(askOpen), ...QUICK_REPLIES])]}
         />
       </div>
     </div>
