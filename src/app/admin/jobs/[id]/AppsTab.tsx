@@ -1,4 +1,5 @@
 import { headcountTbd } from '@/lib/jobFields'
+import { Fragment } from 'react'
 import Link from 'next/link'
 import PhoneInput from '@/components/PhoneInput'
 import { addWorkerToJob, approveAllApplied, decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting } from '@/app/actions/admin'
@@ -13,13 +14,21 @@ import SortChips from '@/components/SortChips'
 import { SORT_DIM } from '@/lib/sortDim'
 import { GroupContact } from '@/components/GroupContact'
 import HashFocus from '@/components/HashFocus'
+import LazyDetails from '@/components/LazyDetails'
+import ShowMore from '@/components/ShowMore'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
 import { APP_STATUS } from '@/components/JobCard'
+
+/**
+ * 확정·보류·미선발 칸은 이만큼 먼저 보이고 나머지는 '더 보기 (n명)' (대기 칸은 모두).
+ * 큰 행사(300~500명)에서 수백 명을 한 번에 확정한 뒤 화면을 다시 그릴 때, 보이지도 않는 카드·표 줄을 수천 개씩 만들지 않게
+ */
+const MORE_AFTER = 50
 
 /** 관리자 화면 배지: 근무자 화면 말('지원완료')이 아니라 관리자가 할 일 기준 ('대기' 목록과 같은 말) */
 const adminLabel = (status: keyof typeof APP_STATUS) => (status === 'applied' ? '확정 대기' : APP_STATUS[status].label)
 import { scoresByUser, StarAvg } from '@/components/Stars'
-import { ConfirmSubmit, SubmitButton } from '@/components/ui'
+import { ActionButton, ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { allByIds, byIds, db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
@@ -37,54 +46,48 @@ import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
 /** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
+// 폼 없이 버튼만 (ActionButton): 지원자가 수백 명이면 사람마다 폼이 여러 개라 브라우저가 화면을 다시 그릴 때 아주 느려졌음
 function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어요 · 확정?' }: { a: AppRow; wide?: boolean; full?: boolean; fullText?: string }) {
   const btn = (primary: boolean) => `${primary ? 'btn-primary' : 'btn-gray'} ${wide ? 'w-full' : 'btn-sm'}`
   // 휴대폰 카드: 확인 문구가 뜬 버튼이 넓어져서(짧게 늘어나는 움직임) 문구가 두 줄로 꺾이지 않게
-  const form = wide ? 'flex-1 transition-[flex-grow] duration-200 has-[[data-confirm=armed]]:grow-[3]' : ''
+  const cell = wide ? 'flex-1 transition-[flex-grow] duration-200 has-[[data-confirm=armed]]:grow-[3]' : ''
   return (
-    <div className={`flex ${wide ? 'gap-2' : 'gap-1'}`}>
+    <div className={`flex ${wide ? 'gap-2' : 'gap-1'}`} data-decide>
       {a.status !== 'approved' && a.status !== 'cancelled' && (
-        <form action={decideApplication.bind(null, a.id, 'approved')} className={form}>
-          {full ? (
-            <ConfirmSubmit className={btn(true)} confirmText={fullText}>
-              확정
-            </ConfirmSubmit>
-          ) : (
-            <SubmitButton className={btn(true)} pendingText="…">
-              확정
-            </SubmitButton>
-          )}
-        </form>
+        <div className={cell}>
+          <ActionButton action={decideApplication.bind(null, a.id, 'approved')} className={btn(true)} pendingText="…" confirmText={full ? fullText : undefined}>
+            확정
+          </ActionButton>
+        </div>
       )}
       {/* 보류: 근무자에게 알림 없이 따로 둠 (상태는 그대로 대기) */}
       {a.status === 'applied' && (
-        <form action={holdApplication.bind(null, a.id, !a.held_at)} className={form}>
-          <SubmitButton className={btn(false)} pendingText="…" track={a.held_at ? '보류 풀기' : '보류'}>
+        <div className={cell}>
+          <ActionButton action={holdApplication.bind(null, a.id, !a.held_at)} className={btn(false)} pendingText="…" track={a.held_at ? '보류 풀기' : '보류'}>
             {a.held_at ? '보류 풀기' : '보류'}
-          </SubmitButton>
-        </form>
+          </ActionButton>
+        </div>
       )}
       {a.status === 'applied' && (
-        <form action={decideApplication.bind(null, a.id, 'rejected')} className={form}>
+        <div className={cell}>
           {/* 미선발로 정하면 근무자에게 결과 알림이 가므로 한 번 더 확인 */}
-          <ConfirmSubmit className={btn(false)} confirmText="미선발 알림 보낼까요?">
+          <ActionButton action={decideApplication.bind(null, a.id, 'rejected')} className={btn(false)} confirmText="미선발 알림 보낼까요?">
             미선발
-          </ConfirmSubmit>
-        </form>
+          </ActionButton>
+        </div>
       )}
       {(a.status === 'approved' || a.status === 'rejected') && (
-        <form action={decideApplication.bind(null, a.id, 'applied')} className={form}>
-          {a.status === 'approved' ? (
-            // 확정을 되돌리면 서명한 서류도 무효가 되고 근무자에게 알림이 가므로 한 번 더 확인
-            <ConfirmSubmit className={btn(false)} confirmText="서명 취소·알림 가요 · 대기로?">
-              대기로
-            </ConfirmSubmit>
-          ) : (
-            <SubmitButton className={btn(false)} pendingText="…">
-              대기로
-            </SubmitButton>
-          )}
-        </form>
+        <div className={cell}>
+          {/* 확정을 되돌리면 서명한 서류도 무효가 되고 근무자에게 알림이 가므로 한 번 더 확인 */}
+          <ActionButton
+            action={decideApplication.bind(null, a.id, 'applied')}
+            className={btn(false)}
+            pendingText="…"
+            confirmText={a.status === 'approved' ? '서명 취소·알림 가요 · 대기로?' : undefined}
+          >
+            대기로
+          </ActionButton>
+        </div>
       )}
     </div>
   )
@@ -434,6 +437,83 @@ export default async function AppsTab({
     ['확정', sorted.filter((a) => a.status === 'approved'), waiting === 0],
     ['미선발·취소', sorted.filter((a) => a.status === 'rejected' || a.status === 'cancelled'), false],
   ]
+  // 칸마다 MORE_AFTER명까지 먼저 보이고 나머지는 '더 보기' (대기는 모두 — 여러 명 고르기·'모두 고르기'가 보이는 칸만 고르므로)
+  const cards = (label: string, list: AppRow[]) => {
+    const shown = label === '대기' ? list : list.slice(0, MORE_AFTER)
+    return (
+      <>
+        {shown.map(mobileCard)}
+        {shown.length < list.length && (
+          <ShowMore n={list.length - shown.length}>
+            <div className="animate-rise space-y-2 [animation-duration:.2s]">{list.slice(shown.length).map(mobileCard)}</div>
+          </ShowMore>
+        )}
+      </>
+    )
+  }
+  const tableRow = (a: AppRow) => {
+    const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
+    return (
+      <tr key={a.id} className={`[&:has(:checked)>td]:bg-brand-50 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
+        <td className="whitespace-nowrap">
+          <span className="mr-1 inline-block align-middle">{pickBox(a)}</span>
+          <span className="mr-2 inline-block align-middle">
+            <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="sm" />
+          </span>
+          <Link href={`/admin/workers/${a.user_id}`} className="font-semibold hover:text-brand-600">
+            {a.user.name}
+          </Link>
+          {age != null && <span className="ml-1 text-xs text-mute">만 {age}세</span>}
+          {scores[a.user_id] && (
+            <span className="ml-1">
+              <StarAvg scores={scores[a.user_id]} />
+            </span>
+          )}
+          {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
+          {minorWarn(a) && <span className="badge ml-1 bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
+          {a.status === 'approved' && (
+            <div className="mt-1">
+              <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />
+            </div>
+          )}
+        </td>
+        <td className="whitespace-nowrap">
+          <ContactButtons phone={a.user.phone} name={a.user.name} />
+        </td>
+        <td className="min-w-48 text-xs text-sub">
+          {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}
+          {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
+          {!!a.user.careers?.length && (
+            <div className="mt-0.5">
+              🎪 {careerText(a.user.careers[0])}
+              {a.user.careers.length > 1 && ` 외 ${a.user.careers.length - 1}건`}
+            </div>
+          )}
+        </td>
+        <td className="text-xs whitespace-nowrap text-sub">
+          {relText(a.user_id)}
+          <div>
+            <Clash uid={a.user_id} />
+            <Weekly a={a} />
+            <Memo uid={a.user_id} />
+          </div>
+        </td>
+        <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
+        <td>
+          {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>}
+        </td>
+        <td className="whitespace-nowrap">
+          <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />
+        </td>
+      </tr>
+    )
+  }
+  // PC 표: 확정 → 대기(보류 포함) → 미선발·취소 순서 그대로, 확정·미선발·취소가 길면 MORE_AFTER명 뒤는 '더 보기' (대기는 모두)
+  const tableParts: [string, AppRow[], boolean][] = [
+    ['확정', sorted.filter((a) => a.status === 'approved'), true],
+    ['대기', sorted.filter((a) => a.status === 'applied'), false],
+    ['미선발·취소', sorted.filter((a) => a.status === 'rejected' || a.status === 'cancelled'), true],
+  ]
 
   return (
     <div className="space-y-4">
@@ -626,15 +706,23 @@ export default async function AppsTab({
                       </div>
                     )
                   )}
-                  {list.map(mobileCard)}
+                  {cards(label, list)}
                 </div>
               ) : (
-                <details key={label} className="pt-2" data-app-group={label}>
-                  <summary className="cursor-pointer py-1 text-sm font-bold text-sub">
-                    {label} {list.length}명
-                  </summary>
-                  <div className="mt-2 space-y-2">{list.map(mobileCard)}</div>
-                </details>
+                // 접어 둔 칸(확정·보류·미선발)은 펼칠 때 그림: 큰 행사에서 수백 명을 한 번에 확정한 뒤 접힌 카드까지 다시 만들지 않게
+                <LazyDetails
+                  key={label}
+                  className="pt-2"
+                  data-app-group={label}
+                  summaryClassName="cursor-pointer py-1 text-sm font-bold text-sub"
+                  summary={
+                    <>
+                      {label} {list.length}명
+                    </>
+                  }
+                >
+                  <div className="mt-2 space-y-2">{cards(label, list)}</div>
+                </LazyDetails>
               ),
             )}
           </div>
@@ -660,61 +748,17 @@ export default async function AppsTab({
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((a) => {
-                  const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
+                {tableParts.map(([label, rows, fold]) => {
+                  const shown = fold ? rows.slice(0, MORE_AFTER) : rows
                   return (
-                    <tr key={a.id} className={`[&:has(:checked)>td]:bg-brand-50 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
-                      <td className="whitespace-nowrap">
-                        <span className="mr-1 inline-block align-middle">{pickBox(a)}</span>
-                        <span className="mr-2 inline-block align-middle">
-                          <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="sm" />
-                        </span>
-                        <Link href={`/admin/workers/${a.user_id}`} className="font-semibold hover:text-brand-600">
-                          {a.user.name}
-                        </Link>
-                        {age != null && <span className="ml-1 text-xs text-mute">만 {age}세</span>}
-                        {scores[a.user_id] && (
-                          <span className="ml-1">
-                            <StarAvg scores={scores[a.user_id]} />
-                          </span>
-                        )}
-                        {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
-                        {minorWarn(a) && <span className="badge ml-1 bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
-                        {a.status === 'approved' && (
-                          <div className="mt-1">
-                            <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />
-                          </div>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap">
-                        <ContactButtons phone={a.user.phone} name={a.user.name} />
-                      </td>
-                      <td className="min-w-48 text-xs text-sub">
-                        {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}
-                        {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
-                        {!!a.user.careers?.length && (
-                          <div className="mt-0.5">
-                            🎪 {careerText(a.user.careers[0])}
-                            {a.user.careers.length > 1 && ` 외 ${a.user.careers.length - 1}건`}
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-xs whitespace-nowrap text-sub">
-                        {relText(a.user_id)}
-                        <div>
-                          <Clash uid={a.user_id} />
-                          <Weekly a={a} />
-                          <Memo uid={a.user_id} />
-                        </div>
-                      </td>
-                      <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
-                      <td>
-                        {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>}
-                      </td>
-                      <td className="whitespace-nowrap">
-                        <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />
-                      </td>
-                    </tr>
+                    <Fragment key={label}>
+                      {shown.map(tableRow)}
+                      {shown.length < rows.length && (
+                        <ShowMore n={rows.length - shown.length} label={label} row cols={7}>
+                          {rows.slice(shown.length).map(tableRow)}
+                        </ShowMore>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>

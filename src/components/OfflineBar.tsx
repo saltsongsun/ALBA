@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon'
+import { SEND_CHECK } from './ui'
 
 /** 서버에 닿는지 가볍게 확인 (휴대폰이 '끊김'이라고 해도 실제로는 닿는 경우가 있어 한 번 더 봄) */
 const reach = () =>
@@ -83,10 +84,15 @@ export default function OfflineBar() {
       if (f instanceof HTMLFormElement && (f.method === 'dialog' || f.hasAttribute('data-offline-ok'))) return
       say('form', e)
     }
+    // 폼 없이 보내는 버튼(ActionButton·배치 칸)도 끊긴 동안은 폼처럼 막고 같은 안내
+    const onSendCheck = (e: Event) => {
+      if (off.current) say('form', e)
+    }
     window.addEventListener('offline', onOffline)
     window.addEventListener('online', onOnline)
     document.addEventListener('click', onClick, true)
     document.addEventListener('submit', onSubmit, true)
+    document.addEventListener(SEND_CHECK, onSendCheck, true)
     const first = setTimeout(() => !navigator.onLine && void check(), 0)
     return () => {
       clearTimeout(first)
@@ -97,6 +103,7 @@ export default function OfflineBar() {
       window.removeEventListener('online', onOnline)
       document.removeEventListener('click', onClick, true)
       document.removeEventListener('submit', onSubmit, true)
+      document.removeEventListener(SEND_CHECK, onSendCheck, true)
     }
   }, [])
 

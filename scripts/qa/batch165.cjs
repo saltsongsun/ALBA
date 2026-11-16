@@ -32,7 +32,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     await open()
     ok("요약 줄에 '끝난 행사'", (await a.locator('[data-apps-ended]').innerText().catch(() => '')) === '끝난 행사')
     // 한 사람 확정: 한 번 더
-    const card = a.locator('form', { has: a.locator('button', { hasText: '확정' }) }).filter({ hasNot: a.locator('text=모두 확정') }).locator('button[data-confirm]').first()
+    // 지원자 한 사람의 확정 버튼 (카드·표의 확정·보류·미선발은 폼 없이 [data-decide] 안의 버튼 — 묶음 275)
+    const card = a.locator('[data-decide] button[data-confirm]', { hasText: '확정' }).first()
     await card.click()
     await a.waitForTimeout(300)
     ok("확정 첫 누름: '끝난 행사 · 확정?' (아직 대기)", (await card.innerText()).trim() === '끝난 행사 · 확정?' && (await rest(`applications?id=eq.${APP}`))[0]?.status === 'applied', await card.innerText())

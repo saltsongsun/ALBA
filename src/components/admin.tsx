@@ -2,7 +2,7 @@
 
 import UnsavedBar from '@/components/UnsavedBar'
 import Link from 'next/link'
-import { useActionState, useEffect, useMemo, useOptimistic, useRef, useState } from 'react'
+import { startTransition, useActionState, useEffect, useMemo, useOptimistic, useRef, useState } from 'react'
 import { rateWorker, resetPin, revealRrn, revealWorkerField, saveSettings, saveTemplate, setPosition, updateWorker, type RevealField } from '@/app/actions/admin'
 import { renderTemplate } from '@/lib/docs'
 import { PLACEHOLDERS } from '@/lib/default-templates'
@@ -12,7 +12,7 @@ import { onPhoneInput, phoneShown } from './phoneTyping'
 import SealField from './SealField'
 import CompanyMark, { companyInitial } from './CompanyMark'
 import TemplateSections, { parseDoc, serializeDoc, type DocModel } from './TemplateSections'
-import { FormMessage, haptic, keepInputs, SubmitButton } from './ui'
+import { canSend, FormMessage, haptic, keepInputs, SubmitButton } from './ui'
 import SetupChecklist from './SetupChecklist'
 import BizNoField from './BizNoField'
 import { MIN_WAGE_2026 } from '@/lib/pay'
@@ -692,21 +692,27 @@ export function RatingForm({ userId, jobs }: { userId: string; jobs: { id: strin
   )
 }
 
-/** 현장 배치 칸: 고치고 칸을 벗어나거나 엔터를 누르면 바로 저장 (listId의 datalist로 이미 쓴 배치를 골라 넣음) */
+/**
+ * 현장 배치 칸: 고치고 칸을 벗어나거나 엔터를 누르면 바로 저장 (listId의 datalist로 이미 쓴 배치를 골라 넣음).
+ * 지원자 목록에 확정자 수백 명이 놓일 수 있어 폼 없이 보냄 (ui.tsx ActionButton 설명 참고)
+ */
 export function PositionInput({ appId, value, listId }: { appId: string; value: string | null; listId: string }) {
   const [state, action, pending] = useActionState(setPosition.bind(null, appId), null)
   const [v, setV] = useState(value ?? '')
   const saved = useRef(value ?? '')
-  const formRef = useRef<HTMLFormElement>(null)
-  const save = () => {
+  const save = (el: HTMLInputElement) => {
     const next = v.trim()
     if (next === saved.current) return
+    // 끊긴 동안이면 저장하지 않고 글자는 그대로 (연결된 뒤 칸을 다시 벗어나면 저장)
+    if (!canSend(el)) return
     saved.current = next
     haptic(8)
-    formRef.current?.requestSubmit()
+    const form = new FormData()
+    form.set('position', next)
+    startTransition(() => action(form))
   }
   return (
-    <form ref={formRef} action={action} onReset={keepInputs} className="inline-flex items-center gap-1.5">
+    <div className="inline-flex items-center gap-1.5" data-position>
       <span className="text-xs font-semibold text-mute">배치</span>
       <input
         name="position"
@@ -716,7 +722,7 @@ export function PositionInput({ appId, value, listId }: { appId: string; value: 
         placeholder="미배치"
         aria-label="현장 배치"
         onChange={(e) => setV(e.target.value)}
-        onBlur={save}
+        onBlur={(e) => save(e.currentTarget)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') {
             e.preventDefault()
@@ -730,6 +736,6 @@ export function PositionInput({ appId, value, listId }: { appId: string; value: 
       <span aria-live="polite" className="w-4 text-xs">
         {pending ? '…' : state?.ok ? <span className="text-emerald-600">✓</span> : state?.error ? <span className="text-rose-500">!</span> : null}
       </span>
-    </form>
+    </div>
   )
 }

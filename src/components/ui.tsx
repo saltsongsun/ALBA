@@ -1,8 +1,13 @@
 'use client'
 
 import { track } from '@/lib/track'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useTransition } from 'react'
 import { useFormStatus } from 'react-dom'
+
+/** 폼 없이 서버로 보내기 전에 OfflineBar에 물어보는 신호 (인터넷이 끊겼으면 OfflineBar가 막고 폼 보내기와 같은 안내를 띄움) */
+export const SEND_CHECK = 'alba-send-check'
+/** 지금 보내도 되는지 (끊긴 동안이면 false · 막은 안내는 OfflineBar가 띄움) */
+export const canSend = (el: Element) => el.dispatchEvent(new Event(SEND_CHECK, { bubbles: true, cancelable: true }))
 
 /** 안드로이드 휴대폰을 짧게 진동 (아이폰·컴퓨터는 지원하지 않아 무시됨) */
 export function haptic(pattern: number | number[] = 12) {
@@ -103,6 +108,79 @@ export function ConfirmSubmit({
       }}
     >
       {pending && sent ? '처리 중…' : armed ? confirmText : children}
+    </button>
+  )
+}
+
+/**
+ * 폼 없이 서버 동작을 부르는 버튼 — 한 화면에 수백 줄이 놓이는 목록용 (지원자 카드·표의 확정·보류·미선발).
+ * 생김새·처리 중 표시는 SubmitButton과 같고, confirmText가 있으면 ConfirmSubmit처럼 두 번 눌러야 진행.
+ * 폼을 쓰지 않는 까닭: Chrome은 화면에 스크립트가 다룬 <form>이 수천 개 있으면 그 뒤 화면을 고칠 때마다(칸 하나 붙일 때마다)
+ * 폼 수만큼 느려짐 — 지원자 500명이면 한 사람에 폼 6개(확정·보류·미선발 × 휴대폰·PC)라 묶어서 확정한 뒤 다시 그리는 데 수십 초 걸렸음.
+ */
+export function ActionButton({
+  action,
+  children,
+  className = 'btn-primary',
+  pendingText = '처리 중…',
+  confirmText,
+  track: label = '',
+}: {
+  /** 서버 동작 (값을 미리 묶어 둔 것 · 예: decideApplication.bind(null, id, 'approved')) */
+  action: () => Promise<unknown>
+  children: React.ReactNode
+  className?: string
+  pendingText?: string
+  /** 있으면 첫 누름은 이 문구만 띄우고 두 번째 누름에 진행 (4초 지나면 원래대로) */
+  confirmText?: string
+  /** 행동 기록에 남길 버튼 이름 (비우면 버튼 글자) */
+  track?: string
+}) {
+  const [pending, start] = useTransition()
+  const [armed, setArmed] = useState(false)
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  useEffect(() => () => clearTimeout(timer.current), [])
+  return (
+    <button
+      type="button"
+      className={className}
+      disabled={pending}
+      aria-busy={pending}
+      data-track={label}
+      data-confirm={confirmText ? (armed ? 'armed' : 'idle') : undefined}
+      onClick={(e) => {
+        const el = e.currentTarget
+        if (confirmText && !armed) {
+          el.dataset.trackText = el.innerText
+          haptic(10)
+          setArmed(true)
+          clearTimeout(timer.current)
+          timer.current = setTimeout(() => setArmed(false), 4000)
+          return
+        }
+        // 끊긴 동안이면 보내지 않고 그대로 (다시 누르면 됨)
+        if (!canSend(el)) return
+        clearTimeout(timer.current)
+        start(async () => {
+          await action()
+          setArmed(false)
+        })
+      }}
+    >
+      {pending ? (
+        confirmText ? (
+          '처리 중…'
+        ) : (
+          <>
+            <Spinner />
+            {pendingText}
+          </>
+        )
+      ) : armed ? (
+        confirmText
+      ) : (
+        children
+      )}
     </button>
   )
 }
