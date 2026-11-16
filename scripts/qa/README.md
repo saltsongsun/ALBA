@@ -22,6 +22,8 @@ node scripts/qa/audit.cjs http://127.0.0.1:3002 /tmp/shots
 `SCENARIO=working`(서류 서명 끝·근무 중), `SCENARIO=fresh`(서류 서명 끝·출근 전)로 다른 상황도 볼 수 있습니다.
 가짜 서버는 PostgREST의 단순 필터(eq, is, in)만 흉내 내므로, 새 조회 문법은 실제 DB에서 따로 확인하세요.
 
+속도 확인: `node scripts/qa/perf.cjs http://127.0.0.1:3002 http://127.0.0.1:54321 80` — 조회 1번을 80ms로 늦춰 화면별 응답 시간·조회 수를 표로 보여 줌 (차례로 기다리는 조회가 늘면 시간이 늘어남). 가짜 서버를 `TRACE=1`로 띄우면 조회 순서도 찍힘.
+
 ## 기능·보안 테스트
 
 - `scenarios.cjs`: 현장 시나리오 10가지 (`SCENARIOS.md`). 가짜 Supabase 3개와 앱 3개(`CRON_SECRET=test-cron`)를 띄우고 실행.
