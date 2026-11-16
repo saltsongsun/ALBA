@@ -19,6 +19,24 @@ import SearchInput from '@/components/SearchInput'
 
 export const metadata: Metadata = { title: '공고' }
 
+/** 지난 공고 탭에 한 번에 보이는 수 (더 오래된 공고는 찾기로) */
+const PAST_MAX = 100
+
+/** 찾은 글자를 옅은 노란 바탕으로 (여러 공고 중 왜 나왔는지 바로 보이게) */
+function Hi({ text, term }: { text: string; term: string }) {
+  const i = term ? text.toLowerCase().indexOf(term.toLowerCase()) : -1
+  if (i < 0) return <>{text}</>
+  return (
+    <>
+      {text.slice(0, i)}
+      <mark className="rounded-[3px] bg-amber-100 px-px text-inherit" data-hit>
+        {text.slice(i, i + term.length)}
+      </mark>
+      {text.slice(i + term.length)}
+    </>
+  )
+}
+
 const STATUS: Record<Job['status'], [string, string]> = {
   open: ['모집중', 'bg-brand-50 text-brand-700'],
   closed: ['모집마감', 'bg-amber-50 text-amber-700'],
@@ -35,16 +53,33 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
   const sp = await props.searchParams
   const tab = sp.tab === 'past' ? 'past' : sp.tab === 'draft' ? 'draft' : 'active'
   const today = kstDate()
-  let q = db().from('jobs').select(JOB_WITH_APP_STATUS).eq('company_id', admin.companyId)
-  if (tab === 'active') q = q.in('status', ['open', 'closed']).gte('end_date', today).order('start_date')
-  else if (tab === 'draft') q = q.eq('status', 'draft').order('created_at', { ascending: false })
-  else q = q.or(`status.in.(done,cancelled),end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false }).limit(100)
+  // 탭마다 같은 거르기 (이 회사 공고만)
+  const scoped = (cols: string) => {
+    const q = db().from('jobs').select(cols).eq('company_id', admin.companyId)
+    if (tab === 'active') return q.in('status', ['open', 'closed']).gte('end_date', today).order('start_date')
+    if (tab === 'draft') return q.eq('status', 'draft').order('created_at', { ascending: false })
+    return q.or(`status.in.(done,cancelled),end_date.lt.${today}`).neq('status', 'draft').order('start_date', { ascending: false })
+  }
   // 제목·행사명·장소로 찾기
   const term = typeof sp.q === 'string' ? sp.q.trim().slice(0, 50) : ''
-  const all = must(await q) as JobWithAppStatus[]
-  const jobs = term
-    ? all.filter((j) => [j.title, j.event_name, j.location_name].some((v) => v?.toLowerCase().includes(term.toLowerCase())))
-    : all
+  const hit = (j: Pick<Job, 'title' | 'event_name' | 'location_name'>) => [j.title, j.event_name, j.location_name].some((v) => v?.toLowerCase().includes(term.toLowerCase()))
+  // 지난 공고는 최근 PAST_MAX개만 (행사가 쌓여도 화면이 무겁지 않게) — 찾을 때는 지난 공고 전체에서
+  // (전엔 최근 100개 안에서만 찾아서 오래된 행사는 이름으로 찾아도 '없어요' → 복사·지급 확인을 못 함)
+  // 먼저 제목·행사명·장소만 가볍게 읽어 맞는 공고를 고르고, 그 공고만 자세히 읽음
+  const pastIds =
+    tab === 'past' && term
+      ? ((must(await scoped('id, title, event_name, location_name').limit(5000)) as unknown as Pick<Job, 'id' | 'title' | 'event_name' | 'location_name'>[])
+          .filter(hit)
+          .map((j) => j.id)
+          .slice(0, PAST_MAX))
+      : null
+  const all =
+    pastIds?.length === 0
+      ? []
+      : (must(await (pastIds ? scoped(JOB_WITH_APP_STATUS).in('id', pastIds) : tab === 'past' ? scoped(JOB_WITH_APP_STATUS).limit(PAST_MAX + 1) : scoped(JOB_WITH_APP_STATUS))) as unknown as JobWithAppStatus[])
+  // 지난 공고가 PAST_MAX개보다 많음 (목록 끝에 '더 오래된 공고는 찾기로' 한 줄)
+  const pastMore = tab === 'past' && !term && all.length > PAST_MAX
+  const jobs = (term ? all.filter(hit) : all).slice(0, tab === 'past' ? PAST_MAX : undefined)
   const counts = countApps(jobs, 'approved')
   // 지난 공고: 근무는 끝났는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (급여 지급을 빠뜨리지 않게)
   // 공고마다 지급총액(세전, 정산 탭과 같은 계산): 출퇴근 기록이 있는 공고만
@@ -214,14 +249,25 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     )}
                     {waitingBy[j.id] > 0 && <span className="badge bg-amber-50 text-amber-700">대기 {waitingBy[j.id]}명</span>}
                     {unpaidOf(j.id) > 0 && <span className="badge bg-rose-50 text-rose-600">💰 미지급 {unpaidOf(j.id)}명</span>}
-                    {j.event_name && <span className="text-xs font-semibold text-mute">{j.event_name}</span>}
+                    {j.event_name && (
+                      <span className="text-xs font-semibold text-mute">
+                        <Hi text={j.event_name} term={term} />
+                      </span>
+                    )}
                   </div>
                   <p className="font-bold">
                     {j.audience === 'expert' && <span className="badge mr-1 bg-violet-50 align-middle text-violet-700">🎛️ 전문가</span>}
-                    {j.title}
+                    <Hi text={j.title} term={term} />
                   </p>
                   <p className="mt-0.5 text-sm text-sub">
                     {fmtDateRange(j.start_date, j.end_date)} {scheduleText(j)}
+                    {/* 장소로 찾았을 때만 장소도 (왜 나왔는지 보이게) */}
+                    {term && j.location_name && !hit({ title: j.title, event_name: j.event_name, location_name: null }) && (
+                      <>
+                        {' · '}
+                        <Hi text={j.location_name} term={term} />
+                      </>
+                    )}
                   </p>
                   {grossOf(j.id) > 0 && (
                     <p className="mt-0.5 text-sm text-sub tabular-nums" data-job-wage>
@@ -277,9 +323,13 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                     <td>
                       <Link href={`/admin/jobs/${j.id}`} className="font-semibold hover:text-brand-600">
                         {j.audience === 'expert' && <span className="badge mr-1 bg-violet-50 text-violet-700">🎛️ 전문가</span>}
-                        {j.title}
+                        <Hi text={j.title} term={term} />
                       </Link>
-                      {j.event_name && <div className="text-xs text-mute">{j.event_name}</div>}
+                      {j.event_name && (
+                        <div className="text-xs text-mute">
+                          <Hi text={j.event_name} term={term} />
+                        </div>
+                      )}
                     </td>
                     <td className="whitespace-nowrap">
                       {fmtDateRange(j.start_date, j.end_date)}
@@ -324,6 +374,13 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
               </tbody>
             </table>
           </div>
+          {/* 지난 공고가 더 있음: 한 줄씩 짧게 (360px에서 어색하게 끊기지 않게) */}
+          {pastMore && (
+            <p className="text-center text-xs text-mute" data-past-more>
+              <span className="block">최근 공고 {PAST_MAX}개까지 보여요</span>
+              <span className="block">더 오래된 공고는 위 찾기 칸에서 찾아요</span>
+            </p>
+          )}
         </>
       )}
     </div>
