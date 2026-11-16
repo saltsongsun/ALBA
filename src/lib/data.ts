@@ -97,30 +97,33 @@ export async function approvedCounts(jobIds: string[]): Promise<Record<string, n
 }
 
 /** 지원 확정 시 공고에 지정된 서류를 서명 대기 상태로 만들어 둡니다. */
-export async function ensurePendingDocs(job: Job, userId: string) {
-  if (!job.required_docs?.length) return
+/**
+ * 확정한 여러 사람의 서명할 서류를 한 번에 준비 (서식은 한 번 · 이미 있는 서류는 묶어서 확인 · 없는 것만 한꺼번에 넣음).
+ * 예전엔 한 사람씩 세 번씩 차례로 물어서, 수백 명을 한꺼번에 확정하면 서버 시간이 넘어 일부만 서류가 생길 수 있었음
+ * (서류가 없으면 근무 시작 전 서명을 못 해서 현장에서 막힘)
+ */
+export async function ensurePendingDocsMany(job: Job, userIds: string[]) {
+  const users = [...new Set(userIds)]
+  if (!users.length || !job.required_docs?.length) return
   const templates = must(
     await db().from('doc_templates').select('id, kind, title').in('id', job.required_docs),
   ) as { id: string; kind: string; title: string }[]
   // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고는 앱 서명에서 뺌
   const need = (job.contract_method ?? 'app') === 'app' ? templates : templates.filter((t) => t.kind !== 'contract')
   if (!need.length) return
-  const existing = must(
-    await db()
-      .from('signed_docs')
-      .select('template_id')
-      .eq('job_id', job.id)
-      .eq('user_id', userId)
-      .neq('status', 'void'),
-  ) as { template_id: string | null }[]
-  const have = new Set(existing.map((e) => e.template_id))
-  const missing = need.filter((t) => !have.has(t.id))
-  if (!missing.length) return
-  must(
-    await db()
-      .from('signed_docs')
-      .insert(missing.map((t) => ({ job_id: job.id, user_id: userId, template_id: t.id, kind: t.kind, title: t.title }))),
+  const existing = await allByIds<{ job_id: string; user_id: string; template_id: string | null; status: string }>(users, (part, a, b) =>
+    db().from('signed_docs').select('id, job_id, user_id, template_id, status').eq('job_id', job.id).in('user_id', part).neq('status', 'void').order('id').range(a, b),
   )
+  const have = new Set(existing.filter((e) => e.job_id === job.id && e.status !== 'void').map((e) => `${e.user_id}|${e.template_id}`))
+  const rows = users.flatMap((u) =>
+    need.filter((t) => !have.has(`${u}|${t.id}`)).map((t) => ({ job_id: job.id, user_id: u, template_id: t.id, kind: t.kind, title: t.title })),
+  )
+  for (let i = 0; i < rows.length; i += 500) must(await db().from('signed_docs').insert(rows.slice(i, i + 500)))
+}
+
+/** 한 사람 (위와 같은 규칙) */
+export async function ensurePendingDocs(job: Job, userId: string) {
+  return ensurePendingDocsMany(job, [userId])
 }
 
 /**

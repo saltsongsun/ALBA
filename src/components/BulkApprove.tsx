@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useFormStatus } from 'react-dom'
+import { BULK_MAX } from '@/lib/limits'
 import { ConfirmSubmit } from './ui'
 
 export const BULK_FORM = 'bulk-approve'
@@ -16,6 +18,20 @@ const shownBoxes = (form: string) =>
   [...document.querySelectorAll<HTMLInputElement>(`input[type="checkbox"][form="${form}"]`)].filter((e) =>
     typeof e.checkVisibility === 'function' ? e.checkVisibility() : e.offsetParent !== null,
   )
+
+/** 누른 뒤 처리하는 동안: 막대 위에 천천히 차오르는 줄 + 'n명 처리하는 중이에요' (사람이 많으면 몇 초 걸려서 다시 누르지 않게) */
+function BulkPending({ n }: { n: number }) {
+  const { pending } = useFormStatus()
+  if (!pending) return null
+  return (
+    <div className="space-y-1.5" role="status" data-bulk-pending>
+      <div className="h-1 overflow-hidden rounded-full bg-white/15">
+        <div className="bulk-progress h-full rounded-full bg-white" />
+      </div>
+      <p className="text-xs font-semibold opacity-80">{n}명 처리하는 중이에요 · 잠시만요</p>
+    </div>
+  )
+}
 
 /**
  * 고른 지원자를 한 번에 확정 / 미선발 (지원자 탭 · 대시보드). 카드의 체크칸은 form 속성으로 이 폼에 묶임 (카드 안 다른 폼과 겹치지 않게).
@@ -69,6 +85,8 @@ export function BulkApproveBar({
     }
   }, [])
   if (!picked.n) return null
+  // 한 번에 처리할 수 있는 인원을 넘으면 버튼을 잠그고 몇 명을 빼야 하는지 (서버도 같은 숫자로 막음)
+  const tooMany = picked.n > BULK_MAX
   const total = approved + picked.n
   const over = headcount != null && total > headcount
   const count = (w: string) => picked.warns.filter((x) => x === w).length
@@ -110,7 +128,7 @@ export function BulkApproveBar({
         </p>
         {/* 보류: 근무자에게 알림이 가지 않아 바로 (지원자 탭 '보류' 칸으로) */}
         {hold && (
-          <button type="submit" formAction={hold} className="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold" data-bulk-hold>
+          <button type="submit" formAction={hold} disabled={tooMany} className="shrink-0 rounded-lg bg-white/15 px-2.5 py-1 text-xs font-semibold disabled:opacity-40" data-bulk-hold>
             보류
           </button>
         )}
@@ -118,6 +136,12 @@ export function BulkApproveBar({
           선택 해제
         </button>
       </div>
+      {tooMany && (
+        <p className="animate-rise text-xs font-semibold text-amber-300 [animation-duration:.2s]" data-bulk-too-many>
+          한 번에 {BULK_MAX}명까지 · {picked.n - BULK_MAX}명을 빼 주세요
+        </p>
+      )}
+      <BulkPending n={picked.n} />
       {/* 누른 쪽이 확인 문구로 길어지면 그쪽이 넓어짐 (한 줄 유지) */}
       <div className="flex gap-2">
         <ConfirmSubmit
@@ -125,10 +149,11 @@ export function BulkApproveBar({
           confirmText="미선발 알림 보낼까요?"
           formAction={reject}
           track="선택 미선발"
+          disabled={tooMany}
         >
           미선발 {picked.n}명
         </ConfirmSubmit>
-        <ConfirmSubmit className="btn-primary btn-sm flex-auto" confirmText={confirmText} track="선택 확정">
+        <ConfirmSubmit className="btn-primary btn-sm flex-auto" confirmText={confirmText} track="선택 확정" disabled={tooMany}>
           선택 {picked.n}명 확정
         </ConfirmSubmit>
       </div>

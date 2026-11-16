@@ -609,6 +609,12 @@
   }
 }
 
+/* 고른 지원자를 한 번에 처리하는 동안 (BulkApproveBar): 천천히 차오르는 줄 · '동작 줄이기'면 멈춘 채로 */
+.bulk-progress {
+  transform-origin: left;
+  animation: nav-progress 6s cubic-bezier(0.1, 0.7, 0.2, 1) forwards;
+}
+
 /* 화면 이동 중 맨 위 진행 막대 (NavProgress) */
 .nav-progress {
   position: fixed;

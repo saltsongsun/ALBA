@@ -9,8 +9,9 @@ import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
 import { phoneFmt } from '@/lib/format'
-import { audit, ensurePendingDocs, getJob, releaseDocs } from '@/lib/data'
-import { db, must } from '@/lib/db'
+import { audit, ensurePendingDocs, ensurePendingDocsMany, getJob, releaseDocs } from '@/lib/data'
+import { byIds, db, must } from '@/lib/db'
+import { BULK_MAX } from '@/lib/limits'
 import { withWeeklyPay } from '@/lib/weekly'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
@@ -213,7 +214,8 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
     if (job && job.contract_method !== 'app') {
       await db().from('signed_docs').delete().eq('job_id', id).eq('kind', 'contract').eq('status', 'pending')
     }
-    if (job) for (const a of approved) await ensurePendingDocs(job, a.user_id)
+    // 확정자 서류를 한 번에 (사람이 많아도 서버 시간이 넘지 않게)
+    if (job) await ensurePendingDocsMany(job, approved.map((a) => a.user_id))
     // 일정·장소·급여가 바뀌었으면 확정자·지원자에게 바로 알림 (끝난 행사·임시저장 제외)
     const changes = job ? jobChanges(before, job) : []
     if (job && changes.length && apps.length && form.get('notify_change') && ['open', 'closed'].includes(job.status) && before.end_date >= kstDate()) {
@@ -505,8 +507,10 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
     dateList(job.start_date, job.end_date).includes(today) && Date.now() >= kstAt(today, job.start_time).getTime() && !workOver(job, today)
   let late = new Set<string>()
   if (startedToday) {
-    const { data } = await db().from('applications').select('user_id, available_dates').eq('job_id', job.id).in('user_id', userIds)
-    const rows = (data ?? []) as { user_id: string; available_dates: string[] | null }[]
+    // 사람이 많아도 100명씩 나눠 물음
+    const { data: rows } = await byIds<{ user_id: string; available_dates: string[] | null }>(userIds, (part) =>
+      db().from('applications').select('user_id, available_dates').eq('job_id', job.id).in('user_id', part),
+    )
     // 지원 날짜는 지금 공고 날짜 안의 것만 (지원 뒤 행사 날짜가 바뀌었으면 공고 날짜 전체로 봄 · 대시보드 '이미 시작'과 같게)
     const all = dateList(job.start_date, job.end_date)
     late = new Set(
@@ -625,13 +629,14 @@ export async function approveAllApplied(jobId: string) {
     await db().from('applications').select('id, user_id').eq('job_id', jobId).eq('status', 'applied').is('held_at', null),
   ) as { id: string; user_id: string }[]
   if (!apps.length) return
+  // 대기자가 많아도(수백 명) 한 번에: 100명씩 나눠 바꾸고 · 서류는 한꺼번에 (예전: 한 사람씩 차례로 → 서버 시간이 넘을 수 있었음)
   must(
-    await db()
-      .from('applications')
-      .update({ status: 'approved', decided_at: new Date().toISOString() })
-      .in('id', apps.map((a) => a.id)),
+    await byIds(
+      apps.map((a) => a.id),
+      (part) => db().from('applications').update({ status: 'approved', decided_at: new Date().toISOString() }).in('id', part),
+    ),
   )
-  for (const a of apps) await ensurePendingDocs(job, a.user_id)
+  await ensurePendingDocsMany(job, apps.map((a) => a.user_id))
   await tellApproved(job, apps.map((a) => a.user_id), admin.id)
   revalidatePath(`/admin/jobs/${jobId}`)
 }
@@ -668,11 +673,21 @@ export async function decideSelected(scope: string, status: 'approved' | 'reject
   const onJob = scope !== 'dashboard'
   if (onJob && !isUuid(scope)) return
   const path = onJob ? `/admin/jobs/${scope}?tab=apps` : '/admin'
-  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))].slice(0, 200)
-  if (!ids.length) back(path, '지원자를 골라 주세요.')
-  let q = db().from('applications').select('id, user_id, job_id, status, company_id').in('id', ids).eq('company_id', admin.companyId).eq('status', 'applied')
-  if (onJob) q = q.eq('job_id', scope)
-  const rows = (must(await q) as { id: string; user_id: string; job_id: string; status: string; company_id: string }[]).filter(
+  const all = [...new Set(form.getAll('app').map(String).filter(isUuid))]
+  if (!all.length) back(path, '지원자를 골라 주세요.')
+  // 한 번에 BULK_MAX명까지 (화면 막대도 그 이상이면 버튼을 잠금) · 넘게 보내오면 처리하지 않고 알려 줌 (일부만 되고 모르는 일이 없게)
+  if (all.length > BULK_MAX) back(path, `한 번에 ${BULK_MAX}명까지 처리할 수 있어요. ${all.length - BULK_MAX}명을 빼고 다시 눌러 주세요.`)
+  const ids = all
+  // 100명씩 나눠 물음 (한 주소에 수백 명을 넣으면 거절됨)
+  const rows = (
+    must(
+      await byIds<{ id: string; user_id: string; job_id: string; status: string; company_id: string }>(ids, (part) => {
+        let q = db().from('applications').select('id, user_id, job_id, status, company_id').in('id', part).eq('company_id', admin.companyId).eq('status', 'applied')
+        if (onJob) q = q.eq('job_id', scope)
+        return q
+      }),
+    )
+  ).filter(
     (a) => a.status === 'applied' && a.company_id === admin.companyId && ids.includes(a.id) && (!onJob || a.job_id === scope),
   )
   // 공고도 이 회사 것인지 한 번 더 (공고별로 알림을 보내므로)
@@ -684,18 +699,18 @@ export async function decideSelected(scope: string, status: 'approved' | 'reject
   const apps = rows.filter((a) => jobs.has(a.job_id))
   if (!apps.length) back(path, '이미 처리된 지원이에요.')
   must(
-    await db()
-      .from('applications')
-      .update({ status, decided_at: new Date().toISOString(), held_at: null })
-      .in('id', apps.map((a) => a.id))
-      .eq('status', 'applied'),
+    await byIds(
+      apps.map((a) => a.id),
+      (part) => db().from('applications').update({ status, decided_at: new Date().toISOString(), held_at: null }).in('id', part).eq('status', 'applied'),
+    ),
   )
   let told = 0
   for (const [jid, job] of jobs) {
     const users = apps.filter((a) => a.job_id === jid).map((a) => a.user_id)
     if (!users.length) continue
     if (status === 'approved') {
-      for (const u of users) await ensurePendingDocs(job, u)
+      // 서류는 공고마다 한 번에 (예전: 한 사람씩 차례로 → 수백 명이면 서버 시간이 넘어 일부만 서류가 생길 수 있었음)
+      await ensurePendingDocsMany(job, users)
       await tellApproved(job, users, admin.id)
     } else told += await tellNotSelected(job, users, admin.id, false)
     revalidatePath(`/admin/jobs/${jid}`)
@@ -714,20 +729,26 @@ export async function holdSelected(scope: string, form: FormData) {
   const onJob = scope !== 'dashboard'
   if (onJob && !isUuid(scope)) return
   const path = onJob ? `/admin/jobs/${scope}?tab=apps` : '/admin'
-  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))].slice(0, 200)
+  const ids = [...new Set(form.getAll('app').map(String).filter(isUuid))]
   if (!ids.length) back(path, '보류할 지원자를 골라 주세요.')
-  let q = db().from('applications').select('id, job_id, status, company_id, held_at').in('id', ids).eq('company_id', admin.companyId).eq('status', 'applied')
-  if (onJob) q = q.eq('job_id', scope)
-  const apps = (must(await q) as { id: string; job_id: string; status: string; company_id: string; held_at: string | null }[]).filter(
+  if (ids.length > BULK_MAX) back(path, `한 번에 ${BULK_MAX}명까지 처리할 수 있어요. ${ids.length - BULK_MAX}명을 빼고 다시 눌러 주세요.`)
+  const apps = (
+    must(
+      await byIds<{ id: string; job_id: string; status: string; company_id: string; held_at: string | null }>(ids, (part) => {
+        let q = db().from('applications').select('id, job_id, status, company_id, held_at').in('id', part).eq('company_id', admin.companyId).eq('status', 'applied')
+        if (onJob) q = q.eq('job_id', scope)
+        return q
+      }),
+    )
+  ).filter(
     (a) => a.status === 'applied' && a.company_id === admin.companyId && !a.held_at && ids.includes(a.id) && (!onJob || a.job_id === scope),
   )
   if (!apps.length) back(path, '이미 처리된 지원이에요.')
   must(
-    await db()
-      .from('applications')
-      .update({ held_at: new Date().toISOString() })
-      .in('id', apps.map((a) => a.id))
-      .eq('status', 'applied'),
+    await byIds(
+      apps.map((a) => a.id),
+      (part) => db().from('applications').update({ held_at: new Date().toISOString() }).in('id', part).eq('status', 'applied'),
+    ),
   )
   await audit(admin.id, 'application.hold_selected', null, `${[...new Set(apps.map((a) => a.job_id))].join(',')} ${apps.length}명`, admin.companyId)
   for (const jid of new Set(apps.map((a) => a.job_id))) revalidatePath(`/admin/jobs/${jid}`)
