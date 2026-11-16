@@ -215,20 +215,29 @@ export async function otherCompaniesUnread(companies: { id: string; name: string
  * 그 회사의 지금 일: 확정을 기다리는 지원자 수(보류 빼고 · 모집·마감 상태이고 아직 안 끝난 공고만 — 대시보드 '확정 대기'와 같은 기준)
  * + 오늘 진행하는 행사 수 · 내일 시작하는 행사 수. 공고는 한 번만 읽음
  */
-async function companyNow(companyId: string, today: string, tomorrow: string): Promise<{ waiting: number; today: number; tomorrow: number }> {
+async function companyNow(companyId: string, today: string, tomorrow: string): Promise<{ waiting: number; today: number; tomorrow: number; unsigned: number }> {
   const jobs = (
-    ((await db().from('jobs').select('id, status, start_date, end_date').eq('company_id', companyId).in('status', ['open', 'closed']).gte('end_date', today)).data ?? []) as Pick<
+    ((await db().from('jobs').select('id, status, start_date, end_date, contract_method').eq('company_id', companyId).in('status', ['open', 'closed']).gte('end_date', today)).data ?? []) as Pick<
       Job,
-      'id' | 'status' | 'start_date' | 'end_date'
+      'id' | 'status' | 'start_date' | 'end_date' | 'contract_method'
     >[]
   ).filter((j) => (j.status === 'open' || j.status === 'closed') && j.end_date >= today)
   const ids = jobs.map((j) => j.id)
-  if (!ids.length) return { waiting: 0, today: 0, tomorrow: 0 }
-  const r = await db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'applied').is('held_at', null).in('job_id', ids)
+  if (!ids.length) return { waiting: 0, today: 0, tomorrow: 0, unsigned: 0 }
+  // 오늘 진행하는 앱 서명 공고에서 아직 서명 안 한 사람 (대시보드 '오늘 근무 · 서명 안 함'과 같은 일 · 그 회사 서류만)
+  const todaySign = jobs.filter((j) => j.start_date <= today && j.contract_method !== 'paper' && j.contract_method !== 'external').map((j) => j.id)
+  const [r, docs] = await Promise.all([
+    db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'applied').is('held_at', null).in('job_id', ids),
+    todaySign.length
+      ? db().from('signed_docs').select('job_id, user_id, status').eq('company_id', companyId).in('job_id', todaySign).eq('status', 'pending').limit(2000)
+      : null,
+  ])
+  const pending = ((docs && !docs.error ? docs.data : []) as { job_id: string; user_id: string; status: string }[]).filter((d) => d.status === 'pending' && todaySign.includes(d.job_id))
   return {
     waiting: r.error ? 0 : (r.count ?? 0),
     today: jobs.filter((j) => j.start_date <= today).length,
     tomorrow: jobs.filter((j) => j.start_date === tomorrow).length,
+    unsigned: new Set(pending.map((d) => `${d.job_id}|${d.user_id}`)).size,
   }
 }
 
@@ -266,7 +275,7 @@ export async function lapsedWaiting(companyId: string, today: string): Promise<{
 export async function otherCompaniesTodo(
   companies: { id: string; name: string }[],
   currentId: string,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; lapsed: number }[]> {
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
@@ -275,7 +284,7 @@ export async function otherCompaniesTodo(
     others.map(async (c) => {
       const [n, now, lapsed] = await Promise.all([
         unreadForAdmins(c.id).catch(() => 0),
-        companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0 })),
+        companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0 })),
         lapsedWaiting(c.id, today).then(
           (l) => l.reduce((t, j) => t + j.n, 0),
           () => 0,

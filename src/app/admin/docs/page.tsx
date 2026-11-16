@@ -133,7 +133,8 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
         )
       ) : (
         <>
-          {/* 보이는 서류 전체를 한 PDF로 (서류마다 새 쪽 → 그대로 인쇄) */}
+          {/* 보이는 서류 전체를 한 PDF로 (서류마다 새 쪽 → 그대로 인쇄) · '서명 대기'만 볼 때는 뺌 (아직 받을 서류라 인쇄보다 서명 요청이 먼저) */}
+          {f.status !== 'pending' && (
           <div className="card flex items-center gap-3 p-3.5" data-docs-bulk>
             <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600">
               <Icon name="printer" />
@@ -150,6 +151,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
               <span className="shrink-0 text-xs text-mute">300건까지 · 공고로 좁혀 주세요</span>
             )}
           </div>
+          )}
           {total > DOC_LIMIT && <p className="text-xs text-mute">최근 {DOC_LIMIT}건만 보여요. 공고나 이름으로 좁혀 보세요.</p>}
           <div className="space-y-3">
             {[...groups.entries()].map(([jobId, list]) => {
@@ -177,10 +179,19 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                         })()}
                       </p>
                     </div>
-                    {list.length > 1 && (
-                      <a href={`/admin/docs/pdf${filterQuery({ ...f, job: jobId })}`} download className="chip h-8 shrink-0 px-3 text-xs" data-docs-job-pdf>
-                        <Icon name="printer" /> PDF
-                      </a>
+                    {f.status === 'pending' ? (
+                      // 서명 대기만 볼 때: PDF 대신 그 공고 서류 탭 '서명 안 한 n명'으로 (앱 알림 버튼이 번쩍)
+                      job && (
+                        <Link href={`/admin/jobs/${jobId}?tab=docs#unsigned`} className="chip h-8 shrink-0 bg-amber-50 px-3 text-xs font-bold text-amber-800" data-docs-job-nudge>
+                          서명 요청 ›
+                        </Link>
+                      )
+                    ) : (
+                      list.length > 1 && (
+                        <a href={`/admin/docs/pdf${filterQuery({ ...f, job: jobId })}`} download className="chip h-8 shrink-0 px-3 text-xs" data-docs-job-pdf>
+                          <Icon name="printer" /> PDF
+                        </a>
+                      )
                     )}
                   </summary>
                   <ul className="divide-y divide-line">
@@ -204,9 +215,12 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                         <Link href={`/docs/${d.id}`} className="chip h-8 shrink-0 px-3 text-xs">
                           보기
                         </Link>
-                        <a href={`/admin/docs/pdf?id=${d.id}`} download className="chip h-8 shrink-0 px-3 text-xs font-bold text-brand-700" data-doc-pdf data-track="서류 PDF 한 건">
-                          PDF
-                        </a>
+                        {/* 서명 전 서류는 PDF 대신 보기만 (받을 서류라 인쇄할 일이 거의 없음) */}
+                        {d.status !== 'pending' && (
+                          <a href={`/admin/docs/pdf?id=${d.id}`} download className="chip h-8 shrink-0 px-3 text-xs font-bold text-brand-700" data-doc-pdf data-track="서류 PDF 한 건">
+                            PDF
+                          </a>
+                        )}
                       </li>
                     ))}
                   </ul>

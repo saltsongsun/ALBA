@@ -928,7 +928,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
           </span>
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany} className="max-w-full">
@@ -939,6 +939,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 {c.n > 0 && (
                   <span className="shrink-0 whitespace-nowrap" data-other-unread-n>
                     문의 <b className="text-rose-600">{c.n}</b>
+                  </span>
+                )}
+                {/* 그 회사 오늘 행사에서 서명 안 한 사람 (서명 전이면 근무 시작이 막힘 — 회사를 바꾸면 '확인할 일' 맨 위에) */}
+                {c.unsigned > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-unsigned>
+                    서명 안 함 <b className="text-rose-600">{c.unsigned}</b>
                   </span>
                 )}
                 {c.waiting > 0 && (

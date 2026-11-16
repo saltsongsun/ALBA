@@ -14,6 +14,7 @@ export function CompanySwitcher({
   unread = {},
   waiting = {},
   lapsed = {},
+  unsigned = {},
   events = {},
 }: {
   companies: { id: string; name: string }[]
@@ -23,6 +24,8 @@ export function CompanySwitcher({
   waiting?: Record<string, number>
   /** 다른 회사의 끝난 행사에서 결과를 못 들은 대기 지원자 수 (대시보드 '결과 안 알림'과 같음 · 점은 안 켬 — 새로 온 일이 아니라서) */
   lapsed?: Record<string, number>
+  /** 다른 회사 오늘 행사에서 서명 안 한 사람 수 (서명 전이면 근무 시작이 막힘) */
+  unsigned?: Record<string, number>
   /** 다른 회사의 행사: '오늘 행사 2' · '내일 행사 1' 같은 짧은 말 (알림 점은 안 켬 — 새로 온 일이 아니라서) */
   events?: Record<string, string>
 }) {
@@ -64,6 +67,7 @@ export function CompanySwitcher({
             <option key={c.id} value={c.id}>
               {c.name}
               {c.id !== current && unread[c.id] ? ` · 새 문의 ${unread[c.id]}` : ''}
+              {c.id !== current && unsigned[c.id] ? ` · 서명 안 함 ${unsigned[c.id]}` : ''}
               {c.id !== current && waiting[c.id] ? ` · 대기 ${waiting[c.id]}` : ''}
               {c.id !== current && lapsed[c.id] ? ` · 결과 안 알림 ${lapsed[c.id]}` : ''}
               {c.id !== current && events[c.id] ? ` · ${events[c.id]}` : ''}
