@@ -7,7 +7,7 @@ import Link from 'next/link'
 import Avatar from '@/components/Avatar'
 import { ContactButtons } from '@/components/Contact'
 import { StarAvg } from '@/components/Stars'
-import { db, must } from '@/lib/db'
+import { byIds, db, must } from '@/lib/db'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { GroupContact } from '@/components/GroupContact'
 import { companyWorkerIds } from '@/lib/company'
@@ -23,6 +23,20 @@ import LevelBadge from '@/components/LevelBadge'
 import { companyLevels } from '@/lib/xpCompany'
 
 export const metadata: Metadata = { title: '근무자' }
+
+/** 정렬 기준인 값: 진한 글자 (나머지는 흐린 그대로) */
+function SortHit({ on, children }: { on: boolean; children: React.ReactNode }) {
+  return on ? (
+    <b className="font-semibold text-ink" data-sort-hit>
+      {children}
+    </b>
+  ) : (
+    <>{children}</>
+  )
+}
+
+/** 명단에 더하는 우리 회사 근무자 최대 수 (100명씩 나눠 읽음) */
+const MINE_MAX = 2000
 
 type Row = {
   id: string
@@ -101,30 +115,39 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     const str = qs.toString()
     return `/admin/workers${str ? `?${str}` : ''}`
   }
-  let query = db()
-    .from('users')
-    .select(
-      `id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, emergency_phone, address, careers, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)${admin.isSuper ? ', last_seen_at' : ''}`,
-    )
-    .eq('attendance.company_id', admin.companyId)
-    .eq('ratings.company_id', admin.companyId)
-    .order('created_at', { ascending: false })
-    .limit(500)
-  if (q) {
-    const digits = q.replace(/\D/g, '')
-    const safe = q.replace(/[%,()]/g, '')
-    query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
-  }
-  // 빠른 거르기: 사진 없음 · 계좌 없음
-  if (f === 'nophoto') query = query.is('photo_at', null)
-  if (f === 'noaccount') query = query.is('bank_account_enc', null)
   const onlineSince = new Date(Date.now() - ONLINE_MS).toISOString()
-  if (f === 'online') query = query.gte('last_seen_at', onlineSince)
+  // 명단 읽기 (검색·빠른 거르기를 같이 씀): 가입 회원 최근 500명 + 아래에서 우리 회사 근무자를 더함
+  const mk = () => {
+    let query = db()
+      .from('users')
+      .select(
+        `id, name, phone, role, member_type, birth_date, active, bank_account_enc, photo_at, created_at, emergency_phone, address, careers, attendance(work_date), ratings:worker_ratings!worker_ratings_user_id_fkey(score)${admin.isSuper ? ', last_seen_at' : ''}`,
+      )
+      .eq('attendance.company_id', admin.companyId)
+      .eq('ratings.company_id', admin.companyId)
+    if (q) {
+      const digits = q.replace(/\D/g, '')
+      const safe = q.replace(/[%,()]/g, '')
+      query = digits.length >= 3 ? query.like('phone', `%${digits}%`) : query.ilike('name', `%${safe}%`)
+    }
+    // 빠른 거르기: 사진 없음 · 계좌 없음
+    if (f === 'nophoto') query = query.is('photo_at', null)
+    if (f === 'noaccount') query = query.is('bank_account_enc', null)
+    if (f === 'online') query = query.gte('last_seen_at', onlineSince)
+    return query
+  }
   // 명단·우리 회사 지원자·관리자 목록을 한꺼번에 읽음 (차례로 기다리지 않게)
-  const [workerIds, rowsRes] = await Promise.all([workerIdsP, query])
+  const [workerIds, rowsRes] = await Promise.all([workerIdsP, mk().order('created_at', { ascending: false }).limit(500)])
   const applied = new Set(workerIds)
+  // 우리 회사 근무자가 보여야 하는 화면 ('우리 회사' 거르기 · 확인 전인 회사 · 근무일·최근 근무·레벨·평가 순)에서는
+  // 가입 순서와 상관없이 우리 회사 근무자를 빠짐없이 더함 (전체 회원이 500명을 넘으면 오래 일한 사람이 명단에서 빠졌음)
+  const base = (must(rowsRes) as unknown as Row[]).slice(0, 500)
+  const needMine = f === 'mine' || !admin.companyVerified || sort === 'days' || sort === 'recent' || sort === 'level' || sort === 'rating'
+  const seen = new Set(base.map((u) => u.id))
+  const missing = needMine ? workerIds.filter((id) => !seen.has(id)).slice(0, MINE_MAX) : []
+  const extra = missing.length ? must(await byIds<Row>(missing, (part) => mk().in('id', part))) : []
   const memberIds = new Set(members.map((m) => m.user_id))
-  const listed = (must(rowsRes) as unknown as Row[])
+  const listed = [...base, ...extra]
     // 관리자·외주 업체 계정은 근무자 목록에서 뺌 — 우리 회사 관리자는 '관리자 명부'에서.
     // 다른 회사 관리자 계정이 우리 회사에 근무자로 지원했으면 근무자로 보임 (한 계정으로 두 역할)
     .filter((u) => (u.role !== 'admin' || applied.has(u.id)) && !memberIds.has(u.id) && u.member_type !== 'vendor')
@@ -300,9 +323,17 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
             <div className="mt-2">
               <ContactButtons phone={u.phone} name={u.name} />
             </div>
+            {/* 지금 정렬 기준인 값은 진하게 (왜 이 순서인지 바로 보이게: 근무 많은 순 → '근무 n일', 최근 근무 순 → '최근', 새로 가입 순 → '가입') */}
             <p className="mt-2 text-xs text-mute">
-              근무 {stat[u.id]?.days ?? 0}일{stat[u.id]?.last && ` · 최근 ${fmtDate(stat[u.id].last)}`} · 계좌{' '}
-              {u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>} · 가입 {fmtDate(kstDate(u.created_at))}
+              <SortHit on={sort === 'days'}>근무 {stat[u.id]?.days ?? 0}일</SortHit>
+              {stat[u.id]?.last && (
+                <>
+                  {' · '}
+                  <SortHit on={sort === 'recent'}>최근 {fmtDate(stat[u.id].last)}</SortHit>
+                </>
+              )}{' '}
+              · 계좌 {u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>} ·{' '}
+              <SortHit on={sort === 'new'}>가입 {fmtDate(kstDate(u.created_at))}</SortHit>
             </p>
           </div>
         ))}

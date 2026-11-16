@@ -1,5 +1,5 @@
 import 'server-only'
-import { db } from './db'
+import { allPages, db } from './db'
 import { getJob } from './data'
 import { adminCompanies, type AdminUser, type SessionUser } from './session'
 import type { Job } from './types'
@@ -89,8 +89,9 @@ export async function companiesSeeingWorker(userId: string): Promise<{ id: strin
 
 /** 이 회사 근무자들의 id (지원한 적이 있는 사람) */
 export async function companyWorkerIds(companyId: string): Promise<string[]> {
-  const { data } = await db().from('applications').select('user_id').eq('company_id', companyId)
-  return [...new Set(((data ?? []) as { user_id: string }[]).map((a) => a.user_id))]
+  // 지원이 1000건을 넘어도 잘리지 않게 끝까지 나눠 받음 (전엔 1000줄에서 말없이 잘려 명단·명단 내려받기·지난 근무자 알림에서 사람이 빠졌음)
+  const rows = await allPages<{ user_id: string }>((from, to) => db().from('applications').select('user_id').eq('company_id', companyId).order('id').range(from, to))
+  return [...new Set(rows.map((a) => a.user_id))]
 }
 
 /**
