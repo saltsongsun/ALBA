@@ -77,18 +77,20 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   // 대화마다: 사람이 직접 쓴 마지막 글(근무자 글 · 담당자가 직접 쓴 답장) · 자동 안내 수
   // 목록은 직접 쓴 마지막 글로 줄 세우고 미리보기도 그 글로 (자동 안내가 나중에 와도 위로 올라오지 않게)
   // 자동 안내만 있는 대화는 맨 아래 '알림만 보낸 대화'로 접어 둠
-  const threads = new Map<string, { last: Row; real: Row | null; unread: number; auto: number }>()
+  const threads = new Map<string, { last: Row; real: Row | null; unread: number; auto: number; user: Row['user'] }>()
   for (const r of rows) {
-    const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, real: null, unread: 0, auto: 0 }).get(r.thread_user_id)!
+    const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, real: null, unread: 0, auto: 0, user: null }).get(r.thread_user_id)!
+    t.user ??= r.user
     if (!r.from_admin && !r.read_at) t.unread++
     if (isAutoNotice(r)) t.auto++
     else t.real ??= r
   }
-  const every = [...threads.values()].filter((t) => t.last.user)
+  // 근무자 정보는 그 대화의 어느 글에서든 (글마다 같은 사람)
+  const every = [...threads.values()].filter((t) => t.user).map((t) => ({ ...t, last: { ...t.last, user: t.user } }))
   // 직접 쓴 글이 있는 대화 (그 글이 최근인 순서)
   const all = every
     .filter((t) => t.real)
-    .map((t) => ({ last: t.real!, unread: t.unread }))
+    .map((t) => ({ last: { ...t.real!, user: t.user }, unread: t.unread }))
     .sort((a, b) => b.last.created_at.localeCompare(a.last.created_at))
   // 우리가 보낸 자동 안내만 있는 대화 (근무자가 답하면 위로 올라감)
   const autoOnly = every.filter((t) => !t.real)
