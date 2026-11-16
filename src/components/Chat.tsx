@@ -150,7 +150,7 @@ export function ChatMessages({
             <li key={m.id}>
               {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
               <details className="group ml-auto flex max-w-[78vw] flex-col items-end sm:max-w-md" data-auto-notice>
-                <summary className="flex cursor-pointer list-none items-center justify-end gap-1.5 [&::-webkit-details-marker]:hidden">
+                <summary className="flex cursor-pointer list-none items-center justify-end gap-1.5 before:hidden [&::-webkit-details-marker]:hidden">
                   <span className="flex min-w-0 items-center gap-1 rounded-full bg-line/60 px-2.5 py-1 text-xs font-semibold text-sub transition active:scale-95">
                     <span className="truncate">{head}</span>
                     <svg viewBox="0 0 24 24" className="size-3.5 shrink-0 text-mute transition duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
