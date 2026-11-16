@@ -83,7 +83,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok('누르면 그 회사 대시보드로', (await a.locator('header select[name=company]').inputValue()) === C2)
   // 그 회사에서 보면: 원래 회사(대기 지원자 김지원 1명 · 문의 1건)가 '다른 회사'로
   const back = ((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
-  ok("그 회사에서 보면 원래 회사가 '다른 회사'로 (대기 1)", /주식회사 테스트( 문의 \d+)? 대기 1( (오늘|내일) 행사 \d+)?$/.test(back), back)
+  // (원래 회사 오늘 행사에 서명 전 근무자가 있으면 '서명 안 함 n'도 — 묶음 272)
+  ok("그 회사에서 보면 원래 회사가 '다른 회사'로 (대기 1)", /주식회사 테스트( 문의 \d+)?( 서명 안 함 \d+)? 대기 1( (오늘|내일) 행사 \d+)?$/.test(back), back)
   // 다 확정·처리하면 안내 없음 (원래 회사로 돌아와서)
   await rest(`applications?company_id=eq.${C2}`, 'PATCH', { status: 'approved' })
   await rest(`messages?company_id=eq.${C2}`, 'PATCH', { read_at: now })
