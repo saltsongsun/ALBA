@@ -52,7 +52,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   ok('현황 제목이 맨 위, 그 아래 확인할 일', order.h1 >= 0 && order.todo > order.h1, JSON.stringify(order))
   ok('휴대폰 알림 칸은 맨 아래', order.push > order.jobs, JSON.stringify(order))
   const todo = m.locator('section', { hasText: '확인할 일' })
-  ok('새 문의는 확인할 일 안에 (누르면 문의)', (await todo.locator('a[href="/admin/chat"]', { hasText: '새 문의' }).count()) === 1)
+  // 한 사람에게서만 온 새 문의면 그 대화로 바로 (/admin/chat/…) · 여럿이면 문의 목록 (2026-11-16)
+  ok('새 문의는 확인할 일 안에 (누르면 문의)', (await todo.locator('a[href^="/admin/chat"]', { hasText: '새 문의' }).count()) === 1)
   ok("따로 뜨던 '새 문의 N건이 있어요' 띠 없음", (await m.getByText(/새 문의 \d+건이 있어요/).count()) === 0)
 
   // 더보기
@@ -68,7 +69,8 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   await m.waitForURL(/\/admin\/settings/, { timeout: 10000 }).catch(() => {})
   await m.waitForTimeout(500)
   ok('누르면 이동 + 시트 닫힘', (await sheet.count()) === 0 && m.url().includes('/admin/settings'))
-  ok('설정 화면에서는 더보기가 켜짐', (await m.locator('[data-admin-tabbar] button', { hasText: '더보기' }).getAttribute('class')).includes('text-brand-600'))
+  // 켜진 탭은 진한 바탕 위 흰 글자 (data-tab-active · 2026-11-16 근무자 탭과 같게)
+  ok('설정 화면에서는 더보기가 켜짐', (await m.locator('[data-admin-tabbar] button', { hasText: '더보기' }).getAttribute('data-tab-active')) !== null)
 
   // 공고 탭
   await m.locator('[data-admin-tabbar] a[href="/admin/jobs"]').click()

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Fragment, useEffect, useState } from 'react'
 import { useTabTarget } from '@/components/useTabTarget'
+import { TAB_INDICATOR, TabHereBubble, useTabHere } from '@/components/TabHere'
 
 type Item = { href: string; label: string; icon: React.ReactNode; exact?: boolean }
 
@@ -72,6 +73,8 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
   const more = isSuper ? [...MORE, ...(ops ? [OPS] : []), ...SUPER] : MORE
   // 표시는 누른 순간 옮겨 감 (shown), 화면 읽어 주기(aria-current)는 실제 주소 기준
   const [shown, onTap] = useTabTarget(path)
+  // 보고 있는 탭을 또 누르면: 내려가 있으면 맨 위로 · 맨 위면 '지금 OO 화면이에요' (근무자 아래 탭과 같게)
+  const [here, tapSame] = useTabHere(path)
   const tabAt = (p: string) => (more.some((m) => p.startsWith(m.href)) ? 4 : MAIN.findIndex((t) => (t.exact ? p === t.href : p.startsWith(t.href))))
   const at = tabAt(shown)
   const current = tabAt(path)
@@ -123,9 +126,12 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
       )}
       <nav aria-label="관리자 메뉴" data-admin-tabbar data-vv="pin" className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
         <div className="glass pointer-events-auto relative mx-auto grid h-16 max-w-md grid-cols-5 rounded-[26px] p-1.5">
+          <TabHereBubble here={here} />
+          {/* 지금 있는 탭: 진한 색 바탕 + 흰 글자 (근무자 아래 탭과 같게 · 예전 연한 바탕은 어디 있는지 잘 안 보였음) */}
           <span
             aria-hidden
-            className={`absolute inset-y-1.5 left-1.5 rounded-[20px] bg-brand-50 ring-1 ring-brand-100/70 transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.3,1.35,0.4,1)] ${at < 0 ? 'opacity-0' : ''}`}
+            data-tab-indicator
+            className={`${TAB_INDICATOR} ${at < 0 ? 'opacity-0' : ''}`}
             style={{ width: 'calc((100% - 12px) / 5)', transform: `translateX(${Math.max(at, 0) * 100}%)` }}
           />
           {MAIN.map((t, i) => {
@@ -134,9 +140,17 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
               <Link
                 key={t.href}
                 href={t.href}
-                onClick={onTap(t.href)}
+                onClick={(e) => {
+                  if (path === t.href && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
+                    e.preventDefault()
+                    tapSame(t.label)
+                    return
+                  }
+                  onTap(t.href)(e)
+                }}
                 aria-current={i === current ? 'page' : undefined}
-                className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
+                data-tab-active={active || undefined}
+                className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] transition-colors duration-200 ${active ? 'font-bold text-white' : 'font-semibold text-mute'}`}
               >
                 <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">
                   {/* 숫자가 바뀌면(새 문의) 배지가 다시 톡 — key로 새로 그림 */}
@@ -158,7 +172,8 @@ export default function AdminTabBar({ unread = 0, joinWait = 0, isSuper = false,
             aria-expanded={open}
             aria-haspopup="dialog"
             onClick={() => setOpen((v) => !v)}
-            className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${at === 4 || open ? 'text-brand-600' : 'text-mute'}`}
+            data-tab-active={at === 4 || undefined}
+            className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] transition-colors duration-200 ${at === 4 ? 'font-bold text-white' : open ? 'font-semibold text-brand-600' : 'font-semibold text-mute'}`}
           >
             <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">
               {moreBadge > 0 && <span aria-hidden className="absolute -top-0.5 right-1.5 size-2.5 animate-pop rounded-full bg-rose-500 ring-2 ring-white" />}

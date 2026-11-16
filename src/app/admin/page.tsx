@@ -22,7 +22,7 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { overlapDay } from '@/lib/overlap'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, soleUnreadThread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -161,7 +161,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
   vendorP.catch(() => {})
   const today = kstDate()
-  const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount, unreadChats, noReplyChats] = await Promise.all([
+  const [settings, sealSet, activeJobs, pending, working, pendingDocs, workerCount, unreadChats, noReply, soleUnread] = await Promise.all([
     getSettings(admin.companyId),
     hasSeal(admin.companyId),
     db()
@@ -210,8 +210,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       : companyWorkerIds(admin.companyId).then((ids) => ({ count: ids.length as number | null })),
     unreadForAdmins(admin.companyId),
     // 읽고 아직 답하지 않은 문의 (못 읽어도 화면은 그대로)
-    noReplyThreads(admin.companyId).catch(() => 0),
+    noReplyThreads(admin.companyId).catch(() => ({ n: 0, only: null })),
+    // 새 문의가 한 사람에게서만 왔으면 그 대화로 바로
+    soleUnreadThread(admin.companyId).catch(() => null),
   ])
+  const noReplyChats = noReply.n
   const counts = countApps(activeJobs, 'approved')
   const waitingBy = countApps(activeJobs, 'applied')
   // 확정 대기 지원자 카드에 쓰는 조회 (레벨·근무 이력·평가·답변 속도·주휴·겹침): 첫 조회가 끝나자마자 출발해
@@ -529,9 +532,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const group = group0
   const todos: Todo[] = [
     // 새 문의 (따로 띄우던 띠를 할 일 맨 위로)
-    ...(unreadChats > 0 ? [{ key: 'chat', icon: 'chat' as const, text: '새 문의 · 답장해 주세요', n: unreadChats, unit: '건', href: '/admin/chat', tone: 'text-rose-600' }] : []),
+    ...(unreadChats > 0 ? [{ key: 'chat', icon: 'chat' as const, text: '새 문의 · 답장해 주세요', n: unreadChats, unit: '건', href: soleUnread ? `/admin/chat/${soleUnread}` : '/admin/chat', tone: 'text-rose-600' }] : []),
     // 읽기만 하고 답하지 않은 문의 (문의 목록의 '답장 전'만 모아 보기로)
-    ...(noReplyChats > 0 ? [{ key: 'noreply', icon: 'chat' as const, text: '읽고 아직 답하지 않은 문의', n: noReplyChats, unit: '건', href: '/admin/chat?noreply=1', tone: 'text-amber-700' }] : []),
+    ...(noReplyChats > 0 ? [{ key: 'noreply', icon: 'chat' as const, text: '읽고 아직 답하지 않은 문의', n: noReplyChats, unit: '건', href: noReply.only ? `/admin/chat/${noReply.only}` : '/admin/chat?noreply=1', tone: 'text-amber-700' }] : []),
     ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
       key: `arrive-${g[0].job_id}`,
       icon: 'pin' as const,

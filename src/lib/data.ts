@@ -170,14 +170,13 @@ export const unreadForWorker = cache(async (userId: string): Promise<number> => 
   return (count ?? 0) + rooms
 })
 
-/** 관리자가 아직 안 읽은 근무자 문의 수 (이 회사로 온 문의만) */
 /**
  * 읽었지만 아직 답하지 않은 문의 대화 수 (관리자 문의 목록의 '답장 전'과 같은 기준):
  * 최근 7일 안에 사람이 직접 쓴 마지막 글이 근무자 글이고, 읽었고, 알리기만 하는 글(지각·취소 알림 등)이 아닌 대화.
  * 우리가 자동으로 보낸 안내(확정·정산일·공지 등)는 답장으로 치지 않음 · 근무자 글과 우리 글을 따로 받아 와서
  * 한꺼번에 보낸 안내가 많아도 근무자 문의가 밀려나지 않게
  */
-export async function noReplyThreads(companyId: string): Promise<number> {
+export async function noReplyThreads(companyId: string): Promise<{ n: number; only: string | null }> {
   type M = { thread_user_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString()
   const [mine, ours] = await Promise.all(
@@ -199,9 +198,24 @@ export async function noReplyThreads(companyId: string): Promise<number> {
     const cur = last.get(m.thread_user_id)
     if (!cur || m.created_at > cur.created_at) last.set(m.thread_user_id, m)
   }
-  return [...last.values()].filter((m) => !m.from_admin && !!m.read_at && needsReply(m.body)).length
+  const wait = [...last.values()].filter((m) => !m.from_admin && !!m.read_at && needsReply(m.body))
+  // 한 사람뿐이면 홈 할 일에서 목록을 거치지 않고 그 대화로 바로
+  return { n: wait.length, only: wait.length === 1 ? wait[0].thread_user_id : null }
 }
 
+/**
+ * 안 읽은 근무자 문의가 모두 한 사람에게서 왔으면 그 사람 (홈 '새 문의'를 누르면 목록을 거치지 않고 그 대화로 · 탭 한 번 줄임).
+ * 여러 사람이거나 너무 많아 다 못 읽었으면 null (목록으로)
+ */
+export async function soleUnreadThread(companyId: string): Promise<string | null> {
+  const LIMIT = 1000
+  const { data } = await db().from('messages').select('thread_user_id').eq('company_id', companyId).eq('from_admin', false).is('read_at', null).limit(LIMIT)
+  const rows = (data ?? []) as { thread_user_id: string }[]
+  const ids = new Set(rows.map((r) => r.thread_user_id))
+  return ids.size === 1 && rows.length < LIMIT ? rows[0].thread_user_id : null
+}
+
+/** 관리자가 아직 안 읽은 근무자 문의 수 (이 회사로 온 문의만) */
 export const unreadForAdmins = cache(async (companyId: string): Promise<number> => {
   const { count } = await db()
     .from('messages')
