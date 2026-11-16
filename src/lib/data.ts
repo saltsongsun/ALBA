@@ -7,7 +7,7 @@ import { APP_NAME } from './brand'
 import { clientInfo } from './session'
 import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
 import { kstDate } from './time'
-import { needsReply } from './signals'
+import { isQuietNotice, needsReply } from './signals'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
 
 const COMPANY_COLS =
@@ -173,20 +173,29 @@ export const unreadForWorker = cache(async (userId: string): Promise<number> => 
 /** 관리자가 아직 안 읽은 근무자 문의 수 (이 회사로 온 문의만) */
 /**
  * 읽었지만 아직 답하지 않은 문의 대화 수 (관리자 문의 목록의 '답장 전'과 같은 기준):
- * 최근 7일 안의 마지막 글이 근무자가 쓴 글이고, 읽었고, 알리기만 하는 글(지각·취소 알림 등)이 아닌 대화
+ * 최근 7일 안에 사람이 직접 쓴 마지막 글이 근무자 글이고, 읽었고, 알리기만 하는 글(지각·취소 알림 등)이 아닌 대화.
+ * 우리가 자동으로 보낸 안내(확정·정산일·공지 등)는 답장으로 치지 않음 · 근무자 글과 우리 글을 따로 받아 와서
+ * 한꺼번에 보낸 안내가 많아도 근무자 문의가 밀려나지 않게
  */
 export async function noReplyThreads(companyId: string): Promise<number> {
+  type M = { thread_user_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString()
-  const { data } = await db()
-    .from('messages')
-    .select('thread_user_id, from_admin, read_at, created_at, body')
-    .eq('company_id', companyId)
-    .gte('created_at', since)
-    .order('created_at', { ascending: false })
-    .limit(500)
-  const last = new Map<string, { from_admin: boolean; read_at: string | null; created_at: string; body: string }>()
-  for (const m of (data ?? []) as { thread_user_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }[]) {
-    if (m.created_at < since) continue
+  const [mine, ours] = await Promise.all(
+    [false, true].map((fromAdmin) =>
+      db()
+        .from('messages')
+        .select('thread_user_id, from_admin, read_at, created_at, body')
+        .eq('company_id', companyId)
+        .eq('from_admin', fromAdmin)
+        .gte('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(500)
+        .then((r) => (r.data ?? []) as M[]),
+    ),
+  )
+  const last = new Map<string, M>()
+  for (const m of [...mine, ...ours]) {
+    if (m.created_at < since || isQuietNotice(m)) continue
     const cur = last.get(m.thread_user_id)
     if (!cur || m.created_at > cur.created_at) last.set(m.thread_user_id, m)
   }

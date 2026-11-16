@@ -1004,11 +1004,13 @@ export async function addAttendance(jobId: string, form: FormData) {
  * 현장 위치 확인이 안 돼 근무자가 보낸 '출근 확인 요청'을 받아들임: 요청한 시각으로 출근 기록 (근무자는 이후 앱에서 종료)
  * 그날 그 근무자의 가장 최근 요청을 서버에서 다시 찾음
  */
-export async function approveArrival(jobId: string, userId: string, date: string) {
+export async function approveArrival(jobId: string, userId: string, date: string, from?: 'chat' | FormData) {
   const admin = await requireAdmin()
   const job = isUuid(userId) && isDate(date) ? await companyJob(admin, jobId) : null
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
+  // 문의 대화에서 바로 눌렀으면 처리 뒤 그 대화로 (안 되는 경우는 출퇴근 탭으로 — 거기서 직접 고침)
+  const done = from === 'chat' ? `/admin/chat/${userId}` : path
   const rows = must(
     await db()
       .from('messages')
@@ -1044,15 +1046,18 @@ export async function approveArrival(jobId: string, userId: string, date: string
     tag: `arrive-ok-${jobId}`,
   })
   revalidatePath(`/admin/jobs/${jobId}`)
-  back(path, `${kstTime(req.created_at)} 출근으로 처리했어요.`)
+  revalidatePath(`/admin/chat/${userId}`)
+  back(done, `${kstTime(req.created_at)} 출근으로 처리했어요.`)
 }
 
 /** 근무자의 기록 정정 요청에 답하기: accept면 요청한 시각으로 보정(adj_in/adj_out), 아니면 그대로 두고 알림 */
-export async function decideFix(jobId: string, userId: string, date: string, accept: boolean) {
+export async function decideFix(jobId: string, userId: string, date: string, accept: boolean, from?: 'chat' | FormData) {
   const admin = await requireAdmin()
   const job = isUuid(userId) && isDate(date) ? await companyJob(admin, jobId) : null
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
+  // 문의 대화에서 바로 눌렀으면 처리 뒤 그 대화로 (안 되는 경우는 출퇴근 탭으로 — 거기서 직접 고침)
+  const done = from === 'chat' ? `/admin/chat/${userId}` : path
   const [msgs, { data }] = await Promise.all([
     db()
       .from('messages')
@@ -1086,7 +1091,8 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
       tag: `fix-${jobId}`,
     })
     revalidatePath(`/admin/jobs/${jobId}`)
-    back(path, full ? '실제 종료 시각대로 두고 근무자에게 알렸어요.' : '정정하지 않고 근무자에게 알렸어요.')
+    revalidatePath(`/admin/chat/${userId}`)
+    back(done, full ? '실제 종료 시각대로 두고 근무자에게 알렸어요.' : '정정하지 않고 근무자에게 알렸어요.')
   }
   const inAt = new Date(att.adj_in ?? att.clock_in)
   const outAt = new Date(att.adj_out ?? att.clock_out)
@@ -1114,8 +1120,9 @@ export async function decideFix(jobId: string, userId: string, date: string, acc
     tag: `fix-${jobId}`,
   })
   revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath(`/admin/chat/${userId}`)
   revalidatePath('/me')
-  back(path, full ? `근로조건대로 ${fix.time}까지 인정했어요. 근무자에게 알렸어요.` : `${word} 시각을 ${fix.time}(으)로 고쳤어요.`)
+  back(done, full ? `근로조건대로 ${fix.time}까지 인정했어요. 근무자에게 알렸어요.` : `${word} 시각을 ${fix.time}(으)로 고쳤어요.`)
 }
 
 /**

@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { deleteMessage } from '@/app/actions/chat'
+import { approveArrival, decideFix } from '@/app/actions/admin'
 import { deletedText, isDeleted } from '@/lib/deleted'
-import { SIGNAL, signalOf } from '@/lib/signals'
+import { ARRIVE_OK, isAutoNotice, isFullTimeAsk, parseFix, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { plainBody, stickerOf } from '@/lib/stickers'
 import { splitButtons, type ChatButton } from '@/lib/chatButtons'
 import Icon from './Icon'
 import { linkify } from './Linkify'
 import MessageMenu from './MessageMenu'
 import Sticker from './Sticker'
+import { ConfirmSubmit, SubmitButton } from './ui'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 
 /** 대화 화면에서 메시지를 읽을 때의 select (공고 제목·보낸 사람 이름 포함) */
@@ -54,6 +56,60 @@ export function adminActionFor(m: Pick<ChatMessage, 'from_admin' | 'body' | 'cre
 }
 
 /**
+ * 담당자 화면: 근무자 요청을 대화에서 바로 처리 (사용자 요청 2026-11-16 "문의에서 이렇게 뜨는 경우가 많은데 바로 처리하는 버튼을 띄우자").
+ * - 기록 정정 요청: 아직 답하지 않은 가장 최근 요청에만 '요청대로 고치기 · 그대로 두기'
+ * - 출근 확인 요청(위치 확인 실패): 오늘 것 · 아직 처리 안 한 가장 최근 것에만 'HH:MM 출근 처리'
+ * 이미 답했거나 더 새 요청이 있으면 null (버튼 없이 말풍선만)
+ */
+type Quick = { kind: 'fix'; date: string; time: string; full: boolean } | { kind: 'arrive'; date: string; at: string }
+function quickFor(m: ChatMessage, all: ChatMessage[]): Quick | null {
+  if (m.from_admin || !m.job || !m.sender_id) return null
+  const jobId = m.job.id
+  const kind = signalOf(m.body)
+  const date = kstDate(m.created_at)
+  if (kind === 'fix') {
+    const fix = parseFix(m.body)
+    if (!fix || pendingFix(all.filter((x) => x.job?.id === jobId), date)?.id !== m.id) return null
+    return { kind: 'fix', date, time: fix.time, full: isFullTimeAsk(m.body) && fix.field === 'out' }
+  }
+  if (kind === 'arrive' && date === kstDate()) {
+    const later = all.filter((x) => x.job?.id === jobId && x.created_at > m.created_at)
+    if (later.some((x) => (x.from_admin && x.body.startsWith(ARRIVE_OK)) || (!x.from_admin && signalOf(x.body) === 'arrive'))) return null
+    return { kind: 'arrive', date, at: kstTime(m.created_at) }
+  }
+  return null
+}
+
+function QuickActions({ m, q }: { m: ChatMessage; q: Quick }) {
+  const job = m.job!.id
+  const uid = m.sender_id!
+  return (
+    <div className="mt-1.5 flex animate-pop flex-wrap gap-1.5" data-chat-quick={q.kind}>
+      {q.kind === 'arrive' ? (
+        <form action={approveArrival.bind(null, job, uid, q.date, 'chat')}>
+          <SubmitButton className="chip-primary h-9 px-3.5 text-[13px]" pendingText="처리 중…">
+            {q.at} 출근 처리
+          </SubmitButton>
+        </form>
+      ) : (
+        <>
+          <form action={decideFix.bind(null, job, uid, q.date, true, 'chat')}>
+            <SubmitButton className="chip-primary h-9 px-3.5 text-[13px]" pendingText={q.full ? '인정하는 중…' : '고치는 중…'}>
+              {q.full ? `${q.time}까지 인정` : '요청대로 고치기'}
+            </SubmitButton>
+          </form>
+          <form action={decideFix.bind(null, job, uid, q.date, false, 'chat')}>
+            <ConfirmSubmit className="chip h-9 px-3.5 text-[13px]" confirmText="한 번 더 누르면 그대로 둬요">
+              {q.full ? '실제 시각대로' : '그대로 두기'}
+            </ConfirmSubmit>
+          </form>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
  * 문의 대화 말풍선. 보는 사람(근무자/관리자)이 보낸 건 오른쪽 파란색, 받은 건 왼쪽 흰색.
  * 날짜가 바뀌면 구분선, 상대가 아직 안 읽은 내 메시지에는 '1'.
  * 말풍선을 꾹 누르면(PC는 오른쪽 클릭) 복사 · 내가 쓴 건 삭제 (앱이 보낸 현장 알림·요청은 기록이라 삭제 없음)
@@ -87,6 +143,35 @@ export function ChatMessages({
         const showName = !mine && (showDay || !prev || prev.from_admin !== m.from_admin || prev.sender?.name !== m.sender?.name)
         // 담당자가 보낸 바로 가기 버튼: 글 아래 버튼으로 (근무자가 쓴 버튼 모양 글은 버튼으로 바꾸지 않음)
         const { text, buttons } = m.from_admin && !isDeleted(m.body) ? splitButtons(m.body) : { text: m.body, buttons: [] as ChatButton[] }
+        // 담당자 화면: 우리가 자동으로 보낸 안내(확정·정산일·공지 등)는 한 줄로 작게 · 누르면 전체 (직접 주고받은 말이 눈에 띄게 · 사용자 요청 2026-11-16)
+        if (viewer === 'admin' && !isDeleted(m.body) && isAutoNotice(m)) {
+          const [head, ...rest] = text.split('\n')
+          return (
+            <li key={m.id}>
+              {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
+              <details className="group ml-auto flex max-w-[78vw] flex-col items-end sm:max-w-md" data-auto-notice>
+                <summary className="flex cursor-pointer list-none items-center justify-end gap-1.5 [&::-webkit-details-marker]:hidden">
+                  <span className="flex min-w-0 items-center gap-1 rounded-full bg-line/60 px-2.5 py-1 text-xs font-semibold text-sub transition active:scale-95">
+                    <span className="truncate">{head}</span>
+                    <svg viewBox="0 0 24 24" className="size-3.5 shrink-0 text-mute transition duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" aria-hidden>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </span>
+                  <span className="shrink-0 text-[11px] text-mute tabular-nums">
+                    {!m.read_at && <b className="mr-1 text-brand-600">1</b>}
+                    {kstTime(m.created_at)}
+                  </span>
+                </summary>
+                {rest.join('\n').trim() && (
+                  <p className="mt-1 animate-rise rounded-2xl rounded-br-md bg-white px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-sub ring-1 ring-line [animation-duration:.2s]" data-auto-notice-body>
+                    {linkify(rest.join('\n').trim(), false)}
+                  </p>
+                )}
+                {buttons.length > 0 && <ChatButtons buttons={buttons} live={false} />}
+              </details>
+            </li>
+          )
+        }
         return (
           <li key={m.id}>
             {showDay && <p className="my-4 text-center text-xs font-semibold text-mute">{fmtDate(day)}</p>}
@@ -131,9 +216,14 @@ export function ChatMessages({
                 </span>
               </div>
               {buttons.length > 0 && <ChatButtons buttons={buttons} live={viewer === 'worker'} clock={i === clockAt ? clock : undefined} />}
-              {/* 근무자의 현장 알림·요청: 처리할 화면으로 바로 */}
+              {/* 근무자의 현장 알림·요청: 대화에서 바로 처리 (정정·출근 확인) · 그 밖은 처리할 화면으로 */}
               {viewer === 'admin' &&
                 (() => {
+                  const q = quickFor(m, messages)
+                  if (q) return <QuickActions m={m} q={q} />
+                  // 이미 답한 정정·출근 확인 요청은 버튼 없이 (화면을 단순하게)
+                  const kind = signalOf(m.body)
+                  if (kind === 'fix' || (kind === 'arrive' && kstDate(m.created_at) === kstDate())) return null
                   const act = adminActionFor(m)
                   return act ? (
                     <Link href={act.href} className="chip-primary mt-1.5 h-8 px-3 text-xs">

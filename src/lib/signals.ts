@@ -68,6 +68,24 @@ const AUTO_HEADS: readonly string[] = [
   '📢 공지',
 ]
 
+/** 출근 처리 안내 첫 줄 (출근 확인 요청 처리 · 여러 명 출근 처리) */
+export const ARRIVE_OK = '✅ 출근 처리됐어요'
+
+/**
+ * 근무자 요청(기록 정정 · 출근 확인)에 담당자가 버튼으로 답해 간 결과 안내.
+ * 대화 화면에서는 자동 안내처럼 한 줄로 작게 보이지만, 문의함·홈 '답장 전'에서는 답한 것으로 셈 (버튼으로 처리했는데 계속 '답장 전'으로 남지 않게)
+ */
+export function isRequestAnswer(m: { from_admin: boolean; body: string }): boolean {
+  if (!m.from_admin) return false
+  const head = m.body.split('\n', 1)[0]
+  if (head.startsWith(SIGNAL.fixDone) || head.startsWith(SIGNAL.fixNo)) return true
+  // 출근 확인 요청을 처리한 답 ('…HH:MM 출근으로 기록했어요') — 여러 명을 한꺼번에 출근 처리한 안내('근무 시작으로 기록했어요')는 빼고
+  return head.startsWith(ARRIVE_OK) && m.body.includes('출근으로 기록했어요')
+}
+
+/** 문의함 줄 세우기·답장 여부에서 빼는 안내 (자동 안내 중 요청에 대한 답은 뺌) */
+export const isQuietNotice = (m: { from_admin: boolean; body: string }) => isAutoNotice(m) && !isRequestAnswer(m)
+
 /** 우리가 자동으로·한꺼번에 보낸 안내인지 (근무자가 쓴 글·담당자가 직접 쓴 답장은 아님) */
 export function isAutoNotice(m: { from_admin: boolean; body: string }): boolean {
   if (!m.from_admin) return false

@@ -94,14 +94,33 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
   const [shown, onTap] = useTabTarget(path)
   const at = tabs.findIndex((t) => t.on(shown))
   const current = tabs.findIndex((t) => t.on(path))
+  // 이미 보고 있는 탭을 맨 위에서 또 누르면 '지금 이 화면' 말풍선 (사용자 요청 2026-11-16 "내근무를 두번이상 누르는거는 내가 내근무에 있는지 모르는거 같아")
+  const [here, setHere] = useState<{ label: string; n: number } | null>(null)
+  useEffect(() => {
+    if (!here) return
+    const t = setTimeout(() => setHere(null), 1800)
+    return () => clearTimeout(t)
+  }, [here])
+  useEffect(() => setHere(null), [path])
   return (
     // 화면 아래에 떠 있는 유리 탭 (iOS 26 느낌): 뒤 내용이 흐리게 비치고, 누른 탭 표시가 미끄러지듯 옮겨 감
     <nav aria-label="주요 메뉴" data-bottom-nav data-vv="pin" className="no-print pointer-events-none fixed inset-x-0 bottom-0 z-30 px-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:hidden">
       <div className={`glass pointer-events-auto relative mx-auto grid h-16 max-w-md rounded-[26px] p-1.5 ${tabs.length === 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
+        {here && (
+          <span
+            key={here.n}
+            role="status"
+            data-tab-here
+            className="absolute -top-10 left-1/2 -translate-x-1/2 animate-rise rounded-full bg-ink px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-white shadow-lg [animation-duration:.2s]"
+          >
+            지금 &lsquo;{here.label}&rsquo; 화면이에요
+          </span>
+        )}
+        {/* 지금 있는 탭: 진한 색 바탕 + 흰 글자 (예전 연한 바탕은 어디 있는지 잘 안 보였음) */}
         <span
           aria-hidden
           data-tab-indicator
-          className={`absolute inset-y-1.5 left-1.5 rounded-[20px] bg-brand-50 ring-1 ring-brand-100/70 transition-[transform,opacity] duration-500 ease-[cubic-bezier(0.3,1.35,0.4,1)] ${at < 0 ? 'opacity-0' : ''}`}
+          className={`absolute inset-y-1.5 left-1.5 rounded-[20px] bg-brand-600 shadow-[0_6px_16px_-6px_var(--color-brand-600)] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.3,1.35,0.4,1)] motion-reduce:transition-none ${at < 0 ? 'opacity-0' : ''}`}
           style={{ width: `calc((100% - 12px) / ${tabs.length})`, transform: `translateX(${Math.max(at, 0) * 100}%)` }}
         />
         {tabs.map((t, i) => {
@@ -116,6 +135,11 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
                 const inThread = t.href === '/me/chat' && location.search.length > 1
                 if (path === t.href && !inThread && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey) {
                   e.preventDefault()
+                  // 이미 맨 위면 움직일 게 없어 반응이 없던 것 → 지금 이 화면이라고 알려 줌
+                  if (window.scrollY < 8) {
+                    setHere((h) => ({ label: t.label, n: (h?.n ?? 0) + 1 }))
+                    return
+                  }
                   const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
                   window.scrollTo({ top: 0, behavior: smooth ? 'smooth' : 'auto' })
                   return
@@ -123,7 +147,8 @@ export default function BottomNav({ unread = 0, todo = 0, communityNew = false, 
                 onTap(t.href)(e)
               }}
               aria-current={i === current ? 'page' : undefined}
-              className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-semibold transition-colors ${active ? 'text-brand-600' : 'text-mute'}`}
+              data-tab-active={active || undefined}
+              className={`group relative flex flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] transition-colors duration-200 ${active ? 'font-bold text-white' : 'font-semibold text-mute'}`}
             >
               <span className="relative grid h-6 w-10 place-items-center transition duration-200 group-active:scale-90">
                 {/* 안 읽은 담당자 답장 */}

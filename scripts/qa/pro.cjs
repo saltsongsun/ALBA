@@ -60,7 +60,7 @@ const errs = []
   ok('전문가가 홈에 오면 전문가 화면으로', ex.url().endsWith('/pro'), ex.url())
   ok('전문가 화면: 전문가 의뢰만', (await see(ex, JX_TITLE)) && !(await see(ex, J_TITLE, 1200)))
   ok('전문가 아래 탭: 의뢰 찾기·견적·대금', (await ex.locator('nav[data-bottom-nav] a').count()) === 5 && (await see(ex, '견적·대금')))
-  ok('전문가 화면 강조색 보라', (await brandOf(ex.locator('nav[data-bottom-nav] [data-tab-indicator]'))) === 'rgb(244, 240, 255)')
+  ok('전문가 화면 강조색 보라', (await brandOf(ex.locator('nav[data-bottom-nav] [data-tab-indicator]'))) === 'rgb(106, 63, 232)')
 
   // ── 3. 지원은 유형이 맞아야 ──
   // (저녁 6시가 지나면 하루짜리 공고는 '오늘 근무 종료'로 지원 칸이 닫혀서 이틀짜리로)

@@ -33,8 +33,9 @@ const QUICK_REPLIES = ['확인했습니다.', '담당자가 곧 전화드릴게�
 function repliesFor(last: ChatMessage | undefined): string[] {
   const head = last?.body.split('\n', 1)[0] ?? ''
   if (head.startsWith(SIGNAL.late)) return ['네, 조심히 오세요.', '도착하면 앱에서 근무 시작을 눌러 주세요.']
-  if (head.startsWith(SIGNAL.arrive)) return ['출근 처리했어요. 오늘도 잘 부탁해요!', '현장 운영본부로 와 주세요.']
-  if (head.startsWith(SIGNAL.fix)) return ['요청대로 기록을 고쳤어요.', '확인해 보고 다시 알려 드릴게요.']
+  // 출근 처리·정정은 말풍선 아래 버튼으로 (누르면 근무자에게 결과 안내가 감) — '처리했어요'라고 글만 보내는 답장은 뺌
+  if (head.startsWith(SIGNAL.arrive)) return ['현장 운영본부로 와 주세요.']
+  if (head.startsWith(SIGNAL.fix)) return ['확인해 보고 다시 알려 드릴게요.']
   if (head.startsWith('⚠️ 근무일 취소') || head.startsWith('⚠️ 확정 취소')) return ['알려 줘서 고마워요. 다음에 또 함께해요.', '혹시 일정이 되면 다시 알려 주세요.']
   if (head.startsWith('⚠️ 근무시간')) return ['알겠어요. 원래 시간에 마쳐 주세요.', '괜찮아요. 일정은 따로 상의해요.']
   if (head.startsWith('🕒 근무 종료 늦게 입력')) return ['확인했어요. 다음엔 근무 종료를 꼭 눌러 주세요.']

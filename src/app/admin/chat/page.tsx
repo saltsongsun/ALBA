@@ -16,7 +16,7 @@ import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
 import { ConfirmSubmit } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
-import { ASK_INVOICE, askTag, isAutoNotice, needsReply } from '@/lib/signals'
+import { ASK_INVOICE, askTag, isQuietNotice, needsReply } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -82,7 +82,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
     const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, real: null, unread: 0, auto: 0, user: null }).get(r.thread_user_id)!
     t.user ??= r.user
     if (!r.from_admin && !r.read_at) t.unread++
-    if (isAutoNotice(r)) t.auto++
+    if (isQuietNotice(r)) t.auto++
     else t.real ??= r
   }
   // 근무자 정보는 그 대화의 어느 글에서든 (글마다 같은 사람)

@@ -11,6 +11,8 @@ import LevelBadge from '@/components/LevelBadge'
 import { companyLevels, type LevelUser } from '@/lib/xpCompany'
 import SortChips from '@/components/SortChips'
 import { SORT_DIM } from '@/lib/sortDim'
+import LazyDetails from '@/components/LazyDetails'
+import MediaOnly from '@/components/MediaOnly'
 import { GroupContact } from '@/components/GroupContact'
 import HashFocus from '@/components/HashFocus'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
@@ -611,115 +613,128 @@ export default async function AppsTab({
           {/* 휴대폰: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) */}
           {/* 문의 화면 '지원자 보기'로 왔으면 그 사람 카드로 내려가 테두리로 표시 */}
           <HashFocus prefix="app-" />
-          <div className={`space-y-2 sm:hidden ${SORT_DIM}`} data-app-list>
-            {groups.map(([label, list, open]) =>
-              list.length === 0 ? null : open ? (
-                <div key={label} className="stagger space-y-2" data-app-group={label}>
-                  {label !== '대기' ? (
-                    <h3 className="pt-2 text-sm font-bold text-sub">{label} {list.length}명</h3>
-                  ) : (
-                    waiting > 1 && (
-                      // 여러 명을 한 번에: 모두 고른 뒤 아래 막대에서 확정·미선발
-                      <div className="flex items-center justify-between gap-2 pl-1">
-                        <h3 className="text-sm font-bold text-sub">대기 {list.length}명</h3>
-                        <PickAll label="모두 고르기" />
-                      </div>
-                    )
-                  )}
-                  {list.map(mobileCard)}
-                </div>
-              ) : (
-                <details key={label} className="pt-2" data-app-group={label}>
-                  <summary className="cursor-pointer py-1 text-sm font-bold text-sub">
-                    {label} {list.length}명
-                  </summary>
-                  <div className="mt-2 space-y-2">{list.map(mobileCard)}</div>
-                </details>
-              ),
-            )}
-          </div>
-
-          <div className={`card hidden overflow-x-auto p-0 sm:block ${SORT_DIM}`}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th className="whitespace-nowrap">
-                    {waiting > 1 && (
-                      <span className="mr-1 inline-block align-middle">
-                        <PickAll />
-                      </span>
-                    )}
-                    이름
-                  </th>
-                  <th>연락처</th>
-                  <th>가능일 · 한마디</th>
-                  <th>이력</th>
-                  <th>지원</th>
-                  <th>상태</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((a) => {
-                  const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
-                  return (
-                    <tr key={a.id} className={`[&:has(:checked)>td]:bg-brand-50 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
-                      <td className="whitespace-nowrap">
-                        <span className="mr-1 inline-block align-middle">{pickBox(a)}</span>
-                        <span className="mr-2 inline-block align-middle">
-                          <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="sm" />
-                        </span>
-                        <Link href={`/admin/workers/${a.user_id}`} className="font-semibold hover:text-brand-600">
-                          {a.user.name}
-                        </Link>
-                        {age != null && <span className="ml-1 text-xs text-mute">만 {age}세</span>}
-                        {scores[a.user_id] && (
-                          <span className="ml-1">
-                            <StarAvg scores={scores[a.user_id]} />
-                          </span>
-                        )}
-                        {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
-                        {minorWarn(a) && <span className="badge ml-1 bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
-                        {a.status === 'approved' && (
-                          <div className="mt-1">
-                            <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />
-                          </div>
-                        )}
-                      </td>
-                      <td className="whitespace-nowrap">
-                        <ContactButtons phone={a.user.phone} name={a.user.name} />
-                      </td>
-                      <td className="min-w-48 text-xs text-sub">
-                        {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}
-                        {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
-                        {!!a.user.careers?.length && (
-                          <div className="mt-0.5">
-                            🎪 {careerText(a.user.careers[0])}
-                            {a.user.careers.length > 1 && ` 외 ${a.user.careers.length - 1}건`}
-                          </div>
-                        )}
-                      </td>
-                      <td className="text-xs whitespace-nowrap text-sub">
-                        {relText(a.user_id)}
-                        <div>
-                          <Clash uid={a.user_id} />
-                          <Weekly a={a} />
-                          <Memo uid={a.user_id} />
+          {/* 휴대폰 카드·PC 표 중 화면에 맞는 것만 그림 (예전엔 둘 다 그려 하나를 숨김 — 사람이 많으면 다시 그리기가 두 배) */}
+          <MediaOnly query="(max-width: 639.98px)">
+            <div className={`space-y-2 sm:hidden ${SORT_DIM}`} data-app-list>
+              {groups.map(([label, list, open]) =>
+                list.length === 0 ? null : open ? (
+                  <div key={label} className="stagger space-y-2" data-app-group={label}>
+                    {label !== '대기' ? (
+                      <h3 className="pt-2 text-sm font-bold text-sub">{label} {list.length}명</h3>
+                    ) : (
+                      waiting > 1 && (
+                        // 여러 명을 한 번에: 모두 고른 뒤 아래 막대에서 확정·미선발
+                        <div className="flex items-center justify-between gap-2 pl-1">
+                          <h3 className="text-sm font-bold text-sub">대기 {list.length}명</h3>
+                          <PickAll label="모두 고르기" />
                         </div>
-                      </td>
-                      <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
-                      <td>
-                        {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>}
-                      </td>
-                      <td className="whitespace-nowrap">
-                        <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+                      )
+                    )}
+                    {list.map(mobileCard)}
+                  </div>
+                ) : (
+                  // 접힌 칸은 펼칠 때 그림 (수백 명이면 미리 그려 두느라 느렸음)
+                  <LazyDetails
+                    key={label}
+                    className="pt-2"
+                    group={label}
+                    summaryClassName="cursor-pointer py-1 text-sm font-bold text-sub"
+                    summary={
+                      <>
+                        {label} {list.length}명
+                      </>
+                    }
+                  >
+                    <div className="mt-2 space-y-2">{list.map(mobileCard)}</div>
+                  </LazyDetails>
+                ),
+              )}
+            </div>
+          </MediaOnly>
+
+          <MediaOnly query="(min-width: 640px)">
+            <div className={`card hidden overflow-x-auto p-0 sm:block ${SORT_DIM}`}>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th className="whitespace-nowrap">
+                      {waiting > 1 && (
+                        <span className="mr-1 inline-block align-middle">
+                          <PickAll />
+                        </span>
+                      )}
+                      이름
+                    </th>
+                    <th>연락처</th>
+                    <th>가능일 · 한마디</th>
+                    <th>이력</th>
+                    <th>지원</th>
+                    <th>상태</th>
+                    <th />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((a) => {
+                    const age = a.user.birth_date ? ageOn(a.user.birth_date, job.start_date) : null
+                    return (
+                      <tr key={a.id} className={`[&:has(:checked)>td]:bg-brand-50 ${a.status === 'cancelled' || a.status === 'rejected' ? 'opacity-50' : ''}`}>
+                        <td className="whitespace-nowrap">
+                          <span className="mr-1 inline-block align-middle">{pickBox(a)}</span>
+                          <span className="mr-2 inline-block align-middle">
+                            <Avatar id={a.user_id} name={a.user.name} photoAt={a.user.photo_at} size="sm" />
+                          </span>
+                          <Link href={`/admin/workers/${a.user_id}`} className="font-semibold hover:text-brand-600">
+                            {a.user.name}
+                          </Link>
+                          {age != null && <span className="ml-1 text-xs text-mute">만 {age}세</span>}
+                          {scores[a.user_id] && (
+                            <span className="ml-1">
+                              <StarAvg scores={scores[a.user_id]} />
+                            </span>
+                          )}
+                          {age != null && age < 18 && <span className="badge ml-1 bg-rose-50 text-rose-600">연소자</span>}
+                          {minorWarn(a) && <span className="badge ml-1 bg-rose-600 text-white">🌙 {minorWarn(a)}</span>}
+                          {a.status === 'approved' && (
+                            <div className="mt-1">
+                              <PositionInput appId={a.id} value={a.position} listId={`pos-${job.id}`} />
+                            </div>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap">
+                          <ContactButtons phone={a.user.phone} name={a.user.name} />
+                        </td>
+                        <td className="min-w-48 text-xs text-sub">
+                          {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}
+                          {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
+                          {!!a.user.careers?.length && (
+                            <div className="mt-0.5">
+                              🎪 {careerText(a.user.careers[0])}
+                              {a.user.careers.length > 1 && ` 외 ${a.user.careers.length - 1}건`}
+                            </div>
+                          )}
+                        </td>
+                        <td className="text-xs whitespace-nowrap text-sub">
+                          {relText(a.user_id)}
+                          <div>
+                            <Clash uid={a.user_id} />
+                            <Weekly a={a} />
+                            <Memo uid={a.user_id} />
+                          </div>
+                        </td>
+                        <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
+                        <td>
+                          {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>}
+                        </td>
+                        <td className="whitespace-nowrap">
+                          <Decide a={a} full={fullOf(a).full} fullText={fullOf(a).text} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </MediaOnly>
         </>
       )}
       {apps.some((a) => a.status === 'approved' && a.user.birth_date && ageOn(a.user.birth_date, job.start_date) < 18) && (

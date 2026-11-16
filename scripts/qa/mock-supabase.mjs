@@ -251,6 +251,13 @@ const server = http.createServer(async (req, res) => {
       const key = table === 'user_photos' ? 'user_id' : 'id'
       if (key === 'id' && !pair && !jobPair) row.id ??= crypto.randomUUID()
       fillCompany(table, row)
+      // 실제 DB에서 함께 읽어 오는 공고 제목·보낸 사람 이름 (앱이 넣은 문의 글도 대화 화면에서 공고·이름이 보이게)
+      if (table === 'messages') {
+        const j = row.job_id && !row.job ? tables.jobs.find((x) => x.id === row.job_id) : null
+        if (j) row.job = { id: j.id, title: j.title }
+        const s = row.sender_id && !row.sender ? tables.users.find((x) => x.id === row.sender_id) : null
+        if (s) row.sender = { name: s.name }
+      }
       if (table === 'companies') row.active ??= true
       if (table === 'jobs') row.audience ??= 'worker'
       if (table === 'vendors') row.user_id ??= null
