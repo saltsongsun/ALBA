@@ -36,6 +36,45 @@ export const SIGNAL = {
 
 export type SignalKind = keyof typeof SIGNAL
 
+/**
+ * 우리(회사·앱)가 자동으로 또는 여럿에게 한꺼번에 보내는 안내의 첫 줄 (확정·미선발·정산일·출퇴근 확인·새 모집·공지 등).
+ * 관리자 문의 목록에서는 이런 안내만 있는 대화를 아래에 접어 두고, 사람이 직접 쓴 대화를 위로 (사용자 요청 2026-11-16
+ * "문의가 너무 많으니까 우리가 자동으로 보낸거는 띄우지 말고 직접친거를 위로")
+ */
+const AUTO_HEADS: readonly string[] = [
+  SIGNAL.change,
+  SIGNAL.cancel,
+  SIGNAL.remind,
+  SIGNAL.paid,
+  SIGNAL.payday,
+  SIGNAL.account,
+  SIGNAL.fixDone,
+  SIGNAL.fixNo,
+  SIGN_NUDGE,
+  '✅ 근무가 확정됐어요',
+  '✅ 의뢰가 확정됐어요',
+  '✅ 출근 처리됐어요',
+  '🙏 이번엔 함께하지 못해요',
+  '↩️ 근무 확정이 취소됐어요',
+  '🏠 귀가 조치 안내',
+  '🏁 행사가 끝났어요',
+  '🏁 근무 종료를 눌러 주세요',
+  '🏁 근무 종료로 기록했어요',
+  '🏁 근무 종료 확인',
+  '⏰ 근무 종료 확인',
+  '⏰ 출근 확인',
+  '📝 ',
+  '📣 새 모집',
+  '📢 공지',
+]
+
+/** 우리가 자동으로·한꺼번에 보낸 안내인지 (근무자가 쓴 글·담당자가 직접 쓴 답장은 아님) */
+export function isAutoNotice(m: { from_admin: boolean; body: string }): boolean {
+  if (!m.from_admin) return false
+  const head = m.body.split('\n', 1)[0]
+  return AUTO_HEADS.some((h) => head.startsWith(h))
+}
+
 export function signalOf(body: string): SignalKind | null {
   const head = body.split('\n', 1)[0]
   for (const [k, v] of Object.entries(SIGNAL)) if (head.startsWith(v)) return k as SignalKind

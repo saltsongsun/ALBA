@@ -16,7 +16,7 @@ import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
 import { ConfirmSubmit } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
-import { ASK_INVOICE, askTag, needsReply } from '@/lib/signals'
+import { ASK_INVOICE, askTag, isAutoNotice, needsReply } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -47,13 +47,20 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       )
       return { rooms, senderName }
     }),
-    // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
-    db()
-      .from('messages')
-      .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at, member_type)').eq('company_id', admin.companyId)
-      .order('created_at', { ascending: false })
-      .limit(1000)
-      .then((r) => must(r) as unknown as Row[]),
+    // 최근 메시지에서 근무자별 대화방을 모음: 근무자가 쓴 글과 우리가 보낸 글을 따로 받아 옴
+    // (한꺼번에 보낸 확정·공지 같은 안내가 수백 개여도 근무자 문의가 최근 1000개 밖으로 밀려나지 않게)
+    Promise.all(
+      [false, true].map((fromAdmin) =>
+        db()
+          .from('messages')
+          .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at, member_type)')
+          .eq('company_id', admin.companyId)
+          .eq('from_admin', fromAdmin)
+          .order('created_at', { ascending: false })
+          .limit(1000)
+          .then((r) => must(r) as unknown as Row[]),
+      ),
+    ).then(([mine, ours]) => [...mine, ...ours].sort((a, b) => b.created_at.localeCompare(a.created_at))),
     // 지금 이 회사에서 근무 중인 사람 (오늘 근무를 시작했고 아직 끝내지 않음 · 이 회사 기록만)
     db()
       .from('attendance')
@@ -67,12 +74,24 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         () => [] as string[],
       ),
   ])
-  const threads = new Map<string, { last: Row; unread: number }>()
+  // 대화마다: 사람이 직접 쓴 마지막 글(근무자 글 · 담당자가 직접 쓴 답장) · 자동 안내 수
+  // 목록은 직접 쓴 마지막 글로 줄 세우고 미리보기도 그 글로 (자동 안내가 나중에 와도 위로 올라오지 않게)
+  // 자동 안내만 있는 대화는 맨 아래 '알림만 보낸 대화'로 접어 둠
+  const threads = new Map<string, { last: Row; real: Row | null; unread: number; auto: number }>()
   for (const r of rows) {
-    const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, unread: 0 }).get(r.thread_user_id)!
+    const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, real: null, unread: 0, auto: 0 }).get(r.thread_user_id)!
     if (!r.from_admin && !r.read_at) t.unread++
+    if (isAutoNotice(r)) t.auto++
+    else t.real ??= r
   }
-  const all = [...threads.values()].filter((t) => t.last.user)
+  const every = [...threads.values()].filter((t) => t.last.user)
+  // 직접 쓴 글이 있는 대화 (그 글이 최근인 순서)
+  const all = every
+    .filter((t) => t.real)
+    .map((t) => ({ last: t.real!, unread: t.unread }))
+    .sort((a, b) => b.last.created_at.localeCompare(a.last.created_at))
+  // 우리가 보낸 자동 안내만 있는 대화 (근무자가 답하면 위로 올라감)
+  const autoOnly = every.filter((t) => !t.real)
   // 지금 이 회사에서 근무 중인 사람 (사진 옆 초록 점 — 현장에서 온 문의를 먼저 보게)
   const inThreads = new Set(all.map((t) => t.last.thread_user_id))
   const workingNow = new Set(workingIds.filter((id) => inThreads.has(id)))
@@ -98,6 +117,9 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const noReply = (t: { last: Row; unread: number }) => !t.last.from_admin && t.unread === 0 && needsReply(t.last.body) && Date.parse(t.last.created_at) >= noReplySince
   const noReplyCount = found.filter(noReply).length
   const list = onlyUnread ? found.filter((t) => t.unread > 0) : onlyNoReply ? found.filter(noReply) : found
+  // 알림만 보낸 대화: 안 읽음·답장 전으로 거를 때는 숨김 (근무자 글이 없어 해당 없음) · 검색하면 거기서도 찾음
+  const autoShown = onlyUnread || onlyNoReply ? [] : autoOnly.filter(matches)
+  const AUTO_MAX = 100
   const roomHits = term ? rooms.filter((r) => r.title.toLowerCase().includes(low)) : rooms
   const qs = (unread: boolean, noreply = false) => {
     const p = new URLSearchParams()
@@ -293,6 +315,36 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
             </Link>
           ))}
         </div>
+      )}
+      {/* 우리가 보낸 자동 안내(확정·미선발·정산일·공지 등)만 있는 대화: 문의 목록을 덮지 않게 맨 아래에 접어 둠 · 근무자가 답하면 위 목록으로 올라감 */}
+      {autoShown.length > 0 && (
+        <details className="group" data-inbox-auto open={!!term || undefined}>
+          <summary className="flex cursor-pointer list-none items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-semibold text-sub ring-1 ring-line before:hidden [&::-webkit-details-marker]:hidden">
+            <Icon name="chat" className="text-mute" />
+            알림만 보낸 대화 <span className="tabular-nums">{autoShown.length}</span>
+            <svg viewBox="0 0 24 24" className="ml-auto size-4 text-mute transition duration-200 group-open:rotate-180" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" aria-hidden>
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </summary>
+          <p className="mt-2 px-1 text-[13px] text-mute">확정·미선발·정산일처럼 앱이 보낸 안내만 있어요. 근무자가 답하면 위로 올라가요.</p>
+          <div className="mt-2 space-y-1.5">
+            {autoShown.slice(0, AUTO_MAX).map((t) => (
+              <Link key={t.last.thread_user_id} href={`/admin/chat/${t.last.thread_user_id}`} className="card-link flex items-center gap-3 px-4 py-2.5" data-inbox-auto-row={t.last.thread_user_id}>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-baseline justify-between gap-2">
+                    <span className="truncate text-sm font-semibold">{t.last.user!.name}</span>
+                    <span className="shrink-0 text-xs text-mute">{kstDate(t.last.created_at) === today ? kstTime(t.last.created_at) : fmtDate(kstDate(t.last.created_at))}</span>
+                  </span>
+                  <span className="block truncate text-xs text-mute">
+                    {t.last.body.split('\n', 1)[0]}
+                    {t.auto > 1 && ` 외 ${t.auto - 1}개`}
+                  </span>
+                </span>
+              </Link>
+            ))}
+            {autoShown.length > AUTO_MAX && <p className="px-1 text-xs text-mute">최근 {AUTO_MAX}명만 보여요. 이름으로 찾아보세요.</p>}
+          </div>
+        </details>
       )}
     </div>
   )
