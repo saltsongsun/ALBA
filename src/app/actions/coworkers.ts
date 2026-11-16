@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { canWrite, ensureNickname } from '@/lib/community'
 import { coworkersEnabled, shareStates, workedTogether } from '@/lib/coworkers'
-import { FEATURES, type FeatureKey } from '@/lib/flags'
+import { FEATURES, forgetFlags, type FeatureKey } from '@/lib/flags'
 import { audit } from '@/lib/data'
 import { requireSuper } from '@/lib/session'
 import { redirect } from 'next/navigation'
@@ -42,6 +42,7 @@ export async function setFeature(key: FeatureKey, on: boolean) {
   const admin = await requireSuper()
   if (!(key in FEATURES)) return
   await audit(admin.id, `feature.${key}`, null, on ? 'on' : 'off', null)
+  forgetFlags()
   revalidatePath('/', 'layout')
   const name = FEATURES[key].label
   redirect(`/admin/community?m=${encodeURIComponent(`'${name}' 기능을 ${on ? '켰어요' : '껐어요'}`)}`)

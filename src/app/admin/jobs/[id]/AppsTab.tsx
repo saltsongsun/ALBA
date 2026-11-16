@@ -90,6 +90,13 @@ function Decide({ a, wide = false, full = false, fullText = '인원 다 찼어�
   )
 }
 
+/** 같은 사람이 이 회사 다른 행사에 확정된 근무 (겹침 확인용) */
+type OtherApp = {
+  user_id: string
+  available_dates: string[] | null
+  job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
+}
+
 /** 예전에 다른 행사에서 일한 근무자 (이 공고에 아직 지원하지 않은 사람, 최근 근무 순 200명까지) */
 async function pastWorkers(job: Job, apps: AppRow[]): Promise<PastWorker[]> {
   const rows = must(
@@ -161,15 +168,18 @@ export default async function AppsTab({
 }) {
   const ids = apps.map((a) => a.user_id)
   // 모집 중인 공고면 예전 근무자에게 모집을 알릴 수 있게
-  const past = job.status === 'open' && job.end_date >= kstDate() ? await pastWorkers(job, apps) : []
+  // 아래 조회들은 서로 기다릴 필요가 없어서 한 번에 출발 (예전에는 하나씩 차례로 기다려 지원자 탭이 늦게 떴음)
+  const pastP = job.status === 'open' && job.end_date >= kstDate() ? pastWorkers(job, apps) : Promise.resolve([] as PastWorker[])
   // 다른 행사에서의 근무·지각·노쇼, 관리자 평가 평균 (근무자에게는 보이지 않음)
   // 지원자의 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만)
-  const levels = await companyLevels(
+  const levelsP = companyLevels(
     job.company_id,
     [...new Map(apps.filter((a) => (a.user.member_type ?? 'worker') === 'worker').map((a) => [a.user_id, { ...a.user, id: a.user_id }])).values()],
   )
-  const [rel, ratings, others, notes] = ids.length
-    ? await Promise.all([
+  // 추가 근로 → 주휴수당 (관리자에게만): 이 공고를 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 사람
+  const impactP = weeklyImpact(job, apps).catch(() => new Map<string, WeekImpact>())
+  const relP = ids.length
+    ? Promise.all([
         reliabilityFor(job.company_id, ids, job.id),
         db()
           .from('worker_ratings')
@@ -185,11 +195,7 @@ export default async function AppsTab({
           .neq('job_id', job.id)
           .then(
             (r) =>
-              must(r) as unknown as {
-                user_id: string
-                available_dates: string[] | null
-                job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
-              }[],
+              must(r) as unknown as OtherApp[],
           ),
         // 시나리오: 지난번에 문제가 있던 사람이 또 지원 → 우리 회사 메모를 지원 카드에 (근무자에게는 안 보임)
         db()
@@ -202,9 +208,15 @@ export default async function AppsTab({
             () => new Map<string, string>(),
           ),
       ])
-    : [{} as Record<string, Reliability>, [], [], new Map<string, string>()]
-  // 추가 근로 → 주휴수당 (관리자에게만): 이 공고를 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 사람
-  const impact = await weeklyImpact(job, apps).catch(() => new Map<string, WeekImpact>())
+    : Promise.resolve(
+        [{} as Record<string, Reliability>, [] as { user_id: string; score: number }[], [] as OtherApp[], new Map<string, string>()] as [
+          Record<string, Reliability>,
+          { user_id: string; score: number }[],
+          OtherApp[],
+          Map<string, string>,
+        ],
+      )
+  const [past, levels, [rel, ratings, others, notes], impact] = await Promise.all([pastP, levelsP, relP, impactP])
   const today = kstDate()
   const clashOf = new Map<string, { id: string; title: string; at: string }>()
   for (const a of apps) {

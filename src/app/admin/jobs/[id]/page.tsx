@@ -150,8 +150,6 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const known = new Set(apps.map((a) => a.user_id))
   const extraIds = [...new Set(atts.map((a) => a.user_id))].filter((u) => !known.has(u))
   const extraUsersP = extraIds.length ? db().from('users').select(userCols).in('id', extraIds).then((r) => must(r) as WorkerLite[]) : Promise.resolve([] as WorkerLite[])
-  const [{ vstats, mviewers, viewerNames }, extraUsers, jobReviews] = await Promise.all([viewP, extraUsersP, reviewsP])
-  const users = new Map<string, WorkerLite>([...apps.map((a) => [a.user_id, a.user] as const), ...extraUsers.map((u) => [u.id, u] as const)])
 
   const dates = dateList(job.start_date, job.end_date)
   const date = typeof sp.date === 'string' && isDate(sp.date) && dates.includes(sp.date)
@@ -164,37 +162,30 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 서류 탭: 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 (금방 또 보내 같은 알림이 겹치지 않게) · 우리 회사 문의함에서만
   // 서류 탭: 계약서에 들어갈 회사 정보(사업자번호·주소·직인·연락처) 중 빈 것 — 서명 전에 채우게 (서명된 서류는 그때 정보 그대로)
-  const [lastSignNudge, docsMissing] =
+  const docsP: Promise<[Awaited<ReturnType<typeof lastNudgeAt>> | null, readonly { key: string; label: string }[]]> =
     tab === 'docs'
-      ? await Promise.all([
+      ? Promise.all([
           pendingDocs > 0 ? lastNudgeAt(admin.companyId, job.id, SIGN_NUDGE) : null,
           job.contract_method === 'external' ? [] : hasSeal(admin.companyId).then((seal) => missingSetup(settings, seal), () => []),
         ])
-      : [null, []]
+      : Promise.resolve([null, []])
   // 확정자 공지 칸: 마지막으로 보낸 공지 (같은 공지를 또 보내지 않게 · 고쳐서 다시 보낼 때 불러오기) — 공지 칸이 보일 때만
   const showAnnounce = approved.length > 0 && !['done', 'cancelled'].includes(job.status)
-  const lastNotice = showAnnounce ? await lastNudge(admin.companyId, job.id, '📢 공지') : null
-  const lastNoticeAgo = nudgeAgo(lastNotice?.at)
   // 그 공지를 지금 확정자 중 몇 명이 읽었는지 · 안 읽은 사람 (문자로 한 번 더 보낼 수 있게)
   const approvedIds = new Set(approved.map((a) => a.user_id))
-  const noticeTo = (lastNotice?.to ?? []).filter((t) => approvedIds.has(t.uid))
   // 안 읽은 사람 중 휴대폰 알림을 꺼 둔 사람 (앱 공지를 못 봤을 수 있음 → 문자·전화로) — 먼저 보이게
-  const unreadIds = noticeTo.filter((t) => !t.read).map((t) => t.uid)
-  const pushOn = unreadIds.length ? await pushEnabledIds(unreadIds) : new Set<string>()
-  const noticeReads = noticeTo.length
-    ? {
-        read: noticeTo.filter((t) => t.read).length,
-        total: noticeTo.length,
-        unread: unreadIds
-          .map((uid) => ({ name: users.get(uid)?.name ?? '근무자', phone: users.get(uid)?.phone ?? '', pushOff: !pushOn.has(uid) }))
-          .sort((a, b) => Number(b.pushOff) - Number(a.pushOff)),
-      }
-    : null
+  const noticeP = showAnnounce
+    ? lastNudge(admin.companyId, job.id, '📢 공지').then(async (n) => {
+        const to = (n?.to ?? []).filter((t) => approvedIds.has(t.uid))
+        const unread = to.filter((t) => !t.read).map((t) => t.uid)
+        return { n, to, unread, pushOn: unread.length ? await pushEnabledIds(unread) : new Set<string>() }
+      })
+    : Promise.resolve({ n: null, to: [] as { uid: string; read: boolean }[], unread: [] as string[], pushOn: new Set<string>() })
   // 아직 근무 기록이 없고 끝나지 않은 행사만 '행사 취소' 가능
   const canCancel = !['done', 'cancelled', 'draft'].includes(job.status) && job.end_date >= today && atts.length === 0
   // 공고 지급총액 (세전 · 정산 탭과 같은 계산)
   // (주휴수당 포함 · 같은 회사 여러 공고를 합쳐 주마다 확인)
-  const wage = wageTotal(job, await withWeeklyPay(atts, job.company_id))
+  const weeklyP = withWeeklyPay(atts, job.company_id)
   const link = `${origin}/jobs/${job.id}`
   const text = recruitText(job, link, settings.company_name)
 
@@ -207,9 +198,9 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
 
   // 시나리오: 행사 전날 밤 '확정자가 진짜 올까?' → 전날 안내(⏰ 내일 근무 안내)를 읽었는지, 안 읽은 사람에게 바로 전화
   const tomorrowKst = kstDate(new Date(Date.now() + 86_400_000))
-  const remindRead =
+  const remindReadP =
     ['open', 'closed'].includes(job.status) && (job.start_date === today || job.start_date === tomorrowKst)
-      ? await db()
+      ? db()
           .from('messages')
           .select('thread_user_id, read_at, body, sender_id, created_at')
           .eq('company_id', admin.companyId)
@@ -230,9 +221,9 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       : null
   // 근무자가 전날 '내일 갈게요'를 누른 사람 (첫날 근무 기준) — 전날 안내가 가기 전에 눌러도 셈
   const firstDayIds = approved.filter((a) => !a.available_dates || a.available_dates.includes(job.start_date)).map((a) => a.user_id)
-  const coming =
+  const comingP =
     ['open', 'closed'].includes(job.status) && (job.start_date === today || job.start_date === tomorrowKst) && firstDayIds.length
-      ? await db()
+      ? db()
           .from('messages')
           .select('thread_user_id, body')
           .eq('company_id', admin.companyId)
@@ -243,7 +234,31 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             (r) => new Set(((r.data ?? []) as { thread_user_id: string; body: string }[]).filter((m) => isComing(m.body, job.start_date) && firstDayIds.includes(m.thread_user_id)).map((m) => m.thread_user_id)),
             () => new Set<string>(),
           )
-      : new Set<string>()
+      : Promise.resolve(new Set<string>())
+  // 위에서 출발시킨 조회를 한 번에 기다림 (예전에는 하나씩 차례로 기다려 화면이 늦게 떴음)
+  const [{ vstats, mviewers, viewerNames }, extraUsers, jobReviews, [lastSignNudge, docsMissing], notice, weeklyAtts, remindRead, coming] = await Promise.all([
+    viewP,
+    extraUsersP,
+    reviewsP,
+    docsP,
+    noticeP,
+    weeklyP,
+    remindReadP,
+    comingP,
+  ])
+  const users = new Map<string, WorkerLite>([...apps.map((a) => [a.user_id, a.user] as const), ...extraUsers.map((u) => [u.id, u] as const)])
+  const lastNotice = notice.n
+  const lastNoticeAgo = nudgeAgo(lastNotice?.at)
+  const noticeReads = notice.to.length
+    ? {
+        read: notice.to.filter((t) => t.read).length,
+        total: notice.to.length,
+        unread: notice.unread
+          .map((uid) => ({ name: users.get(uid)?.name ?? '근무자', phone: users.get(uid)?.phone ?? '', pushOff: !notice.pushOn.has(uid) }))
+          .sort((a, b) => Number(b.pushOff) - Number(a.pushOff)),
+      }
+    : null
+  const wage = wageTotal(job, weeklyAtts)
   // 전화해 볼 사람: 누가 '갈게요'를 누르기 시작했으면 아직 답 없는 사람 전부(안 읽은 사람 표시), 아무도 안 눌렀으면 예전처럼 안내를 안 읽은 사람만
   const unreadSet = new Set(remindRead?.unread ?? [])
   const toCall = coming.size ? firstDayIds.filter((uid) => !coming.has(uid)) : [...unreadSet]

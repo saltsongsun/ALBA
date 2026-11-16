@@ -102,22 +102,36 @@ export const getUser = cache(async (): Promise<SessionUser | null> => {
   }
 })
 
+type CompanyRow = { id: string; company_name: string; created_at: string; verified?: boolean | null }
+
+/** 이 사람이 소속된 회사와 역할 (요청마다 한 번) */
+const memberRoles = cache(async (userId: string): Promise<Map<string, 'owner' | 'admin'>> => {
+  const { data: members, error } = await db().from('company_members').select('company_id, role').eq('user_id', userId)
+  if (error) throw new Error(`회사 확인 실패: ${error.message}`)
+  return new Map(((members ?? []) as { company_id: string; role: 'owner' | 'admin' }[]).map((m) => [m.company_id, m.role]))
+})
+
+/** 소속된 회사들의 이름·확인 여부 (운영 중인 회사만) */
+const memberCompanies = cache(async (userId: string): Promise<CompanyRow[]> => {
+  const mine = await memberRoles(userId)
+  if (!mine.size) return []
+  const { data } = await db().from('companies').select('id, company_name, created_at, verified').in('id', [...mine.keys()]).eq('active', true)
+  return (data ?? []) as CompanyRow[]
+})
+
 /** 관리자가 들어갈 수 있는 회사 목록 (최고 관리자는 모든 회사) */
 export const adminCompanies = cache(async (userId: string, isSuper: boolean): Promise<AdminCompany[]> => {
-  const [{ data: members, error }, { data: all }] = await Promise.all([
-    db().from('company_members').select('company_id, role').eq('user_id', userId),
+  const [mine, rows] = await Promise.all([
+    memberRoles(userId),
     isSuper
-      ? db().from('companies').select('id, company_name, created_at, verified').eq('active', true).order('created_at')
-      : { data: null },
+      ? db()
+          .from('companies')
+          .select('id, company_name, created_at, verified')
+          .eq('active', true)
+          .order('created_at')
+          .then((r) => (r.data ?? []) as CompanyRow[])
+      : memberCompanies(userId),
   ])
-  if (error) throw new Error(`회사 확인 실패: ${error.message}`)
-  const mine = new Map(((members ?? []) as { company_id: string; role: 'owner' | 'admin' }[]).map((m) => [m.company_id, m.role]))
-  let rows = (all ?? []) as { id: string; company_name: string; created_at: string; verified?: boolean | null }[]
-  if (!isSuper) {
-    if (!mine.size) return []
-    const { data } = await db().from('companies').select('id, company_name, created_at, verified').in('id', [...mine.keys()]).eq('active', true)
-    rows = (data ?? []) as typeof rows
-  }
   return rows
     .sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
     .map((c) => ({ id: c.id, name: c.company_name, role: mine.get(c.id) ?? 'super', verified: c.verified !== false }))
@@ -140,6 +154,10 @@ export async function requireUser(next?: string): Promise<SessionUser> {
  * 회사는 화면 위 회사 고르기(쿠키)로 바꾸고, 소속이 아닌 회사 id면 첫 회사로.
  */
 export async function requireAdmin(): Promise<AdminUser> {
+  // 로그인 확인과 소속 회사 조회를 함께 출발 (관리자 화면마다 기다리는 횟수를 한 번 줄임).
+  // 쿠키 서명이 맞는 사람의 소속만 미리 읽고, 결과는 아래 로그인 확인(탈퇴·비밀번호 초기화 확인)이 통과한 뒤에만 씀
+  const early = parse((await cookies()).get(COOKIE)?.value)
+  if (early) memberCompanies(early.u).catch(() => {})
   const user = await getUser()
   if (!user) redirect('/login?next=/admin')
   if (user.role !== 'admin') redirect('/')

@@ -36,45 +36,46 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const onlyUnread = sp.unread === '1'
   // '답장 전'만 모아 보기 (읽었지만 아직 답하지 않은 문의)
   const onlyNoReply = !onlyUnread && sp.noreply === '1'
-  const rooms = await adminRooms(admin.companyId, admin.id)
-  // 단체방 마지막 말을 쓴 사람 이름 (나는 '나')
-  const lastSenders = [...new Set(rooms.map((r) => r.last?.sender_id).filter((id): id is string => !!id && id !== admin.id))]
-  const senderName = new Map(
-    lastSenders.length ? (((await db().from('users').select('id, name').in('id', lastSenders)).data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]) : [],
-  )
-  // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
-  const rows = must(
-    await db()
+  const today = kstDate()
+  // 단체방 목록 · 1:1 문의 · 지금 근무 중인 사람을 한 번에 출발 (예전에는 단체방을 다 읽은 뒤에야 문의를 읽기 시작했음)
+  const [{ rooms, senderName }, rows, workingIds] = await Promise.all([
+    adminRooms(admin.companyId, admin.id).then(async (rooms) => {
+      // 단체방 마지막 말을 쓴 사람 이름 (나는 '나')
+      const lastSenders = [...new Set(rooms.map((r) => r.last?.sender_id).filter((id): id is string => !!id && id !== admin.id))]
+      const senderName = new Map(
+        lastSenders.length ? (((await db().from('users').select('id, name').in('id', lastSenders)).data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]) : [],
+      )
+      return { rooms, senderName }
+    }),
+    // 최근 메시지에서 근무자별 대화방을 모음 (가장 최근 대화가 위)
+    db()
       .from('messages')
       .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at, member_type)').eq('company_id', admin.companyId)
       .order('created_at', { ascending: false })
-      .limit(1000),
-  ) as unknown as Row[]
+      .limit(1000)
+      .then((r) => must(r) as unknown as Row[]),
+    // 지금 이 회사에서 근무 중인 사람 (오늘 근무를 시작했고 아직 끝내지 않음 · 이 회사 기록만)
+    db()
+      .from('attendance')
+      .select('user_id, clock_out')
+      .eq('company_id', admin.companyId)
+      .eq('work_date', today)
+      .is('clock_out', null)
+      .limit(2000)
+      .then(
+        (r) => ((r.data ?? []) as { user_id: string; clock_out: string | null }[]).filter((a) => !a.clock_out).map((a) => a.user_id),
+        () => [] as string[],
+      ),
+  ])
   const threads = new Map<string, { last: Row; unread: number }>()
   for (const r of rows) {
     const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, unread: 0 }).get(r.thread_user_id)!
     if (!r.from_admin && !r.read_at) t.unread++
   }
-  const today = kstDate()
   const all = [...threads.values()].filter((t) => t.last.user)
   // 지금 이 회사에서 근무 중인 사람 (사진 옆 초록 점 — 현장에서 온 문의를 먼저 보게)
-  const workingNow = new Set(
-    all.length
-      ? (
-          ((
-            await db()
-              .from('attendance')
-              .select('user_id, clock_out')
-              .eq('company_id', admin.companyId)
-              .eq('work_date', today)
-              .is('clock_out', null)
-              .in('user_id', all.map((t) => t.last.thread_user_id))
-          ).data ?? []) as { user_id: string; clock_out: string | null }[]
-        )
-          .filter((a) => !a.clock_out)
-          .map((a) => a.user_id)
-      : [],
-  )
+  const inThreads = new Set(all.map((t) => t.last.thread_user_id))
+  const workingNow = new Set(workingIds.filter((id) => inThreads.has(id)))
   const unreadCount = all.filter((t) => t.unread > 0).length
   // 검색: 근무자 이름 · 전화번호(숫자 3자리 이상) · 주고받은 메시지 내용 / 단체방은 공고 이름
   const term = typeof sp.q === 'string' ? sp.q.trim().slice(0, 50) : ''

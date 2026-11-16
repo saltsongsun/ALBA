@@ -23,6 +23,21 @@ async function touchSeen(userId: string) {
  * 'ping'(앱을 보고 있음)은 기록을 남기지 않고 회원의 마지막 접속 시각만 고침 (최고 관리자가 접속 여부를 봄).
  * 실패해도 늘 204 (분석은 덤 — 화면 동작에 영향 없게)
  */
+// 성별·생년월일은 거의 바뀌지 않아서 서버가 10분 동안 기억 (화면을 넘길 때마다 회원 정보를 다시 읽지 않게)
+const DEMO_TTL = 10 * 60_000
+const demoMemo = new Map<string, { at: number; v: { gender: string | null; birth_date: string | null } | null }>()
+async function demographics(userId: string) {
+  const hit = demoMemo.get(userId)
+  if (hit && Date.now() - hit.at < DEMO_TTL) return hit.v
+  const { data, error } = await db().from('users').select('gender, birth_date').eq('id', userId).maybeSingle()
+  const v = (data as { gender: string | null; birth_date: string | null } | null) ?? null
+  if (!error) {
+    if (demoMemo.size > 2000) demoMemo.clear()
+    demoMemo.set(userId, { at: Date.now(), v })
+  }
+  return v
+}
+
 export async function POST(req: Request) {
   try {
     if (BOT.test(req.headers.get('user-agent') ?? '')) return OK()
@@ -59,8 +74,7 @@ export async function POST(req: Request) {
     let age: string | null = null
     if (user) {
       role = user.role === 'admin' ? 'admin' : (user.memberType ?? 'worker')
-      const { data } = await db().from('users').select('gender, birth_date').eq('id', user.id).maybeSingle()
-      const u = data as { gender: string | null; birth_date: string | null } | null
+      const u = await demographics(user.id)
       gender = u?.gender === 'M' || u?.gender === 'F' ? u.gender : null
       age = ageBand(u?.birth_date)
     }

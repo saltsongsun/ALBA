@@ -13,19 +13,43 @@ export type LevelUser = {
   careers?: unknown
 }
 
-type Att = { user_id: string; job_id: string; work_date: string; clock_in: string; clock_out: string | null; note: string | null; sched_start: string | null }
+type Att = {
+  user_id: string
+  job_id: string
+  work_date: string
+  clock_in: string
+  clock_out: string | null
+  note: string | null
+  sched_start: string | null
+  /** 그 공고 시작 시각 (같이 받아 와서 공고를 한 번 더 묻지 않게) */
+  job?: { start_time: string | null } | null
+}
 
 const CHUNK = 100 // 한 번에 묻는 사람 수 (주소가 너무 길어지지 않게)
 const PAGE = 1000 // 한 번에 받는 줄 수 (Supabase 기본 상한)
 
-/** 상한(1000줄)에 걸려 잘리지 않게 끝까지 나눠 받기 */
+const BATCH = 4 // 기록이 많을 때 한 번에 함께 받는 쪽 수
+
+/**
+ * 상한(1000줄)에 걸려 잘리지 않게 끝까지 나눠 받기.
+ * 첫 쪽이 꽉 차면 다음 쪽들은 몇 개씩 한꺼번에 받음 (예전: 한 쪽씩 차례로 기다려서 기록이 쌓일수록 느려졌음)
+ */
 async function all<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown }>): Promise<T[]> {
-  const out: T[] = []
-  for (let from = 0; from < 50 * PAGE; from += PAGE) {
-    const { data } = await page(from, from + PAGE - 1)
-    const rows = (data ?? []) as T[]
-    out.push(...rows)
-    if (rows.length < PAGE) break
+  const first = ((await page(0, PAGE - 1)).data ?? []) as T[]
+  const out: T[] = [...first]
+  if (first.length < PAGE) return out
+  for (let from = PAGE; from < 50 * PAGE; from += BATCH * PAGE) {
+    const pages = await Promise.all(Array.from({ length: BATCH }, (_, i) => page(from + i * PAGE, from + (i + 1) * PAGE - 1)))
+    let last = false
+    for (const { data } of pages) {
+      const rows = (data ?? []) as T[]
+      out.push(...rows)
+      if (rows.length < PAGE) {
+        last = true
+        break
+      }
+    }
+    if (last) break
   }
   return out
 }
@@ -48,7 +72,7 @@ export async function companyLevels(companyId: string, users: LevelUser[]): Prom
         all<Att>((a, b) =>
           db()
             .from('attendance')
-            .select('user_id, job_id, work_date, clock_in, clock_out, note, sched_start')
+            .select('user_id, job_id, work_date, clock_in, clock_out, note, sched_start, job:jobs(start_time)')
             .eq('company_id', companyId)
             .in('user_id', ids)
             .order('id')
@@ -72,8 +96,10 @@ export async function companyLevels(companyId: string, users: LevelUser[]): Prom
     ).then((r) => r.flat()),
   ])
   // 정시 출근은 예정 시작 시각으로 봄 (출퇴근 기록에 따로 정한 시작이 없으면 공고 시작)
-  const jobIds = [...new Set(atts.filter((a) => !a.sched_start).map((a) => a.job_id))]
+  // 공고 시작은 출퇴근 기록과 함께 받아 옴 (기다리는 횟수 한 번 줄임) · 함께 오지 않은 공고만 따로 물어봄
   const starts = new Map<string, string>()
+  for (const a of atts) if (a.job?.start_time) starts.set(a.job_id, a.job.start_time)
+  const jobIds = [...new Set(atts.filter((a) => !a.sched_start && !starts.has(a.job_id)).map((a) => a.job_id))]
   for (const ids of chunks(jobIds)) {
     const { data } = await db().from('jobs').select('id, start_time').eq('company_id', companyId).in('id', ids)
     for (const j of (data ?? []) as { id: string; start_time: string }[]) starts.set(j.id, j.start_time)

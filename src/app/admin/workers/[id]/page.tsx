@@ -51,17 +51,14 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const admin = await requireAdmin()
   const { id } = await props.params
   if (!isUuid(id)) notFound()
-  // 보안: 명단은 관리자 본인 비밀번호를 한 번 더 넣어야 열림 (10분)
-  const rosterLeft = await rosterUnlockedFor(admin.id)
-  if (!rosterLeft) return <RosterLock next={`/admin/workers/${id}`} minutes={ROSTER_MINUTES} />
-  if (!(await rosterViewAllowed(admin, 'detail'))) return <RosterTooMany />
+  // 명단 잠금·열람 횟수 확인을 기다리는 동안 자료 조회를 미리 출발 (화면에는 확인을 통과한 뒤에만 씀)
   // 가입 회원은 모든 회사 공용이라 누구나 볼 수 있지만, 주민번호·계좌·주소·비상연락처·수정은 이 회사에 지원한 사람만
-  const related = await workerInCompany(admin.companyId, id)
+  const relatedP = workerInCompany(admin.companyId, id)
   const sp = await props.searchParams
   const today = kstDate()
   // 이 회사가 보낸 마지막 '계좌 등록 요청' (같은 요청을 거듭 보내지 않게 표시)
-  const askedP = related
-    ? db()
+  const askedP = Promise.resolve(
+    db()
         .from('messages')
         .select('body, created_at')
         .eq('company_id', admin.companyId)
@@ -69,9 +66,9 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         .eq('from_admin', true)
         .order('created_at', { ascending: false })
         .limit(50)
-        .then((r) => (must(r) as { body: string; created_at: string }[]).find((m) => signalOf(m.body) === 'account')?.created_at ?? null)
-    : Promise.resolve(null)
-  const [{ data }, apps, atts, docs, ratings, relMap, openJobs, { data: note }, { data: member }] = await Promise.all([
+        .then((r) => (must(r) as { body: string; created_at: string }[]).find((m) => signalOf(m.body) === 'account')?.created_at ?? null),
+  )
+  const batchP = Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
     db()
       .from('applications')
@@ -115,6 +112,14 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
     db().from('company_worker_notes').select('memo').eq('company_id', admin.companyId).eq('user_id', id).maybeSingle(),
     db().from('company_members').select('role').eq('company_id', admin.companyId).eq('user_id', id).maybeSingle(),
   ])
+  relatedP.catch(() => {})
+  batchP.catch(() => {})
+  askedP.catch(() => {})
+  // 보안: 명단은 관리자 본인 비밀번호를 한 번 더 넣어야 열림 (10분)
+  const rosterLeft = await rosterUnlockedFor(admin.id)
+  if (!rosterLeft) return <RosterLock next={`/admin/workers/${id}`} minutes={ROSTER_MINUTES} />
+  if (!(await rosterViewAllowed(admin, 'detail'))) return <RosterTooMany />
+  const [related, [{ data }, apps, atts, docs, ratings, relMap, openJobs, { data: note }, { data: member }]] = await Promise.all([relatedP, batchP])
   const found = data as UserRow | null
   // 다른 회사 관리자·외주 업체 계정은 근무자 화면으로 열지 않음
   // 직접 가입해 확인 전인 회사는 우리 회사에 지원한 회원만 볼 수 있음
@@ -124,12 +129,17 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]
   // 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 사용자 요청 2026-11-13 '레벨도 근무자명단에 표기'
-  const level = (u.member_type ?? 'worker') === 'worker' ? (await companyLevels(admin.companyId, [u])).get(u.id) : undefined
+  // 레벨 · 주휴수당 포함 금액 · 계좌 요청 기록을 함께 기다림
+  const [levels, attsPay, askedRaw] = await Promise.all([
+    (u.member_type ?? 'worker') === 'worker' ? companyLevels(admin.companyId, [u]) : Promise.resolve(new Map()),
+    withWeeklyPay(atts, admin.companyId),
+    askedP,
+  ])
+  const level = levels.get(u.id)
   const account = decrypt(u.bank_account_enc)
   const age = u.birth_date ? ageOn(u.birth_date, kstDate()) : null
   const jobs = new Map(apps.map((a) => [a.job_id, a.job]))
-  // 주휴수당 포함 (정산 탭과 같은 금액)
-  const attsPay = await withWeeklyPay(atts, admin.companyId)
+  // 주휴수당 포함 (정산 탭과 같은 금액 · 위에서 함께 읽음)
   const perJob = [...new Set(atts.map((a) => a.job_id))]
     .map((jid) => {
       const job = jobs.get(jid)
@@ -139,7 +149,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
     })
     .filter((x) => x !== null)
     .sort((a, b) => b.job.start_date.localeCompare(a.job.start_date))
-  const askedAt = await askedP
+  // 계좌 요청 기록은 이 회사에 지원한 사람만 (예전과 같게)
+  const askedAt = related ? askedRaw : null
   const recentBankChange = u.bank_changed_at && Date.now() - new Date(u.bank_changed_at).getTime() < 14 * 86_400_000
 
   const assignable = openJobs.filter((j) => !apps.some((a) => a.job_id === j.id && a.status === 'approved'))

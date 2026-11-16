@@ -186,6 +186,8 @@ const server = http.createServer(async (req, res) => {
     return
   }
   reqs++
+  // 성능 확인용: TRACE=1이면 조회가 시작된 시각과 주소를 남김 (어느 조회가 앞 조회를 기다리는지 보려고)
+  if (process.env.TRACE) console.log(`T ${Date.now()} ${req.method} ${url.pathname.replace('/rest/v1/', '')}?${decodeURIComponent(url.search.slice(1)).replace(/[0-9a-f]{8}-[0-9a-f-]{27}/g, 'ID').slice(0, 140)}`)
   await new Promise((r) => setTimeout(r, lat))
   const table = url.pathname.replace('/rest/v1/', '')
   const rows = filter(tables[table] ?? [], url.searchParams)

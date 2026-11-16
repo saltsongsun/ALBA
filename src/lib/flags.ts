@@ -15,10 +15,22 @@ export const FEATURES = {
 } as const
 export type FeatureKey = keyof typeof FEATURES
 
+// 서버가 1분 동안 기억 (근무자 화면을 열 때마다 기록 500줄을 읽지 않게 · 켜고 끄면 같은 서버는 바로, 다른 서버도 1분 안에 반영)
+const TTL_MS = 60_000
+let memo: { at: number; value: Record<string, boolean> } | null = null
+
+/** 운영자가 켜고 끈 직후 (같은 서버에서는 바로 새 값으로) */
+export function forgetFlags() {
+  memo = null
+}
+
 const allFlags = cache(async (): Promise<Record<string, boolean>> => {
+  if (memo && Date.now() - memo.at < TTL_MS) return memo.value
   const out: Record<string, boolean> = {}
+  let ok = false
   try {
-    const { data } = await db().from('audit_logs').select('action, detail, created_at').like('action', 'feature.%').order('created_at', { ascending: false }).limit(500)
+    const { data, error } = await db().from('audit_logs').select('action, detail, created_at').like('action', 'feature.%').order('created_at', { ascending: false }).limit(500)
+    if (error) throw error
     const rows = ((data ?? []) as { action: string; detail: string | null; created_at: string }[])
       .filter((r) => r.action.startsWith('feature.'))
       .sort((a, b) => b.created_at.localeCompare(a.created_at))
@@ -26,7 +38,10 @@ const allFlags = cache(async (): Promise<Record<string, boolean>> => {
       const key = r.action.slice('feature.'.length)
       if (!(key in out)) out[key] = r.detail === 'on'
     }
+    ok = true
   } catch {}
+  // 읽기에 실패했으면 기억하지 않음 (다음 요청에서 다시 읽게)
+  if (ok) memo = { at: Date.now(), value: out }
   return out
 })
 

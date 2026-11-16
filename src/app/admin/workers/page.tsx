@@ -58,6 +58,17 @@ type SortKey = (typeof SORTS)[number]['value']
 export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const admin = await requireAdmin()
   const sp = await props.searchParams
+  // 관리자는 근무자(알바) 명단과 따로: '관리자 명부'
+  // 명단 잠금 확인과 함께 미리 출발 (화면에는 잠금이 풀린 뒤에만 씀 — 예전에는 잠금 확인 → 관리자 목록 → 명단을 차례로 기다렸음)
+  const membersP = db()
+    .from('company_members')
+    .select('user_id, role, created_at')
+    .eq('company_id', admin.companyId)
+    .order('created_at')
+    .then((r) => (r.data ?? []) as { user_id: string; role: 'owner' | 'admin'; created_at: string }[])
+  const workerIdsP = sp.view === 'admins' ? Promise.resolve([] as string[]) : companyWorkerIds(admin.companyId)
+  membersP.then(undefined, () => {})
+  workerIdsP.catch(() => {})
   // 보안: 명단은 관리자 본인 비밀번호를 한 번 더 넣어야 열림 (10분)
   const rosterLeft = await rosterUnlockedFor(admin.id)
   if (!rosterLeft) {
@@ -65,9 +76,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     return <RosterLock next={`/admin/workers${qs ? `?${qs}` : ''}`} minutes={ROSTER_MINUTES} />
   }
   if (!(await rosterViewAllowed(admin, 'list'))) return <RosterTooMany />
-  // 관리자는 근무자(알바) 명단과 따로: '관리자 명부'
-  const { data: memberRows } = await db().from('company_members').select('user_id, role, created_at').eq('company_id', admin.companyId).order('created_at')
-  const members = (memberRows ?? []) as { user_id: string; role: 'owner' | 'admin'; created_at: string }[]
+  const members = await membersP
   if (sp.view === 'admins') return <AdminRoster me={admin.id} members={members} m={typeof sp.m === 'string' ? sp.m : undefined} seconds={rosterLeft} />
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 30) : ''
   // 가입한 근무자는 모든 회사 공용 → 목록은 가입 회원 전체 (다른 회사 관리자·외주 업체 계정은 빼고).
@@ -112,7 +121,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   const onlineSince = new Date(Date.now() - ONLINE_MS).toISOString()
   if (f === 'online') query = query.gte('last_seen_at', onlineSince)
   // 명단·우리 회사 지원자·관리자 목록을 한꺼번에 읽음 (차례로 기다리지 않게)
-  const [workerIds, rowsRes] = await Promise.all([companyWorkerIds(admin.companyId), query])
+  const [workerIds, rowsRes] = await Promise.all([workerIdsP, query])
   const applied = new Set(workerIds)
   const memberIds = new Set(members.map((m) => m.user_id))
   const listed = (must(rowsRes) as unknown as Row[])
@@ -128,8 +137,10 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
     )
     .filter((u) => !t || (u.member_type ?? 'worker') === t)
   // 휴대폰 알림을 켰는지 (확정·전날 안내·단체방 알림을 받는지) → 꺼진 사람 표시 · '알림 꺼짐'으로 모아 보기
-  const pushOn = await pushEnabledIds(listed.map((u) => u.id))
-  const shown = listed.filter((u) => f !== 'nopush' || !pushOn.has(u.id))
+  // (알림 꺼짐으로 거를 때만 먼저 기다림 — 아니면 아래 레벨 계산과 함께 기다림)
+  const pushP = pushEnabledIds(listed.map((u) => u.id))
+  const pushFirst = f === 'nopush' ? await pushP : null
+  const shown = pushFirst ? listed.filter((u) => !pushFirst.has(u.id)) : listed
   // 근무일수·최근 근무 (이 회사 기록만 · 위 읽기에서 이 회사 출퇴근만 붙여 옴)
   const stat: Record<string, { days: number; last: string }> = {}
   for (const u of shown) {
@@ -161,7 +172,8 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                 : b.created_at.localeCompare(a.created_at),
     )
     .slice(0, 300)
-  const levels = levelsAll ?? (await companyLevels(admin.companyId, users.filter(hasLevel)))
+  // 화면에 보일 사람의 레벨 · 휴대폰 알림 여부를 함께 기다림
+  const [pushOn, levels] = await Promise.all([pushP, levelsAll ?? companyLevels(admin.companyId, users.filter(hasLevel))])
   const levelBadge = (u: Row) => (hasLevel(u) ? <LevelBadge x={levels.get(u.id)} /> : null)
   // 할 일로 거른 목록(계좌·사진·알림)이면: 우리 회사 지원자에게 한 번에 문자로 요청 (해피워크 전체 회원에게 마구 보내지 않게 우리 회사 지원자만)
   const co = admin.companyName

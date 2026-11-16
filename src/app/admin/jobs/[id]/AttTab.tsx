@@ -68,29 +68,35 @@ export default async function AttTab({
   /** 문자 머리에 회사 이름 */
   company?: string
 }) {
+  // 근무시간 변경 요청 · 그날 주고받은 메시지(현장 알림·기록 정정)를 한 번에 읽음 (예전: 세 번을 차례로)
+  const [changeRows, dayMsgs] = await Promise.all([
+    db()
+      .from('shift_changes')
+      .select('*')
+      .eq('company_id', job.company_id)
+      .eq('job_id', job.id)
+      .neq('status', 'superseded')
+      .order('created_at', { ascending: false })
+      .limit(500)
+      .then((r) => must(r) as Change[]),
+    db()
+      .from('messages')
+      .select('thread_user_id, body, created_at, from_admin')
+      .eq('company_id', job.company_id)
+      .eq('job_id', job.id)
+      .gte('created_at', kstAt(date, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1000)
+      .then((r) => must(r) as { thread_user_id: string; body: string; created_at: string; from_admin: boolean }[]),
+  ])
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
-  const changes = (
-    must(
-      await db().from('shift_changes').select('*').eq('company_id', job.company_id).eq('job_id', job.id).neq('status', 'superseded').order('created_at', { ascending: false }).limit(500),
-    ) as Change[]
-  )
+  const changes = changeRows
     .filter((c) => (c.work_date === date || c.work_date === null) && c.status !== 'superseded')
     .sort((a, b) => b.created_at.localeCompare(a.created_at))
   const changeOf = new Map<string, Change>()
   for (const c of changes) if (!changeOf.has(c.user_id)) changeOf.set(c.user_id, c)
   // 그날 근무자가 보낸 현장 알림 (늦어요 · 출근 확인 요청): 사람마다 가장 최근 것
-  const signals = (
-    must(
-      await db()
-        .from('messages')
-        .select('thread_user_id, body, created_at').eq('company_id', job.company_id)
-        .eq('job_id', job.id)
-        .eq('from_admin', false)
-        .gte('created_at', kstAt(date, '00:00').toISOString())
-        .order('created_at', { ascending: false })
-        .limit(500),
-    ) as { thread_user_id: string; body: string; created_at: string }[]
-  ).filter((m) => kstDate(m.created_at) === date)
+  const signals = dayMsgs.filter((m) => !m.from_admin && kstDate(m.created_at) === date)
   const lateOf = new Map<string, { minutes: number; eta: string; at: string; reason: string | null }>()
   const arriveOf = new Map<string, { at: string; distance: number | null }>()
   for (const m of signals) {
@@ -102,17 +108,7 @@ export default async function AttTab({
     if (kind === 'arrive' && !arriveOf.has(m.thread_user_id)) arriveOf.set(m.thread_user_id, { at: kstTime(m.created_at), distance: parseArriveDistance(m.body) })
   }
   // 근무자의 기록 정정 요청 (출근·종료 시각이 잘못 찍힘): 아직 답하지 않은 것
-  const threads = (
-    must(
-      await db()
-        .from('messages')
-        .select('thread_user_id, body, created_at, from_admin').eq('company_id', job.company_id)
-        .eq('job_id', job.id)
-        .gte('created_at', kstAt(date, '00:00').toISOString())
-        .order('created_at', { ascending: false })
-        .limit(500),
-    ) as { thread_user_id: string; body: string; created_at: string; from_admin: boolean }[]
-  ).filter((m) => ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''))
+  const threads = dayMsgs.filter((m) => ['fix', 'fixDone', 'fixNo'].includes(signalOf(m.body) ?? ''))
   const fixOf = new Map<string, { field: 'in' | 'out'; time: string; at: string; reason: string | null; full: boolean }>()
   for (const uid of new Set(threads.map((m) => m.thread_user_id))) {
     const req = pendingFix(

@@ -104,6 +104,9 @@ async function myShiftToday(userId: string, managed: string[]): Promise<MyShift 
 
 export default async function AdminHome(props: PageProps<'/admin'>) {
   const admin = await requireAdmin()
+  // 화면 맨 아래 '알림 받는 정도'도 처음에 함께 출발 (그리는 도중에 따로 기다리지 않게)
+  const pushLevelP = myPushLevel()
+  pushLevelP.catch(() => {})
   const sp = await props.searchParams
   // 다른 조회와 상관없는 것(외주·시작하기·후기)은 먼저 출발 (한 번에 기다리는 횟수를 줄임)
   // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
@@ -211,6 +214,80 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   ])
   const counts = countApps(activeJobs, 'approved')
   const waitingBy = countApps(activeJobs, 'applied')
+  // 확정 대기 지원자 카드에 쓰는 조회 (레벨·근무 이력·평가·답변 속도·주휴·겹침): 첫 조회가 끝나자마자 출발해
+  // 아래 오늘 행사·할 일 조회와 함께 돎 (예전에는 할 일 조회가 다 끝난 뒤 하나씩 차례로 기다렸음)
+  const pendingExtrasP = (async () => {
+    const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
+    // 대기 지원자의 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 확정할 때 경험 많은 사람이 바로 보이게
+    const pendingLvP = companyLevels(admin.companyId, [...new Map(pendingApps.filter((p) => (p.user.member_type ?? 'worker') === 'worker').map((p) => [p.user.id, p.user])).values()])
+    // 확정 대기는 최근 30명까지만 불러옴 → 더 있으면 진짜 수를 따로 세어 '나머지 n명'을 알려 줌 (빠뜨리지 않게)
+    const PENDING_LIMIT = 30
+    const pendingTotalP: Promise<number> =
+      pending.length >= PENDING_LIMIT && activeJobs.length
+        ? Promise.resolve(
+            db()
+              .from('applications')
+              .select('id', { count: 'exact', head: true })
+              .eq('company_id', admin.companyId)
+              .eq('status', 'applied')
+              .is('held_at', null)
+              .in('job_id', activeJobs.map((j) => j.id)),
+          ).then((r) => Math.max(pendingApps.length, r.count ?? 0))
+        : Promise.resolve(pendingApps.length)
+    // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
+    const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
+    const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
+    // 지원자마다 이 회사에서의 근무·지각·노쇼와 관리자 평가 (공고의 지원자 탭과 같은 내용 · 대시보드에서 바로 정하게)
+    const pendUids = [...new Set(pendingApps.map((p) => p.user.id))]
+    const relP: Promise<[Record<string, Reliability>, Record<string, number[]>]> = pendUids.length
+      ? Promise.all([
+          reliabilityFor(admin.companyId, pendUids).catch(() => ({}) as Record<string, Reliability>),
+          db()
+            .from('worker_ratings')
+            .select('user_id, score')
+            .eq('company_id', admin.companyId)
+            .in('user_id', pendUids)
+            .then(
+              (r) => scoresByUser((r.data ?? []) as { user_id: string; score: number }[]),
+              () => ({}) as Record<string, number[]>,
+            ),
+        ])
+      : Promise.resolve([{}, {}])
+    // 우리 회사가 지원에 보통 얼마 만에 답하는지 (근무자 공고 화면에 보이는 것과 같은 값)
+    const replyP: Promise<number | null> = pendingApps.length ? replyMinutes(admin.companyId).catch(() => null) : Promise.resolve(null)
+    // 추가 근로 → 주휴수당 (관리자에게만): 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 지원자
+    const weeklyOf = new Map<string, WeekImpact>()
+    const weeklyP = Promise.all(
+      [...new Set(pendingApps.map((p) => p.job.id))].map(async (jid) => {
+        const job = activeJobs.find((j) => j.id === jid)
+        if (!job) return
+        const m = await weeklyImpact(
+          job,
+          pendingApps.filter((p) => p.job.id === jid).map((p) => ({ user_id: p.user.id, status: 'applied', available_dates: p.available_dates })),
+        ).catch(() => new Map<string, WeekImpact>())
+        for (const [uid, w] of m) if (w.kind === 'becomes') weeklyOf.set(`${jid}|${uid}`, w)
+      }),
+    )
+    const weeklyFor = (p: (typeof pendingApps)[number]) => weeklyOf.get(`${p.job.id}|${p.user.id}`)
+    // 같은 사람이 같은 날 다른 공고에 이미 확정돼 있으면 (이 회사 안에서만) 확정 전에 한 번 더 — 지원자 탭과 같게
+    type Other = { user_id: string; available_dates: string[] | null; job: { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string } | null }
+    const othersP: Promise<Other[]> = pendingApps.length
+      ? Promise.resolve(db()
+          .from('applications')
+          .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+          .eq('company_id', admin.companyId)
+          .in('user_id', [...new Set(pendingApps.map((p) => p.user.id))])
+          .eq('status', 'approved')
+          .then(
+            (r) => ((r.data ?? []) as unknown as Other[]).filter((o) => o.job && o.job.end_date >= today && o.job.status !== 'cancelled'),
+            () => [] as Other[],
+          ))
+      : Promise.resolve([])
+    const [pendingLv, pendingTotal, , others, [rel, scores], replyMin] = await Promise.all([pendingLvP, pendingTotalP, weeklyP, othersP, relP, replyP])
+    const pendingMore = pendingTotal - pendingApps.length
+    return { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin }
+  })()
+  pendingExtrasP.catch(() => {})
   // 곧(모레까지) 시작하거나 진행 중인데 확정 인원이 모자란 행사: 취소로 빈자리가 생겼을 때 바로 보이게
   const soon = kstDate(new Date(Date.now() + 2 * 86_400_000))
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
@@ -552,77 +629,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...vendorTodos,
   ]
-  const pendingApps = pending.filter((p) => p.job && p.job.end_date >= today)
-  // 대기 지원자의 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 확정할 때 경험 많은 사람이 바로 보이게
-  const pendingLv = await companyLevels(admin.companyId, [...new Map(pendingApps.filter((p) => (p.user.member_type ?? 'worker') === 'worker').map((p) => [p.user.id, p.user])).values()])
-  // 확정 대기는 최근 30명까지만 불러옴 → 더 있으면 진짜 수를 따로 세어 '나머지 n명'을 알려 줌 (빠뜨리지 않게)
-  const PENDING_LIMIT = 30
-  const pendingTotal =
-    pending.length >= PENDING_LIMIT && activeJobs.length
-      ? Math.max(
-          pendingApps.length,
-          (
-            await db()
-              .from('applications')
-              .select('id', { count: 'exact', head: true })
-              .eq('company_id', admin.companyId)
-              .eq('status', 'applied')
-              .is('held_at', null)
-              .in('job_id', activeJobs.map((j) => j.id))
-          ).count ?? 0,
-        )
-      : pendingApps.length
-  const pendingMore = pendingTotal - pendingApps.length
-  // 모집 인원이 이미 다 찬 공고의 지원자는 확정할 때 한 번 더 물어봄
-  const headOf = new Map(activeJobs.map((j) => [j.id, j.headcount]))
-  const isFull = (jobId: string) => (counts[jobId] ?? 0) >= (headOf.get(jobId) ?? Infinity)
-  // 지원자마다 이 회사에서의 근무·지각·노쇼와 관리자 평가 (공고의 지원자 탭과 같은 내용 · 대시보드에서 바로 정하게)
-  const pendUids = [...new Set(pendingApps.map((p) => p.user.id))]
-  const relP: Promise<[Record<string, Reliability>, Record<string, number[]>]> = pendUids.length
-    ? Promise.all([
-        reliabilityFor(admin.companyId, pendUids).catch(() => ({}) as Record<string, Reliability>),
-        db()
-          .from('worker_ratings')
-          .select('user_id, score')
-          .eq('company_id', admin.companyId)
-          .in('user_id', pendUids)
-          .then(
-            (r) => scoresByUser((r.data ?? []) as { user_id: string; score: number }[]),
-            () => ({}) as Record<string, number[]>,
-          ),
-      ])
-    : Promise.resolve([{}, {}])
-  // 우리 회사가 지원에 보통 얼마 만에 답하는지 (근무자 공고 화면에 보이는 것과 같은 값)
-  const replyP: Promise<number | null> = pendingApps.length ? replyMinutes(admin.companyId).catch(() => null) : Promise.resolve(null)
-  // 추가 근로 → 주휴수당 (관리자에게만): 확정하면 같은 회사 다른 공고와 합쳐 한 주 15시간을 넘는 지원자
-  const weeklyOf = new Map<string, WeekImpact>()
-  await Promise.all(
-    [...new Set(pendingApps.map((p) => p.job.id))].map(async (jid) => {
-      const job = activeJobs.find((j) => j.id === jid)
-      if (!job) return
-      const m = await weeklyImpact(
-        job,
-        pendingApps.filter((p) => p.job.id === jid).map((p) => ({ user_id: p.user.id, status: 'applied', available_dates: p.available_dates })),
-      ).catch(() => new Map<string, WeekImpact>())
-      for (const [uid, w] of m) if (w.kind === 'becomes') weeklyOf.set(`${jid}|${uid}`, w)
-    }),
-  )
-  const weeklyFor = (p: (typeof pendingApps)[number]) => weeklyOf.get(`${p.job.id}|${p.user.id}`)
-  // 같은 사람이 같은 날 다른 공고에 이미 확정돼 있으면 (이 회사 안에서만) 확정 전에 한 번 더 — 지원자 탭과 같게
-  type Other = { user_id: string; available_dates: string[] | null; job: { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string } | null }
-  const others: Other[] = pendingApps.length
-    ? await db()
-        .from('applications')
-        .select('user_id, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
-        .eq('company_id', admin.companyId)
-        .in('user_id', [...new Set(pendingApps.map((p) => p.user.id))])
-        .eq('status', 'approved')
-        .then(
-          (r) => ((r.data ?? []) as unknown as Other[]).filter((o) => o.job && o.job.end_date >= today && o.job.status !== 'cancelled'),
-          () => [],
-        )
-    : []
-  const [[rel, scores], replyMin] = await Promise.all([relP, replyP])
+  const { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin } = await pendingExtrasP
   // '보통 3시간 내 답변 · 가장 오래 기다린 지원 2일째' (한 시간 넘게 기다린 지원자가 있을 때만 뒤쪽)
   const oldestMin = pendingApps.length ? (Date.now() - Math.min(...pendingApps.map((p) => Date.parse(p.created_at)))) / 60_000 : 0
   const waitLine = [
@@ -1378,7 +1385,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       {/* 휴대폰 알림 켜기·상태 (맨 아래) */}
       <div className="card space-y-4 p-4" data-push-settings>
         <PushToggle publicKey={pushPublicKey()} admin />
-        <PushLevel initial={await myPushLevel()} admin />
+        <PushLevel initial={await pushLevelP} admin />
       </div>
     </div>
   )

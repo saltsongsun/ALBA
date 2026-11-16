@@ -27,22 +27,47 @@ import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
 
 export default async function PayTab({ job, atts, users, origin, company = '' }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string }) {
-  // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
-  const vpays = await db()
-    .from('vendor_payments')
-    .select('*').eq('company_id', job.company_id)
-    .eq('job_id', job.id)
-    .then((r) => (r.error ? [] : (r.data as VendorPayment[]).filter((p) => p.job_id === job.id)))
-  const vnames = vpays.length
-    ? await db()
-        .from('vendors')
-        .select('id, name').eq('company_id', job.company_id)
-        .in('id', [...new Set(vpays.map((p) => p.vendor_id))])
-        .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((v) => [v.id, v.name])))
-    : new Map<string, string>()
   const userIds = [...new Set(atts.map((a) => a.user_id))]
-  // 주휴수당: 같은 회사 여러 공고를 합쳐 주(월~일)마다 요건을 확인 → 그 주 마지막 근무일 기록에 붙음 (lib/weekly)
-  const weekly = await weeklyPayMap(job.company_id, atts).catch(() => new Map<string, number>())
+  // 아래 조회들은 서로 기다릴 필요가 없어서 한 번에 출발 (예전: 외주 비용 → 업체 이름 → 주휴 → 계좌 요청 → 정산일 안내를 차례로)
+  const noAccountIds = userIds.filter((uid) => !users.get(uid)?.bank_account_enc)
+  const [{ vpays, vnames }, weekly, accountAt, lastPayday] = await Promise.all([
+    // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
+    db()
+      .from('vendor_payments')
+      .select('*').eq('company_id', job.company_id)
+      .eq('job_id', job.id)
+      .then((r) => (r.error ? [] : (r.data as VendorPayment[]).filter((p) => p.job_id === job.id)))
+      .then(async (vpays) => ({
+        vpays,
+        vnames: vpays.length
+          ? await db()
+              .from('vendors')
+              .select('id, name').eq('company_id', job.company_id)
+              .in('id', [...new Set(vpays.map((p) => p.vendor_id))])
+              .then((r) => new Map(((r.data ?? []) as { id: string; name: string }[]).map((v) => [v.id, v.name])))
+          : new Map<string, string>(),
+      })),
+    // 주휴수당: 같은 회사 여러 공고를 합쳐 주(월~일)마다 요건을 확인 → 그 주 마지막 근무일 기록에 붙음 (lib/weekly)
+    weeklyPayMap(job.company_id, atts).catch(() => new Map<string, number>()),
+    // 마지막 '계좌 등록 요청' 앱 알림 때 (같은 알림을 금방 또 보내지 않게) — 이 공고 · 우리 회사 문의함에서만
+    noAccountIds.length ? lastNudgeAt(job.company_id, job.id, SIGNAL.account) : Promise.resolve(null),
+    // 정산 예정일: 마지막으로 알린 것 (근무자 문의함에 남은 안내)
+    userIds.length
+      ? db()
+          .from('messages')
+          .select('body, created_at')
+          .eq('company_id', job.company_id)
+          .eq('job_id', job.id)
+          .eq('from_admin', true)
+          .like('body', `${SIGNAL.payday}%`)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .then((r) => {
+            const m = ((r.data ?? []) as { body: string; created_at: string }[]).filter((x) => x.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
+            return m ? { label: parsePayday(m.body), at: kstDateTime(m.created_at) } : null
+          })
+      : Promise.resolve(null),
+  ])
   const wk = (a: Attendance) => ({ ...a, weekly_pay: weekly.get(a.id) ?? 0 })
   const rows = userIds
     .map((uid) => {
@@ -68,7 +93,7 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
   // 계좌가 없으면 입금을 못 하므로 정산 전에 한 번에 요청
   const noAccount = rows.filter((r) => !r.user?.bank_account_enc)
   // 마지막 '계좌 등록 요청' 앱 알림 때 (같은 알림을 금방 또 보내지 않게) — 이 공고 · 우리 회사 문의함에서만
-  const accountAgo = noAccount.length ? nudgeAgo(await lastNudgeAt(job.company_id, job.id, SIGNAL.account)) : null
+  const accountAgo = noAccount.length ? nudgeAgo(accountAt) : null
   const unpaid = rows.filter((r) => r.done > 0 && !r.paid)
   // 계약 종료 시각 이후 기록이 있는데 아직 서로 확인이 안 끝난 근무 (금액에서 빠져 있음)
   const otWaiting = atts.filter((a) => a.clock_out && calcDay(job, a).otOpen).length
@@ -84,22 +109,7 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
   const paidN = payable.filter((r) => r.paid).length
   const leftWon = unpaid.reduce((t, r) => t + r.s.net, 0)
   const paidPct = payable.length ? Math.round((paidN / payable.length) * 100) : 0
-  // 정산 예정일: 마지막으로 알린 것 (근무자 문의함에 남은 안내) · 처음 고를 날짜는 공고의 지급일 글자로 짐작
-  const lastPayday = userIds.length
-    ? await db()
-        .from('messages')
-        .select('body, created_at')
-        .eq('company_id', job.company_id)
-        .eq('job_id', job.id)
-        .eq('from_admin', true)
-        .like('body', `${SIGNAL.payday}%`)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .then((r) => {
-          const m = ((r.data ?? []) as { body: string; created_at: string }[]).filter((x) => x.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-          return m ? { label: parsePayday(m.body), at: kstDateTime(m.created_at) } : null
-        })
-    : null
+  // 처음 고를 정산 예정일은 공고의 지급일 글자로 짐작 (마지막으로 알린 날짜는 위에서 함께 받아 옴)
   const guess = paydayGuess(job.pay_day, job.end_date)
 
   return (

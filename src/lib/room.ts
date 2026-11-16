@@ -1,4 +1,5 @@
 import 'server-only'
+import { cache } from 'react'
 import { db } from './db'
 import { kstDate } from './time'
 import { isUuid } from './validate'
@@ -109,17 +110,40 @@ export function unreadFor(
   return group.filter((u) => u.id !== m.sender_id && u.id !== viewerId && !((reads[u.id] ?? '') >= m.created_at))
 }
 
-/** 방마다 안 읽은 수 (내가 보낸 건 빼고) */
-export async function roomUnread(userId: string, jobIds: string[]): Promise<Record<string, number>> {
-  if (!jobIds.length) return {}
-  const [{ data: reads }, { data: msgs }] = await Promise.all([
-    db().from('job_chat_reads').select('job_id, read_at').eq('user_id', userId).in('job_id', jobIds),
-    db().from('job_chat').select('job_id, sender_id, created_at').in('job_id', jobIds).order('created_at', { ascending: false }).limit(3000),
-  ])
-  const readAt = new Map(((reads ?? []) as { job_id: string; read_at: string }[]).map((r) => [r.job_id, r.read_at]))
+/**
+ * 내가 방마다 마지막으로 읽은 때 (방 목록과 함께 한 번에 읽으려고 공고와 상관없이 내 기록만).
+ * 한 화면 안에서는 한 번만 읽음 (아래 탭 숫자 · 대화 목록 · 참여한 방이 같은 기록을 씀)
+ */
+const myReadTimes = cache(async (userId: string): Promise<Map<string, string>> => {
+  const { data, error } = await db().from('job_chat_reads').select('job_id, user_id, read_at').eq('user_id', userId).order('read_at', { ascending: false }).limit(2000)
+  if (error) throw error
+  return new Map(((data ?? []) as { job_id: string; user_id: string; read_at: string }[]).filter((r) => r.user_id === userId).map((r) => [r.job_id, r.read_at]))
+})
+
+const ROOM_CHUNK = 25 // 한 번에 묻는 방 수 (주소가 너무 길어지지 않게 · 방마다 조건이 붙음)
+
+/**
+ * 방마다 안 읽은 수 (내가 보낸 건 빼고).
+ * 안 읽은 메시지만 DB에서 고름: 읽은 방은 마지막으로 읽은 뒤 것만, 읽은 적 없는 방은 전부
+ * (예전: 방 메시지를 최근 3000개까지 다 받아 와서 셈 → 대화가 쌓일수록 느려졌음)
+ */
+async function countUnread(userId: string, jobIds: string[], readAt: Map<string, string>): Promise<Record<string, number>> {
   const out: Record<string, number> = {}
-  for (const m of (msgs ?? []) as { job_id: string; sender_id: string | null; created_at: string }[]) {
-    if (m.sender_id === userId) continue
+  if (!jobIds.length) return out
+  const groups = Array.from({ length: Math.ceil(jobIds.length / ROOM_CHUNK) }, (_, i) => jobIds.slice(i * ROOM_CHUNK, (i + 1) * ROOM_CHUNK))
+  const rows = await Promise.all(
+    groups.map(async (ids) => {
+      const unreadOnly = ids.map((id) => (readAt.has(id) ? `and(job_id.eq.${id},created_at.gt."${readAt.get(id)}")` : `job_id.eq.${id}`)).join(',')
+      const base = () => db().from('job_chat').select('job_id, sender_id, created_at').in('job_id', ids)
+      const r = await base().or(unreadOnly).order('created_at', { ascending: false }).limit(3000)
+      // 혹시 조건을 못 알아들으면 예전처럼 최근 메시지를 받아 와 셈 (숫자가 0으로 사라지지 않게)
+      const { data } = r.error ? await base().order('created_at', { ascending: false }).limit(3000) : r
+      return (data ?? []) as { job_id: string; sender_id: string | null; created_at: string }[]
+    }),
+  )
+  const want = new Set(jobIds)
+  for (const m of rows.flat()) {
+    if (!want.has(m.job_id) || m.sender_id === userId) continue
     const at = readAt.get(m.job_id)
     if (!at || m.created_at > at) out[m.job_id] = (out[m.job_id] ?? 0) + 1
   }
@@ -132,11 +156,10 @@ export type RoomLast = { sender_id: string | null; from_admin: boolean; body: st
 /** 안 읽은 수 + 마지막 말을 한 번에 (대화 목록에서 따로 다시 읽지 않게) */
 async function roomStats(userId: string, jobIds: string[]): Promise<{ unread: Record<string, number>; last: Record<string, RoomLast> }> {
   if (!jobIds.length) return { unread: {}, last: {} }
-  const [{ data: reads }, { data: msgs }] = await Promise.all([
-    db().from('job_chat_reads').select('job_id, read_at').eq('user_id', userId).in('job_id', jobIds),
+  const [readAt, { data: msgs }] = await Promise.all([
+    myReadTimes(userId).catch(() => new Map<string, string>()),
     db().from('job_chat').select('job_id, sender_id, from_admin, body, created_at').in('job_id', jobIds).order('created_at', { ascending: false }).limit(3000),
   ])
-  const readAt = new Map(((reads ?? []) as { job_id: string; read_at: string }[]).map((r) => [r.job_id, r.read_at]))
   const unread: Record<string, number> = {}
   const last: Record<string, RoomLast> = {}
   for (const m of (msgs ?? []) as (RoomLast & { job_id: string })[]) {
@@ -178,10 +201,8 @@ export async function adminJoined(job: Pick<RoomJob, 'id'> & { created_by?: stri
 /** 관리자가 참여한 방 id (올린 공고 + 들어온 방) */
 async function joinedRoomIds(userId: string, jobs: Pick<RoomJob, 'id' | 'created_by'>[]): Promise<Set<string>> {
   if (!jobs.length) return new Set()
-  const { data } = await db().from('job_chat_reads').select('job_id, user_id').eq('user_id', userId).in('job_id', jobs.map((j) => j.id))
-  const ids = new Set(((data ?? []) as { job_id: string; user_id: string }[]).filter((r) => r.user_id === userId).map((r) => r.job_id))
-  for (const j of jobs) if (j.created_by === userId) ids.add(j.id)
-  return ids
+  const readAt = await myReadTimes(userId).catch(() => new Map<string, string>())
+  return new Set(jobs.filter((j) => readAt.has(j.id) || j.created_by === userId).map((j) => j.id))
 }
 
 /**
@@ -193,12 +214,16 @@ export async function adminRooms(companyId: string, userId: string): Promise<(Ro
   const { data } = await db().from('jobs').select(JOB_COLS).eq('company_id', companyId).gte('end_date', since).neq('status', 'draft')
   const jobs = ((data ?? []) as RoomJob[]).filter((j) => j.status !== 'draft' && j.end_date >= since)
   if (!jobs.length) return []
-  const { data: apps } = await db().from('applications').select('job_id').in('job_id', jobs.map((j) => j.id)).eq('status', 'approved')
+  // 확정자 수 · 참여한 방 · 안 읽은 수와 마지막 말을 한 번에 (예전: 확정자 수를 다 센 뒤에야 나머지를 읽었음)
+  // (마지막 말은 참여 안 한 방도 보여 줘서 들어갈지 고르기 쉽게 · 확정자가 없는 방은 아래에서 뺌)
+  const [{ data: apps }, joined, { unread, last }] = await Promise.all([
+    db().from('applications').select('job_id').in('job_id', jobs.map((j) => j.id)).eq('status', 'approved'),
+    joinedRoomIds(userId, jobs),
+    roomStats(userId, jobs.map((j) => j.id)),
+  ])
   const members: Record<string, number> = {}
   for (const a of (apps ?? []) as { job_id: string }[]) members[a.job_id] = (members[a.job_id] ?? 0) + 1
   const withPeople = jobs.filter((j) => members[j.id]).sort((a, b) => a.start_date.localeCompare(b.start_date))
-  // 안 읽은 수와 마지막 말을 한 번에 (마지막 말은 참여 안 한 방도 보여 줘서 들어갈지 고르기 쉽게)
-  const [joined, { unread, last }] = await Promise.all([joinedRoomIds(userId, withPeople), roomStats(userId, withPeople.map((j) => j.id))])
   return withPeople.map((j) => ({ ...j, unread: joined.has(j.id) ? (unread[j.id] ?? 0) : 0, members: members[j.id] ?? 0, joined: joined.has(j.id), last: last[j.id] ?? null }))
 }
 
@@ -217,23 +242,36 @@ export async function roomPinned(jobId: string): Promise<(RoomMessage & { name: 
   return { ...m, name: (u as { name: string } | null)?.name ?? '담당자' }
 }
 
-/** 근무자 단체방 안 읽은 수 합계 (아래 탭 '문의' 숫자) */
+const sum = (r: Record<string, number>) => Object.values(r).reduce((n, x) => n + x, 0)
+
+/**
+ * 근무자 단체방 안 읽은 수 합계 (아래 탭 '문의' 숫자).
+ * 대화 목록(workerRooms)과 같은 방만: 확정된 공고 중 끝난 지 30일 안 된 것
+ * (예전: 지금까지 확정된 모든 공고의 방을 셈 → 일한 횟수가 늘수록 느려지고, 목록에 없는 옛 방 숫자가 남을 수 있었음)
+ */
 export async function workerRoomUnreadTotal(userId: string): Promise<number> {
-  const { data: apps } = await db().from('applications').select('job_id').eq('user_id', userId).eq('status', 'approved')
-  const ids = [...new Set(((apps ?? []) as { job_id: string }[]).map((a) => a.job_id))]
+  const since = kstDate(new Date(Date.now() - 30 * 86_400_000))
+  const [{ data: apps }, readAt] = await Promise.all([
+    db().from('applications').select('job_id, job:jobs(end_date, status)').eq('user_id', userId).eq('status', 'approved'),
+    myReadTimes(userId),
+  ])
+  const rows = (apps ?? []) as unknown as { job_id: string; job?: { end_date: string; status: string } | null }[]
+  // 공고 정보가 함께 오지 않으면 (알 수 없으면) 예전처럼 셈
+  const ids = [...new Set(rows.filter((a) => !a.job || (a.job.status !== 'draft' && a.job.end_date >= since)).map((a) => a.job_id))]
   if (!ids.length) return 0
-  return Object.values(await roomUnread(userId, ids)).reduce((n, x) => n + x, 0)
+  return sum(await countUnread(userId, ids, readAt))
 }
 
 /** 관리자 단체방 안 읽은 수 합계 (이 회사 공고, 끝난 지 30일 안 · 내가 참여한 방만) */
 export async function adminRoomUnreadTotal(companyId: string, userId: string): Promise<number> {
   const since = kstDate(new Date(Date.now() - 30 * 86_400_000))
-  const { data } = await db().from('jobs').select('id, created_by').eq('company_id', companyId).gte('end_date', since)
+  // 공고 · 내가 읽은 기록을 한 번에 → 참여한 방의 안 읽은 메시지만 받아 옴
+  const [{ data }, readAt] = await Promise.all([db().from('jobs').select('id, created_by').eq('company_id', companyId).gte('end_date', since), myReadTimes(userId)])
   const jobs = (data ?? []) as Pick<RoomJob, 'id' | 'created_by'>[]
-  if (!jobs.length) return 0
-  const ids = [...(await joinedRoomIds(userId, jobs))]
-  if (!ids.length) return 0
-  return Object.values(await roomUnread(userId, ids)).reduce((n, x) => n + x, 0)
+  // 참여한 방 = 들어와 본 방 + 내가 올린 공고의 방 (joinedRoomIds와 같은 기준)
+  const joined = jobs.filter((j) => readAt.has(j.id) || j.created_by === userId).map((j) => j.id)
+  if (!joined.length) return 0
+  return sum(await countUnread(userId, joined, readAt))
 }
 
 /** 고정 공지를 근무자 중 누가 봤는지: 공지가 고정된 뒤에 방을 연 사람 = 확인 */
