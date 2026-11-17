@@ -144,6 +144,25 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
   const phoneRef = useRef<HTMLInputElement>(null)
   const pinRef = useRef<HTMLInputElement>(null)
   const [filled, setFilled] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  // 비밀번호 몇 자리 쳤는지 (칸 옆 점 6개가 하나씩 참) · 6자리가 안 된 채 누르면 보내지 않고 그 자리에서 알려 줌
+  // (모자란 번호로 보내면 '틀림'으로 세어져 잠길 수 있음 — 로그인 처리 자체는 그대로)
+  const [pinLen, setPinLen] = useState(0)
+  const [short, setShort] = useState<number | null>(null)
+  useEffect(() => {
+    const form = formRef.current
+    if (!form) return
+    const onSubmit = (e: SubmitEvent) => {
+      const n = (pinRef.current?.value ?? '').replace(/\D/g, '').length
+      if (n > 0 && n < 6) {
+        e.preventDefault()
+        setShort(n)
+        pinRef.current?.focus()
+      }
+    }
+    form.addEventListener('submit', onSubmit)
+    return () => form.removeEventListener('submit', onSubmit)
+  }, [])
   // 가입 화면에서 넘어온 번호를 채우고 비밀번호 칸으로
   useEffect(() => {
     let phone: string | null = null
@@ -159,7 +178,7 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
     pinRef.current?.focus()
   }, [])
   return (
-    <form action={action} onReset={keepInputs} className="space-y-4">
+    <form ref={formRef} action={action} onReset={keepInputs} className="space-y-4">
       <Honeypot />
       <input type="hidden" name="next" value={next} />
       <div>
@@ -171,9 +190,20 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
         {filled && <p className="mt-1.5 text-sm font-medium text-emerald-700">✓ 가입된 번호를 채웠어요</p>}
       </div>
       <div>
-        <label className="label" htmlFor="pin">
-          비밀번호 (숫자 6자리)
-        </label>
+        <div className="flex items-center justify-between gap-2">
+          <label className="label" htmlFor="pin">
+            비밀번호 (숫자 6자리)
+          </label>
+          {/* 친 자리만큼 점이 참 (하나씩 톡) · 6자리면 초록 */}
+          <span aria-hidden className="mb-1.5 flex shrink-0 gap-1" data-pin-dots={pinLen}>
+            {Array.from({ length: 6 }, (_, i) => (
+              <span
+                key={i}
+                className={`size-2 rounded-full transition-colors duration-150 ${i < pinLen ? `animate-pop ${pinLen === 6 ? 'bg-emerald-500' : 'bg-brand-600'}` : 'bg-line'}`}
+              />
+            ))}
+          </span>
+        </div>
         <input
           ref={pinRef}
           id="pin"
@@ -183,9 +213,19 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
           inputMode="numeric"
           maxLength={6}
           autoComplete="current-password"
-          onInput={digitsOnly}
+          onInput={(e) => {
+            digitsOnly(e)
+            setPinLen(e.currentTarget.value.length)
+            setShort(null)
+          }}
+          aria-describedby={short ? 'pin-short' : undefined}
           required
         />
+        {short !== null && (
+          <p id="pin-short" role="alert" className="mt-1.5 animate-pop text-sm font-semibold text-amber-700" data-pin-short>
+            비밀번호는 숫자 6자리예요 · 지금 {short}자리
+          </p>
+        )}
         <PinReveal names={['pin']} />
       </div>
       <FormMessage state={state} />

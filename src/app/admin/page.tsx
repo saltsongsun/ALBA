@@ -25,7 +25,7 @@ import { overlapDay } from '@/lib/overlap'
 import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, soleUnreadThread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
-import { scheduleText } from '@/lib/docs'
+import { recruitText, scheduleText } from '@/lib/docs'
 import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
@@ -300,6 +300,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 이미 시작한 행사 (어제 이전 시작 · 오늘 시작 시각이 지남): '오늘 09:00 시작' 대신 '진행 중'
   const nowAt = Date.now()
   const begun = (j: { start_date: string; start_time: string }) => j.start_date < today || (j.start_date === today && kstAt(today, hhmm(j.start_time)).getTime() <= nowAt)
+  // 모자란 공고의 단톡방 모집 글 (공고 화면의 '문구 복사'와 같은 글 · 모집 중인 공고만)
+  const shortOrigin = short.some((j) => j.status === 'open') ? await siteOrigin() : ''
   const todayJobs = activeJobs.filter((j) => j.start_date <= today && j.end_date >= today)
   const workingBy: Record<string, number> = {}
   for (const w of working) workingBy[w.job_id] = (workingBy[w.job_id] ?? 0) + 1
@@ -1079,6 +1081,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                       <Link href={`/admin/jobs/${j.id}?tab=apps`} className="chip-primary h-8">
                         {wait > 0 ? `대기 ${wait}명 확정하러 가기` : '예전 근무자에게 알리기'}
                       </Link>
+                    )}
+                    {/* 단톡방에 올릴 모집 글을 공고 화면까지 가지 않고 바로 복사 (링크 포함) */}
+                    {j.status === 'open' && (
+                      <span data-short-copy className="contents">
+                        <CopyButton text={recruitText(j, `${shortOrigin}/jobs/${j.id}`, settings.company_name)} label="모집 글 복사" className="chip h-8" />
+                      </span>
                     )}
                     {j.status === 'closed' && (
                       <form action={setJobStatus.bind(null, j.id, 'open')}>
