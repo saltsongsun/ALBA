@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { replyInquiry } from '@/app/actions/chat'
+import { replyInquiry, sendReply } from '@/app/actions/chat'
+import { decideApplication, recordMissedClockIn } from '@/app/actions/admin'
 import { switchCompany } from '@/app/actions/company'
 import OtherCompanyJob from '@/components/OtherCompanyJob'
-import { SubmitButton } from '@/components/ui'
+import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { ADMIN_CHAT_BUTTONS } from '@/lib/chatButtons'
 import AutoRefresh from '@/components/AutoRefresh'
 import Avatar from '@/components/Avatar'
@@ -19,7 +20,8 @@ import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
 import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
-import { markInvoice } from '@/app/actions/vendor'
+import { markInvoice, markVendorPaid } from '@/app/actions/vendor'
+import { agreedShiftFor } from '@/lib/shift'
 import { won } from '@/lib/format'
 import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
@@ -160,27 +162,42 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     workLine = { dot: 'bg-sky-400', text: `다음 근무 ${fmtDate(nextJob.start_date)} ${hhmm(nextJob.start_time)}`, title: nextJob.title, href: `/admin/jobs/${nextJob.id}` }
   }
 
-  // '오늘 출근했는데 근무 시작을 못 눌렀어요' → 이 회사 오늘 근무에 출근 기록이 없으면 바로 '기록 넣기' (출퇴근 탭의 그 사람 · 수기 등록 칸 펼침)
-  let missed: { jobId: string; title: string } | null = null
-  if (lastAsk?.body.startsWith(ASK_MISSED.slice(0, 20))) {
+  // 근무자 요청 말풍선 바로 아래의 처리 버튼 (사용자 요청 2026-11-17 "문의 내용 중 자동 내용이 들어오면 그걸 해결하는 버튼을 문의 내용에 넣어줘")
+  // 종류마다 가장 최근 요청 하나에만 · 처리하고 나면 버튼 대신 결과 한 줄(또는 없음)
+  const latest = (pick: (m: ChatMessage) => boolean) => messages.filter((m) => !m.from_admin && pick(m)).at(-1)
+  const missedAsk = latest((m) => m.body.startsWith(ASK_MISSED.slice(0, 20)) && kstDate(m.created_at) === today)
+  const confirmAsk = latest((m) => m.body.startsWith(ASK_CONFIRM.slice(0, 12)))
+  const invoiceAsk = latest((m) => m.body.startsWith(ASK_INVOICE))
+  const paydueAsk = latest((m) => m.body.startsWith(ASK_PAYDUE))
+  // 오늘 지각 알림 중 아직 아무 답도 안 한 것 (답장을 보내면 버튼이 사라짐)
+  const lateAsk = latest((m) => m.body.startsWith(SIGNAL.late) && kstDate(m.created_at) === today)
+  const lateOpen = lateAsk && !messages.some((m) => m.from_admin && m.created_at > lateAsk.created_at) ? lateAsk : undefined
+
+  // '오늘 출근했는데 근무 시작을 못 눌렀어요' → 이 회사 오늘 근무에 출근 기록이 없으면 말풍선에서 바로 '시작 시각으로 출근 처리' (다른 시각이면 출퇴근 탭의 그 사람)
+  let missed: { jobId: string; title: string; start: string; before: boolean } | null = null
+  if (missedAsk) {
     const { data: apps } = await db()
       .from('applications')
-      .select('job_id, job:jobs(id, title, start_date, end_date, company_id)')
+      .select('job_id, job:jobs(id, title, start_date, end_date, start_time, company_id)')
       .eq('company_id', admin.companyId)
       .eq('user_id', userId)
       .eq('status', 'approved')
-    const job = ((apps ?? []) as unknown as { job: { id: string; title: string; start_date: string; end_date: string; company_id: string } | null }[])
+    const job = ((apps ?? []) as unknown as { job: { id: string; title: string; start_date: string; end_date: string; start_time: string; company_id: string } | null }[])
       .map((r) => r.job)
       .find((j) => j && j.company_id === admin.companyId && j.start_date <= today && j.end_date >= today)
     if (job) {
-      const { data: att } = await db().from('attendance').select('id').eq('company_id', admin.companyId).eq('job_id', job.id).eq('user_id', userId).eq('work_date', today).maybeSingle()
-      if (!att) missed = { jobId: job.id, title: job.title }
+      const [{ data: att }, shift] = await Promise.all([
+        db().from('attendance').select('id').eq('company_id', admin.companyId).eq('job_id', job.id).eq('user_id', userId).eq('work_date', today).maybeSingle(),
+        agreedShiftFor(job.id, userId, today),
+      ])
+      const start = hhmm(shift.sched_start ?? job.start_time)
+      if (!att) missed = { jobId: job.id, title: job.title, start, before: kstAt(today, start).getTime() > Date.now() }
     }
   }
 
   // '확정 여부가 궁금해요' → 이 회사에서 확정을 기다리는 그 사람의 지원으로 바로 (물어본 공고 먼저, 없으면 가장 빨리 시작하는 것)
-  let waitingApp: { appId: string; jobId: string; title: string; start: string } | null = null
-  if (lastAsk?.body.startsWith(ASK_CONFIRM.slice(0, 12))) {
+  let waitingApp: { appId: string; jobId: string; title: string; start: string; full: number | null } | null = null
+  if (confirmAsk) {
     const { data: apps } = await db()
       .from('applications')
       .select('id, job_id, status, company_id, job:jobs(id, title, start_date, end_date, status)')
@@ -190,13 +207,22 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     const rows = ((apps ?? []) as unknown as { id: string; job_id: string; status: string; company_id: string; job: { id: string; title: string; start_date: string; end_date: string; status: string } | null }[])
       .filter((r) => r.status === 'applied' && r.company_id === admin.companyId && r.job && r.job.end_date >= today && r.job.status !== 'cancelled')
       .sort((a, b) => a.job!.start_date.localeCompare(b.job!.start_date))
-    const pick = rows.find((r) => r.job_id === lastAsk.job?.id) ?? rows[0]
-    if (pick?.job) waitingApp = { appId: pick.id, jobId: pick.job_id, title: pick.job.title, start: pick.job.start_date }
+    const pick = rows.find((r) => r.job_id === confirmAsk.job?.id) ?? rows[0]
+    if (pick?.job) {
+      // 모집 인원이 이미 찼으면 확정 버튼을 두 번째 누를 때 한 번 더 알려 줌 (인원 미정 공고는 묻지 않음)
+      const [{ count: approvedN }, { data: hc }] = await Promise.all([
+        db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', pick.job_id).eq('status', 'approved'),
+        db().from('jobs').select('headcount, hidden_fields').eq('id', pick.job_id).maybeSingle(),
+      ])
+      const h = hc as { headcount: number; hidden_fields: string[] | null } | null
+      const full = h && !(h.hidden_fields ?? []).includes('headcount_tbd') && (approvedN ?? 0) >= h.headcount ? h.headcount : null
+      waitingApp = { appId: pick.id, jobId: pick.job_id, title: pick.job.title, start: pick.job.start_date, full }
+    }
   }
 
   // 외주 업체 '세금계산서를 보냈어요. ○○ · 1,500,000원' → 이 회사의 그 업체 대금에 '계산서 받음'을 바로 (외주 관리 화면을 찾아가지 않게)
   let invoice: { id: string; title: string; amount: number; at: string | null } | null = null
-  if (lastAsk?.body.startsWith(ASK_INVOICE)) {
+  if (invoiceAsk) {
     const { data: vs } = await db().from('vendors').select('id, company_id').eq('company_id', admin.companyId).eq('user_id', userId)
     const vids = ((vs ?? []) as { id: string; company_id: string }[]).filter((v) => v.company_id === admin.companyId).map((v) => v.id)
     if (vids.length) {
@@ -209,13 +235,119 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
         (p) => p.company_id === admin.companyId && vids.includes(p.vendor_id),
       )
       // 글에 적힌 대금 (이름 · 금액) — 없으면 계산서를 아직 안 받은 것 중 지급일이 가장 이른 것
-      const told = lastAsk.body.slice(ASK_INVOICE.length).trim()
+      const told = invoiceAsk.body.slice(ASK_INVOICE.length).trim()
       const pick =
         list.find((p) => told === invoiceTag(p.title, won(p.amount))) ??
         list.filter((p) => !p.invoice_at).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9'))[0]
       if (pick) invoice = { id: pick.id, title: pick.title, amount: pick.amount, at: pick.invoice_at }
     }
   }
+
+  // 외주 업체 '대금 지급일이 지났어요. ○○ · 1,500,000원 (지급 예정 M/D)' → 그 대금에 '지급 완료' 표시를 말풍선에서 바로 (보낸 뒤 누름 · 두 번 눌러야)
+  let paydue: { id: string; title: string; amount: number; paid: string | null; vendorId: string } | null = null
+  if (paydueAsk) {
+    const { data: vs } = await db().from('vendors').select('id, company_id').eq('company_id', admin.companyId).eq('user_id', userId)
+    const vids = ((vs ?? []) as { id: string; company_id: string }[]).filter((v) => v.company_id === admin.companyId).map((v) => v.id)
+    if (vids.length) {
+      const { data: pays } = await db()
+        .from('vendor_payments')
+        .select('id, title, amount, paid_at, due_date, company_id, vendor_id')
+        .eq('company_id', admin.companyId)
+        .in('vendor_id', vids)
+      const list = ((pays ?? []) as { id: string; title: string; amount: number; paid_at: string | null; due_date: string | null; company_id: string; vendor_id: string }[]).filter(
+        (p) => p.company_id === admin.companyId && vids.includes(p.vendor_id),
+      )
+      // 글에 적힌 대금 (이름 · 금액) — 없으면 아직 안 보낸 것 중 지급일이 가장 이른 것
+      const told = paydueAsk.body.slice(ASK_PAYDUE.length).trim()
+      const pick =
+        list.find((p) => told.startsWith(invoiceTag(p.title, won(p.amount)))) ??
+        list.filter((p) => !p.paid_at && p.due_date && p.due_date < today).sort((a, b) => (a.due_date ?? '9').localeCompare(b.due_date ?? '9'))[0]
+      if (pick) paydue = { id: pick.id, title: pick.title, amount: pick.amount, paid: pick.paid_at, vendorId: pick.vendor_id }
+    }
+  }
+
+  // 말풍선 아래 처리 버튼 (메시지 id → 버튼)
+  const chip = 'h-9 px-3.5 text-[13px]'
+  const resolve: Record<number, React.ReactNode> = {}
+  if (missedAsk && missed && !missed.before)
+    resolve[missedAsk.id] = (
+      <div className="mt-1.5 flex animate-pop flex-wrap gap-1.5" data-missed-fix>
+        <form action={recordMissedClockIn.bind(null, missed.jobId, worker.id, today)}>
+          <SubmitButton className={`chip-primary ${chip}`} pendingText="기록하는 중…">
+            {missed.start} 출근 처리
+          </SubmitButton>
+        </form>
+        <Link href={`/admin/jobs/${missed.jobId}?tab=att&date=${today}&fix=${worker.id}#att-${worker.id}`} className={`chip ${chip}`} data-missed-other>
+          다른 시각 →
+        </Link>
+      </div>
+    )
+  if (confirmAsk && waitingApp)
+    resolve[confirmAsk.id] = (
+      <div className="mt-1.5 flex max-w-[78vw] animate-pop flex-wrap items-center gap-1.5 sm:max-w-md" data-confirm-ask>
+        <span className="basis-full truncate text-xs text-sub">
+          확정 전 · {fmtDate(waitingApp.start)} {waitingApp.title}
+        </span>
+        <form action={decideApplication.bind(null, waitingApp.appId, 'approved', 'chat')}>
+          <ConfirmSubmit className={`chip-primary ${chip}`} confirmText={waitingApp.full ? `${waitingApp.full}명 다 찼어요 · 그래도 확정` : '한 번 더 누르면 확정'} track="문의에서 확정">
+            확정하기
+          </ConfirmSubmit>
+        </form>
+        <Link href={`/admin/jobs/${waitingApp.jobId}?tab=apps#app-${waitingApp.appId}`} className={`chip ${chip}`} data-confirm-apps>
+          지원자 보기 →
+        </Link>
+      </div>
+    )
+  if (invoiceAsk && invoice)
+    resolve[invoiceAsk.id] = invoice.at ? (
+      <p className="mt-1.5 flex max-w-[78vw] animate-pop items-center gap-1 text-[13px] font-semibold text-emerald-700 sm:max-w-md" data-invoice-done>
+        ✓ 계산서 받음 · <span className="min-w-0 truncate font-normal text-sub">{invoice.title}</span>
+      </p>
+    ) : (
+      <form action={markInvoice.bind(null, invoice.id, true)} className="mt-1.5 flex max-w-[78vw] animate-pop flex-wrap items-center gap-1.5 sm:max-w-md" data-invoice-ask>
+        <span className="basis-full truncate text-xs text-sub">
+          {invoice.title} · <span className="tabular-nums">{won(invoice.amount)}</span>
+        </span>
+        <SubmitButton className={`chip-primary ${chip}`} pendingText="표시 중…">
+          계산서 받음
+        </SubmitButton>
+      </form>
+    )
+  if (paydueAsk && paydue)
+    resolve[paydueAsk.id] = paydue.paid ? (
+      <p className="mt-1.5 flex max-w-[78vw] animate-pop items-center gap-1 text-[13px] font-semibold text-emerald-700 sm:max-w-md" data-paydue-done>
+        ✓ 지급 완료 · <span className="min-w-0 truncate font-normal text-sub">{paydue.title}</span>
+      </p>
+    ) : (
+      <div className="mt-1.5 flex max-w-[78vw] animate-pop flex-wrap items-center gap-1.5 sm:max-w-md" data-paydue-ask>
+        <span className="basis-full truncate text-xs text-sub">
+          {paydue.title} · <span className="tabular-nums">{won(paydue.amount)}</span>
+        </span>
+        <form action={markVendorPaid.bind(null, paydue.id, true)}>
+          <ConfirmSubmit className={`chip-primary ${chip}`} confirmText="보냈으면 한 번 더" track="문의에서 대금 지급 완료">
+            지급 완료 표시
+          </ConfirmSubmit>
+        </form>
+        <Link href={`/admin/vendors/${paydue.vendorId}`} className={`chip ${chip}`}>
+          대금 보기 →
+        </Link>
+      </div>
+    )
+  if (lateOpen)
+    resolve[lateOpen.id] = (
+      <div className="mt-1.5 flex animate-pop flex-wrap gap-1.5" data-late-ack>
+        <form action={sendReply.bind(null, worker.id, '네, 조심히 오세요.')}>
+          <SubmitButton className={`chip-primary ${chip}`} pendingText="보내는 중…">
+            ‘조심히 오세요’ 답장
+          </SubmitButton>
+        </form>
+        {lateOpen.job && (
+          <Link href={`/admin/jobs/${lateOpen.job.id}?tab=att&date=${today}`} className={`chip ${chip}`}>
+            출퇴근 탭 →
+          </Link>
+        )}
+      </div>
+    )
 
   // 외주 업체·전문가와의 대화: 이름 아래 '지급 전 1건 · 1,500,000원' + 챙길 것('지급일 지남 1 · 계산서 안 받음 1') (이 회사에 등록된 그 업체 대금만 · 누르면 외주사 화면)
   const member = (worker as { member_type?: string | null }).member_type
@@ -339,56 +471,8 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           아래에 쓰면 {worker.name}님 앱의 &lsquo;문의&rsquo;에 바로 보여요.
         </Empty>
       ) : (
-        <ChatMessages messages={messages} viewer="admin" viewerId={admin.id} />
+        <ChatMessages messages={messages} viewer="admin" viewerId={admin.id} resolve={resolve} />
       )}
-      {missed && (
-        <Link
-          href={`/admin/jobs/${missed.jobId}?tab=att&date=${kstDate()}&fix=${worker.id}#att-${worker.id}`}
-          className="card flex animate-pop items-center gap-3 px-4 py-3 ring-1 ring-amber-200 transition active:scale-[0.98]"
-          data-missed-fix
-        >
-          <span className="min-w-0 flex-1">
-            <b className="block text-sm">오늘 출근 기록이 없어요</b>
-            <span className="block truncate text-xs text-sub">{missed.title}</span>
-          </span>
-          <span className="shrink-0 text-sm font-bold text-brand-600">기록 넣기 →</span>
-        </Link>
-      )}
-      {/* 확정 여부를 물어 온 지원자: 그 공고 지원자 탭의 그 사람으로 바로 (확정·미선발을 거기서) */}
-      {waitingApp && (
-        <Link
-          href={`/admin/jobs/${waitingApp.jobId}?tab=apps#app-${waitingApp.appId}`}
-          className="card flex animate-pop items-center gap-3 px-4 py-3 ring-1 ring-amber-200 transition active:scale-[0.98]"
-          data-confirm-ask
-        >
-          <span className="min-w-0 flex-1">
-            <b className="block text-sm">확정을 기다리는 지원이 있어요</b>
-            <span className="block truncate text-xs text-sub">
-              {fmtDate(waitingApp.start)} · {waitingApp.title}
-            </span>
-          </span>
-          <span className="shrink-0 text-sm font-bold text-brand-600">지원자 보기 →</span>
-        </Link>
-      )}
-      {/* 업체가 세금계산서를 보냈다고 함: 그 대금 '계산서 받음' 한 번에 (받은 뒤엔 초록 한 줄) */}
-      {invoice &&
-        (invoice.at ? (
-          <p className="card flex animate-pop items-center gap-2 px-4 py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200" data-invoice-done>
-            ✓ 계산서 받음 · <span className="min-w-0 truncate font-normal text-sub">{invoice.title}</span>
-          </p>
-        ) : (
-          <form action={markInvoice.bind(null, invoice.id, true)} className="card flex animate-pop items-center gap-3 px-4 py-3 ring-1 ring-amber-200" data-invoice-ask>
-            <span className="min-w-0 flex-1">
-              <b className="block text-sm">🧾 세금계산서를 보냈대요</b>
-              <span className="block truncate text-xs text-sub">
-                {invoice.title} · <span className="tabular-nums">{won(invoice.amount)}</span>
-              </span>
-            </span>
-            <SubmitButton className="btn-primary btn-sm shrink-0" pendingText="표시 중…">
-              계산서 받음
-            </SubmitButton>
-          </form>
-        ))}
       <div data-vv="end" className="sticky bottom-[calc(var(--tabbar-space)+6px-var(--vv,0px))] z-10 pt-2 sm:bottom-4">
         <ChatComposer buttons={ADMIN_CHAT_BUTTONS} action={replyInquiry.bind(null, worker.id)} placeholder={`${worker.name}님에게 답장`} quickReplies={[...new Set([...(payReply ? [payReply] : []), ...repliesFor(askOpen), ...QUICK_REPLIES])]}
         />

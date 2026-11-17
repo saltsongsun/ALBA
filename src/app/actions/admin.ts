@@ -561,7 +561,7 @@ async function tellNotSelected(job: Job, userIds: string[], adminId: string, clo
 
 /** from='dashboard': 대시보드에서 눌렀으면 처리 뒤 대시보드 위쪽에 '○○님 확정 · 알림을 보냈어요' (누가 어떻게 됐는지 바로 보이게) */
 // (공고 화면처럼 두 값만 묶어 폼에 걸면 세 번째 자리에 폼 데이터가 들어오므로 'dashboard'일 때만 대시보드로)
-export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied', from?: 'dashboard' | FormData) {
+export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied', from?: 'dashboard' | 'chat' | FormData) {
   const admin = await requireAdmin()
   if (!isUuid(appId) || !['approved', 'rejected', 'applied'].includes(status)) return
   const app = await companyRow<{ id: string; job_id: string; user_id: string; company_id: string; status: string }>(
@@ -611,12 +611,14 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
   }
   revalidatePath(`/admin/jobs/${app.job_id}`)
   revalidatePath('/admin')
-  if (from === 'dashboard' && status !== 'applied') {
+  if ((from === 'dashboard' || from === 'chat') && status !== 'applied') {
     const { data: u } = await db().from('users').select('name').eq('id', app.user_id).maybeSingle()
     const name = (u as { name: string } | null)?.name ?? '근무자'
     // 휴대폰 한 줄에 들어가게 짧게
     const msg = status === 'approved' ? `${name}님 확정 · 알림을 보냈어요` : app.status === 'applied' ? `${name}님 미선발 · 알림을 보냈어요` : `${name}님을 미선발로 바꿨어요`
-    redirect(`/admin?m=${encodeURIComponent(msg)}`)
+    // 문의 대화('확정 여부가 궁금해요')에서 눌렀으면 그 대화로
+    if (from === 'chat') revalidatePath(`/admin/chat/${app.user_id}`)
+    redirect(`${from === 'chat' ? `/admin/chat/${app.user_id}` : '/admin'}?m=${encodeURIComponent(msg)}`)
   }
 }
 
@@ -1048,6 +1050,48 @@ export async function approveArrival(jobId: string, userId: string, date: string
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath(`/admin/chat/${userId}`)
   back(done, `${kstTime(req.created_at)} 출근으로 처리했어요.`)
+}
+
+/**
+ * '오늘 출근했는데 근무 시작을 못 눌렀어요' 문의에 답하기 (문의 대화의 말풍선에서 바로):
+ * 근무 시작 시각(근무시간을 바꾸기로 합의했으면 그 시각)으로 출근을 기록하고 근무자에게 알림.
+ * 실제 도착 시각이 다르면 출퇴근 탭에서 직접 넣음 (말풍선의 '다른 시각' 링크)
+ */
+export async function recordMissedClockIn(jobId: string, userId: string, date: string) {
+  const admin = await requireAdmin()
+  const job = isUuid(userId) && isDate(date) ? await companyJob(admin, jobId) : null
+  if (!job) return
+  const done = `/admin/chat/${userId}`
+  if (date !== kstDate() || date < job.start_date || date > job.end_date) back(done, '오늘 근무가 아니에요.')
+  const { count: approvedApp } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId).eq('status', 'approved')
+  if (!approvedApp) back(done, '이 공고에 확정된 근무자가 아니에요.')
+  const shift = await agreedShiftFor(jobId, userId, date)
+  const start = hhmm(shift.sched_start ?? job.start_time)
+  const clockIn = kstAt(date, start)
+  // 아직 시작 전이면 기록하지 않음 (근무자가 앱에서 직접 누르면 됨)
+  if (clockIn.getTime() > Date.now()) back(done, `아직 근무 시작(${start}) 전이에요. 근무자가 앱에서 근무 시작을 누르면 돼요.`)
+  const { error } = await db().from('attendance').insert({
+    job_id: jobId,
+    user_id: userId,
+    work_date: date,
+    clock_in: clockIn.toISOString(),
+    source: 'admin',
+    note: `근무 시작 못 누름 · 문의로 ${start} 출근 기록`,
+    ...shift,
+  })
+  if (error) back(done, error.code === '23505' ? '이미 출근 기록이 있어요.' : '출근 기록을 넣지 못했어요.')
+  await audit(admin.id, 'attendance.missed_ok', userId, `${date} ${start}`, admin.companyId)
+  await tellWorkers([userId], {
+    senderId: admin.id,
+    companyId: admin.companyId,
+    jobId,
+    title: '✅ 출근 처리됐어요',
+    text: `${job.title} · ${start} 출근으로 기록했어요. 일이 끝나면 앱에서 '근무 종료'를 눌러 주세요.`,
+    tag: `arrive-ok-${jobId}`,
+  })
+  revalidatePath(`/admin/jobs/${jobId}`)
+  revalidatePath(done)
+  back(done, `${start} 출근으로 기록했어요.`)
 }
 
 /** 근무자의 기록 정정 요청에 답하기: accept면 요청한 시각으로 보정(adj_in/adj_out), 아니면 그대로 두고 알림 */

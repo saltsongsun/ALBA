@@ -2,6 +2,7 @@
 // · 관리자 문의 대화: 근무자가 '오늘 출근했는데 근무 시작을 못 눌렀어요…'를 보냈고 오늘 이 회사 근무에 출근 기록이 없으면
 //   '오늘 출근 기록이 없어요 · 공고 제목 · 기록 넣기 →' → 출퇴근 탭의 그 사람으로 · 수기 등록 칸이 펼쳐진 채
 //   빠른 답장 '출근 기록을 넣었어요. 확인해 주세요.' · 기록을 넣으면 안내가 사라짐
+// (2026-11-17 사용자 요청: 안내 카드 대신 그 문의 말풍선 바로 아래 'HH:MM 출근 처리 · 다른 시각 →' — 다른 시각은 같은 곳으로)
 // node scripts/qa/batch161.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
 const fs = require('node:fs')
@@ -20,6 +21,11 @@ const until = async (fn, ms = 10000) => { for (let t = 0; t < ms; t += 250) { co
 ;(async () => {
   // 준비: 오늘 출근 기록 없음 · 근무자가 '못 눌렀어요' 문의
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
+  // 근무가 이미 시작된 시간으로 (시작 전이면 말풍선 버튼을 띄우지 않음 · 시각과 상관없이 돌게)
+  const nowMin = Math.floor(((Date.now() + 9 * 3600e3) % 864e5) / 60000)
+  const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}:00`
+  const kToday = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: kToday, end_date: kToday, start_time: hm(Math.max(nowMin - 60, 0)), end_time: hm(Math.min(nowMin + 120, 23 * 60 + 59)) })
   const [wu] = await rest(`users?id=eq.${W}`)
   await rest('messages', 'POST', { thread_user_id: W, sender_id: W, from_admin: false, company_id: C, body: ASK, read_at: null, created_at: new Date().toISOString(), user: { id: W, name: wu.name, phone: wu.phone, photo_at: null } })
 
@@ -34,17 +40,18 @@ const until = async (fn, ms = 10000) => { for (let t = 0; t < ms; t += 250) { co
 
   // ── 1. 문의 대화: '기록 넣기' 바로 가기 + 빠른 답장
   await a.goto(`${D}/admin/chat/${W}`)
-  const card = a.locator('[data-missed-fix]')
+  const card = a.locator('main ol [data-missed-fix]')
   await card.waitFor({ timeout: 15000 }).catch(() => {})
+  const other = card.locator('[data-missed-other]')
   const ct = (await card.innerText().catch(() => '')).replace(/\n/g, ' / ')
-  ok("'오늘 출근 기록이 없어요 / 공고 제목 / 기록 넣기 →'", ct.startsWith('오늘 출근 기록이 없어요 / ') && ct.endsWith('기록 넣기 →'), ct)
-  ok('누르면 출퇴근 탭의 그 사람 (오늘 · fix)', (await card.getAttribute('href')) === `/admin/jobs/${J}?tab=att&date=${today}&fix=${W}#att-${W}`, await card.getAttribute('href'))
+  ok("문의 말풍선 바로 아래 'HH:MM 출근 처리 / 다른 시각 →' (아래 따로 뜨던 카드 없음)", /^\d{2}:\d{2} 출근 처리 \/ 다른 시각 →$/.test(ct) && (await a.locator('[data-missed-fix]').count()) === 1, ct)
+  ok("'다른 시각 →'은 출퇴근 탭의 그 사람 (오늘 · fix)", (await other.getAttribute('href')) === `/admin/jobs/${J}?tab=att&date=${today}&fix=${W}#att-${W}`, await other.getAttribute('href'))
   ok("빠른 답장 '출근 기록을 넣었어요. 확인해 주세요.'", (await a.getByText('출근 기록을 넣었어요. 확인해 주세요.').count()) > 0)
   ok('360px 옆으로 안 밀림 · 안내 줄 한 줄씩', (await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)) && (await card.evaluate((el) => el.getBoundingClientRect().height < 72)))
   if (SHOTS) await card.screenshot({ path: `${SHOTS}/missed-card.png` }).catch(() => {})
 
   // ── 2. 누르면 그 사람 · 수기 등록 칸 펼쳐짐
-  await Promise.all([a.waitForURL(/tab=att/, { timeout: 15000 }).catch(() => {}), card.click()])
+  await Promise.all([a.waitForURL(/tab=att/, { timeout: 15000 }).catch(() => {}), other.click()])
   const add = a.locator(`#att-${W} [data-att-add="open"]`)
   await add.waitFor({ timeout: 15000 }).catch(() => {})
   ok('출퇴근 탭: 그 사람의 수기 출퇴근 등록 칸이 펼쳐짐', (await add.count()) === 1 && (await add.evaluate((el) => el.open)) && (await add.locator('input[name=in]').isVisible()))

@@ -5,7 +5,7 @@ import { saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { fmtDate, kstDate, minutesText } from '@/lib/time'
-import { headcountTbd, JOB_FIELDS } from '@/lib/jobFields'
+import { headcountTbd, JOB_FIELDS, shows } from '@/lib/jobFields'
 import { mapLinks } from '@/lib/map'
 import type { Job, JobCondition } from '@/lib/types'
 import Fold from './Fold'
@@ -34,8 +34,11 @@ type ConditionRow = JobCondition & { key: number; hint?: string }
  * 공고에 보일 내용: 기본 항목(휴게·공제 등)은 켜고 끄고, 필요한 조건은 더하고 빼기.
  * 기본 항목을 끄면 공고 화면·홈 공고 카드·모집 문구에서 빠짐 (근로계약서에는 영향 없음)
  */
+// 인원(남은 자리) 보이기는 '모집 인원' 칸 바로 아래에서 켜고 끔 (숫자를 넣는 자리에서 바로 정하게) → 이 목록에서는 뺌
+const POSTING_FIELDS = JOB_FIELDS.filter((f) => f.key !== 'headcount')
+
 function PostingEditor({ initial, hidden, recent = [] }: { initial: JobCondition[]; hidden: string[]; recent?: JobCondition[] }) {
-  const [shown, setShown] = useState(() => new Set<string>(JOB_FIELDS.map((f) => f.key).filter((k) => !hidden.includes(k))))
+  const [shown, setShown] = useState(() => new Set<string>(POSTING_FIELDS.map((f) => f.key).filter((k) => shows({ hidden_fields: hidden }, k))))
   const [rows, setRows] = useState<ConditionRow[]>(() => initial.map((c, i) => ({ ...c, key: i })))
   const nextKey = useRef(initial.length)
   const focusRef = useRef<string | null>(null)
@@ -98,7 +101,7 @@ function PostingEditor({ initial, hidden, recent = [] }: { initial: JobCondition
     <Fold
       title="공고에 보일 내용"
       summary={[
-        shown.size === JOB_FIELDS.length ? '기본 항목 모두 보임' : `기본 항목 ${JOB_FIELDS.length - shown.size}개 숨김`,
+        shown.size === POSTING_FIELDS.length ? '기본 항목 모두 보임' : `기본 항목 ${POSTING_FIELDS.length - shown.size}개 숨김`,
         saved.length ? `추가 조건 ${saved.map((c) => c.label).join(', ')}` : recent.length ? `지난 공고 조건 ${recent.length}개 불러오기` : '',
       ]
         .filter(Boolean)
@@ -107,7 +110,7 @@ function PostingEditor({ initial, hidden, recent = [] }: { initial: JobCondition
       <p className="hint">기본 항목은 켜고 끌 수 있고, 필요한 조건은 아래에 더하세요. 공고 화면과 단톡방 모집 문구에 그대로 나옵니다.</p>
 
       <ul className="divide-y divide-line rounded-xl ring-1 ring-line">
-        {JOB_FIELDS.map((f) => {
+        {POSTING_FIELDS.map((f) => {
           const on = shown.has(f.key)
           return (
             <li key={f.key} className="flex items-center gap-3 px-3.5 py-2.5">
@@ -316,6 +319,8 @@ export default function JobForm({
   const [headcount, setHeadcount] = useState(job?.headcount ?? 10)
   // 인원 미정: 공고에는 '인원 미정' · 숫자는 최대 인원으로만 (10명 계획이지만 덜 뽑을 수도 있을 때)
   const [tbd, setTbd] = useState(() => (job ? headcountTbd(job) : false))
+  // 근무자에게 남은 자리·확정 인원 보이기 (기본 꺼짐 · 켠 공고만 카드에 'n자리 남음'과 칸 막대)
+  const [showCount, setShowCount] = useState(() => (job ? shows(job, 'headcount') : false))
   // 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서, 화면 색도 보라로)
   const [audience, setAudience] = useState<'worker' | 'expert'>(job?.audience ?? 'worker')
   const [locMsg, setLocMsg] = useState('')
@@ -538,14 +543,22 @@ export default function JobForm({
                   지금 확정 {approved}명
                 </p>
               ))}
-            {/* 인원 미정: 근무자에게는 숫자 대신 '인원 미정' (덜 뽑아도 '왜 안 뽑혔나요' 연락이 덜 오게) */}
-            <label className="mt-1.5 flex min-h-9 items-center gap-2 text-sm font-semibold text-sub" data-headcount-tbd>
-              <input type="checkbox" name="headcount_tbd" className="size-4" checked={tbd} onChange={(e) => setTbd(e.currentTarget.checked)} />
-              인원 미정
-            </label>
-            {tbd && (
-              <p className="hint animate-pop" data-headcount-tbd-hint>
-                공고엔 ‘인원 미정’으로 보여요
+            {/* 한 줄에 둘: 인원 미정(숫자는 최대 인원으로만) · 근무자에게 인원 보이기(기본 꺼짐) */}
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-4">
+              {/* 인원 미정: 근무자에게는 숫자 대신 '인원 미정' (덜 뽑아도 '왜 안 뽑혔나요' 연락이 덜 오게) */}
+              <label className="flex min-h-9 items-center gap-2 text-sm font-semibold text-sub" data-headcount-tbd>
+                <input type="checkbox" name="headcount_tbd" className="size-4" checked={tbd} onChange={(e) => setTbd(e.currentTarget.checked)} />
+                인원 미정
+              </label>
+              <label className="flex min-h-9 items-center gap-2 text-sm font-semibold text-sub" data-headcount-show>
+                <input type="checkbox" name="show_fields" value="headcount" className="size-4" checked={showCount} onChange={(e) => setShowCount(e.currentTarget.checked)} />
+                근무자에게 인원 보이기
+              </label>
+            </div>
+            {/* 근무자 공고에 무엇이 보이는지 한 줄 (꺼 두면 아무것도 안 보임) */}
+            {showCount && (
+              <p className="hint animate-pop" data-headcount-show-hint>
+                {tbd ? '공고엔 ‘인원 미정’으로 보여요' : '공고에 ‘남은 자리’가 보여요'}
               </p>
             )}
           </Field>

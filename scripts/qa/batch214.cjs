@@ -61,12 +61,14 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   // ── 1. 공고 고치기: '인원 미정' 체크
   await a.goto(`${D}/admin/jobs/${J5}/edit`, { waitUntil: 'networkidle' })
   await openSchedule()
-  const field = a.locator('[data-headcount-tbd]').locator('xpath=..')
-  ok("처음엔 '모집 인원 *' · 체크 안 됨", one(await field.locator('label.label').first().innerText().catch(() => '')) === '모집 인원 *' && !(await tbdBox().isChecked()))
+  const field = a.locator('[data-headcount-tbd]').locator('xpath=../..')
+  const showBox = () => a.locator('[data-headcount-show] input')
+  ok("처음엔 '모집 인원 *' · 인원 미정 체크 안 됨 · '근무자에게 인원 보이기'도 꺼짐 (기본 숨김)", one(await field.locator('label.label').first().innerText().catch(() => '')) === '모집 인원 *' && !(await tbdBox().isChecked()) && !(await showBox().isChecked()))
   await tbdBox().check()
+  await showBox().check()
   await a.waitForTimeout(200)
-  ok("체크하면 '최대 인원 *' · '공고엔 ‘인원 미정’으로 보여요'", one(await field.locator('label.label').first().innerText().catch(() => '')) === '최대 인원 *' && one(await a.locator('[data-headcount-tbd-hint]').innerText().catch(() => '')) === '공고엔 ‘인원 미정’으로 보여요')
-  ok('체크 칸 누르기 쉬움 (높이 36px 이상) · 안내 한 줄 (휴대폰에선 인원 칸이 한 줄 전체) · 360px 옆으로 안 밀림', (await a.locator('[data-headcount-tbd]').evaluate((el) => el.getBoundingClientRect().height >= 36)) && (await a.locator('[data-headcount-tbd-hint]').evaluate((el) => el.getBoundingClientRect().height < 22)) && (await noSide(a)))
+  ok("인원 미정 + 보이기를 켜면 '최대 인원 *' · '공고엔 ‘인원 미정’으로 보여요'", one(await field.locator('label.label').first().innerText().catch(() => '')) === '최대 인원 *' && one(await a.locator('[data-headcount-show-hint]').innerText().catch(() => '')) === '공고엔 ‘인원 미정’으로 보여요')
+  ok('체크 칸 누르기 쉬움 (높이 36px 이상) · 두 칸 한 줄 · 안내 한 줄 · 360px 옆으로 안 밀림', (await a.locator('[data-headcount-tbd]').evaluate((el) => el.getBoundingClientRect().height >= 36)) && (await a.locator('[data-headcount-show]').evaluate((el) => el.getBoundingClientRect().height >= 36)) && (await a.locator('[data-headcount-tbd]').evaluate((el) => Math.abs(el.getBoundingClientRect().top - document.querySelector('[data-headcount-show]').getBoundingClientRect().top) < 4)) && (await a.locator('[data-headcount-show-hint]').evaluate((el) => el.getBoundingClientRect().height < 22)) && (await noSide(a)))
   if (SHOTS) {
     await a.locator('input[name=headcount]').evaluate((el) => el.scrollIntoView({ block: 'center' }))
     await a.waitForTimeout(300)
@@ -75,7 +77,7 @@ const kst = (days = 0) => new Date(Date.now() + 9 * 3600e3 + days * 86400e3).toI
   }
   await save()
   const [s1] = await rest(`jobs?id=eq.${J5}`)
-  ok('저장하면 인원 미정으로 남음 (숫자 10은 최대 인원으로)', (s1.hidden_fields ?? []).includes('headcount_tbd') && s1.headcount === 10, JSON.stringify(s1.hidden_fields))
+  ok('저장하면 인원 미정 · 인원 보이기로 남음 (숫자 10은 최대 인원으로)', (s1.hidden_fields ?? []).includes('headcount_tbd') && (s1.hidden_fields ?? []).includes('headcount_shown') && s1.headcount === 10, JSON.stringify(s1.hidden_fields))
   // 가짜 DB는 지원 행에 붙은 공고 사본을 따라 바꾸지 않음 → 맞춰 줌
   await rest(`applications?id=eq.${AW}`, 'PATCH', { job: { ...j5, hidden_fields: s1.hidden_fields } })
   await rest(`applications?id=eq.${AA}`, 'PATCH', { job: { ...j5, hidden_fields: s1.hidden_fields } })

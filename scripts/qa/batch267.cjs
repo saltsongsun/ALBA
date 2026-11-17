@@ -87,7 +87,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await p.goto(`${D}/admin/chat/${P}`, { waitUntil: 'networkidle' })
   const card = p.locator('[data-invoice-ask]')
   await card.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("'🧾 세금계산서를 보냈대요 · 개막식 음향 · 1,500,000원 [계산서 받음]'", one(await card.locator('b').textContent().catch(() => '')) === '🧾 세금계산서를 보냈대요' && one(await card.locator('span.block').first().textContent().catch(() => '')) === '개막식 음향 · 1,500,000원' && (await card.getByRole('button', { name: '계산서 받음' }).count()) === 1)
+  // (2026-11-17 사용자 요청: 아래 카드 대신 그 문의 말풍선 바로 아래)
+  ok("말풍선 아래 '개막식 음향 · 1,500,000원 [계산서 받음]'", (await p.locator('main ol [data-invoice-ask]').count()) === 1 && one(await card.locator('span').first().textContent().catch(() => '')) === '개막식 음향 · 1,500,000원' && (await card.getByRole('button', { name: '계산서 받음' }).count()) === 1)
   ok('관리자 화면 360px 옆으로 안 밀림', await noSide(p))
   if (SHOTS) {
     await card.evaluate((el) => el.scrollIntoView({ block: 'center' }))

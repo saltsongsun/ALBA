@@ -77,6 +77,15 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
 }
 
 /**
+ * 말풍선 아래 '답장 한 번에' 버튼 (지각 알림 → '네, 조심히 오세요.'). 직접 쓴 답장과 똑같이 보냄 (같은 확인을 거침)
+ */
+export async function sendReply(userId: string, body: string) {
+  const form = new FormData()
+  form.set('body', body)
+  await replyInquiry(userId, {}, form)
+}
+
+/**
  * 이 회사로 온 근무자 문의를 모두 읽음으로 (사용자 요청 2026-11-08 "반복적인 일은 한 번에" — 하나씩 열지 않아도 됨).
  * 이 회사 문의만 · 출근 확인·기록 정정 같은 처리할 요청은 읽음과 상관없이 대시보드 '확인할 일'에 그대로 남음
  */

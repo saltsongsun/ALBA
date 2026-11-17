@@ -22,7 +22,8 @@ const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
 ;(async () => {
   const [job0] = await rest(`jobs?id=eq.${JOB}`)
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)
-  await rest(`jobs?id=eq.${JOB}`, 'PATCH', { start_date: today, end_date: today })
+  // 인원은 기본 숨김 → '근무자에게 인원 보이기'를 켠 공고로 (카드의 'n/n명 확정' 확인용 · 사용자 요청 2026-11-17)
+  await rest(`jobs?id=eq.${JOB}`, 'PATCH', { start_date: today, end_date: today, hidden_fields: ['headcount_shown'] })
   const [w] = await rest(`users?id=eq.${W}`)
   if (!(await rest(`users?id=eq.${NEW}`)).length) await rest('users', 'POST', { ...w, id: NEW, name: '늦은회원', phone: '01012123434', photo_at: new Date().toISOString() })
 
@@ -91,7 +92,7 @@ const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
   } else console.log('SKIP  끝난 근무 (한국 시각 0시 40분 전)')
 
   // ── 6. 담당자 연락 · 서류 줄 ──
-  await rest(`jobs?id=eq.${JOB}`, 'PATCH', { start_time: job0.start_time, end_time: job0.end_time, start_date: job0.start_date, end_date: job0.end_date })
+  await rest(`jobs?id=eq.${JOB}`, 'PATCH', { start_time: job0.start_time, end_time: job0.end_time, start_date: job0.start_date, end_date: job0.end_date, hidden_fields: job0.hidden_fields })
   await n.goto(`${D}/jobs/${JOB}`)
   const mc = n.locator('[data-manager-contact]')
   await mc.waitFor({ timeout: 10000 }).catch(() => {})

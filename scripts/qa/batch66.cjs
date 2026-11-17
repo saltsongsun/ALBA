@@ -20,7 +20,8 @@ const ago = (min) => new Date(Date.now() - min * 60e3).toISOString()
 ;(async () => {
   // 준비: J는 5명 모집(확정 1) · J2는 2명 모집인데 3명 확정(넘침) · J3는 100명 모집 · 모두 내일 행사
   const tomorrow = kstDate(new Date(Date.now() + 86400e3))
-  await rest(`jobs?id=eq.${J}`, 'PATCH', { headcount: 5 })
+  // 인원은 기본 숨김 → 이 공고는 '근무자에게 인원 보이기'를 켠 공고로 (사용자 요청 2026-11-17)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { headcount: 5, hidden_fields: ['headcount_shown'] })
   const [j] = await rest(`jobs?id=eq.${J}`)
   await rest('jobs', 'POST', { ...j, id: J2, title: '넘친 공고 두 명 모집', headcount: 2, start_date: tomorrow, end_date: tomorrow, status: 'open', applications: [{ status: 'approved' }, { status: 'approved' }, { status: 'approved' }] })
   await rest('jobs', 'POST', { ...j, id: J3, title: '큰 행사 백 명 모집', headcount: 100, start_date: tomorrow, end_date: tomorrow, status: 'open', applications: [] })

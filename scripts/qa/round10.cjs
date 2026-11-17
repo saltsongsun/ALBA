@@ -49,7 +49,7 @@ const errs = []
 
   // ── 개선 1·2: 알바 찾기 날짜 필터 · 남은 자리 ──
   // (저녁 6시가 지나면 오늘 하루짜리 공고는 '오늘 근무 종료'로 남은 자리를 감춰서 내일까지로)
-  await rest(MD, `jobs?id=eq.cccccccc-0000-4000-8000-000000000003`, 'PATCH', { end_date: new Date(Date.now() + 33 * 3600e3).toISOString().slice(0, 10) })
+  await rest(MD, `jobs?id=eq.cccccccc-0000-4000-8000-000000000003`, 'PATCH', { end_date: new Date(Date.now() + 33 * 3600e3).toISOString().slice(0, 10), hidden_fields: ['headcount_shown'] })
   const anon = await pg(D)
   await anon.goto(`${D}/`)
   ok('공고 카드: 남은 자리', await see(anon, '4자리 남음'))

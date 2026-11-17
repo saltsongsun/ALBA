@@ -121,12 +121,15 @@ export function ChatMessages({
   viewer,
   viewerId,
   clock,
+  resolve,
 }: {
   messages: ChatMessage[]
   viewer: 'worker' | 'admin'
   viewerId: string
   /** 근무자 화면: 담당자가 보낸 마지막 '근무 시작·종료' 버튼 자리에 넣을 진짜 근무 버튼 (채팅에서 바로 누름) */
   clock?: React.ReactNode
+  /** 관리자 화면: 근무자 요청 말풍선 바로 아래의 처리 버튼 (메시지 id → 버튼 · 서버에서 지금 상황을 보고 정함) */
+  resolve?: Record<number, React.ReactNode>
 }) {
   let lastDay = ''
   // 진짜 근무 버튼은 맨 마지막 '근무 시작·종료' 버튼 메시지 아래 한 곳에만 (예전 것은 바로 가기 링크로)
@@ -221,6 +224,7 @@ export function ChatMessages({
               {/* 근무자의 현장 알림·요청: 대화에서 바로 처리 (정정·출근 확인) · 그 밖은 처리할 화면으로 */}
               {viewer === 'admin' &&
                 (() => {
+                  if (resolve?.[m.id]) return resolve[m.id]
                   const q = quickFor(m, messages)
                   if (q) return <QuickActions m={m} q={q} />
                   // 이미 답한 정정·출근 확인 요청은 버튼 없이 (화면을 단순하게)

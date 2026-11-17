@@ -368,6 +368,8 @@ export async function markVendorPaid(paymentId: string, paid: boolean) {
     })
   }
   refresh(data.job_id ? `/admin/jobs/${data.job_id}` : '/admin/vendors')
+  // 업체가 '대금 지급일이 지났어요'라고 한 문의 화면의 말풍선에서도 누름 → 그 화면도 바로 '지급 완료'로
+  revalidatePath('/admin/chat/[userId]', 'page')
 }
 
 /** 지급 건 지우기 (아직 지급하지 않은 것만) */

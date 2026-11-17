@@ -54,10 +54,11 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const chips = (await a.locator('[data-quick-replies] button').allInnerTexts()).map(one)
   const iOk = chips.indexOf('확정했어요. 내 근무에서 확인해 주세요.')
   ok("답장 제안: '확정했어요…' · '검토 중이에요…' · '이번에는 인원이 다 찼어요…' (평소 답장 앞에)", iOk >= 0 && chips[iOk + 1] === '검토 중이에요. 오늘 안에 알려 드릴게요.' && chips[iOk + 2] === '이번에는 인원이 다 찼어요. 다음에 꼭 함께해요.' && chips.indexOf('확인했습니다.') > iOk + 2, JSON.stringify(chips.slice(0, 6)))
-  ok("'확정을 기다리는 지원이 있어요 · 날짜 · 공고 · 지원자 보기 →'", /^확정을 기다리는 지원이 있어요 \d{1,2}\/\d{1,2}\([일월화수목금토]\) · 경상남도 생활체육대축전/.test(one(await short.innerText())) && one(await short.innerText()).endsWith('지원자 보기 →') && (await short.getAttribute('href')) === `/admin/jobs/${J}?tab=apps#app-${AP_APP}`, one(await short.innerText().catch(() => '')))
-  ok('한 줄 카드 · 360px 옆으로 안 밀림', (await short.evaluate((el) => el.getBoundingClientRect().height <= 72).catch(() => false)) && (await noSide(a)))
+  // (2026-11-17 사용자 요청: 그 문의 말풍선 바로 아래 '확정 전 · 날짜 공고 / 확정하기 · 지원자 보기 →')
+  ok("말풍선 아래 '확정 전 · 날짜 공고' · '확정하기' · '지원자 보기 →'", new RegExp(`^확정 전 · \\d{1,2}/\\d{1,2}\\([일월화수목금토]\\) ${TITLE}`).test(one(await short.locator('span').first().innerText())) && (await short.getByRole('button', { name: '확정하기' }).count()) === 1 && (await short.locator('[data-confirm-apps]').getAttribute('href')) === `/admin/jobs/${J}?tab=apps#app-${AP_APP}`, one(await short.innerText().catch(() => '')))
+  ok('말풍선 안 · 360px 옆으로 안 밀림', (await a.locator('main ol [data-confirm-ask]').count()) === 1 && (await noSide(a)))
   if (SHOTS) { await a.waitForTimeout(500); await a.screenshot({ path: `${SHOTS}/thread-confirm.png` }).catch(() => {}) }
-  await short.click()
+  await short.locator('[data-confirm-apps]').click()
   await a.waitForURL((u) => u.pathname === `/admin/jobs/${J}` && u.searchParams.get('tab') === 'apps', { timeout: 15000 }).catch(() => {})
   const cardSel = `[id="app-${AP_APP}"]`
   await a.locator(cardSel).waitFor({ timeout: 15000 }).catch(() => {})
@@ -72,12 +73,12 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await a.goto(`${D}/admin/chat/${AP}`)
   await a.locator('textarea[name=body]').waitFor({ timeout: 15000 }).catch(() => {})
   ok("확정한 뒤: '지원자 보기' 없음 · '확정했어요…' 답장은 그대로", (await short.count()) === 0 && (await a.locator('[data-quick-replies] button', { hasText: '확정했어요. 내 근무에서 확인해 주세요.' }).count()) === 1)
-  // 다른 말이 마지막이면 둘 다 없음
+  // 다른 말이 마지막이면 '확정했어요…' 답장 제안은 없음 · 아직 대기 중이면 그 확정 문의 말풍선 아래 버튼은 그대로 (2026-11-17 — 버튼이 그 말풍선에 붙어 있음)
   await rest(`applications?id=eq.${AP_APP}`, 'PATCH', { status: 'applied', decided_at: null })
   await say('주차할 수 있나요?')
   await a.goto(`${D}/admin/chat/${AP}`)
   await a.locator('textarea[name=body]').waitFor({ timeout: 15000 }).catch(() => {})
-  ok('마지막 문의가 다른 말이면 둘 다 없음', (await short.count()) === 0 && (await a.locator('[data-quick-replies] button', { hasText: '확정했어요. 내 근무에서 확인해 주세요.' }).count()) === 0)
+  ok("마지막 문의가 다른 말이면 '확정했어요…' 답장 제안 없음 · 확정 문의 말풍선 아래 버튼은 그대로", (await short.count()) === 1 && (await a.locator('main ol li', { hasText: '확정 여부가 궁금해요' }).last().locator('[data-confirm-ask]').count()) === 1 && (await a.locator('[data-quick-replies] button', { hasText: '확정했어요. 내 근무에서 확인해 주세요.' }).count()) === 0)
 
   // ── 3. 근무자 내 근무: 맨 위 확정 대기 첫 카드에 진행 단계
   const p = await pg(AP)
