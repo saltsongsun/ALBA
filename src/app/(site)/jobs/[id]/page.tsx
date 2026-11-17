@@ -41,7 +41,8 @@ import { ago, companyReviews } from '@/lib/community'
 import { featureOn } from '@/lib/flags'
 import { coworkersOnJob } from '@/lib/coworkers'
 import { AckButton, AckMark, ChangeRows, type Notice } from '@/components/NoticeAck'
-import { signalOf } from '@/lib/signals'
+import { signalOf, WAIT_HEAD } from '@/lib/signals'
+import WaitNoteLine from '@/components/WaitNoteLine'
 import { workerInCompany } from '@/lib/company'
 
 async function load(id: string) {
@@ -91,7 +92,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt, lastChange] = await Promise.all([
+  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt, jobNotes] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -185,9 +186,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .eq('from_admin', true)
           .order('created_at', { ascending: false })
           .limit(30)
-          .then((r) => ((r.data ?? []) as Notice[]).filter((m) => signalOf(m.body) === 'change').reduce<Notice | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null))
-      : null,
+          .then((r) => {
+            const rows = (r.data ?? []) as Notice[]
+            const latest = (pick: (m: Notice) => boolean) => rows.filter(pick).reduce<Notice | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null)
+            // 마지막 '🔔 일정 변경' · 결과가 늦어 받은 '🙏 지원 결과 안내'
+            return { change: latest((m) => signalOf(m.body) === 'change'), wait: latest((m) => m.body.startsWith(WAIT_HEAD)) }
+          })
+      : { change: null, wait: null },
   ])
+  const lastChange = jobNotes.change
   const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
   const unsignedHere = pendingIds.length > 0
@@ -642,6 +649,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <span className="min-w-0 font-semibold text-amber-900">{confirmSoon === 'started' ? '시작했는데 아직 확정 전이에요' : '곧 시작인데 아직 확정 전이에요'}</span>
                 <span className="shrink-0 font-bold whitespace-nowrap text-brand-700">담당자에게 문의 →</span>
               </Link>
+            )}
+            {/* 회사에서 이미 '조금만 기다려 주세요' 안내를 보냈으면 (곧 시작이라 물어볼 줄이 있으면 그 줄만) */}
+            {app.status === 'applied' && !confirmSoon && !lapsed && job.status !== 'cancelled' && jobNotes.wait && (
+              <WaitNoteLine companyId={job.company_id} unread={!jobNotes.wait.read_at} className="" />
             )}
             {app.available_dates && <p className="text-sm text-sub">가능한 날: {app.available_dates.map(fmtDate).join(', ')}</p>}
             {app.status === 'approved' && (

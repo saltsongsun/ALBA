@@ -210,7 +210,18 @@ export function ChatMessages({
                         }`}
                       >
                         {/* 주소·휴대폰 번호는 눌러서 열기·전화 */}
-                        {linkify(text, mine)}
+                        {!mine && isAutoNotice(m) && text.includes('\n') ? (
+                          // 회사가 보낸 안내(확정·공지·지원 결과 안내 등): 첫 줄을 굵게 — 긴 안내도 무슨 안내인지 한눈에
+                          <>
+                            <b className="font-bold" data-notice-head>
+                              {linkify(text.slice(0, text.indexOf('\n')), mine)}
+                            </b>
+                            {'\n'}
+                            {linkify(text.slice(text.indexOf('\n') + 1), mine)}
+                          </>
+                        ) : (
+                          linkify(text, mine)
+                        )}
                       </p>
                     )}
                   </MessageMenu>

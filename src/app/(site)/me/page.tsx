@@ -32,7 +32,8 @@ import { AckButton, AckMark, ChangeRows, type Notice } from '@/components/Notice
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
+import WaitNoteLine from '@/components/WaitNoteLine'
 import ApplySteps from '@/components/ApplySteps'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
@@ -195,6 +196,9 @@ export default async function MePage(props: PageProps<'/me'>) {
   for (const m of mySignals) if (isComing(m.body, tomorrow) && !comingSent.has(m.job_id)) comingSent.set(m.job_id, kstTime(m.created_at))
   const latestNotice = new Map<string, Notice>()
   for (const n of notices) if (!latestNotice.has(n.job_id)) latestNotice.set(n.job_id, n)
+  // 결과가 늦어 회사에서 받은 정중한 기다림 안내 (공고별 가장 최근 것) — 확정 대기 칸에 '🙏 기다림 안내를 받았어요'
+  const waitNoted = new Map<string, Notice>()
+  for (const n of adminJobMsgs) if (n.body.startsWith(WAIT_HEAD) && !waitNoted.has(n.job_id)) waitNoted.set(n.job_id, n)
   // 다음 근무 카드엔 '📢 공지'만 (일정 변경은 아래 🔔 줄이 따로 알림) — 전날 보낸 '내일 집결은…'을 홈에서 바로
   const latestAnnounce = new Map<string, Notice>()
   for (const n of notices) if (n.body.startsWith('📢 공지') && !latestAnnounce.has(n.job_id)) latestAnnounce.set(n.job_id, n)
@@ -492,6 +496,10 @@ export default async function MePage(props: PageProps<'/me'>) {
                   <span className="min-w-0 font-semibold text-amber-900">{started ? '시작했는데 아직 확정 전이에요' : '곧 시작인데 아직 확정 전이에요'}</span>
                   <span className="shrink-0 font-bold whitespace-nowrap text-brand-700">담당자에게 문의 →</span>
                 </Link>
+              )}
+              {/* 회사에서 이미 '조금만 기다려 주세요' 안내를 보냈으면 (곧 시작이라 물어볼 줄이 있으면 그 줄만) */}
+              {!soon && !lapsed && a.job.status !== 'cancelled' && waitNoted.has(a.job_id) && (
+                <WaitNoteLine companyId={a.job.company_id} unread={!waitNoted.get(a.job_id)!.read_at} />
               )}
             </div>
           )

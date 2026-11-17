@@ -36,6 +36,7 @@ import SlotBar from '@/components/SlotBar'
 import KeepChipInView from '@/components/KeepChipInView'
 import { smsHead, won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
+import { WAIT_HEAD } from '@/lib/signals'
 
 /** 지원 상태 바꾸기 버튼 (휴대폰 카드는 넓게, 표는 작게) */
 /** full: 모집 인원이 다 찼으면 확정할 때 한 번 더 물어봄 (초과 확정 실수 막기) */
@@ -211,7 +212,24 @@ export default async function AppsTab({
           Map<string, string>,
         ],
       )
-  const [past, levels, [rel, ratings, others, notes], impact] = await Promise.all([pastP, levelsP, relP, impactP])
+  // 결과가 늦어 정중한 기다림 안내(🙏 지원 결과 안내)가 자동으로 간 확정 대기자 (대시보드와 같은 표시 · 이 공고 · 우리 회사 문의함만)
+  const waitIds = apps.filter((a) => a.status === 'applied').map((a) => a.user_id)
+  const notedP = allByIds<{ thread_user_id: string; body: string }>(waitIds, (part, from, to) =>
+    db()
+      .from('messages')
+      .select('id, thread_user_id, body')
+      .eq('company_id', job.company_id)
+      .eq('job_id', job.id)
+      .eq('from_admin', true)
+      .in('thread_user_id', part)
+      .like('body', `${WAIT_HEAD}%`)
+      .order('id')
+      .range(from, to),
+  ).then(
+    (rows) => new Set(rows.filter((m) => m.body.startsWith(WAIT_HEAD)).map((m) => m.thread_user_id)),
+    () => new Set<string>(),
+  )
+  const [past, levels, [rel, ratings, others, notes], impact, noted] = await Promise.all([pastP, levelsP, relP, impactP, notedP])
   const today = kstDate()
   const clashOf = new Map<string, { id: string; title: string; at: string }>()
   for (const a of apps) {
@@ -403,8 +421,16 @@ export default async function AppsTab({
             )}
           </div>
         </div>
-        <p className="text-xs text-mute">
-          {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
+        <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-mute">
+          <span>
+            {relText(a.user_id)} · 지원 {kstDateTime(a.created_at)}
+          </span>
+          {/* 결과가 늦어 '조금만 기다려 주세요' 안내가 자동으로 간 사람 (누르면 그 대화) */}
+          {a.status === 'applied' && noted.has(a.user_id) && (
+            <Link href={`/admin/chat/${a.user_id}`} className="badge bg-bg text-mute" title="결과가 늦어 '조금만 기다려 주세요' 안내가 자동으로 갔어요 · 누르면 대화" data-app-noted>
+              🙏 기다림 안내
+            </Link>
+          )}
         </p>
         <Clash uid={a.user_id} />
         {startedNow(a) && (
@@ -721,7 +747,16 @@ export default async function AppsTab({
                             <Memo uid={a.user_id} />
                           </div>
                         </td>
-                        <td className="text-xs whitespace-nowrap text-mute">{kstDateTime(a.created_at)}</td>
+                        <td className="text-xs whitespace-nowrap text-mute">
+                          {kstDateTime(a.created_at)}
+                          {a.status === 'applied' && noted.has(a.user_id) && (
+                            <div className="mt-1">
+                              <Link href={`/admin/chat/${a.user_id}`} className="badge bg-bg text-mute" title="결과가 늦어 '조금만 기다려 주세요' 안내가 자동으로 갔어요 · 누르면 대화" data-app-noted>
+                                🙏 기다림 안내
+                              </Link>
+                            </div>
+                          )}
+                        </td>
                         <td>
                           {isHeld(a) ? <span className="badge bg-violet-50 text-violet-700">보류</span> : <span className={`badge ${APP_STATUS[a.status].cls}`}>{adminLabel(a.status)}</span>}
                         </td>
