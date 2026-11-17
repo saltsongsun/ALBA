@@ -182,6 +182,12 @@ export default async function MePage(props: PageProps<'/me'>) {
     const c = shifts.find((x) => x.job_id === job.id && x.status === 'agreed' && x.work_date === today)
     return c ? { start_time: c.start_time, end_time: c.end_time } : shiftOf(job)
   }
+  // '일찍 누른 출근은 시작 시각부터 인정' 공고에 시작 시각 전에 근무를 시작했으면: 급여를 세기 시작하는 시각 (담당자가 시작을 고쳤으면 그 시각대로라 안내 안 함)
+  const paidFromOf = (job: Job, att: Attendance) => {
+    if (!job.early_clamp || att.adj_in) return undefined
+    const start = todayShift(job, att).start_time
+    return Date.parse(att.clock_in) < kstAt(att.work_date, start).getTime() ? hhmm(start) : undefined
+  }
   const lateSent = new Map<string, { minutes: number; eta: string; at: string }>()
   for (const m of mySignals) {
     const l = signalOf(m.body) === 'late' ? parseLate(m.body) : null
@@ -1022,6 +1028,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                         useLocation={job.lat != null}
                         gpsRequired={job.gps_required}
                         serverNow={Date.now()}
+                        paidFrom={paidFromOf(job, open)}
                       />
                       {docsLeft > 0 && (
                         <Link
@@ -1154,6 +1161,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                         gpsRequired={job.gps_required}
                         askedAt={arriveSent.get(job.id)}
                         startAt={kstAt(today, todayShift(job).start_time).toISOString()}
+                        paidFrom={job.early_clamp ? hhmm(todayShift(job).start_time) : undefined}
                       />
                     </div>
                   )}

@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { db } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { scheduledEnd, shiftOf } from '@/lib/pay'
-import { hhmm, kstDate, kstTime } from '@/lib/time'
+import { hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
 import type { Attendance, Job } from '@/lib/types'
 import Icon from './Icon'
 import { ClockPanel } from './worker'
@@ -60,6 +60,7 @@ export default async function ChatClock({ userId, companyId }: { userId: string;
           useLocation={job.lat != null}
           gpsRequired={job.gps_required}
           serverNow={Date.now()}
+          paidFrom={job.early_clamp && !open.adj_in && Date.parse(open.clock_in) < kstAt(open.work_date, shift!.start_time).getTime() ? hhmm(shift!.start_time) : undefined}
         />
       ) : todayAtt?.clock_out ? (
         <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center text-sm font-bold text-emerald-700" data-chat-clock-done>

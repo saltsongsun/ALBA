@@ -167,7 +167,13 @@ export function ClockPanel({
   serverNow,
   askedAt = null,
   startAt,
+  paidFrom,
 }: {
+  /**
+   * '일찍 누른 출근은 시작 시각부터 인정' 공고: 급여를 세기 시작하는 시각(HH:MM).
+   * 근무 중이면 '급여는 HH:MM부터 계산돼요' · 일찍 누를 때 묻는 안내에도 한 줄 (일찍 와서 누른 시간까지 받는 줄 알지 않게)
+   */
+  paidFrom?: string
   /** 오늘 근무 시작 시각(ISO): 한 시간도 더 전에 '근무 시작'을 누르면 한 번 더 묻기 (집에서 실수로 누르지 않게) */
   startAt?: string
   jobId: string
@@ -399,8 +405,16 @@ export function ClockPanel({
             </span>
             근무 중 · {open.startText} 시작
           </span>
-          <span className="text-sm font-bold">{elapsedText(open.clock_in, now)}</span>
+          {/* 분이 바뀔 때마다 숫자가 살짝 톡 (지금도 세고 있다는 느낌) */}
+          <span key={elapsedText(open.clock_in, now)} className="shrink-0 animate-pop text-sm font-bold tabular-nums" data-elapsed>
+            {elapsedText(open.clock_in, now)}
+          </span>
         </div>
+      )}
+      {open && paidFrom && (
+        <p className="-mt-1 px-1 text-xs font-semibold text-emerald-700" data-paid-from>
+          일찍 시작했어요 · 급여는 {paidFrom}부터 계산돼요
+        </p>
       )}
       {/* 계약 종료까지 얼마나 남았는지 */}
       {open && endAt && now < Date.parse(endAt) && (
@@ -488,6 +502,11 @@ export function ClockPanel({
         <p className="text-center text-sm text-amber-700" data-early-start>
           <b className="block font-semibold">시작까지 {early} 남았어요</b>
           <span className="block text-xs">현장에 왔으면 한 번 더 눌러 주세요</span>
+          {paidFrom && (
+            <span className="block text-xs text-amber-800/80" data-early-paid>
+              일찍 시작해도 급여는 {paidFrom}부터예요
+            </span>
+          )}
         </p>
       )}
       {useLocation && !result && !geo && <p className="text-center text-xs text-mute">버튼을 누르면 현장 위치도 함께 기록돼요.</p>}
