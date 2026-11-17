@@ -622,7 +622,8 @@ export default async function MePage(props: PageProps<'/me'>) {
         <div>
           {/* 어느 화면인지 (아래 메뉴 이름과 같게) */}
           <p className="text-sm font-semibold text-brand-600" data-page-name>
-            내 근무 · {fmtDate(today)}
+            {/* 전문가는 아래 메뉴 이름이 '내 일' */}
+            {pro ? '내 일' : '내 근무'} · {fmtDate(today)}
           </p>
           <h1 className="text-[26px] leading-tight font-extrabold">{user.name}님, 안녕하세요</h1>
         </div>

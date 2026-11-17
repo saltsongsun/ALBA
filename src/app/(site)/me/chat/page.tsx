@@ -60,7 +60,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   // 단체방 목록(여러 번 읽음)은 먼저 출발시키고, 회사 이름 읽기와 함께 기다림
   const roomsP = workerRooms(user.id)
   roomsP.catch(() => {})
-  const [job, apps, threads, platformId] = await Promise.all([
+  const [job, apps, recentMsgs, platformId, unreadRows] = await Promise.all([
     jobId ? getJob(jobId) : null,
     db()
       .from('applications')
@@ -73,9 +73,37 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
       .eq('thread_user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(500)
-      .then((r) => must(r) as { company_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }[]),
+      .then((r) => (must(r) as Thread[]).slice(0, 500)),
     platformCompanyId(),
+    // 회사별 안 읽은 답장은 따로 셈 (위 최근 500개만 세면, 다른 회사 글이 많을 때 숫자가 줄거나 그 회사가 목록에서 빠졌음)
+    db()
+      .from('messages')
+      .select('company_id')
+      .eq('thread_user_id', user.id)
+      .eq('from_admin', true)
+      .is('read_at', null)
+      .limit(1000)
+      .then((r) => (r.data ?? []) as { company_id: string }[], () => [] as { company_id: string }[]),
   ])
+  // 안 읽은 답장이 있는데 최근 500개 밖이라 빠진 회사: 그 회사의 마지막 글 하나씩 더 읽어 목록에 (미리보기용 · 드묾)
+  const lostCos = [...new Set(unreadRows.map((u) => u.company_id))].filter((co) => !recentMsgs.some((t) => t.company_id === co))
+  const lostLast = lostCos.length
+    ? (
+        await Promise.all(
+          lostCos.slice(0, 20).map((co) =>
+            db()
+              .from('messages')
+              .select('company_id, from_admin, read_at, created_at, body')
+              .eq('thread_user_id', user.id)
+              .eq('company_id', co)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .then((r) => ((r.data ?? []) as Thread[]).filter((t) => t.company_id === co).slice(0, 1), () => [] as Thread[]),
+          ),
+        )
+      ).flat()
+    : []
+  const threads = [...recentMsgs, ...lostLast].sort((a, b) => b.created_at.localeCompare(a.created_at))
   // 나를 외주사로 등록한 회사 (대화가 아직 없어도 그 회사 문의함을 열 수 있게 — 계산서 알리기 · 고른 회사일 때만 읽음)
   const partnerCo = wantCo && payId && !threads.some((t) => t.company_id === wantCo) && !apps.some((a) => a.company_id === wantCo) ? ((await partnerCompanies(user.id)).includes(wantCo) ? wantCo : null) : null
   const related = [...new Set([...threads.map((t) => t.company_id), ...apps.map((a) => a.company_id), ...(partnerCo ? [partnerCo] : [])])]
@@ -96,7 +124,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const support = (id: string | null) => !!id && id === platformId && !apps.some((a) => a.company_id === id)
   const nameOf = (c: { id: string; company_name: string }) => (support(c.id) ? SUPPORT_NAME : c.company_name)
   const unreadBy = new Map<string, number>()
-  for (const t of threads) if (t.from_admin && !t.read_at) unreadBy.set(t.company_id, (unreadBy.get(t.company_id) ?? 0) + 1)
+  for (const u of unreadRows) unreadBy.set(u.company_id, (unreadBy.get(u.company_id) ?? 0) + 1)
   // 대화가 둘 이상이면 (회사 문의 여러 곳 · 단체방) 문의 탭은 대화 목록부터
   const many = companies.length + rooms.length >= 2
   if (many && !jobId && !wantCo) return <ChatList userId={user.id} companies={companies.map((c) => ({ id: c.id, name: nameOf(c), support: support(c.id) }))} threads={threads} unreadBy={unreadBy} rooms={rooms} askInfo={askInfo} />

@@ -29,7 +29,8 @@ export default async function SiteHeader() {
               )}
               {/* 휴대폰에서는 아래 탭에 있으므로 넓은 화면에서만 */}
               <Link href="/me" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">
-                내 근무
+                {/* 전문가는 아래 탭과 같은 '내 일' */}
+                {user.memberType === 'expert' && user.role !== 'admin' ? '내 일' : '내 근무'}
               </Link>
               <Link href="/community" className="hidden rounded-lg px-2.5 py-1.5 hover:bg-bg sm:inline">
                 커뮤니티

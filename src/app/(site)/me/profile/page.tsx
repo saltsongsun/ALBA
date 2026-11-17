@@ -264,6 +264,7 @@ export default async function ProfilePage() {
         need={type === 'worker' ? ['bank_account', 'address'] : ['bank_account']}
         // 알바는 본인 명의 계좌로 지급 (예금주가 다른 이름이면 바로 한 줄)
         ownName={type === 'worker' ? me.name : undefined}
+        payWord={type === 'worker' ? '급여' : '대금'}
       />
       </div>
       {!vendor && (

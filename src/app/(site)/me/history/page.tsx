@@ -25,6 +25,7 @@ const short = (n: number) => (n >= 10_000 ? `${(Math.round(n / 1000) / 10).toLoc
 
 export default async function HistoryPage(props: PageProps<'/me/history'>) {
   const user = await requireUser('/me/history')
+  const pro = user.memberType === 'expert' && user.role !== 'admin'
   const sp = await props.searchParams
   const [atts, docs, apps, reviewed] = await Promise.all([
     db()
@@ -195,9 +196,10 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     <div className="space-y-6">
       <div>
         <Link href="/me" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
-          ← 내 근무
+          ← {pro ? '내 일' : '내 근무'}
         </Link>
-        <h1 className="mt-2 text-2xl font-extrabold">지난 근무</h1>
+        {/* 전문가는 아래 메뉴 이름('내 일')과 같게 */}
+        <h1 className="mt-2 text-2xl font-extrabold">{pro ? '지난 일' : '지난 근무'}</h1>
       </div>
 
       {items.length === 0 ? (

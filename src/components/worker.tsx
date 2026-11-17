@@ -1177,8 +1177,11 @@ export function ProfileForm({
   initial,
   need = [],
   ownName,
+  payWord = '급여',
 }: {
   initial: { address: string; emergency_phone: string; bank_name: string; bank_account: string; account_holder: string }
+  /** 전문가·외주 업체는 '대금' (위 정보 채우기 칸 '대금 계좌'와 같은 말) */
+  payWord?: '급여' | '대금'
   need?: ProfileField[]
   /** 알바: 예금주가 이 이름과 다르면 바로 알려 줌 (전문가·업체는 상호 계좌도 써서 안 봄) */
   ownName?: string
@@ -1216,7 +1219,9 @@ export function ProfileForm({
     <form id="profile-form" ref={ref} action={action} onReset={keepInputs} onInput={onInput} className="card space-y-3">
       {/* 계좌·주소를 고친 뒤 '저장'을 잊고 나가지 않게: 아래 탭 위에 저장 바 */}
       <UnsavedBar formId="profile-form" state={state} />
-      <h2 className="font-bold">급여 계좌 · 연락 정보</h2>
+      <h2 className="font-bold" data-account-title>
+        {payWord} 계좌 · 연락 정보
+      </h2>
       <div className="grid grid-cols-[1fr_1.2fr] gap-3">
         <div className="min-w-0">
           <label className="label" htmlFor="bank_name">
