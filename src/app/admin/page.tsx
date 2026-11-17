@@ -18,6 +18,8 @@ import LevelBadge from '@/components/LevelBadge'
 import { companyLevels } from '@/lib/xpCompany'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
+import FilingChecklist from '@/components/FilingChecklist'
+import { filingDues, prevMonthOf } from '@/lib/filing'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
@@ -112,6 +114,21 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
   // 대표 관리자: 승인을 기다리는 관리자 가입 신청
   const isOwner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
+  // 지난달에 끝난 근무가 있으면 이번 달 신고 마감 칸 (우리 회사 기록만 · 날짜 조건은 한 번 더 확인)
+  const filingToday = kstDate()
+  const filingMonth = prevMonthOf(filingToday)
+  const filingP = db()
+    .from('attendance')
+    .select('work_date, clock_out')
+    .eq('company_id', admin.companyId)
+    .gte('work_date', `${filingMonth}-01`)
+    .lt('work_date', `${filingToday.slice(0, 7)}-01`)
+    .not('clock_out', 'is', null)
+    .limit(20)
+    .then(
+      (r) => ((r.data ?? []) as { work_date: string; clock_out: string | null }[]).some((a) => a.work_date.startsWith(filingMonth) && !!a.clock_out),
+      () => false,
+    )
   const openReqsP = db()
     .from('quote_requests')
     .select('id, title, due_date, status').eq('company_id', admin.companyId)
@@ -1358,6 +1375,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </>
         )}
       </section>
+      )}
+
+      {/* 지난달 근무가 있으면: 이번 달 신고 마감 (원천세 · 근로내용확인신고 · 일용근로소득 지급명세) */}
+      {(await filingP) && filingDues(filingToday).length > 0 && (
+        <FilingChecklist companyId={admin.companyId} month={filingMonth} monthLabel={`${Number(filingMonth.slice(5, 7))}월`} dues={filingDues(filingToday)} />
       )}
 
       <section>
