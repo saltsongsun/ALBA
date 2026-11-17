@@ -14,7 +14,7 @@ import { fmtDateRange } from '@/lib/time'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
-import { ConfirmSubmit } from '@/components/ui'
+import { ConfirmSubmit, ShareButton } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
 import { ASK_INVOICE, askTag, isQuietNotice, needsReply } from '@/lib/signals'
 
@@ -123,6 +123,19 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const autoShown = onlyUnread || onlyNoReply ? [] : autoOnly.filter(matches)
   const AUTO_MAX = 100
   const roomHits = term ? rooms.filter((r) => r.title.toLowerCase().includes(low)) : rooms
+  // 아직 아무 대화도 없는 회사 (막 시작한 회사): 저장·찾기·거르기는 숨기고 빈 칸에서 다음에 할 일 하나만
+  // 공고가 없으면 '첫 공고 등록' · 있으면 공고 모음 링크 공유 (근무자는 공고를 보고 앱의 '문의'로 연락)
+  const nothing = !term && all.length === 0 && autoOnly.length === 0 && rooms.length === 0
+  const hasJobs = nothing
+    ? await db()
+        .from('jobs')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', admin.companyId)
+        .then(
+          (r) => (r.count ?? 1) > 0,
+          () => true,
+        )
+    : true
   const qs = (unread: boolean, noreply = false) => {
     const p = new URLSearchParams()
     if (unread) p.set('unread', '1')
@@ -140,21 +153,25 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
           <h1 className="text-2xl font-extrabold">문의</h1>
           <AutoRefresh seconds={15} pulse="/api/pulse?s=admin-chat" />
         </div>
-        <a href="/admin/chat/export" download className="chip h-8 shrink-0 px-3 text-xs">
-          ⬇️ 모든 대화 저장
-        </a>
+        {!nothing && (
+          <a href="/admin/chat/export" download className="chip h-8 shrink-0 px-3 text-xs">
+            ⬇️ 모든 대화 저장
+          </a>
+        )}
       </div>
       {/* 같은 근무 단체방: 공고마다 확정자 + 참여한 담당자 · 참여 안 한 방·끝난 방은 아래에 접어 둠 */}
       {/* 검색 (공고 화면과 같은 모양): 이름·번호·메시지 내용 · 단체방 이름 */}
-      <form className="flex gap-1.5" role="search" data-chat-search>
-        {onlyUnread && <input type="hidden" name="unread" value="1" />}
-        <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input py-2 text-sm" placeholder="이름·번호·메시지 내용·단체방으로 찾기" aria-label="문의 찾기" />
-        {term && (
-          <Link href={onlyUnread ? '/admin/chat?unread=1' : '/admin/chat'} className="btn-gray btn-sm shrink-0">
-            지우기
-          </Link>
-        )}
-      </form>
+      {!nothing && (
+        <form className="flex gap-1.5" role="search" data-chat-search>
+          {onlyUnread && <input type="hidden" name="unread" value="1" />}
+          <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input py-2 text-sm" placeholder="이름·번호·메시지 내용·단체방으로 찾기" aria-label="문의 찾기" />
+          {term && (
+            <Link href={onlyUnread ? '/admin/chat?unread=1' : '/admin/chat'} className="btn-gray btn-sm shrink-0">
+              지우기
+            </Link>
+          )}
+        </form>
+      )}
       {term && (
         <p className="text-sm text-sub" data-chat-search-result>
           ‘{term}’ 검색 결과 · 대화 {found.length}개{rooms.length > 0 ? ` · 단체방 ${roomHits.length}개` : ''}
@@ -219,28 +236,30 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
           </section>
         )
       })()}
-      <div className="flex gap-1.5">
-        <Link href={qs(false)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread && !onlyNoReply ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
-          전체 {found.length}
-        </Link>
-        <Link href={qs(true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
-          안 읽음 {term ? found.filter((t) => t.unread > 0).length : unreadCount}
-        </Link>
-        {/* 읽고 답하지 않은 문의가 있을 때만 */}
-        {(noReplyCount > 0 || onlyNoReply) && (
-          <Link href={qs(false, true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyNoReply ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'}`} data-inbox-noreply-chip>
-            답장 전 {noReplyCount}
+      {!nothing && (
+        <div className="flex gap-1.5">
+          <Link href={qs(false)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread && !onlyNoReply ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+            전체 {found.length}
           </Link>
-        )}
-        {/* 안 읽은 대화가 둘 이상이면 하나씩 열지 않고 한 번에 읽음 (두 번 눌러야) */}
-        {unreadCount > 1 && !term && (
-          <form action={markAllInquiriesRead} className="ml-auto">
-            <ConfirmSubmit className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line active:scale-95" confirmText="모두 읽음으로?" track="문의 모두 읽음">
-              모두 읽음
-            </ConfirmSubmit>
-          </form>
-        )}
-      </div>
+          <Link href={qs(true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+            안 읽음 {term ? found.filter((t) => t.unread > 0).length : unreadCount}
+          </Link>
+          {/* 읽고 답하지 않은 문의가 있을 때만 */}
+          {(noReplyCount > 0 || onlyNoReply) && (
+            <Link href={qs(false, true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyNoReply ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'}`} data-inbox-noreply-chip>
+              답장 전 {noReplyCount}
+            </Link>
+          )}
+          {/* 안 읽은 대화가 둘 이상이면 하나씩 열지 않고 한 번에 읽음 (두 번 눌러야) */}
+          {unreadCount > 1 && !term && (
+            <form action={markAllInquiriesRead} className="ml-auto">
+              <ConfirmSubmit className="rounded-full px-3 py-1.5 text-[13px] font-semibold text-sub ring-1 ring-line active:scale-95" confirmText="모두 읽음으로?" track="문의 모두 읽음">
+                모두 읽음
+              </ConfirmSubmit>
+            </form>
+          )}
+        </div>
+      )}
       {list.length === 0 ? (
         term ? (
           <Empty icon="🔍" title={`‘${term}’에 맞는 대화가 없어요`}>
@@ -252,7 +271,35 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         ) : (
           onlyNoReply ? (
             <Empty icon="✅" title="답장을 기다리는 문의가 없어요">읽은 문의에는 모두 답했어요.</Empty>
-          ) : <Empty icon="💬" title="아직 들어온 문의가 없어요">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모여요.</Empty>
+          ) : nothing ? (
+            // 막 시작한 회사: 문의가 들어오려면 무엇부터 할지 (문장마다 한 줄 · 버튼 하나)
+            <div data-inbox-start={hasJobs ? 'share' : 'job'}>
+              <Empty icon="💬" title="아직 들어온 문의가 없어요">
+                {hasJobs ? (
+                  <p>
+                    <span className="block">공고 모음 링크를 단톡방에 올려 두면</span>
+                    <span className="block">근무자가 앱에서 바로 문의해요.</span>
+                  </p>
+                ) : (
+                  <p>
+                    <span className="block">근무자는 공고를 보고 여기로 문의해요.</span>
+                    <span className="block">먼저 첫 공고를 올려 보세요.</span>
+                  </p>
+                )}
+                <div className="mt-4 flex justify-center">
+                  {hasJobs ? (
+                    <ShareButton className="btn-primary btn-sm" title={`${admin.companyName} 모집 공고`} text={`${admin.companyName} 모집 공고 모음`} path={`/?co=${admin.companyId}`} />
+                  ) : (
+                    <Link href="/admin/jobs/new" className="btn-primary btn-sm" data-track="문의함 첫 공고 등록">
+                      + 첫 공고 등록
+                    </Link>
+                  )}
+                </div>
+              </Empty>
+            </div>
+          ) : (
+            <Empty icon="💬" title="아직 들어온 문의가 없어요">근무자가 앱의 &lsquo;문의&rsquo;에서 보낸 메시지가 여기에 모여요.</Empty>
+          )
         )
       ) : (
         <div className="stagger space-y-2">

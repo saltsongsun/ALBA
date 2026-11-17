@@ -119,9 +119,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
       <Flash m={sp.m} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-extrabold">공고 · 출퇴근</h1>
-        <Link href="/admin/jobs/new" className="btn-primary">
-          + 새 공고 등록
-        </Link>
+        {/* 공고를 한 번도 안 올린 새 회사: 아래 빈 칸의 '+ 첫 공고 등록' 하나만 (같은 버튼 두 개 · 홈과 같은 방식) */}
+        {!firstTime && (
+          <Link href="/admin/jobs/new" className="btn-primary" data-jobs-new-top>
+            + 새 공고 등록
+          </Link>
+        )}
       </div>
       {/* 우리 회사 공고만 모은 링크: 근무자 단톡방에 한 번 올려 두면 새 공고도 그 링크에서 봄 */}
       {tab === 'active' && (
@@ -134,9 +137,9 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
             <Link href="/admin/jobs/poster" className="chip shrink-0 whitespace-nowrap" data-poster-link>
               QR
             </Link>
-            {/* 링크에 지원받는 공고가 없으면 공유 버튼은 덜 눈에 띄게 (빈 링크를 올리지 않게) */}
+            {/* 링크에 지원받는 공고가 없으면 공유 버튼은 덜 눈에 띄게 (빈 링크를 올리지 않게 · 새 회사도 첫 공고를 올린 뒤에 파랗게) */}
             <ShareButton
-              className={`${linkCount > 0 || firstTime ? 'chip-primary' : 'chip'} shrink-0 whitespace-nowrap`}
+              className={`${linkCount > 0 ? 'chip-primary' : 'chip'} shrink-0 whitespace-nowrap`}
               title={`${admin.companyName} 모집 공고`}
               text={`${admin.companyName} 모집 공고 모음`}
               path={`/?co=${admin.companyId}`}
@@ -159,28 +162,33 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           )}
         </div>
       )}
-      <div className="flex gap-1 text-sm font-semibold">
-        {(
-          [
-            ['active', '진행·예정'],
-            ['draft', '임시저장'],
-            ['past', '지난 공고'],
-          ] as const
-        ).map(([k, label]) => (
-          <Link key={k} href={`/admin/jobs?tab=${k}`} className={`rounded-lg px-3 py-1.5 ${tab === k ? 'bg-white shadow-sm' : 'text-mute'}`}>
-            {label}
-          </Link>
-        ))}
-      </div>
-      <form className="flex gap-1.5" role="search">
-        <input type="hidden" name="tab" value={tab} />
-        <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input py-2 text-sm" placeholder="공고 제목·행사명·장소로 찾기" aria-label="공고 찾기" />
-        {term && (
-          <Link href={`/admin/jobs?tab=${tab}`} className="btn-gray btn-sm shrink-0">
-            지우기
-          </Link>
-        )}
-      </form>
+      {/* 새 회사: 임시저장·지난 공고·찾기는 비어 있으니 숨김 (첫 공고 안내 하나만 보이게) */}
+      {!firstTime && (
+        <>
+          <div className="flex gap-1 text-sm font-semibold" data-jobs-tabs>
+            {(
+              [
+                ['active', '진행·예정'],
+                ['draft', '임시저장'],
+                ['past', '지난 공고'],
+              ] as const
+            ).map(([k, label]) => (
+              <Link key={k} href={`/admin/jobs?tab=${k}`} className={`rounded-lg px-3 py-1.5 ${tab === k ? 'bg-white shadow-sm' : 'text-mute'}`}>
+                {label}
+              </Link>
+            ))}
+          </div>
+          <form className="flex gap-1.5" role="search">
+            <input type="hidden" name="tab" value={tab} />
+            <SearchInput name="q" enterKeyHint="search" defaultValue={term} className="input py-2 text-sm" placeholder="공고 제목·행사명·장소로 찾기" aria-label="공고 찾기" />
+            {term && (
+              <Link href={`/admin/jobs?tab=${tab}`} className="btn-gray btn-sm shrink-0">
+                지우기
+              </Link>
+            )}
+          </form>
+        </>
+      )}
       {term && (
         <p className="text-sm text-sub">
           ‘{term}’ 검색 결과 {jobs.length}건
