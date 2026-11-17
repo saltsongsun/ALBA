@@ -84,6 +84,10 @@ const notes = async (uid) => (await rest(`messages?thread_user_id=eq.${uid}`)).f
   await a.goto(`${D}/admin/chat/${AP}`, { waitUntil: 'networkidle' })
   await a.locator('main ol').first().waitFor({ timeout: 15000 }).catch(() => {})
   ok("담당자 대화: '확정하기' 처리 버튼 그대로", (await a.locator('[data-confirm-ask]').count()) >= 1)
+  // (가짜 DB는 앱이 넣은 메시지에 보낸 사람 정보를 붙이지 않아서 직접 붙임 — 실제 DB는 자동)
+  await rest(`messages?thread_user_id=eq.${AP}`, 'PATCH', { user: { id: AP, name: '김지원', phone: '01077778888', photo_at: null } })
+  // 자동 안내가 대화의 맨 마지막 글이어도 답장으로 치지 않는지 (마지막 근무자 문의 기준으로 '답장 전')
+  await rest(`messages?thread_user_id=eq.${AP}&from_admin=eq.true`, 'PATCH', { created_at: new Date().toISOString() })
   await a.goto(`${D}/admin/chat?noreply=1`, { waitUntil: 'networkidle' })
   ok("담당자 문의함 '답장 전'에 그대로 (자동 안내는 답장으로 치지 않음)", (await a.locator(`a[href="/admin/chat/${AP}"]`).count()) >= 1)
 
