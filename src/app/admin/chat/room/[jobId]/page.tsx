@@ -46,7 +46,7 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
-      <Flash m={sp.m} />
+      <Flash m={sp.m} floating />
       <AutoRefresh seconds={5} quiet pulse={`/api/pulse?s=room&id=${job.id}`} />
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`room-${job.id}`} />

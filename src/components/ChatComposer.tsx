@@ -416,6 +416,26 @@ export function ScrollToEnd({ count }: { count: number }) {
     }
     setFresh((n) => n + added)
   }, [count])
+  // 처리 안내(?m=)를 주소에서 지운 뒤 화면을 새로 받으면 Next.js가 화면을 맨 위로 올려 버림 (참여하기·답장 뒤 대화가 맨 위에서 보이던 것)
+  // → 열고 3초 안에 사람이 손대지 않았는데 맨 위로 올라가면 다시 맨 아래로 (직접 올리거나 탭을 눌러 올린 건 그대로)
+  useEffect(() => {
+    let touched = false
+    const mark = () => {
+      touched = true
+    }
+    const onScroll = () => {
+      if (!touched && window.scrollY < 4 && gap() > 240) window.scrollTo({ top: document.documentElement.scrollHeight })
+    }
+    const inputs = ['pointerdown', 'wheel', 'keydown', 'touchstart'] as const
+    for (const e of inputs) window.addEventListener(e, mark, { passive: true, capture: true })
+    window.addEventListener('scroll', onScroll, { passive: true })
+    const stop = setTimeout(mark, 3000)
+    return () => {
+      clearTimeout(stop)
+      for (const e of inputs) window.removeEventListener(e, mark, { capture: true })
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [])
   useEffect(() => {
     if (!fresh) return
     const onScroll = () => {

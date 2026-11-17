@@ -26,7 +26,7 @@ import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, no
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
-import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf } from '@/lib/signals'
+import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
@@ -286,9 +286,25 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             () => [] as Other[],
           ))
       : Promise.resolve([])
-    const [pendingLv, pendingTotal, , others, [rel, scores], replyMin] = await Promise.all([pendingLvP, pendingTotalP, weeklyP, othersP, relP, replyP])
+    // 결과가 늦어 '조금만 기다려 주세요' 안내(🙏 지원 결과 안내)가 자동으로 간 지원자 — 근무자가 무슨 말을 들었는지 알고 정하게
+    const notedP: Promise<Set<string>> = pendUids.length
+      ? Promise.resolve(
+          db()
+            .from('messages')
+            .select('thread_user_id, job_id, body')
+            .eq('company_id', admin.companyId)
+            .eq('from_admin', true)
+            .in('thread_user_id', pendUids)
+            .like('body', `${WAIT_HEAD}%`)
+            .limit(1000),
+        ).then(
+          (r) => new Set(((r.data ?? []) as { thread_user_id: string; job_id: string | null; body: string }[]).filter((m) => m.body.startsWith(WAIT_HEAD)).map((m) => `${m.thread_user_id}|${m.job_id}`)),
+          () => new Set<string>(),
+        )
+      : Promise.resolve(new Set<string>())
+    const [pendingLv, pendingTotal, , others, [rel, scores], replyMin, noted] = await Promise.all([pendingLvP, pendingTotalP, weeklyP, othersP, relP, replyP, notedP])
     const pendingMore = pendingTotal - pendingApps.length
-    return { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin }
+    return { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin, noted }
   })()
   pendingExtrasP.catch(() => {})
   // 곧(모레까지) 시작하거나 진행 중인데 확정 인원이 모자란 행사: 취소로 빈자리가 생겼을 때 바로 보이게
@@ -642,7 +658,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...vendorTodos,
   ]
-  const { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin } = await pendingExtrasP
+  const { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin, noted } = await pendingExtrasP
   // '보통 3시간 내 답변 · 가장 오래 기다린 지원 2일째' (한 시간 넘게 기다린 지원자가 있을 때만 뒤쪽)
   const oldestMin = pendingApps.length ? (Date.now() - Math.min(...pendingApps.map((p) => Date.parse(p.created_at)))) / 60_000 : 0
   const waitLine = [
@@ -745,6 +761,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const pendingFirst = pendingApps.slice(0, PENDING_SHOW)
   const pendingRest = pendingApps.slice(PENDING_SHOW)
   const GROW = 'flex-1 transition-[flex-grow] duration-200 has-[[data-confirm=armed]]:grow-[3]'
+  // 결과가 늦어 정중한 기다림 안내가 자동으로 간 사람 (누르면 그 대화 — 근무자가 무슨 말을 들었는지 보고 정하게)
+  const notedBadge = (p: (typeof pendingApps)[number], className = '') =>
+    noted.has(`${p.user.id}|${p.job.id}`) && (
+      <Link href={`/admin/chat/${p.user.id}`} className={`badge shrink-0 bg-bg text-mute ${className}`} title="결과가 늦어 '조금만 기다려 주세요' 안내가 자동으로 갔어요 · 누르면 대화" data-pending-noted>
+        🙏 기다림 안내
+      </Link>
+    )
   const pendingCard = (p: (typeof pendingApps)[number]) => (
     <div key={p.id} className="card space-y-2.5 p-4 transition-shadow duration-200 has-checked:ring-2 has-checked:ring-brand-400">
       <div className="flex items-center gap-3">
@@ -770,6 +793,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             끝난 행사
           </span>
         )}
+        {notedBadge(p)}
       </div>
       {(p.available_dates || p.message) && (
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
@@ -837,6 +861,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <Link href={`/admin/jobs/${p.job.id}?tab=apps`} className="font-medium">
           {p.job.title}
         </Link>
+        {notedBadge(p, 'ml-1.5 align-middle')}
         <div className="mt-1 max-w-xs space-y-1">
           <Clash p={p} />
           <WeeklyNote p={p} />
