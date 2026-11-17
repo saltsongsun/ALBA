@@ -40,7 +40,7 @@ const hex = (n) => n.toString(16).padStart(12, '0')
   await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }])
   const p = await ctx.newPage()
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
-  const cards = p.locator('div.sm\\:hidden > a[href^="/admin/jobs/"]')
+  const cards = p.locator('div.lg\\:hidden > a[href^="/admin/jobs/"]')
 
   // ── 1. 지난 공고: 최근 100개 + 끝에 안내 두 줄
   await p.goto(`${D}/admin/jobs?tab=past`, { waitUntil: 'networkidle' })

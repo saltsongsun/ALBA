@@ -25,7 +25,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
-  const card = (name) => p.locator('.sm\\:hidden .card', { hasText: name })
+  const card = (name) => p.locator('.lg\\:hidden .card', { hasText: name })
 
   await p.goto(`${D}/admin/workers`)
   await p.waitForLoadState('networkidle')

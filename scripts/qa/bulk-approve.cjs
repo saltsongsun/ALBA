@@ -31,7 +31,7 @@ const extra = [
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
-  const box = (name) => p.locator('.sm\\:hidden .card', { hasText: name }).locator(`input[name=app]`)
+  const box = (name) => p.locator('.lg\\:hidden .card', { hasText: name }).locator(`input[name=app]`)
 
   // 인원 넉넉: 둘 골라 확정
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)

@@ -23,7 +23,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     return p
   }
   const ad = await pg()
-  const cards = (p) => p.locator('#pending > div.sm\\:hidden > .card')
+  const cards = (p) => p.locator('#pending > div.lg\\:hidden > .card')
 
   // ── 1. 1명뿐이면 '더보기' 없음 ──
   await ad.goto(`${D}/admin`)
@@ -43,10 +43,10 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('휴대폰: 처음엔 카드 5개만', (await cards(ad).count()) === 5)
   const sum = ad.locator('[data-pending-more] summary')
   ok("'나머지 2명 더보기'", (await sum.innerText()).includes('나머지 2명 더보기'), await sum.innerText())
-  ok('접힌 2명은 아직 안 보임', !(await ad.locator('[data-pending-more] > div.sm\\:hidden > .card').first().isVisible()))
+  ok('접힌 2명은 아직 안 보임', !(await ad.locator('[data-pending-more] > div.lg\\:hidden > .card').first().isVisible()))
   await sum.click()
   await ad.waitForTimeout(300)
-  ok("누르면 나머지 2명이 보이고 '접기'", (await ad.locator('[data-pending-more] > div.sm\\:hidden > .card').count()) === 2 && (await ad.locator('[data-pending-more] > div.sm\\:hidden > .card').first().isVisible()) && (await sum.innerText()).includes('접기'))
+  ok("누르면 나머지 2명이 보이고 '접기'", (await ad.locator('[data-pending-more] > div.lg\\:hidden > .card').count()) === 2 && (await ad.locator('[data-pending-more] > div.lg\\:hidden > .card').first().isVisible()) && (await sum.innerText()).includes('접기'))
   ok('360px: 옆으로 안 밀림', await ad.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 3. 넓은 화면 표도 5줄 + 더보기 ──

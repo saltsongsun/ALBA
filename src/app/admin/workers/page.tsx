@@ -305,8 +305,8 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         </div>
       )}
 
-      {/* 휴대폰: 카드 목록 */}
-      <div className="stagger space-y-2 sm:hidden">
+      {/* 휴대폰·태블릿: 카드 목록 (표는 칸이 많아 좁은 화면에서 오른쪽이 잘림 · 사용자 요청 2026-11-17) */}
+      <div className="stagger space-y-2 lg:hidden">
         {users.map((u) => (
           <div key={u.id} className={`card p-4 ${u.active ? '' : 'opacity-50'}`}>
             <div className="flex items-center gap-3">
@@ -339,8 +339,8 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
         ))}
       </div>
 
-      {/* 넓은 화면: 표 */}
-      <div className="card hidden overflow-x-auto p-0 sm:block">
+      {/* 넓은 화면(1024px~): 표 */}
+      <div className="card hidden overflow-x-auto p-0 lg:block">
         <table className="table">
           <thead>
             <tr>
@@ -391,7 +391,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                   <div className="flex items-center gap-1 whitespace-nowrap">{ageBadges(u) ?? '-'}</div>
                 </td>
                 <td className="whitespace-nowrap">
-                  <ContactButtons phone={u.phone} name={u.name} />
+                  <ContactButtons phone={u.phone} name={u.name} stack />
                 </td>
                 <td className="whitespace-nowrap">{stat[u.id]?.days ?? 0}일</td>
                 <td className="whitespace-nowrap">{stat[u.id]?.last ? fmtDate(stat[u.id].last) : '-'}</td>

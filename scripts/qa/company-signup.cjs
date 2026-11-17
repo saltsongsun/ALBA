@@ -76,7 +76,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   // 확인 전: 전체 회원 명단·다른 회원 정보·사진 막힘, 다른 회사 공고 안 보임
   await p.goto(`${D}/admin/workers`)
   ok('근무자 명단: 우리 회사 지원자만 안내', await see(p, '우리 회사에 지원한 회원'))
-  const cardOf = (name) => p.locator('.sm\\:hidden .card', { hasText: name })
+  const cardOf = (name) => p.locator('.lg\\:hidden .card', { hasText: name })
   ok('다른 회사 지원자(김지원) 안 보임', (await cardOf('김지원').count()) === 0)
   await p.goto(`${D}/admin/workers/${AP}`)
   ok('다른 회원 상세: 열리지 않음', await see(p, '찾는 화면이 없어요'))

@@ -85,7 +85,7 @@ const errs = []
   const tmr4 = new Date(Date.now() + 9 * 3600e3 + 864e5).toISOString().slice(0, 10)
   await rest(MD, `jobs?id=eq.${J}`, 'PATCH', { start_date: tmr4, end_date: tmr4 })
   await a.goto(`${D}/admin/jobs/${J}?tab=apps`)
-  await a.locator('.sm\\:hidden .card', { hasText: '김지원' }).getByRole('button', { name: '확정', exact: true }).click()
+  await a.locator('.lg\\:hidden .card', { hasText: '김지원' }).getByRole('button', { name: '확정', exact: true }).click()
   await a.waitForTimeout(1500)
   await rest(MD, `jobs?id=eq.${J}`, 'PATCH', { start_date: job0.start_date, end_date: job0.end_date })
   msgs = (await rest(MD, `messages?thread_user_id=eq.${AP}`)).filter((m) => m.body.startsWith('✅ 근무가 확정됐어요'))

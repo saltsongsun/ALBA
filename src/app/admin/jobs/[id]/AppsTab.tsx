@@ -610,12 +610,12 @@ export default async function AppsTab({
         </Empty>
       ) : (
         <>
-          {/* 휴대폰: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) */}
+          {/* 휴대폰·태블릿: 카드 (확정·미선발 버튼과 한마디를 옆으로 밀지 않고 바로) · 1024px 넘으면 표 */}
           {/* 문의 화면 '지원자 보기'로 왔으면 그 사람 카드로 내려가 테두리로 표시 */}
           <HashFocus prefix="app-" />
           {/* 휴대폰 카드·PC 표 중 화면에 맞는 것만 그림 (예전엔 둘 다 그려 하나를 숨김 — 사람이 많으면 다시 그리기가 두 배) */}
-          <MediaOnly query="(max-width: 639.98px)">
-            <div className={`space-y-2 sm:hidden ${SORT_DIM}`} data-app-list>
+          <MediaOnly query="(max-width: 1023.98px)">
+            <div className={`space-y-2 lg:hidden ${SORT_DIM}`} data-app-list>
               {groups.map(([label, list, open]) =>
                 list.length === 0 ? null : open ? (
                   <div key={label} className="stagger space-y-2" data-app-group={label}>
@@ -652,8 +652,8 @@ export default async function AppsTab({
             </div>
           </MediaOnly>
 
-          <MediaOnly query="(min-width: 640px)">
-            <div className={`card hidden overflow-x-auto p-0 sm:block ${SORT_DIM}`}>
+          <MediaOnly query="(min-width: 1024px)">
+            <div className={`card hidden overflow-x-auto p-0 lg:block ${SORT_DIM}`}>
               <table className="table">
                 <thead>
                   <tr>
@@ -701,7 +701,7 @@ export default async function AppsTab({
                           )}
                         </td>
                         <td className="whitespace-nowrap">
-                          <ContactButtons phone={a.user.phone} name={a.user.name} />
+                          <ContactButtons phone={a.user.phone} name={a.user.name} stack />
                         </td>
                         <td className="min-w-48 text-xs text-sub">
                           {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}

@@ -242,8 +242,8 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
         </div>
       ) : (
         <>
-          {/* 휴대폰: 카드 (표는 칸이 좁아 옆으로 밀어야 해서) */}
-          <div className="stagger space-y-2 sm:hidden">
+          {/* 휴대폰·태블릿: 카드 (표는 칸이 좁아 글자가 줄마다 꺾이거나 옆으로 넘쳐서 · 사용자 요청 2026-11-17) · 1024px 넘으면 표 */}
+          <div className="stagger space-y-2 lg:hidden">
             {jobs.map((j) => {
               const approved = counts[j.id] ?? 0
               return (
@@ -312,7 +312,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
             })}
           </div>
 
-          <div className="card hidden overflow-x-auto p-0 sm:block">
+          <div className="card hidden overflow-x-auto p-0 lg:block">
             <table className="table">
               <thead>
                 <tr>

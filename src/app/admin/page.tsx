@@ -828,7 +828,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <RelLine uid={p.user.id} />
         </div>
         <div className="mt-1">
-          <ContactButtons phone={p.user.phone} name={p.user.name} />
+          <ContactButtons phone={p.user.phone} name={p.user.name} stack />
         </div>
       </td>
       <td>
@@ -1269,10 +1269,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           </Empty>
         ) : (
           <>
-            {/* 휴대폰: 카드 (확정·미선발 버튼까지 옆으로 밀지 않고 바로) */}
-            <div className="stagger space-y-2 sm:hidden">{pendingFirst.map(pendingCard)}</div>
+            {/* 휴대폰·태블릿: 카드 (확정·미선발 버튼까지 옆으로 밀지 않고 바로 · 좁은 표에서 공고 이름이 낱말마다 꺾이던 것) */}
+            <div className="stagger space-y-2 lg:hidden">{pendingFirst.map(pendingCard)}</div>
 
-            <div className="card hidden overflow-x-auto p-0 sm:block">
+            <div className="card hidden overflow-x-auto p-0 lg:block">
               <table className="table">
                 <thead>
                   <tr>
@@ -1296,8 +1296,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     <path d="M6 9l6 6 6-6" />
                   </svg>
                 </summary>
-                <div className="mt-2 space-y-2 sm:hidden">{pendingRest.map(pendingCard)}</div>
-                <div className="card mt-2 hidden overflow-x-auto p-0 sm:block">
+                <div className="mt-2 space-y-2 lg:hidden">{pendingRest.map(pendingCard)}</div>
+                <div className="card mt-2 hidden overflow-x-auto p-0 lg:block">
                   <table className="table">
                     <tbody>{pendingRest.map(pendingRow)}</tbody>
                   </table>

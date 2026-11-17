@@ -19,7 +19,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
-  const card = () => p.locator('.sm\\:hidden .card', { hasText: '김지원' })
+  const card = () => p.locator('.lg\\:hidden .card', { hasText: '김지원' })
   const status = async () => (await rest(`applications?job_id=eq.${J}&user_id=eq.${AP}`))[0].status
 
   // 만 16세 지원자 · 09~18시(휴게 빼고 8시간) (오후 6시 뒤에 돌려도 '끝난 행사 · 확정?' 확인에 걸리지 않게 공고 날짜를 내일로)

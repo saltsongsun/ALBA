@@ -34,7 +34,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const ad = await pg(false)
   await ad.goto(`${D}/admin/workers`)
   await ad.waitForLoadState('networkidle').catch(() => {})
-  const card = (name) => ad.locator('.sm\\:hidden .card', { hasText: name })
+  const card = (name) => ad.locator('.lg\\:hidden .card', { hasText: name })
   ok("알림 안 켠 김지원: '알림 꺼짐'", (await card('김지원').locator('[data-push-off]').count()) === 1)
   ok('알림 켠 근무자: 표시 없음', (await card('근무자').locator('[data-push-off]').count()) === 0)
   await ad.getByRole('link', { name: '알림 꺼짐' }).click()

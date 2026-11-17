@@ -548,8 +548,8 @@ export function AdminJobListSkeleton() {
         ))}
       </div>
       <div className="h-10 rounded-xl bg-line/50" />
-      {/* 휴대폰: 공고 카드 · 넓은 화면: 표 한 장 */}
-      <div className="space-y-2 sm:hidden">
+      {/* 휴대폰·태블릿: 공고 카드 · 넓은 화면(1024px~): 표 한 장 */}
+      <div className="space-y-2 lg:hidden">
         {[0, 1, 2].map((i) => (
           <div key={i} className="card space-y-2 p-4">
             <div className="flex gap-1.5">
@@ -566,7 +566,7 @@ export function AdminJobListSkeleton() {
           </div>
         ))}
       </div>
-      <div className="card hidden space-y-4 sm:block">
+      <div className="card hidden space-y-4 lg:block">
         {[0, 1, 2, 3].map((i) => (
           <div key={i} className="flex items-center gap-4">
             <div className={`h-4 w-2/5 ${bar}`} />

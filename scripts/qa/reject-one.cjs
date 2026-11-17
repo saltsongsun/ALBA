@@ -26,7 +26,7 @@ const NOTE = '🙏 이번엔 함께하지 못해요'
   const p = await ctx.newPage()
   const errs = []
   p.on('pageerror', (e) => errs.push(e.message))
-  const card = () => p.locator('.sm\\:hidden .card', { hasText: X.name })
+  const card = () => p.locator('.lg\\:hidden .card', { hasText: X.name })
 
   await p.goto(`${D}/admin/jobs/${J}?tab=apps`)
   await p.waitForLoadState('networkidle')

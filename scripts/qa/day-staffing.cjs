@@ -38,7 +38,7 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   // 지원자 탭: 날짜별 확정 인원, 그날 가능한 사람만
   ok('날짜별 인원 (첫날 1/1)', await see(p, '확정 1/1'))
   ok('그날만 보는 중 안내', await see(p, `${fmt(d1)}에 근무할 수 있는 사람만 보는 중`))
-  const card = (name) => p.locator('.sm\\:hidden .card', { hasText: name })
+  const card = (name) => p.locator('.lg\\:hidden .card', { hasText: name })
   ok('그날 가능한 지원자만 (김지원 O, 근무자 X)', (await card('김지원').count()) === 1 && (await card('근무자').count()) === 0)
   // 둘째 날은 비어 있으므로 바로 확정 (인원 초과 확인 없음)
   await card('김지원').getByRole('button', { name: '확정', exact: true }).click()

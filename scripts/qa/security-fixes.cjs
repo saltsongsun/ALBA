@@ -190,8 +190,8 @@ const said = (r, msg) => r.text.includes(msg) || r.redirect.includes(msg)
   // ── 13. 탈퇴(정지)한 관계없는 회원은 명단에 안 보임 ──
   await a.goto(`${D}/admin/workers`)
   await a.waitForLoadState('networkidle')
-  ok('탈퇴한 회원은 근무자 명단에 없음', (await a.locator('.sm\\:hidden .card', { hasText: '탈퇴한회원' }).count()) === 0)
-  ok('명단은 보임 (확인용)', (await a.locator('.sm\\:hidden .card', { hasText: '김지원' }).count()) === 1)
+  ok('탈퇴한 회원은 근무자 명단에 없음', (await a.locator('.lg\\:hidden .card', { hasText: '탈퇴한회원' }).count()) === 0)
+  ok('명단은 보임 (확인용)', (await a.locator('.lg\\:hidden .card', { hasText: '김지원' }).count()) === 1)
 
   // ── 14. 로그아웃 (알림 끄고 나감) ──
   await wk.goto(`${D}/me`)

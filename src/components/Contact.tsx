@@ -22,19 +22,21 @@ export function ContactButtons({
   name,
   showNumber = true,
   urgent = false,
+  stack = false,
 }: {
   phone: string | null | undefined
   name?: string
   showNumber?: boolean
   /** 카드가 '전화로 확인'을 권할 때: 전화 버튼을 꽉 찬 초록으로 (다음에 누를 곳이 바로 보이게) · 처음 그릴 때 한 번 톡 */
   urgent?: boolean
+  /** 표 칸처럼 좁은 곳: 번호는 한 줄, 그 아래 전화·문자를 나란히 (번호·전화·문자가 제각각 꺾여 줄이 높아지지 않게) */
+  stack?: boolean
 }) {
   const digits = (phone ?? '').replace(/\D/g, '')
   if (digits.length < 9) return null
   const who = name ? `${name}에게 ` : ''
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1.5">
-      {showNumber && <span className="text-sm whitespace-nowrap text-sub tabular-nums">{phoneFmt(digits)}</span>}
+  const buttons = (
+    <>
       <a
         href={`tel:${digits}`}
         className={`contact-btn ${urgent ? 'animate-pop bg-emerald-600 text-white shadow-sm hover:bg-emerald-700' : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'}`}
@@ -48,6 +50,18 @@ export function ContactButtons({
         <MessageIcon />
         문자
       </a>
+    </>
+  )
+  const number = showNumber && <span className="text-sm whitespace-nowrap text-sub tabular-nums">{phoneFmt(digits)}</span>
+  return stack ? (
+    <span className="inline-flex flex-col items-start gap-1" data-contact-stack>
+      {number}
+      <span className="flex flex-nowrap items-center gap-1.5">{buttons}</span>
+    </span>
+  ) : (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      {number}
+      {buttons}
     </span>
   )
 }

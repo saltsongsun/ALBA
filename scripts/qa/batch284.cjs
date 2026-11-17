@@ -38,7 +38,7 @@ const hex = (n) => n.toString(16).padStart(12, '0')
   await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }, { name: 'alba_roster', value: roster(A), url: D }])
   const p = await ctx.newPage()
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
-  const cards = p.locator('div.sm\\:hidden > div.card')
+  const cards = p.locator('div.lg\\:hidden > div.card')
   const names = () => cards.locator('a[href^="/admin/workers/"]').allTextContents().then((t) => t.map(one))
 
   // ── 1. 기본(새로 가입 순): 최근 가입 회원이 위 · 가입일이 진하게

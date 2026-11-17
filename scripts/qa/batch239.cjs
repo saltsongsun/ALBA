@@ -51,9 +51,9 @@ const day = (n) => new Date(Date.UTC(2026, 9, 1 + n)).toISOString().slice(0, 10)
   await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }, { name: 'alba_roster', value: roster(A), url: D }])
   const p = await ctx.newPage()
   p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
-  const names = () => p.locator('div.stagger.sm\\:hidden a[href^="/admin/workers/"]').evaluateAll((els) => els.map((e) => e.textContent.trim()))
+  const names = () => p.locator('div.stagger.lg\\:hidden a[href^="/admin/workers/"]').evaluateAll((els) => els.map((e) => e.textContent.trim()))
   const ours = (list) => list.filter((n) => ['가람', '나래', '다현', '라온'].includes(n))
-  const card = (n) => p.locator('div.stagger.sm\\:hidden .card', { has: p.locator('a', { hasText: n }) }).first()
+  const card = (n) => p.locator('div.stagger.lg\\:hidden .card', { has: p.locator('a', { hasText: n }) }).first()
   const open = async (qs = '') => { await p.goto(`${D}/admin/workers${qs}`, { waitUntil: 'networkidle' }); await p.locator('[data-sort-select]').waitFor({ timeout: 15000 }).catch(() => {}) }
 
   // ── 1. 레벨 표시 (이 회사 기록만)
