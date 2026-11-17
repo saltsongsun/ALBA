@@ -18,12 +18,47 @@ export { WAIT_HEAD }
 /** 지원하고 이만큼 지나도 결과가 없으면 묻지 않아도 안내 */
 export const WAIT_AFTER_MS = 24 * 3600_000
 
-export function waitNoteText(title: string): string {
-  return [
-    `${title}에 지원해 주셔서 진심으로 감사드려요.`,
-    '일정과 업무를 꼼꼼히 정리하느라 결과를 알려 드리기까지 조금 시간이 더 필요해요.',
-    '기다리시게 해서 죄송해요. 정리되는 대로 바로 알려 드릴게요.',
-  ].join('\n')
+/**
+ * 늘 같은 한 문장이면 기계적으로 느껴져서 (사용자 요청 "한 문장만 말하면… 다양한 존중하는 태도의 문장을 많이 만들어서 랜덤으로"),
+ * 감사 · 기다리는 까닭 · 사과와 약속을 줄마다 여러 가지로 두고 보낼 때마다 무작위로 골라 이어 붙임 (8 × 8 × 8 = 512가지).
+ * 어느 줄끼리 만나도 자연스럽게 읽히도록 줄마다 한 문장으로 끝맺음
+ */
+export const WAIT_OPEN: readonly ((title: string) => string)[] = [
+  (t) => `${t}에 지원해 주셔서 진심으로 감사드려요.`,
+  (t) => `${t}에 관심을 갖고 지원해 주셔서 정말 감사해요.`,
+  (t) => `소중한 시간을 내어 ${t}에 지원해 주셔서 감사드려요.`,
+  (t) => `${t}에 함께해 주시려고 지원해 주셔서 감사드려요.`,
+  (t) => `${t} 지원서 잘 받았어요. 지원해 주셔서 진심으로 감사드려요.`,
+  (t) => `${t}에 마음을 내어 지원해 주셔서 깊이 감사드려요.`,
+  (t) => `바쁘신 중에도 ${t}에 지원해 주셔서 정말 감사드려요.`,
+  (t) => `${t}에 지원해 주신 마음, 정말 감사하게 받았어요.`,
+]
+export const WAIT_MID: readonly string[] = [
+  '일정과 업무를 꼼꼼히 정리하느라 결과를 알려 드리기까지 조금 시간이 더 필요해요.',
+  '지금 근무 일정과 맡으실 업무를 하나하나 맞춰 보고 있어서 결과가 조금 늦어지고 있어요.',
+  '모든 분께 알맞은 자리를 드리려고 일정과 업무를 신중히 살피는 중이에요.',
+  '행사 일정과 업무 배치를 정리하는 데 시간이 조금 더 걸리고 있어요.',
+  '보내 주신 지원 내용을 꼼꼼히 살펴보며 일정과 업무를 정리하고 있어요.',
+  '더 나은 근무가 되도록 일정과 업무를 차근차근 맞추고 있어요.',
+  '현장 일정과 역할을 세심하게 정리하느라 안내가 조금 늦어지고 있어요.',
+  '한 분 한 분 소중히 살피느라 결과를 정리하는 데 시간이 조금 더 필요해요.',
+]
+export const WAIT_CLOSE: readonly string[] = [
+  '기다리시게 해서 죄송해요. 정리되는 대로 바로 알려 드릴게요.',
+  '조금만 기다려 주시면 결과가 나오는 대로 가장 먼저 알려 드릴게요.',
+  '기다려 주셔서 감사해요. 정해지는 대로 앱 알림으로 바로 안내해 드릴게요.',
+  '오래 기다리지 않으시도록 최대한 빨리 정리해서 알려 드릴게요.',
+  '너그러이 기다려 주시면 결과가 나오는 즉시 연락드릴게요.',
+  '불편을 드려 죄송해요. 정리되는 대로 꼭 먼저 알려 드릴게요.',
+  '궁금하신 점은 언제든 편하게 물어봐 주세요. 결과는 정해지는 대로 바로 알려 드릴게요.',
+  '기다려 주시는 마음 잊지 않고, 결과가 나오면 바로 알려 드릴게요.',
+]
+
+const pick = <T,>(list: readonly T[], rand: () => number): T => list[Math.min(list.length - 1, Math.floor(rand() * list.length))]
+
+/** 감사 · 까닭 · 약속을 한 줄씩 무작위로 (rand는 시험용으로 바꿔 넣을 수 있음) */
+export function waitNoteText(title: string, rand: () => number = Math.random): string {
+  return [pick(WAIT_OPEN, rand)(title), pick(WAIT_MID, rand), pick(WAIT_CLOSE, rand)].join('\n')
 }
 
 type JobLite = Pick<Job, 'id' | 'title' | 'company_id' | 'status' | 'end_date' | 'start_time' | 'end_time'>
@@ -112,7 +147,9 @@ export async function sendWaitNotes(now = Date.now()): Promise<number> {
   let sent = 0
   for (const [jobId, to] of byJob) {
     const job = open.get(jobId)!
-    sent += await tellWorkers(to, { senderId: null, companyId: job.company_id, jobId, title: WAIT_HEAD, text: waitNoteText(job.title), url: `/jobs/${jobId}`, tag: `wait-${jobId}` })
+    // 사람마다 다른 문장 (문의함 글과 휴대폰 알림이 같은 문장이 되도록 한 번만 고름)
+    const texts = new Map(to.map((uid) => [uid, waitNoteText(job.title)]))
+    sent += await tellWorkers(to, { senderId: null, companyId: job.company_id, jobId, title: WAIT_HEAD, text: (uid) => texts.get(uid) ?? waitNoteText(job.title), url: `/jobs/${jobId}`, tag: `wait-${jobId}` })
   }
   return sent
 }

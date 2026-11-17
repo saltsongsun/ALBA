@@ -3,6 +3,7 @@
 // · 근무자가 '지원했는데 확정 여부가 궁금해요.'를 보내면: 아직 결과 전이면 그 자리에서 '🙏 지원 결과 안내' 자동 답장 (같은 공고엔 하루 한 번)
 //   이미 확정된 사람에게는 안 보냄 · 담당자 문의함에서는 자동 안내로 쳐서 근무자 문의는 '답장 전'으로 그대로 (확정을 놓치지 않게)
 // · 묻지 않아도: 지원하고 하루가 지나도록 결과가 없으면 저녁 안내(크론) 때 한 번 (공고마다 한 번 · 근무가 끝난 공고는 빼고)
+// · 문장은 늘 같은 한 문장이 아니라 감사·까닭·약속 줄마다 여러 가지에서 무작위로 (사용자 요청 "다양한 존중하는 태도의 문장을 많이 만들어서 랜덤으로")
 // node scripts/qa/batch294.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
 const fs = require('node:fs')
@@ -24,6 +25,11 @@ const one = (s) => (s ?? '').replace(/\s+/g, ' ').trim()
 const kday = (n = 0) => new Date(Date.now() + 9 * 3600e3 + n * 864e5).toISOString().slice(0, 10)
 const ago = (h) => new Date(Date.now() - h * 3600e3).toISOString()
 const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)
+// 세 줄 모양: 1 감사(공고 이름 포함) · 2 기다리는 까닭 · 3 사과·약속 (문장은 보낼 때마다 무작위)
+const shape = (body, title) => {
+  const [head, open, mid, close, extra] = (body ?? '').split('\n')
+  return head === '🙏 지원 결과 안내' && !extra && open.includes(title) && /감사|고마/.test(open) && /일정|업무|역할|살피/.test(mid) && /알려 드릴게요|안내해 드릴게요|연락드릴게요/.test(close)
+}
 const notes = async (uid) => (await rest(`messages?thread_user_id=eq.${uid}`)).filter((m) => m.from_admin && (m.body ?? '').startsWith(HEAD))
 
 ;(async () => {
@@ -56,9 +62,9 @@ const notes = async (uid) => (await rest(`messages?thread_user_id=eq.${uid}`)).f
   const n1 = await notes(AP)
   ok("결과 전: '🙏 지원 결과 안내' 자동 답장 한 번 (이 공고 · 우리 회사 문의함)", n1.length === 1 && n1[0].job_id === J && n1[0].company_id === C1 && !n1[0].sender_id, JSON.stringify(n1.map((m) => m.body.slice(0, 20))))
   const body = n1[0]?.body ?? ''
-  ok('말투: 감사 · 일정과 업무 정리로 시간이 더 필요 · 기다리게 해서 죄송 · 정리되는 대로 알림', body.includes('지원해 주셔서 진심으로 감사드려요') && body.includes('일정과 업무를 꼼꼼히 정리하느라') && body.includes('조금 시간이 더 필요해요') && body.includes('기다리시게 해서 죄송해요') && body.includes('정리되는 대로 바로 알려 드릴게요'), body.replace(/\n/g, ' | '))
+  ok('말투: 감사(공고 이름) · 기다리는 까닭(일정·업무) · 약속(알려 드림) 세 줄', shape(body, '경상남도 생활체육대축전 행사장 안내 스태프'), body.replace(/\n/g, ' | '))
   await ap.goto(`${D}/me/chat?job=${J}`, { waitUntil: 'networkidle' })
-  const bubble = ap.locator('main ol li', { hasText: '지원해 주셔서 진심으로 감사드려요' }).last()
+  const bubble = ap.locator('main ol li', { hasText: body.split('\n')[1] ?? '없음' }).last()
   await bubble.waitFor({ timeout: 15000 }).catch(() => {})
   ok('근무자 대화에 회사 쪽 말풍선으로 보임', (await bubble.count()) === 1)
   ok('360px 옆으로 안 밀림 (근무자 문의)', await noSide(ap))
@@ -90,12 +96,21 @@ const notes = async (uid) => (await rest(`messages?thread_user_id=eq.${uid}`)).f
   for (const [id, name, phone] of [[U3, '하루대기', '01029400001'], [U4, '막지원', '01029400002'], [U5, '지난대기', '01029400003']]) await rest('users', 'POST', { ...u, id, name, phone, attendance: [], ratings: [] })
   const app = (id, uid, job, created) => rest('applications', 'POST', { id, job_id: job, user_id: uid, company_id: C1, status: 'applied', available_dates: null, position: null, held_at: null, decided_at: null, message: null, created_at: created })
   await app('11111111-0000-4000-8000-000000029401', U3, J2, ago(25))
+  // 같은 공고를 하루 넘게 기다리는 사람 여럿 (사람마다 다른 문장인지)
+  const MANY = Array.from({ length: 6 }, (_, i) => `bbbbbbbb-0000-4000-8000-0000000294${String(10 + i)}`)
+  for (const [i, id] of MANY.entries()) {
+    await rest('users', 'POST', { ...u, id, name: `대기${i}`, phone: `0102941${String(1000 + i)}`, attendance: [], ratings: [] })
+    await app(`11111111-0000-4000-8000-0000000294${String(10 + i)}`, id, J2, ago(30))
+  }
   await app('11111111-0000-4000-8000-000000029402', U4, J2, ago(2))
   await app('11111111-0000-4000-8000-000000029403', U5, J3, ago(100))
   const cron = () => fetch(`${D}/api/cron/remind`, { headers: { authorization: 'Bearer test-cron' } }).then((r) => r.json()).catch((e) => ({ error: String(e) }))
   const r1 = await cron()
   const u3 = await notes(U3)
-  ok('지원 하루 지남 · 결과 전 → 저녁 안내 때 한 번 (그 공고)', u3.length === 1 && u3[0].job_id === J2 && u3[0].body.includes('불꽃축제 주차 안내에 지원해 주셔서'), JSON.stringify(r1))
+  ok('지원 하루 지남 · 결과 전 → 저녁 안내 때 한 번 (그 공고 · 세 줄 모양)', u3.length === 1 && u3[0].job_id === J2 && shape(u3[0].body, '불꽃축제 주차 안내'), JSON.stringify(r1) + ' ' + (u3[0]?.body ?? '').replace(/\n/g, ' | '))
+  const many = (await Promise.all(MANY.map(notes))).map((l) => l[0]?.body ?? '')
+  ok('여러 사람에게: 모두 세 줄 모양 · 문장이 사람마다 달라짐 (무작위)', many.every((b) => shape(b, '불꽃축제 주차 안내')) && new Set([...many, u3[0]?.body]).size >= 3, String(new Set(many).size))
+  if (SHOTS) fs.writeFileSync(`${SHOTS}/samples.txt`, [u3[0]?.body, ...many].join('\n\n'))
   ok('막 지원한 사람(2시간) · 근무가 끝난 공고는 안 보냄', (await notes(U4)).length === 0 && (await notes(U5)).length === 0)
   await cron()
   ok('저녁 안내를 또 돌려도 같은 사람·공고엔 한 번만', (await notes(U3)).length === 1)
