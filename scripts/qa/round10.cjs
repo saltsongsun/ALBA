@@ -43,7 +43,7 @@ const errs = []
 
   // ── 개선 9: 얼굴 명단 ──
   await ad.goto(`${D}/admin/jobs/${J}?tab=att&view=faces`)
-  const grid = ad.locator('div.grid > div.card', { hasText: '근무자' }).first()
+  const grid = ad.locator('[data-faces-grid] > *', { hasText: '근무자' }).first()
   const gridText = (await grid.innerText().catch(() => '')) || ''
   ok('얼굴 명단: 사진·이름·배치·상태', gridText.includes('근무자') && gridText.includes('A게이트') && gridText.includes('근무 중'), gridText.replace(/\n/g, ' '))
 
