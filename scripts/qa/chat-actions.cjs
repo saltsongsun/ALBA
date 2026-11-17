@@ -1,4 +1,5 @@
 // 관리자 문의함: 근무자의 현장 알림·요청 말풍선에서 처리할 화면(출퇴근·지원자 탭의 그 날짜)으로 바로
+// (2026-11-17: 답장 전 지각 알림은 말풍선 아래 ‘조심히 오세요’ 답장 + ‘출퇴근 탭 →’ — 같은 곳으로 감)
 // node scripts/qa/chat-actions.cjs <working 앱> <working 가짜>
 const { chromium, devices } = require('playwright')
 const { createHmac } = require('node:crypto')
@@ -34,7 +35,7 @@ const post = (body, i) =>
   await a.goto(`${W_}/admin/chat/${WK}`)
   await a.getByText('약 10분 늦어요').first().waitFor({ timeout: 8000 }).catch(() => {})
   const bubble = (t) => a.locator('li', { hasText: t })
-  const hrefIn = (t) => bubble(t).getByRole('link', { name: /처리 →|채우기 →/ }).getAttribute('href').catch(() => null)
+  const hrefIn = (t) => bubble(t).getByRole('link', { name: /처리 →|채우기 →|출퇴근 탭 →/ }).getAttribute('href').catch(() => null)
   ok('지각 알림 → 오늘 출퇴근 탭', (await hrefIn('약 10분 늦어요')) === `/admin/jobs/${J}?tab=att&date=${d0}`, await hrefIn('약 10분 늦어요'))
   ok('근무일 취소 → 그날 가능한 지원자', (await hrefIn('근무를 못 하게 됐어요')) === `/admin/jobs/${J}?tab=apps&day=${d1}`, await hrefIn('근무를 못 하게 됐어요'))
   ok('확정 취소 → 지원자 탭', (await hrefIn('근무를 취소했어요')) === `/admin/jobs/${J}?tab=apps`, await hrefIn('근무를 취소했어요'))
