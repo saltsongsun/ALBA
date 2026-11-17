@@ -418,9 +418,17 @@ export function ClockPanel({
           </p>
         </div>
       )}
+      {/* 종료 시각이 지남: 굵게 '얼마나 지났는지'(30초마다 갱신) · 아래 작게 할 일 · 급여 규칙 (한 덩어리 세 줄 문장이던 것) */}
       {open && endAt && now >= Date.parse(endAt) && (
-        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-          계약 종료 시각({endText})이 지났어요. 일이 끝났으면 근무 종료를 눌러 주세요. 이후 시간은 담당자와 서로 확인한 뒤에만 급여에 들어가요.
+        <p className="flex items-center gap-2.5 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900" data-end-over>
+          <span aria-hidden>⏰</span>
+          <span className="min-w-0">
+            <b className="block font-semibold">
+              {endText} 종료 · {elapsedText(endAt, now)} 지났어요
+            </b>
+            <span className="block text-xs">끝났으면 근무 종료를 눌러 주세요</span>
+            <span className="block text-xs text-amber-800/80">넘은 시간은 확인 뒤 급여에 들어가요</span>
+          </span>
         </p>
       )}
       {/* 담당자에게 출근 확인을 요청해 둔 상태: 다시 같은 버튼을 누르며 헤매지 않게 기다리는 중임을 알려 줌 (확인되면 화면이 저절로 바뀜) */}

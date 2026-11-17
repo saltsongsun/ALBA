@@ -1,4 +1,5 @@
-import { headcountTbd } from '@/lib/jobFields'
+import { headcountTbd, shows } from '@/lib/jobFields'
+import HeadcountSwitch from '@/components/HeadcountSwitch'
 import { pushEnabledIds } from '@/lib/push'
 import Icon from '@/components/Icon'
 import type { Metadata } from 'next'
@@ -300,6 +301,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
             {job.gps_required && <span className="badge ml-2 bg-emerald-50 text-emerald-700">현장 위치 확인</span>}
             {job.auto_approve && <span className="badge ml-1 bg-brand-50 text-brand-700">자동 확정</span>}
           </p>
+          {/* 근무자에게 인원(남은 자리)을 보일지 바로 켜고 끄기 (기본 꺼짐 · 고치기 화면까지 안 가도 되게) — 근무가 끝났거나 취소한 공고엔 없음 */}
+          {job.status !== 'cancelled' && job.status !== 'done' && !workOver(job, job.end_date) && <HeadcountSwitch jobId={job.id} initial={shows(job, 'headcount')} />}
           {/* 지급총액 (세전, 정산 탭과 같은 계산) → 정산 탭으로 */}
           {wage.gross > 0 && (
             <Link href={`/admin/jobs/${job.id}?tab=pay`} className="mt-1.5 inline-flex flex-wrap items-center gap-x-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-sm text-emerald-900 tabular-nums" data-job-wage>

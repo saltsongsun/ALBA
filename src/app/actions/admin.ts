@@ -15,7 +15,7 @@ import { BULK_MAX } from '@/lib/limits'
 import { withWeeklyPay } from '@/lib/weekly'
 import { DEFAULT_TEMPLATES } from '@/lib/default-templates'
 import { scheduleSummary, wageText } from '@/lib/docs'
-import { HEADCOUNT_TBD, hiddenFromForm } from '@/lib/jobFields'
+import { HEADCOUNT_SHOWN, HEADCOUNT_TBD, hiddenFromForm } from '@/lib/jobFields'
 import { calcDay, estimateDay, MIN_WAGE_2026, OT_ASK_MIN, scheduledEnd, settle, shiftOf, workOver } from '@/lib/pay'
 import { tellWorkers } from '@/lib/notify'
 import { contractNameOf, myWorkTab } from '@/lib/members'
@@ -271,6 +271,31 @@ export async function setJobStatus(jobId: string, status: Job['status']) {
   must(await db().from('jobs').update({ status }).eq('id', jobId).eq('company_id', admin.companyId).neq('status', 'cancelled'))
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/')
+}
+
+/**
+ * 공고 화면 맨 위 스위치: 근무자에게 인원(남은 자리·칸 막대·'n명 모집') 보이기 켜고 끄기 — 공고 고치기의 같은 칸과 같은 값.
+ * 다른 표시 항목·'인원 미정'은 그대로 두고 '켰음' 표시만 넣고 빼요. 우리 회사 공고만 (company_id)
+ * 사용자 요청 2026-11-17 "채용 중인 인원 안 보이는 게 기본이고 보이기 기능을 켤 수 있게" — 고치기 화면까지 안 가도 되게
+ */
+export async function setHeadcountShown(jobId: string, show: boolean): Promise<{ ok?: boolean; error?: string }> {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return { error: '공고를 찾을 수 없어요.' }
+  if (job.status === 'cancelled') return { error: '취소한 공고는 바꿀 수 없어요.' }
+  const rest = (job.hidden_fields ?? []).filter((k) => k !== HEADCOUNT_SHOWN)
+  const { error } = await db()
+    .from('jobs')
+    .update({ hidden_fields: show ? [...rest, HEADCOUNT_SHOWN] : rest })
+    .eq('id', job.id)
+    .eq('company_id', admin.companyId)
+  if (error) return { error: '저장하지 못했어요. 잠시 뒤 다시 눌러 주세요.' }
+  await audit(admin.id, show ? 'job.headcount_shown' : 'job.headcount_hidden', null, job.title, admin.companyId)
+  revalidatePath(`/admin/jobs/${job.id}`)
+  revalidatePath('/admin/jobs')
+  revalidatePath(`/jobs/${job.id}`)
+  revalidatePath('/')
+  return { ok: true }
 }
 
 /**
