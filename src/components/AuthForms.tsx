@@ -137,6 +137,17 @@ function LoginWithPhone({ next }: { next: string }) {
   )
 }
 
+/** 비밀번호 칸 옆 점 6개: 친 자리만큼 하나씩 참 (톡) · 6자리면 초록 (로그인·가입 같은 모양) */
+function PinDots({ n }: { n: number }) {
+  return (
+    <span aria-hidden className="mb-1.5 flex shrink-0 gap-1" data-pin-dots={n}>
+      {Array.from({ length: 6 }, (_, i) => (
+        <span key={i} className={`size-2 rounded-full transition-colors duration-150 ${i < n ? `animate-pop ${n === 6 ? 'bg-emerald-500' : 'bg-brand-600'}` : 'bg-line'}`} />
+      ))}
+    </span>
+  )
+}
+
 export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: string; phone: string }[] }) {
   const [state, action] = useActionState(login, null)
   // 비밀번호가 틀렸거나 잠겼을 때: 바로 아래에 '잊었다면 이렇게' (이용 기록: 틀린 뒤 같은 번호로 여러 번 다시 시도)
@@ -194,15 +205,7 @@ export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: 
           <label className="label" htmlFor="pin">
             비밀번호 (숫자 6자리)
           </label>
-          {/* 친 자리만큼 점이 참 (하나씩 톡) · 6자리면 초록 */}
-          <span aria-hidden className="mb-1.5 flex shrink-0 gap-1" data-pin-dots={pinLen}>
-            {Array.from({ length: 6 }, (_, i) => (
-              <span
-                key={i}
-                className={`size-2 rounded-full transition-colors duration-150 ${i < pinLen ? `animate-pop ${pinLen === 6 ? 'bg-emerald-500' : 'bg-brand-600'}` : 'bg-line'}`}
-              />
-            ))}
-          </span>
+          <PinDots n={pinLen} />
         </div>
         <input
           ref={pinRef}
@@ -500,6 +503,7 @@ function RrnFields({ note }: { note: string }) {
  */
 function PinFields() {
   const ref = useRef<HTMLDivElement>(null)
+  const [len, setLen] = useState(0)
   // count: 아직 6자리를 다 쓰지 않음 (회색 'n/6자리') · 가입을 눌렀을 때 모자라면 주황으로 바뀌고 그 칸으로
   const [hint, setHint] = useState<{ ok: boolean; text: string; count?: boolean } | null>(null)
   useEffect(() => {
@@ -512,6 +516,7 @@ function PinFields() {
     const check = () => {
       const pin = val('pin')
       const pin2 = val('pin2')
+      setLen(pin.length)
       if (pin.length === 0) return setHint(null)
       // 쓰는 중: 몇 자리 썼는지 (이용 기록: 6자리가 안 된 채 가입을 눌러 '숫자 6자리로 정해 주세요'를 받는 사람이 있었음)
       if (pin.length < 6) return setHint({ ok: true, count: true, text: `숫자 6자리 · 지금 ${pin.length}자리` })
@@ -552,9 +557,12 @@ function PinFields() {
     <div ref={ref} className="space-y-1.5">
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="label" htmlFor="pin">
-            비밀번호
-          </label>
+          <div className="flex items-center justify-between gap-1">
+            <label className="label" htmlFor="pin">
+              비밀번호
+            </label>
+            <PinDots n={len} />
+          </div>
           <input
             id="pin"
             name="pin"
@@ -575,7 +583,7 @@ function PinFields() {
           <label className="label" htmlFor="pin2">
             비밀번호 확인
           </label>
-          <input id="pin2" name="pin2" type="password" className="input tracking-[0.3em]" inputMode="numeric" maxLength={6} autoComplete="new-password" onInput={digitsOnly} required />
+          <input id="pin2" name="pin2" type="password" className="input tracking-[0.3em] placeholder:tracking-normal" inputMode="numeric" maxLength={6} placeholder="한 번 더" autoComplete="new-password" onInput={digitsOnly} required />
           <PinReveal names={['pin', 'pin2']} />
         </div>
       </div>

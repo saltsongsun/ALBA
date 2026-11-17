@@ -376,7 +376,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       {/* 회사를 바꿔서 이 대화를 열었을 때: '○○ 화면으로 바꿨어요' */}
-      <Flash m={sp.m} />
+      <Flash m={sp.m} floating />
       <AutoRefresh seconds={5} quiet pulse="/api/pulse?s=admin-chat" />
       <ScrollToEnd count={messages.length} />
       <ReadSync tag={`chat-${worker.id}`} />

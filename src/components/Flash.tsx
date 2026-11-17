@@ -18,11 +18,15 @@ const DOTS = Array.from({ length: 12 }, (_, i) => {
  * 주소에서 m을 지운 뒤 같은 화면이 다시 그려져도(대화 화면은 열자마자 읽음 숫자를 맞추려 한 번 새로 고침 · 자동 갱신) 떠 있던 안내는 6초를 채움
  * — 예전에는 그때 바로 사라져 대화 화면에서는 안내를 읽을 틈이 없었음. 다른 화면(탭·날짜)으로 옮기면 바로 닫음
  */
-export default function Flash({ m }: { m: string | string[] | undefined }) {
+/** floating: 대화 화면처럼 맨 아래로 내려가 있는 화면에서는 위쪽 안내가 안 보이므로, 머리글 바로 아래에 떠 있는 알림으로 */
+export default function Flash({ m, floating = false }: { m: string | string[] | undefined; floating?: boolean }) {
   const msg = typeof m === 'string' ? m.slice(0, 200) : ''
   const [shown, setShown] = useState(msg)
   const [closing, setClosing] = useState(false)
   const [party, setParty] = useState(false)
+  // 떠 있는 안내는 body에 붙이므로 화면이 브라우저에 올라온 뒤에만 (서버에서 그릴 때는 document가 없음)
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const partyTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
@@ -96,6 +100,23 @@ export default function Flash({ m }: { m: string | string[] | undefined }) {
         </div>,
         document.body,
       )}
+    {floating ? (
+      mounted &&
+      createPortal(
+        <div className={`no-print fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-50 mx-auto w-full max-w-md px-4 transition-opacity duration-300 ${closing ? 'opacity-0' : ''}`} data-flash-floating>
+          <div className="rounded-xl bg-white shadow-lg shadow-brand-900/10">
+          <div role="status" className="relative flex animate-slide-down items-start gap-2 overflow-hidden rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
+          <span className="flex-1">{shown}</span>
+          <button type="button" aria-label="닫기" onClick={() => setClosing(true)} className="-my-1 -mr-2 rounded-lg px-2 py-1 text-brand-700/50 transition hover:bg-brand-100 active:scale-90">
+            ✕
+          </button>
+          <span aria-hidden className="flash-timer absolute bottom-0 left-0 h-0.5 w-full origin-left bg-brand-500/40" style={{ animationDuration: `${SHOW_MS}ms` }} />
+        </div>
+          </div>
+        </div>,
+        document.body,
+      )
+    ) : (
     <div className={`no-print grid transition-all duration-300 ${closing ? 'mb-0 grid-rows-[0fr] opacity-0' : 'mb-4 grid-rows-[1fr]'}`}>
       <div className="overflow-hidden">
         <div role="status" className="relative flex animate-slide-down items-start gap-2 overflow-hidden rounded-xl bg-brand-50 px-4 py-3 text-sm font-semibold text-brand-700">
@@ -107,6 +128,7 @@ export default function Flash({ m }: { m: string | string[] | undefined }) {
         </div>
       </div>
     </div>
+    )}
     </>
   )
 }

@@ -82,7 +82,9 @@ export async function replyInquiry(userId: string, _: FormState, form: FormData)
 export async function sendReply(userId: string, body: string) {
   const form = new FormData()
   form.set('body', body)
-  await replyInquiry(userId, {}, form)
+  const r = await replyInquiry(userId, {}, form)
+  // 보냈는지·못 보냈는지 한 줄로 (전엔 못 보내도 아무 말 없이 그대로였음) — 우리 회사 대화가 아니면 replyInquiry가 막음
+  if (isUuid(userId)) redirect(`/admin/chat/${userId}?m=${encodeURIComponent(r?.error ?? '답장을 보냈어요.')}`)
 }
 
 /**
