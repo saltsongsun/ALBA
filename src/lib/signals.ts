@@ -38,6 +38,9 @@ export const SIGNAL = {
 
 export type SignalKind = keyof typeof SIGNAL
 
+/** 지원 결과가 늦어질 때 자동으로 가는 정중한 안내의 첫 줄 (lib/waitNote) */
+export const WAIT_HEAD = '🙏 지원 결과 안내'
+
 /**
  * 우리(회사·앱)가 자동으로 또는 여럿에게 한꺼번에 보내는 안내의 첫 줄 (확정·미선발·정산일·출퇴근 확인·새 모집·공지 등).
  * 관리자 문의 목록에서는 이런 안내만 있는 대화를 아래에 접어 두고, 사람이 직접 쓴 대화를 위로 (사용자 요청 2026-11-16
@@ -57,6 +60,7 @@ const AUTO_HEADS: readonly string[] = [
   '✅ 의뢰가 확정됐어요',
   '✅ 출근 처리됐어요',
   '🙏 이번엔 함께하지 못해요',
+  WAIT_HEAD,
   '↩️ 근무 확정이 취소됐어요',
   '🏠 귀가 조치 안내',
   '🏁 행사가 끝났어요',

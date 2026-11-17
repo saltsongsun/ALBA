@@ -10,7 +10,8 @@ import { won } from '@/lib/format'
 import { sendAdminPush, sendPush } from '@/lib/push'
 import { requireAdmin, requireUser, siteOrigin } from '@/lib/session'
 import { isDate, isUuid, str } from '@/lib/validate'
-import { signalOf } from '@/lib/signals'
+import { ASK_CONFIRM, signalOf } from '@/lib/signals'
+import { replyWaitNote } from '@/lib/waitNote'
 import { kstDate } from '@/lib/time'
 import { badSticker, plainBody } from '@/lib/stickers'
 import { badButtons, hasButtonLine } from '@/lib/chatButtons'
@@ -52,6 +53,8 @@ export async function sendInquiry(companyId: string, jobId: string | null, _: Fo
   if (!cid) return { error: '문의할 회사를 골라 주세요.' }
   must(await db().from('messages').insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: cid, job_id: job?.id ?? null, body }))
   after(async () => sendAdminPush(cid, { title: `💬 ${user.name} 문의`, body: plainBody(body), url: `/admin/chat/${user.id}`, tag: `chat-${user.id}` }))
+  // '확정 여부가 궁금해요': 아직 결과 전이면 그 자리에서 정중한 안내 (담당자의 '답장 전'은 그대로 — 확정은 담당자가)
+  if (body.startsWith(ASK_CONFIRM.slice(0, 12))) await replyWaitNote(user.id, cid, job?.id ?? null).catch(() => false)
   revalidatePath('/me/chat')
   return { ok: '보냈어요' }
 }

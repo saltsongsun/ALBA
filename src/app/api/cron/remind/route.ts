@@ -2,6 +2,7 @@ import { db } from '@/lib/db'
 import { timingSafeEqual } from 'node:crypto'
 import { cleanupRateEvents } from '@/lib/ratelimit'
 import { sendDayBeforeReminders, sendForgotClockOutReminders } from '@/lib/remind'
+import { sendWaitNotes } from '@/lib/waitNote'
 import { kstTime } from '@/lib/time'
 
 /**
@@ -23,8 +24,10 @@ export async function GET(req: Request) {
   const result = await sendDayBeforeReminders()
   // 지난 근무의 종료를 깜빡한 근무자에게 끝난 시각을 알려 달라고 (기록마다 한 번)
   const forgot = await sendForgotClockOutReminders()
+  // 지원하고 하루가 지나도록 결과가 없는 사람에게 정중한 '조금만 기다려 주세요' 안내 (공고마다 한 번)
+  const waiting = await sendWaitNotes().catch(() => -1)
   await cleanupRateEvents() // 하루 한 번: 오래된 자동화 방어 기록 지우기
   // 화면 이동 기록(자체 분석)은 180일만 보관
   await db().from('usage_events').delete().lt('at', new Date(Date.now() - 180 * 86_400_000).toISOString()).then(() => null, () => null)
-  return Response.json({ ...result, forgot })
+  return Response.json({ ...result, forgot, waiting })
 }
