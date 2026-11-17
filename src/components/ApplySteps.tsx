@@ -2,14 +2,15 @@
 // 열면 끝난 단계가 왼쪽부터 차례로 채워짐: ✓ 동그라미가 톡 나타나고 사이 선이 차오름 (짧게 · '움직임 줄이기'면 바로)
 const STEP_MS = 90
 // labels로 다른 진행에도 씀 (예: 관리자 합류 '신청 → 승인 → 시작')
-export default function ApplySteps({ step, labels = ['지원', '확정', '서명', '출근'] }: { step: 1 | 2 | 3 | 4 | 5; labels?: string[] }) {
+// also: 지금 단계보다 뒤인데 이미 한 단계 (예: 서명이 남았는데 담당자가 출근을 기록 → '출근' ✓ · '서명'은 지금 단계로 남김)
+export default function ApplySteps({ step, labels = ['지원', '확정', '서명', '출근'], also = [] }: { step: 1 | 2 | 3 | 4 | 5; labels?: string[]; also?: number[] }) {
   const steps = labels
   const total = steps.length
   return (
     <ol className="flex items-center gap-1" aria-label={step > total ? `진행 단계 ${total}/${total} · 모두 마침` : `진행 단계 ${step}/${total}`} data-apply-steps={step}>
       {steps.map((s, i) => {
         const n = i + 1
-        const done = n < step
+        const done = n < step || also.includes(n)
         const now = n === step
         return (
           <li key={s} className="flex flex-1 items-center gap-1">

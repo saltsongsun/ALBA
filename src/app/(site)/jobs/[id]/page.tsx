@@ -538,7 +538,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         <StickyApply
           targetId="apply"
           title={job.title}
-          note="확정됐어요 · 근무 전에 서명해 주세요"
+          // 이미 근무를 시작했으면 '근무 전에'가 아니라 지금 상태 그대로
+          note={liveAtt ? '지금 근무 중이에요 · 서명이 아직 남았어요' : worked ? '근무했어요 · 서명이 아직 남았어요' : '확정됐어요 · 근무 전에 서명해 주세요'}
           summary={`서류 ${pendingIds.length}건 서명이 남았어요`}
           href={`/docs/${pendingIds[0]}`}
           hrefLabel="서명하기"
@@ -592,7 +593,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           )
         ) : app && app.status !== 'cancelled' ? (
           <div className="card space-y-3">
-            {app.status !== 'rejected' && !lapsed && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : worked ? 5 : 4} />}
+            {/* 서명이 남았는데 이미 출근 기록이 있으면 (담당자가 대신 기록 등) '출근'은 ✓ · '서명'은 지금 할 일로 남김 */}
+            {app.status !== 'rejected' && !lapsed && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : worked ? 5 : 4} also={unsignedHere && worked ? [4] : undefined} />}
             <p className="font-semibold" data-app-result={lapsed ? 'lapsed' : app.status}>
               {app.status === 'approved'
                 ? '근무가 확정됐어요.'

@@ -12,7 +12,7 @@ import LiveNumber from '@/components/LiveNumber'
 import RollCall from '@/components/RollCall'
 import ShiftChange from '@/components/ShiftChange'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { db, must } from '@/lib/db'
+import { allPages, db, must } from '@/lib/db'
 import { phoneFmt, smsHead, won } from '@/lib/format'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
 import { DISMISS_NOTE, DISMISS_REASONS, FULL_TIME_MARK, isFullTimeAsk, parseArriveDistance, parseFix, parseLate, pendingFix, signalOf } from '@/lib/signals'
@@ -69,7 +69,7 @@ export default async function AttTab({
   company?: string
 }) {
   // 근무시간 변경 요청 · 그날 주고받은 메시지(현장 알림·기록 정정)를 한 번에 읽음 (예전: 세 번을 차례로)
-  const [changeRows, dayMsgs] = await Promise.all([
+  const [changeRows, dayMsgs, unsignedRows] = await Promise.all([
     db()
       .from('shift_changes')
       .select('*')
@@ -88,7 +88,14 @@ export default async function AttTab({
       .order('created_at', { ascending: false })
       .limit(1000)
       .then((r) => must(r) as { thread_user_id: string; body: string; created_at: string; from_admin: boolean }[]),
+    // 앱 서명 공고: 이 공고 서류에 아직 서명하지 않은 사람 (담당자가 출석 체크로 근무를 시작해 줘도 서명은 남아 있음 → 줄에 '서명 안 함')
+    job.contract_method === 'app'
+      ? allPages<{ user_id: string }>((from, to) =>
+          db().from('signed_docs').select('user_id').eq('company_id', job.company_id).eq('job_id', job.id).eq('status', 'pending').order('id').range(from, to),
+        ).catch(() => [])
+      : Promise.resolve([] as { user_id: string }[]),
   ])
+  const unsigned = new Set(unsignedRows.map((d) => d.user_id))
   // 근무시간 변경 요청과 동의 (이날 것 + 전체 일정): 사람마다 가장 최근 것
   const changes = changeRows
     .filter((c) => (c.work_date === date || c.work_date === null) && c.status !== 'superseded')
@@ -648,6 +655,11 @@ export default async function AttTab({
                           📝 계약서 미수령
                         </Link>
                       )}
+                      {unsigned.has(uid) && (
+                        <Link href={`/admin/jobs/${job.id}?tab=docs#unsigned`} className="badge mt-1 bg-rose-50 text-rose-600" data-att-unsigned>
+                          ✍️ 서명 안 함
+                        </Link>
+                      )}
                     </div>
                     <span className={`badge shrink-0 ${status.cls}`}>{status.label}</span>
                   </div>
@@ -991,6 +1003,11 @@ export default async function AttTab({
                         {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
                           <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge bg-rose-50 text-rose-600">
                             📝 계약서 미수령
+                          </Link>
+                        )}
+                        {unsigned.has(uid) && (
+                          <Link href={`/admin/jobs/${job.id}?tab=docs#unsigned`} className="badge bg-rose-50 text-rose-600" data-att-unsigned>
+                            ✍️ 서명 안 함
                           </Link>
                         )}
                       </div>

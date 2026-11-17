@@ -81,7 +81,8 @@ const decided = (mins, { days = 5, status = 'approved', job = J, company } = {})
     lines: [...ol.querySelectorAll('[data-step-line]')].map((el) => { const s = getComputedStyle(el); return [s.animationName, s.animationDuration, s.animationDelay] }),
   }))
   // 서명 대기 = 3단계: 끝난 동그라미 2개 + 지금 1개 · 차오르는 선 2개
-  ok('끝난 단계 ✓ 2개 + 지금 단계 1개가 차례로 톡 (0·90·180ms)', JSON.stringify(anim.dots) === JSON.stringify([['done', 'pop', '0s'], ['done', 'pop', '0.09s'], ['now', 'pop', '0.18s']]), JSON.stringify(anim.dots))
+  // (이 근무자는 서명 전에 오늘 근무가 시작돼 있음 → '출근'도 ✓ (묶음 285) · 서명 뒤 선은 서명해야 차오름)
+  ok('끝난 단계 ✓ 2개 + 지금 단계 1개 + 이미 한 출근 ✓가 차례로 톡 (0·90·180·270ms)', JSON.stringify(anim.dots) === JSON.stringify([['done', 'pop', '0s'], ['done', 'pop', '0.09s'], ['now', 'pop', '0.18s'], ['done', 'pop', '0.27s']]), JSON.stringify(anim.dots))
   ok('사이 선 2개가 짧게(0.26초) 차오름 (60·150ms 뒤)', JSON.stringify(anim.lines) === JSON.stringify([['grow', '0.26s', '0.06s'], ['grow', '0.26s', '0.15s']]), JSON.stringify(anim.lines))
   await w.waitForTimeout(700)
   ok('움직임이 끝나면 다 보임 (선이 끝까지 참)', await steps.evaluate((ol) => [...ol.querySelectorAll('[data-step-line]')].every((el) => Math.abs(el.getBoundingClientRect().width - el.parentElement.getBoundingClientRect().width) < 1.5)))
@@ -93,7 +94,7 @@ const decided = (mins, { days = 5, status = 'approved', job = J, company } = {})
   await r.goto(`${D}/jobs/${J}`)
   await r.locator('[data-apply-steps]').waitFor({ timeout: 15000 }).catch(() => {})
   const rd = await r.locator('[data-apply-steps]').evaluate((ol) => [...ol.querySelectorAll('[data-step-line],[data-step-dot=done]')].map((el) => parseFloat(getComputedStyle(el).animationDuration)))
-  ok("'움직임 줄이기'면 움직이지 않음", rd.length === 4 && rd.every((d) => d < 0.01), JSON.stringify(rd))
+  ok("'움직임 줄이기'면 움직이지 않음", rd.length === 5 && rd.every((d) => d < 0.01), JSON.stringify(rd))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
