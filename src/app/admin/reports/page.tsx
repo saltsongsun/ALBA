@@ -288,6 +288,25 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         <summary className="section-title cursor-pointer">
           개인정보 처리 기록 <span className="text-xs font-semibold text-mute">· 최근 {logs.length}건</span>
         </summary>
+        {/* 휴대폰: 표 대신 한 건에 두 줄 (내용 · 대상 / 시각 · 처리자 · IP) — 좁은 칸에서 글자가 여러 줄로 꺾이지 않게 */}
+        <div className="sm:hidden">
+        <ul className="card divide-y divide-line p-0" data-audit-list>
+          {logs.length === 0 && <li className="px-4 py-3 text-center text-sm text-mute">기록 없음</li>}
+          {logs.map((l) => (
+            <li key={l.id} className="px-4 py-2.5" data-audit-item>
+              <p className="flex min-w-0 items-baseline gap-1.5 text-[13px]">
+                <b className="min-w-0 truncate font-semibold">{ACTIONS[l.action] ?? l.action}</b>
+                {l.target?.name && <span className="shrink-0 text-sub">· {l.target.name}</span>}
+              </p>
+              <p className="mt-0.5 truncate text-xs text-mute">
+                {kstDateTime(l.created_at)} · {l.actor?.name ?? '-'}
+                {l.action === 'ledger.worker' ? ' · 주민번호·계좌' : l.detail ? ` · ${cleanDetail(l.detail)}` : ''}
+              </p>
+            </li>
+          ))}
+        </ul>
+        </div>
+        <div className="hidden sm:block">
         <div className="card overflow-hidden p-0">
         <div className="fade-r overflow-x-auto">
           <table className="table text-[13px]">
@@ -327,6 +346,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
         </div>
         <p className="hint">개인정보의 안전성 확보조치 기준에 따라 접속·처리 기록은 1년 이상 보관하세요.</p>

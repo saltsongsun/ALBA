@@ -329,6 +329,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           {expert && <span className="badge bg-ink text-white">🎛️ 전문가 의뢰</span>}
           {canApply ? (
             <span className="badge bg-brand-50 text-brand-700">{expert ? '지원 받는 중' : '모집중'}</span>
+          ) : liveAtt ? (
+            // 예정 종료가 지났어도 지금 일하는 중이면 '종료'·'마감' 대신 '근무 중' (아래 '지금 근무 중'과 같은 말)
+            <span className="badge flex items-center gap-1 bg-emerald-50 text-emerald-700" data-live-badge>
+              <span className="relative flex size-1.5" aria-hidden>
+                <span className="absolute inline-flex size-full rounded-full bg-emerald-500 opacity-60 motion-safe:animate-ping" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+              </span>
+              {expert ? '작업 중' : '근무 중'}
+            </span>
           ) : overToday ? (
             <span className="badge bg-gray-100 text-mute" data-over-today>
               오늘 {expert ? '일정' : '근무'} 종료
