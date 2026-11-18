@@ -3,12 +3,26 @@ import { syncLedgerNow } from '@/app/actions/ledger'
 import { SubmitButton } from '@/components/ui'
 import { isLedgerCompany, ledgerStatus, type LedgerStatus } from '@/lib/ledger'
 import { kstDate, kstDateTime, kstTime } from '@/lib/time'
+import CopyCode from '@/components/CopyCode'
 
 /**
  * 대금 시트(거래장부) 연동 — 관리자 화면에만 (장부 회사의 관리자만 이 컴포넌트를 받음 · 근무자 화면엔 없음)
  * full: 회사 설정 카드 (상태 · 마지막 연동 · 버튼 · 연결 방법) / 아니면 정산 탭 한 줄
  */
-export default function LedgerPanel({ status, from, full = false, counts }: { status: LedgerStatus; from: string; full?: boolean; counts?: { exported: number; paid: number; total: number } }) {
+export default function LedgerPanel({
+  status,
+  from,
+  full = false,
+  counts,
+  code,
+}: {
+  status: LedgerStatus
+  from: string
+  full?: boolean
+  counts?: { exported: number; paid: number; total: number }
+  /** 연결 전일 때만: 시트에 붙여 넣을 연결 코드 (비밀값 포함 · 장부 회사 관리자 화면에만) */
+  code?: string
+}) {
   const last = status.last
   const lastLine = last ? `${kstDateTime(last.at)} · ${last.detail.replace(/^(버튼|아침 자동) · /, '')}` : '아직 맞춘 적 없어요'
   const button = (
@@ -80,16 +94,17 @@ export default function LedgerPanel({ status, from, full = false, counts }: { st
           )}
         </>
       ) : (
-        <details className="group rounded-xl bg-bg px-3 py-2 text-[13px]" data-ledger-howto>
-          <summary className="tap cursor-pointer font-bold">연결 방법 (한 번만)</summary>
-          <ol className="mt-2 list-decimal space-y-1 pl-5 text-sub">
-            <li>Google Cloud에서 서비스 계정을 만들고 Google Sheets API를 켜요</li>
-            <li>거래장부 시트를 서비스 계정 이메일과 ‘편집자’로 공유해요</li>
-            <li>
-              Vercel 환경 변수에 <code>GOOGLE_SA_EMAIL</code> · <code>GOOGLE_SA_KEY</code> · <code>LEDGER_SHEET_ID</code>를 넣고 다시 배포해요
-            </li>
+        <div className="space-y-2 rounded-xl bg-bg px-3 py-3 text-[13px]" data-ledger-howto>
+          <p className="font-bold">연결 방법 (한 번만 · 5분)</p>
+          <ol className="list-decimal space-y-1 pl-5 text-sub">
+            <li>거래장부 시트 → 확장 프로그램 → Apps Script를 열어요</li>
+            <li>편집기 내용을 지우고 아래 코드를 붙여 넣은 뒤 저장해요</li>
+            <li>배포 → 새 배포 → 웹 앱 (실행: 나 · 액세스: 모든 사용자) → 권한 허용</li>
+            <li>나온 웹 앱 주소를 Vercel 환경 변수 <code>LEDGER_PROXY_URL</code>에 넣고 다시 배포해요</li>
           </ol>
-        </details>
+          {code && <CopyCode code={code} label="연결 코드 복사" />}
+          <p className="text-[11px] text-mute">코드에 이 회사 전용 비밀값이 들어 있어요 · 다른 사람에게 보내지 마세요</p>
+        </div>
       )}
     </section>
   )

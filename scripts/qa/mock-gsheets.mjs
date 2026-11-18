@@ -1,5 +1,6 @@
 // 가짜 구글 시트 (거래장부 연동 테스트용) — 토큰 · 값 읽기(한 범위/여러 범위 · 보이는 값/수식) · 값 쓰기 · batchUpdate(줄 늘리기·서식 복사·배경색)
 // PORT=54399 node scripts/qa/mock-gsheets.mjs
+// 시트 안 연결 다리 흉내: POST /proxy {secret, op: meta|get|put|batch, …} (PROXY_SECRET이 맞을 때만)
 // 테스트용: POST /_seed {tabs: {제목: {rows, cols, cells: {"6,0": 값 | {f, d}}}}} · GET /_dump · GET /_log · POST /_set {tab, cells}
 import http from 'node:http'
 
@@ -108,6 +109,7 @@ http
       if (p === '/token' && req.method === 'POST') {
         const b = new URLSearchParams(await body(req))
         if ((b.get('assertion') ?? '').split('.').length !== 3) return send(res, 400, { error: 'bad jwt' })
+        log.push({ op: 'token' })
         return send(res, 200, { access_token: 'tok', expires_in: 3600 })
       }
       if (p === '/_seed') {
@@ -122,6 +124,27 @@ http
         if (j.rows) tabs[j.tab].rows = j.rows
         for (const [k, v] of Object.entries(j.cells ?? {})) v === null ? delete tabs[j.tab].cells[k] : (tabs[j.tab].cells[k] = v)
         return send(res, 200, { ok: true })
+      }
+      // 시트 안 연결 다리(Apps Script 웹 앱 · lib/ledger-script.ts) 흉내: 비밀값 확인 → meta / get / put / batch만
+      if (p === '/proxy' && req.method === 'POST') {
+        const j = JSON.parse(await body(req))
+        if (!process.env.PROXY_SECRET || j.secret !== process.env.PROXY_SECRET) return send(res, 200, { error: 'forbidden' })
+        log.push({ op: 'proxy', what: j.op })
+        try {
+          if (j.op === 'meta') return send(res, 200, { ok: Object.entries(tabs).map(([title, t]) => ({ title, id: t.id, rows: t.rows, cols: t.cols })) })
+          if (j.op === 'get') {
+            log.push({ op: j.ranges.length > 1 ? 'batchGet' : 'get', ranges: j.ranges, range: j.ranges[0], render: j.render })
+            return send(res, 200, { ok: j.ranges.map((r) => read(r, j.render)) })
+          }
+          if (j.op === 'put') return write(j.range, j.values), send(res, 200, { ok: true })
+          if (j.op === 'batch') {
+            if (!j.requests.every((q) => q.appendDimension || q.copyPaste?.pasteType === 'PASTE_FORMAT' || q.repeatCell?.fields === 'userEnteredFormat.backgroundColor')) return send(res, 200, { error: 'not allowed' })
+            return batchUpdate(j.requests), send(res, 200, { ok: true })
+          }
+          return send(res, 200, { error: 'not allowed' })
+        } catch (e) {
+          return send(res, 200, { error: String(e.message ?? e) })
+        }
       }
       if (p === '/_dump') return send(res, 200, tabs)
       if (p === '/_log') return send(res, 200, log)

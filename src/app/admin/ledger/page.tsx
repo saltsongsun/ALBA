@@ -6,6 +6,8 @@ import { isLedgerCompany, ledgerRuns, ledgerStatus, type LedgerItem, type Ledger
 import { requireAdmin } from '@/lib/session'
 import { fmtDate, kstDate, kstDateTime, kstTime } from '@/lib/time'
 import LedgerPanel from '../LedgerPanel'
+import { proxySecret } from '@/lib/gsheets'
+import { bridgeScript } from '@/lib/ledger-script'
 
 export const metadata: Metadata = { title: '대금 시트 연동 기록' }
 
@@ -61,7 +63,7 @@ export default async function LedgerPage(props: { searchParams: Promise<Record<s
         <h1 className="mt-1 text-2xl font-extrabold">대금 시트 연동 기록</h1>
         <p className="mt-1 text-sm text-sub">매일 아침 7시에 맞추고, 바뀐 게 있으면 관리자에게 알려요 · 최근 14일</p>
       </div>
-      <LedgerPanel status={status} from="/admin/ledger" full />
+      <LedgerPanel status={status} from="/admin/ledger" full code={status.configured ? undefined : bridgeScript(proxySecret())} />
       {runs.length === 0 ? (
         <Empty icon="📒" title="아직 연동 기록이 없어요">
           <span className="block">내일 아침 7시에 처음 맞추거나, 위 ‘지금 연동하기’를 눌러 보세요</span>

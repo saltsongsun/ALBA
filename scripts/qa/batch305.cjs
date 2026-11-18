@@ -74,6 +74,8 @@ function seedTabs() {
 // 순수 계산 (lib/ledger-core.ts — 다른 파일을 부르지 않아 바로 실행)
 const { execFileSync } = require('node:child_process')
 const core = (expr) => JSON.parse(execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', '-e', `import(${JSON.stringify(path.join(ROOT, 'src/lib/ledger-core.ts'))}).then((m) => process.stdout.write(JSON.stringify(${expr})))`], { encoding: 'utf8' }))
+// 연결 다리 비밀값: 서버가 SESSION_SECRET에서 만드는 값과 같게 (lib/gsheets proxySecret)
+const BRIDGE = createHmac('sha256', SECRET).update('ledger-proxy:v1').digest('base64url').slice(0, 32)
 const cell = (dump, tab, r, c) => dump[tab].cells[`${r - 1},${c}`]
 const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) => Number(k.split(',')[0]) < maxRow).every((k) => JSON.stringify(a[tab].cells[k]) === JSON.stringify(b[tab].cells[k]))
 
@@ -82,9 +84,11 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   const env = {
     ...process.env,
     OPS_OWNER_IDS: A, SUPABASE_SERVICE_ROLE_KEY: 'dummy', SESSION_SECRET: SECRET, ENCRYPTION_KEY: ENC, ADMIN_SETUP_CODE: 'x', CRON_SECRET: 'test-cron',
-    SUPABASE_URL: MD, GOOGLE_SA_EMAIL: 'ledger@test.iam.gserviceaccount.com', GOOGLE_SA_KEY: privateKey, LEDGER_SHEET_ID: 'test-sheet', LEDGER_COMPANY_ID: C1,
-    GOOGLE_TOKEN_URL: `${GD}/token`, GOOGLE_SHEETS_BASE: GD, LEDGER_EXPORT_FROM: kday(-5),
+    SUPABASE_URL: MD, LEDGER_COMPANY_ID: C1, LEDGER_EXPORT_FROM: kday(-5),
+    // 운영과 같은 방법: 시트 안 연결 다리(Apps Script 웹 앱 · 주소만 넣음 · 비밀값은 서버가 SESSION_SECRET에서 만듦) — 끝에서 서비스 계정 방법도 한 번 확인
+    LEDGER_PROXY_URL: `${GD}/proxy`,
   }
+  const envSA = { ...env, LEDGER_PROXY_URL: '', LEDGER_PROXY_SECRET: '', GOOGLE_SA_EMAIL: 'ledger@test.iam.gserviceaccount.com', GOOGLE_SA_KEY: privateKey, LEDGER_SHEET_ID: 'test-sheet', GOOGLE_TOKEN_URL: `${GD}/token`, GOOGLE_SHEETS_BASE: GD }
   // ── 0. 계산
   ok("고유코드 '홍 길동(900101)' → 이름(띄어쓰기 없이) · 생년월일", JSON.stringify(core("m.parseCode('홍 길동(900101)')")) === '{"name":"홍길동","b6":"900101"}')
   ok('수식 줄 번호만 옮김 (열 전체 참조·숫자는 그대로)', core(`m.shiftFormula("=IF($F1849=\\"\\",\\"\\",XLOOKUP($F1849,'02)일용직정보'!$F:$F,'02)일용직정보'!$C:$C)+1849)", 1849, 1850)`) === `=IF($F1850="","",XLOOKUP($F1850,'02)일용직정보'!$F:$F,'02)일용직정보'!$C:$C)+1849)`)
@@ -96,11 +100,11 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   ok('기록 조각 읽기', JSON.stringify(core(`m.detailTokens('장부 05) 12줄 추가 · 82,560원 · row=12 · job=J · user=U · run=abc')`)) === '{"row":"12","job":"J","user":"U","run":"abc"}')
 
   // 앞서 남은 서버가 있으면 그 서버(옛 코드)로 시험하게 되므로 멈춤
-  for (const u of [`${MD}/rest/v1/companies`, `${GD}/_dump`, `${D}/login`]) if (await fetch(u).then(() => true, () => false)) { console.log(`FAIL  포트가 이미 쓰이는 중: ${u}`); process.exit(2) }
+  for (const u of [`${MD}/rest/v1/companies`, `${GD}/_dump`, `${D}/login`, 'http://127.0.0.1:3006/login', 'http://127.0.0.1:3007/login']) if (await fetch(u).then(() => true, () => false)) { console.log(`FAIL  포트가 이미 쓰이는 중: ${u}`); process.exit(2) }
   // 각자 프로세스 묶음으로 띄워서 끝날 때 묶음째 끔 (npx 아래의 next 서버까지)
   const run = (cmd, args, e) => procs.push(spawn(cmd, args, { cwd: ROOT, env: e, stdio: 'ignore', detached: true }))
   run(process.execPath, ['scripts/qa/mock-supabase.mjs'], { ...process.env, SCENARIO: 'default', LAT: '5', PORT: String(MP) })
-  run(process.execPath, ['scripts/qa/mock-gsheets.mjs'], { ...process.env, PORT: String(GP) })
+  run(process.execPath, ['scripts/qa/mock-gsheets.mjs'], { ...process.env, PORT: String(GP), PROXY_SECRET: BRIDGE })
   run('npx', ['next', 'start', '-p', String(AP)], env)
   ok('서버 셋 준비', (await up(`${MD}/rest/v1/companies`)) && (await up(`${GD}/_dump`)) && (await up(`${D}/login`)))
   const seed = seedTabs()
@@ -188,6 +192,9 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   const n02 = [0, 1, 2, 3, 5, 6].map((c) => cell(s1, T02, 9, c))
   ok('02 9줄: 새근무 · 주민번호 · 은행 · 계좌(글자) · 고유코드 수식 · 비고 표시', n02[0] === '새근무' && n02[1] === '950203-2000004' && n02[2] === '하나' && n02[3] === '110123456789' && n02[4]?.f === F02(9).f && String(n02[5]).startsWith('🤖 해피워크 자동') && !!s1[T02].bg[9], JSON.stringify(n02))
   ok("03 8줄: '겨울 빛 축제' · 지출완료 체크 안 함 · 비고 표시 · 하늘색", cell(s1, T03, 8, 1) === '겨울 빛 축제' && cell(s1, T03, 8, 3) === false && String(cell(s1, T03, 8, 4)).includes('구분·발주처 확인 필요') && !!s1[T03].bg[8] && !s1[T03].bg[6])
+  ok('연결 다리로만 시트에 접근 (토큰 직접 요청 없음)', glog.some((l) => l.op === 'proxy') && !glog.some((l) => l.op === 'token'))
+  const pr = (body) => fetch(`${GD}/proxy`, { method: 'POST', body: JSON.stringify(body) }).then((r) => r.json())
+  ok('연결 다리: 비밀값이 틀리면 거절 · 허용하지 않은 일도 거절', (await pr({ secret: 'wrong', op: 'meta' })).error === 'forbidden' && (await pr({ secret: BRIDGE, op: 'clear' })).error === 'not allowed' && (await pr({ secret: BRIDGE, op: 'batch', requests: [{ deleteDimension: {} }] })).error === 'not allowed')
   ok('주민번호·계좌 칸은 읽지 않음 (05 G~J · 02 B~D)', glog.filter((l) => l.op === 'batchGet').every((l) => l.ranges.every((r) => !/!G|!B\d+:D|!B\d+:B/.test(r))) && glog.filter((l) => l.op === 'get' && l.render !== 'FORMULA').length === 0, JSON.stringify(glog.filter((l) => l.op === 'batchGet')))
 
   // ── 4. 앱: 장부에서 입금확인한 사람 → 지급 완료 · 근무자 알림 없음
@@ -277,6 +284,37 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   ok('다른 회사 관리자: 홈에 오늘 대금 시트 없음', (await a2.locator('[data-ledger-today]').count()) === 0)
   await a2.goto(`${D}/admin/ledger`, { waitUntil: 'networkidle' })
   ok("다른 회사 관리자: 기록 화면은 '이 회사는 대금 시트를 쓰지 않아요'", one(await a2.locator('main').textContent()).includes('이 회사는 대금 시트를 쓰지 않아요') && (await a2.locator('[data-ledger-run]').count()) === 0)
+
+  // ── 11. 서비스 계정 방법(연결 다리 대신)도 같은 서버 기능으로 동작
+  run('npx', ['next', 'start', '-p', '3006'], { ...envSA })
+  ok('서비스 계정 방법 서버 준비', await up('http://127.0.0.1:3006/login'))
+  const logBefore = (await g('/_log')).length
+  const sa = await fetch('http://127.0.0.1:3006/api/cron/ledger', { headers: { authorization: 'Bearer test-cron' } }).then((r) => r.json())
+  const saLog = (await g('/_log')).slice(logBefore)
+  ok("서비스 계정 방법: 토큰 받고 시트 읽기 · '새로 맞출 내용이 없어요'", sa.ok === true && sa.text === '새로 맞출 내용이 없어요' && saLog.some((l) => l.op === 'token') && saLog.some((l) => l.op === 'batchGet') && !saLog.some((l) => l.op === 'proxy'), JSON.stringify(sa))
+
+  // ── 12. 연결 전 회사 설정: '연결 코드 복사' (이 시트 하나만 권한 · 서버가 만든 비밀값) — 장부 회사 관리자에게만
+  const envOff = { ...env, LEDGER_PROXY_URL: '' }
+  run('npx', ['next', 'start', '-p', '3007'], envOff)
+  ok('연결 전 서버 준비', await up('http://127.0.0.1:3007/login'))
+  const offCtx = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
+  await offCtx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:3007' }).catch(() => {})
+  await offCtx.addCookies([{ name: 'alba_session', value: cookie(A), url: 'http://127.0.0.1:3007' }])
+  const off = await offCtx.newPage()
+  off.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
+  await off.goto('http://127.0.0.1:3007/admin/settings#ledger', { waitUntil: 'networkidle' })
+  const offCard = off.locator('[data-ledger-card]')
+  ok("연결 전: '연결 전' · 방법 4단계 · '연결 코드 복사'", (await offCard.locator('[data-ledger-state="off"]').count()) === 1 && (await offCard.locator('[data-ledger-howto] li').count()) === 4 && (await offCard.locator('[data-copy-code]').count()) === 1)
+  await offCard.locator('[data-copy-code]').click()
+  await off.waitForTimeout(400)
+  const copied = await off.evaluate(() => navigator.clipboard.readText()).catch(() => '')
+  ok("복사하면 '✓ 복사했어요' · 코드는 이 시트 하나만(@OnlyCurrentDoc) · 외부 연결 없음 · 서버 비밀값", one(await offCard.locator('[data-copy-code]').textContent()) === '✓ 복사했어요' && copied.includes('@OnlyCurrentDoc') && copied.includes(`const SECRET = '${BRIDGE}'`) && !/UrlFetchApp|openById/.test(copied), copied.slice(0, 80))
+  ok('360px 옆으로 안 밀림 (연결 전 카드)', await noSide(off))
+  if (SHOTS) await offCard.screenshot({ path: `${SHOTS}/settings-card-off.png` }).catch(() => {})
+  const offA2 = await offCtx.newPage()
+  await offCtx.addCookies([{ name: 'alba_session', value: cookie(A2), url: 'http://127.0.0.1:3007' }])
+  await offA2.goto('http://127.0.0.1:3007/admin/settings', { waitUntil: 'networkidle' })
+  ok('다른 회사 관리자에겐 연결 코드 없음', (await offA2.locator('[data-ledger-card], [data-copy-code]').count()) === 0 && !(await offA2.content()).includes(BRIDGE))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
