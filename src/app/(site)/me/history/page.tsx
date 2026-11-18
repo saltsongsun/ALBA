@@ -11,8 +11,9 @@ import { fmtDate, fmtDateRange, kstDate, kstTime, minutesText } from '@/lib/time
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { canWrite, myReviewedJobs } from '@/lib/community'
-import { paydayDate, paydayGuess, paydayLabel } from '@/lib/payday'
-import { ASK_PAYLATE, FIX_DAYS, parseFix, parsePayday, pendingFix, SIGNAL } from '@/lib/signals'
+import { workerPaydays } from '@/lib/worker-payday'
+import PaydayLine from '@/components/PaydayLine'
+import { FIX_DAYS, parseFix, pendingFix } from '@/lib/signals'
 import { FixRequest } from '@/components/worker'
 
 export const metadata: Metadata = { title: '지난 근무' }
@@ -63,42 +64,9 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
       (r) => (r.data ?? []) as { job_id: string | null; body: string; created_at: string; from_admin: boolean }[],
       () => [],
     )
-  // 정산일이 지나 이미 물어본 공고 (공고 → 마지막으로 물어본 날) — '✓ 물어봄 ›'으로 (같은 문의를 또 보내지 않게 · 답은 그 회사 문의함에서)
-  const lateHead = ASK_PAYLATE.slice(0, 12)
-  const payAskP = db()
-    .from('messages')
-    .select('job_id, body, created_at')
-    .eq('thread_user_id', user.id)
-    .eq('from_admin', false)
-    .like('body', `${lateHead}%`)
-    .order('created_at', { ascending: false })
-    .limit(50)
-    .then(
-      (r) => {
-        const last = new Map<string, string>()
-        for (const m of (r.data ?? []) as { job_id: string | null; body: string; created_at: string }[]) {
-          const d = kstDate(new Date(m.created_at))
-          if (m.job_id && m.body.startsWith(lateHead) && d > (last.get(m.job_id) ?? '')) last.set(m.job_id, d)
-        }
-        return last
-      },
-      () => new Map<string, string>(),
-    )
-  // 담당자가 알린 정산 예정일 (공고별 마지막 안내) · 못 읽으면 공고의 지급일 글자로
-  const paydayMsgs = await db()
-    .from('messages')
-    .select('job_id, body, created_at')
-    .eq('thread_user_id', user.id)
-    .eq('from_admin', true)
-    .like('body', `${SIGNAL.payday}%`)
-    .order('created_at', { ascending: false })
-    .limit(50)
-    .then(
-      (r) => ((r.data ?? []) as { job_id: string | null; body: string; created_at: string }[]).filter((m) => m.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at)),
-      () => [],
-    )
-  const told = new Map<string, string>()
-  const payAsked = await payAskP
+  // 공고별 정산일 (담당자가 알린 날 · 없으면 공고 지급일로) · 정산일 지나 물어봤는지 — 내 근무 홈과 같은 계산
+  const pdP = workerPaydays(user.id)
+  const pd = await pdP
   // 이날 보낸 정정 요청 중 담당자가 아직 답하지 않은 것 (공고 · 근무 날)
   const fixMsgs = await fixMsgsP
   const fixSentOf = (jobId: string, date: string) => {
@@ -109,18 +77,6 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     const f = req && parseFix(req.body)
     return req && f ? { ...f, at: kstTime(req.created_at) } : null
   }
-  // 알린 정산일의 날짜 (날짜 모양으로 알렸을 때 · 연도는 알린 날 기준) — 지났는데 입금 전이면 '정산일 지남 · 문의'
-  const toldDate = new Map<string, string>()
-  for (const m of paydayMsgs) {
-    const label = parsePayday(m.body)
-    if (m.job_id && label && !told.has(m.job_id)) {
-      told.set(m.job_id, label)
-      const d = paydayDate(label, kstDate(new Date(m.created_at)))
-      if (d) toldDate.set(m.job_id, d)
-    }
-  }
-  // 약속한 정산일(날짜): 알린 날짜가 있으면 그것, 알린 적 없으면 공고의 지급일 글자로 짐작 · 모르면 null
-  const dueOf = (job: Pick<Job, 'id' | 'pay_day' | 'end_date'>) => (told.has(job.id) ? (toldDate.get(job.id) ?? null) : (paydayGuess(job.pay_day, job.end_date)?.date ?? null))
   const reviewer = canWrite(user)
   // 서류는 근무가 확정된 동안만 열 수 있음 (지원 취소·확정 되돌림이면 관리자 문의)
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
@@ -198,7 +154,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
   const unpaid = items.filter((it) => !it.paid && it.s.net > 0)
   const unpaidNet = unpaid.reduce((n, it) => n + it.s.net, 0)
   // 그중 약속한 정산일이 지난 곳 (입금 대기 줄에 빨간 표시)
-  const lateN = unpaid.filter((it) => (dueOf(it.job) ?? '9999') < today).length
+  const lateN = unpaid.filter((it) => (pd.due(it.job) ?? '9999') < today).length
   // 입금 대기를 회사별로 (회사마다 따로 입금 · 정산 예정일도 회사·공고마다 다름) — 큰 금액부터
   const unpaidBy = [
     ...unpaid
@@ -207,7 +163,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
         const cur = m.get(id) ?? { id, name: coNames.get(id) ?? '회사', net: 0, n: 0, days: [] as string[] }
         cur.net += it.s.net
         cur.n += 1
-        const day = told.get(it.job.id) ?? paydayLabel(it.job.pay_day, it.job.end_date)
+        const day = pd.label(it.job)
         if (day && !cur.days.includes(day)) cur.days.push(day)
         m.set(id, cur)
         return m
@@ -434,31 +390,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                         {/* 여러 날 근무 중 오늘 몫 (첫날 근무 중이면 오른쪽에 한 번만) */}
                         {live > 0 && s.days > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
                         {/* 정산 예정일: 담당자가 알린 날짜, 없으면 공고의 지급일 */}
-                        {!paid &&
-                          !(live > 0 && s.days === 0) &&
-                          (told.get(job.id) ?? paydayLabel(job.pay_day, job.end_date)) &&
-                          (() => {
-                            const due = dueOf(job)
-                            // 약속한 정산일이 지났는데 입금 전: 빨갛게 · 누르면 그 회사 담당자에게 바로 물어보기 (제목 위를 덮은 공고 링크보다 위에)
-                            // 정산일 뒤에 이미 물어봤으면 '✓ 물어봄 ›' → 그 회사 문의함 (답 보러)
-                            return due && due < today && (payAsked.get(job.id) ?? '') >= due ? (
-                              <Link href={`/me/chat?co=${job.company_id}`} className="relative z-10 inline-flex items-center gap-1 rounded-md text-xs font-semibold text-sub transition active:scale-95" data-payday-line="asked">
-                                <span className="text-rose-600">💰 정산일 {fmtDate(due)} 지남</span> · ✓ 물어봄 ›
-                              </Link>
-                            ) : due && due < today ? (
-                              <Link
-                                href={`/me/chat?job=${job.id}&ask=paylate`}
-                                className="relative z-10 inline-flex items-center gap-1 rounded-md text-xs font-bold text-rose-600 transition active:scale-95"
-                                data-payday-line="over"
-                              >
-                                💰 정산일 {fmtDate(due)} 지남 · 문의 →
-                              </Link>
-                            ) : (
-                              <p className="text-xs font-semibold text-amber-700" data-payday-line>
-                                💰 정산 예정 {told.get(job.id) ?? paydayLabel(job.pay_day, job.end_date)}
-                              </p>
-                            )
-                          })()}
+                        {!paid && !(live > 0 && s.days === 0) && <PaydayLine jobId={job.id} companyId={job.company_id} label={pd.label(job)} due={pd.due(job)} asked={pd.asked(job)} today={today} />}
                         {s.incomplete - live > 0 && <p className="text-xs text-amber-600">종료 기록 없음 {s.incomplete - live}일</p>}
                       </div>
                       <div className="shrink-0 text-right">
@@ -472,7 +404,15 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                         ) : (
                           <>
                             <p className="text-lg font-extrabold tabular-nums">{won(s.net)}</p>
-                            <span className={`badge ${paid ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{paid ? '지급완료' : '지급 예정'}</span>
+                            <span className={`badge ${paid ? 'inline-flex items-center gap-0.5 bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`} data-paid-done={paid ? '' : undefined}>
+                              {paid && (
+                                // 지급 끝: 체크가 그려짐 (내 근무 홈과 같은 표시)
+                                <svg viewBox="0 0 24 24" className="size-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                                  <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+                                </svg>
+                              )}
+                              {paid ? '지급완료' : '지급 예정'}
+                            </span>
                           </>
                         )}
                       </div>

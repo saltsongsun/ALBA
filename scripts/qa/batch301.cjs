@@ -67,7 +67,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok('누르면 그 공고로 문의 (물어볼 글 준비)', (await over.getAttribute('href')) === `/me/chat?job=${J2}&ask=paylate`)
   ok('한 줄 · 잘리지 않음', await over.evaluate((el) => el.getBoundingClientRect().height < 22 && el.scrollWidth <= el.clientWidth + 1))
   const soon = card(J3).locator('[data-payday-line]')
-  ok(`아직 안 지난 정산일은 그대로 '💰 정산 예정 ${md(kday(5))}' (주황)`, one(await soon.textContent().catch(() => '')) === `💰 정산 예정 ${md(kday(5))}` && !['over', 'asked'].includes(await soon.getAttribute('data-payday-line')) && (await soon.getAttribute('class')).includes('text-amber-700'), one(await soon.textContent().catch(() => '')) + ' / ' + (await soon.getAttribute('data-payday-line').catch(() => '')))
+  ok(`아직 안 지난 정산일은 그대로 '💰 정산 예정 ${md(kday(5))}' + 'D-5' (주황)`, one(await soon.textContent().catch(() => '')) === `💰 정산 예정 ${md(kday(5))}D-5` && !['over', 'asked'].includes(await soon.getAttribute('data-payday-line')) && (await soon.getAttribute('class')).includes('text-amber-700'), one(await soon.textContent().catch(() => '')) + ' / ' + (await soon.getAttribute('data-payday-line').catch(() => '')))
   const badge = w.locator('[data-unpaid-late]')
   ok("입금 대기 줄에 '정산일 지남 1'", (await badge.count()) === 1 && one(await badge.textContent()) === '정산일 지남 1')
   ok('360px 옆으로 안 밀림 (지난 근무)', await noSide(w))

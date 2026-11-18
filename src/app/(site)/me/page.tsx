@@ -34,6 +34,8 @@ import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
 import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
 import WaitNoteLine from '@/components/WaitNoteLine'
+import PaydayLine from '@/components/PaydayLine'
+import { workerPaydays } from '@/lib/worker-payday'
 import ApplySteps from '@/components/ApplySteps'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
@@ -95,6 +97,8 @@ export default async function MePage(props: PageProps<'/me'>) {
 
   // 최근에 일한 공고 후기 안내 (다른 것과 함께 읽음)
   const nudgeP = canWrite(user) && !pro ? reviewNudge(user.id) : Promise.resolve(null)
+  // 근무 내역 카드의 정산일 (담당자가 알린 날 · 없으면 공고 지급일 · '지난 근무'와 같은 계산) — 다른 것과 함께 읽음
+  const paydaysP = workerPaydays(user.id).catch(() => null)
   // 커뮤니티를 마지막으로 본 뒤 내 글에 달린 새 댓글
   const seenRaw = (await cookies()).get('cm_seen')?.value
   const newCommentsP = canWrite(user) ? newCommentsOnMine(user.id, seenRaw ? decodeURIComponent(seenRaw) : null) : Promise.resolve(null)
@@ -378,7 +382,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     .filter((x) => x !== null)
 
   // 근무 내역: 공고별 정산 (주휴수당 포함 · 회사가 정산할 금액과 같게)
-  const attsPay = await withWeeklyPay(atts)
+  const [attsPay, pd] = await Promise.all([withWeeklyPay(atts), paydaysP])
   const history = [...new Set(atts.map((a) => a.job_id))]
     .map((jobId) => {
       const job = jobsById.get(jobId)
@@ -1257,6 +1261,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                         {miss > 0 && <span className="text-amber-600">{firstLive ? '' : ' · '}종료 기록 없음 {miss}일</span>}
                       </p>
                     )}
+                    {/* 언제 들어오는지 (정산 예정 · D-n / 지났으면 바로 문의) — 지난 근무와 같은 한 줄 */}
+                    {!paid && !firstLive && pd && <PaydayLine jobId={job.id} companyId={job.company_id} label={pd.label(job)} due={pd.due(job)} asked={pd.asked(job)} today={today} />}
                   </div>
                   <div className="shrink-0 text-right">
                     {firstLive ? (
@@ -1270,7 +1276,17 @@ export default async function MePage(props: PageProps<'/me'>) {
                     ) : (
                       <>
                         <p className="text-lg font-extrabold whitespace-nowrap">{won(s.net)}</p>
-                        <p className="text-xs whitespace-nowrap text-mute">{paid ? '지급완료' : '실수령 예상'}</p>
+                        {paid ? (
+                          // 지급 끝: 체크가 그려지며 초록 (들어왔다는 걸 한눈에)
+                          <p className="flex items-center justify-end gap-0.5 text-xs font-bold whitespace-nowrap text-emerald-700" data-paid-done>
+                            <svg viewBox="0 0 24 24" className="size-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+                            </svg>
+                            지급완료
+                          </p>
+                        ) : (
+                          <p className="text-xs whitespace-nowrap text-mute">실수령 예상</p>
+                        )}
                       </>
                     )}
                   </div>
