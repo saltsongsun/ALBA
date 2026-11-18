@@ -27,6 +27,7 @@ import { isUuid } from '@/lib/validate'
 import { careerText } from '@/lib/careers'
 import { signalOf } from '@/lib/signals'
 import { companyLevels } from '@/lib/xpCompany'
+import { workerPaydays } from '@/lib/worker-payday'
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
@@ -130,10 +131,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const rel = relMap[id]
   // 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 사용자 요청 2026-11-13 '레벨도 근무자명단에 표기'
   // 레벨 · 주휴수당 포함 금액 · 계좌 요청 기록을 함께 기다림
-  const [levels, attsPay, askedRaw] = await Promise.all([
+  const [levels, attsPay, askedRaw, pd] = await Promise.all([
     (u.member_type ?? 'worker') === 'worker' ? companyLevels(admin.companyId, [u]) : Promise.resolve(new Map()),
     withWeeklyPay(atts, admin.companyId),
     askedP,
+    // 근무 이력의 지급 상태: 이 회사가 알린 정산일 · 이 회사로 온 급여 문의만 (다른 회사 안내는 읽지 않음)
+    atts.length ? workerPaydays(id, admin.companyId).catch(() => null) : Promise.resolve(null),
   ])
   const level = levels.get(u.id)
   const account = decrypt(u.bank_account_enc)
@@ -145,7 +148,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       const job = jobs.get(jid)
       if (!job) return null
       const rows = attsPay.filter((a) => a.job_id === jid)
-      return { job, s: settle(job, rows.map((r) => calcDay(job, r))), live: workingToday(rows, today) }
+      return { job, s: settle(job, rows.map((r) => calcDay(job, r))), live: workingToday(rows, today), paid: rows.filter((r) => r.clock_out).length > 0 && rows.filter((r) => r.clock_out).every((r) => r.paid) }
     })
     .filter((x) => x !== null)
     .sort((a, b) => b.job.start_date.localeCompare(a.job.start_date))
@@ -386,7 +389,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         ) : (
           // 휴대폰에서 옆으로 밀지 않게 행사마다 한 줄 (공고 · 일정·일수·지급총액 / 실지급·명세서)
           <ul className="-my-2 divide-y divide-line" data-work-history>
-            {perJob.map(({ job, s, live }) => (
+            {perJob.map(({ job, s, live, paid }) => (
               <li key={job.id} className="flex items-start gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <Link href={`/admin/jobs/${job.id}?tab=pay`} className="line-clamp-2 font-semibold">
@@ -406,15 +409,43 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                 </div>
                 {/* 첫 근무가 아직 진행 중이면 금액·명세서는 끝난 뒤에 */}
                 {live > 0 && s.days === 0 ? (
-                  <p className="shrink-0 text-sm font-bold text-emerald-600" data-live>
+                  <p className="flex shrink-0 items-center gap-1.5 text-sm font-bold text-emerald-600" data-live>
+                    {/* 지금 일하는 중: 작은 점이 숨 쉬듯 (움직임 줄이기면 멈춤) */}
+                    <span className="relative flex size-2">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-500 opacity-60" />
+                      <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                    </span>
                     근무 중
                   </p>
                 ) : (
                   <div className="shrink-0 text-right">
-                    <p className="text-[11px] text-mute">실지급</p>
                     <p className="font-bold tabular-nums" data-net>
                       {won(s.net)}
                     </p>
+                    {/* 지급 상태 한 줄 (전화로 '돈 언제 들어와요?' 물을 때 바로 답하게): 지급완료 ✓ · 정산일 지남 · 정산 M/D · 지급 전 */}
+                    {(() => {
+                      if (paid)
+                        return (
+                          <p className="flex items-center justify-end gap-0.5 text-[11px] font-bold text-emerald-700" data-pay-state="paid">
+                            <svg viewBox="0 0 24 24" className="size-3 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                              <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+                            </svg>
+                            지급완료
+                          </p>
+                        )
+                      const due = pd?.due(job) ?? null
+                      if (due && due < today)
+                        return (
+                          <p className="text-[11px] font-bold whitespace-nowrap text-rose-600" data-pay-state="over">
+                            정산일 {fmtDate(due)} 지남{pd?.asked(job) ? ' · 💬' : ''}
+                          </p>
+                        )
+                      return (
+                        <p className="text-[11px] font-semibold whitespace-nowrap text-amber-700" data-pay-state={due ? 'due' : 'unpaid'}>
+                          {due ? `정산 ${fmtDate(due)}` : '지급 전'}
+                        </p>
+                      )
+                    })()}
                     <Link href={`/print/payslip/${job.id}/${u.id}`} className="text-xs font-semibold text-brand-600">
                       명세서
                     </Link>

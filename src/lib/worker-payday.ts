@@ -18,17 +18,18 @@ export type WorkerPaydays = {
 
 /**
  * 담당자가 알린 '💰 정산 예정일' (공고별 마지막 안내 · 연도는 알린 날 기준) + 근무자가 보낸 '정산일 지남' 문의.
- * 내 대화(thread_user_id)만 읽음 — 회사가 여럿이어도 공고(job_id)로 나뉨
+ * 내 대화(thread_user_id)만 읽음 — 회사가 여럿이어도 공고(job_id)로 나뉨 ·
+ * companyId를 주면 그 회사 문의함 글만 (관리자 화면: 다른 회사가 보낸 안내·받은 문의는 읽지 않음)
  */
-export async function workerPaydays(userId: string): Promise<WorkerPaydays> {
+export async function workerPaydays(userId: string, companyId?: string): Promise<WorkerPaydays> {
   const lateHead = ASK_PAYLATE.slice(0, 12)
   type M = { job_id: string | null; body: string; created_at: string }
+  const base = (fromAdmin: boolean) => {
+    const q = db().from('messages').select('job_id, body, created_at').eq('thread_user_id', userId).eq('from_admin', fromAdmin)
+    return companyId ? q.eq('company_id', companyId) : q
+  }
   const [told, askedOn] = await Promise.all([
-    db()
-      .from('messages')
-      .select('job_id, body, created_at')
-      .eq('thread_user_id', userId)
-      .eq('from_admin', true)
+    base(true)
       .like('body', `${SIGNAL.payday}%`)
       .order('created_at', { ascending: false })
       .limit(50)
@@ -44,11 +45,7 @@ export async function workerPaydays(userId: string): Promise<WorkerPaydays> {
         },
         () => new Map<string, { label: string; date: string | null }>(),
       ),
-    db()
-      .from('messages')
-      .select('job_id, body, created_at')
-      .eq('thread_user_id', userId)
-      .eq('from_admin', false)
+    base(false)
       .like('body', `${lateHead}%`)
       .order('created_at', { ascending: false })
       .limit(50)
