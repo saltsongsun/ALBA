@@ -19,7 +19,7 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, ASK_PAYLATE, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
 import { markInvoice, markVendorPaid } from '@/app/actions/vendor'
 import { agreedShiftFor } from '@/lib/shift'
 import { won } from '@/lib/format'
@@ -130,11 +130,15 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     const rows = ((worked ?? []) as unknown as { job_id: string; work_date: string; paid: boolean; job: { title: string; pay_day: string | null; end_date: string } | null }[])
       .filter((r) => r.job)
       .sort((a, b) => b.work_date.localeCompare(a.work_date))
-    const last = rows.find((r) => !r.paid) ?? rows[0]
+    // 문의가 특정 공고에서 왔으면(정산일 지남 · 문의) 그 공고 먼저
+    const askJob = lastAsk.job?.id
+    const last = (askJob && rows.find((r) => r.job_id === askJob)) || rows.find((r) => !r.paid) || rows[0]
     if (last?.job) {
       const told = messages.filter((m) => m.from_admin && m.body.startsWith(SIGNAL.payday) && m.body.includes(last.job!.title)).at(-1)
       const label = (told && parsePayday(told.body)) || paydayLabel(last.job.pay_day, last.job.end_date)
-      payReply = rows.filter((r) => r.job_id === last.job_id).every((r) => r.paid) ? '급여는 지급했어요. 통장을 확인해 주세요.' : label ? `정산 예정일은 ${label}이에요.` : null
+      const allPaid = rows.filter((r) => r.job_id === last.job_id).every((r) => r.paid)
+      // 정산일이 지났다는 문의면 날짜를 다시 알리기보다 사과하고 바로 확인 (근무자 '지난 근무'의 '정산일 지남 · 문의')
+      payReply = allPaid ? '급여는 지급했어요. 통장을 확인해 주세요.' : lastAsk.body.startsWith(ASK_PAYLATE.slice(0, 12)) ? '늦어져서 죄송해요. 바로 확인해서 입금해 드릴게요.' : label ? `정산 예정일은 ${label}이에요.` : null
     }
   }
 

@@ -15,6 +15,8 @@ export const ASK_CONFIRM = '지원했는데 확정 여부가 궁금해요.'
 export const ASK_INVOICE = '세금계산서를 보냈어요.'
 /** 외주 업체: 지급일이 지난 대금 물어보기 (뒤에 대금 표시 · 지급 예정일) */
 export const ASK_PAYDUE = '대금 지급일이 지났어요. 확인 부탁드려요.'
+/** 근무자 '지난 근무'에서 약속한 정산일이 지난 입금 대기 → 그 회사 담당자에게 (문의함에 '급여 문의' 표시 · 사과 답장 제안) */
+export const ASK_PAYLATE = '정산일이 지났는데 급여가 아직 안 들어왔어요. 확인 부탁드려요.'
 /** 위 문구 뒤에 붙는 대금 표시 ('개막식 음향 · 1,500,000원') */
 export const invoiceTag = (title: string, amountText: string) => `${title} · ${amountText}`
 
@@ -139,6 +141,7 @@ export function askTag(body: string): { label: string; urgent: boolean } | null 
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
   if (head.startsWith(ASK_INVOICE)) return { label: '계산서', urgent: false }
   if (head.startsWith(ASK_PAYDUE)) return { label: '대금 문의', urgent: false }
+  if (head.startsWith(ASK_PAYLATE.slice(0, 12))) return { label: '급여 문의', urgent: true }
   return null
 }
 

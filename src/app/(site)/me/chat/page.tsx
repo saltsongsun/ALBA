@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, invoiceTag } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, ASK_PAYLATE, invoiceTag } from '@/lib/signals'
 import { partnerCompanies, partnerPayments } from '@/lib/partners'
 import { won } from '@/lib/format'
 import { sendInquiry } from '@/app/actions/chat'
@@ -53,6 +53,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const askInfo = sp.ask === 'info'
   const askMissed = sp.ask === 'missed'
   const askConfirm = sp.ask === 'confirm'
+  // '지난 근무'에서 정산일이 지난 입금 대기 → 첫 빠른 답이 '정산일이 지났는데 급여가 아직…'
+  const askPayLate = sp.ask === 'paylate'
   // 외주 업체 '견적·대금'에서 '세금계산서 보냈으면 알리기' (어느 대금인지 · 내 대금일 때만 글을 채움)
   // · '지급일 지남 · 물어보기'도 같은 방식 (ask=paydue)
   const payId = (sp.ask === 'invoice' || sp.ask === 'paydue') && typeof sp.pay === 'string' && isUuid(sp.pay) ? sp.pay : null
@@ -223,7 +225,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={paydueAsk ? [paydueAsk] : invoiceAsk ? [invoiceAsk] : askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
+          quickReplies={paydueAsk ? [paydueAsk] : invoiceAsk ? [invoiceAsk] : askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askPayLate ? [ASK_PAYLATE, ...QUICK_DONE.filter((q) => !q.startsWith('급여'))] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">
