@@ -45,6 +45,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   for (let i = 1; i <= 10; i++) await p.mouse.move(box.x + 30 + i * 18, box.y + 90 + (i % 2 ? -25 : 25))
   await p.mouse.up()
   await p.waitForTimeout(300)
+  // 서명란이 보이는 동안은 아래 탭이 숨어 있음 (batch311) → 위로 올려 탭이 다시 보이면 누름
+  await p.evaluate(() => window.scrollTo(0, 0))
+  await p.waitForTimeout(600)
   await tab.click()
   await p.waitForTimeout(600)
   const warn = p.locator('[data-unsaved=warn]')

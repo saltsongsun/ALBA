@@ -470,9 +470,16 @@ export default async function HomePage(props: PageProps<'/'>) {
           <span className="min-w-0 flex-1">
             <span className="block truncate font-bold">{user.name}님, 안녕하세요</span>
             <span className="block truncate text-sm text-sub">
-              {upcomingCount + waitingCount === 0
+              {/* 오늘 근무가 있으면 그 상태부터 (위 오늘 카드와 맞게 · 근무 중인데 '공고를 골라 지원해 보세요'가 나오지 않게) */}
+              {upcomingCount + waitingCount === 0 && !todayJob
                 ? '함께하고 싶은 공고를 골라 지원해 보세요'
-                : [upcomingCount > 0 && `확정 ${upcomingCount}건`, waitingCount > 0 && `확정 대기 ${waitingCount}건`].filter(Boolean).join(' · ')}
+                : [
+                    todayJob && (todayState === 'working' ? '오늘 근무 중' : todayState === 'done' ? '오늘 근무 마침' : '오늘 근무 있음'),
+                    upcomingCount > 0 && `확정 ${upcomingCount}건`,
+                    waitingCount > 0 && `확정 대기 ${waitingCount}건`,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
             </span>
           </span>
           <span className="shrink-0 text-sm font-bold text-brand-600">내 근무 →</span>

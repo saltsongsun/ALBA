@@ -907,6 +907,22 @@ export function SignaturePad({
   const [short, setShort] = useState(false)
   // 손가락을 대고 있는 동안 서명란 테두리를 브랜드 색으로 (그리고 있다는 느낌)
   const [active, setActive] = useState(false)
+  // 서명란이 화면에 보이는 동안 아래 탭을 내림 (html[data-signing] · globals.css): 아래쪽까지 그리다 탭을 눌러 다른 화면으로 가는 일 막기
+  const padRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = padRef.current
+    const root = document.documentElement
+    if (!el || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) root.setAttribute('data-signing', '')
+      else root.removeAttribute('data-signing')
+    }, { threshold: 0.25 })
+    io.observe(el)
+    return () => {
+      io.disconnect()
+      root.removeAttribute('data-signing')
+    }
+  }, [])
 
   // 앞 서류와 같은 서명: 그 그림을 서명란에 그대로 놓고 같은 이미지로 제출
   const applySaved = () => {
@@ -958,7 +974,7 @@ export function SignaturePad({
   }
 
   return (
-    <div data-sign-pad data-invalid={invalid && empty ? '' : undefined} data-sign-short={short && empty ? '' : undefined}>
+    <div ref={padRef} data-sign-pad data-invalid={invalid && empty ? '' : undefined} data-sign-short={short && empty ? '' : undefined}>
       <div className="relative">
         <canvas
           ref={canvasRef}

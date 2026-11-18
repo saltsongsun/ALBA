@@ -330,7 +330,8 @@
     opacity 160ms ease-out,
     visibility 0s;
 }
-:root[data-kb] {
+/* 서명란이 화면에 보이는 동안도 (components/worker.tsx SignaturePad: html[data-signing]) — 아래로 그리다 탭을 눌러 화면이 바뀌지 않게 */
+:root:is([data-kb], [data-signing]) {
   --tabbar-space: 8px;
   /* 숨는 동안 누르거나 초점이 가지 않게 (내려간 뒤 visibility도 끔) */
   & :is([data-bottom-nav], [data-admin-tabbar]) {
