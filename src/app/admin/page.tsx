@@ -655,14 +655,18 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       href: `/admin/jobs/${g[0].job_id}?tab=docs`,
       tone: 'text-rose-600',
     })),
-    ...Object.entries(unpaid).map(([id, u]) => ({
-      key: `unpaid-${id}`,
-      icon: 'card' as const,
-      text: `급여 지급 전 · ${u.title}`,
-      n: u.n,
-      href: `/admin/jobs/${id}?tab=pay`,
-      tone: 'text-amber-700',
-    })),
+    // 급여 지급 전: 근무자에게 약속한 정산일이 오늘이거나 지났으면 빨갛게 · 그 날짜를 아래 작은 줄에 (정산일이 이른 것부터)
+    ...Object.entries(unpaid)
+      .sort(([, a], [, b]) => (a.payday ?? '9999').localeCompare(b.payday ?? '9999'))
+      .map(([id, u]) => ({
+        key: `unpaid-${id}`,
+        icon: 'card' as const,
+        text: `급여 지급 전 · ${u.title}`,
+        n: u.n,
+        href: `/admin/jobs/${id}?tab=pay`,
+        tone: u.payday && u.payday <= today ? 'text-rose-600' : 'text-amber-700',
+        ...(u.payday ? { sub: u.payday < today ? `정산일 ${fmtDate(u.payday)} 지남` : u.payday === today ? '오늘이 정산일이에요' : `정산일 ${fmtDate(u.payday)}` } : {}),
+      })),
     ...lapsedJobs.map((j) => ({
       key: `lapsed-${j.id}`,
       icon: 'users' as const,

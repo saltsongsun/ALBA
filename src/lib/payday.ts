@@ -37,3 +37,15 @@ export function paydayLabel(payDay: string | null | undefined, endDate: string):
   const t = (payDay ?? '').trim()
   return t || null
 }
+
+/**
+ * 근무자에게 알린 정산 예정일 글자('11/25(수)' · '11/25(수)까지')를 날짜로 — 연도는 알린 날(after) 기준, 그보다 앞서면 다음 해.
+ * 날짜 모양이 없으면 null (지급일 글자를 그대로 알린 경우)
+ */
+export function paydayDate(label: string | null | undefined, after: string): string | null {
+  const r = (label ?? '').match(/(\d{1,2})\/(\d{1,2})/)
+  if (!r) return null
+  const [y] = after.split('-').map(Number)
+  const date = ymd(y, Number(r[1]), Number(r[2]))
+  return date < after ? ymd(y + 1, Number(r[1]), Number(r[2])) : date
+}

@@ -10,7 +10,7 @@ import { decrypt } from '@/lib/crypto'
 import { maskAccount, smsHead, won } from '@/lib/format'
 import { calcDay, settle, TAX_LABEL, workingToday, roundCut } from '@/lib/pay'
 import { fmtDate, kstDate, kstDateTime, minutesText } from '@/lib/time'
-import { paydayGuess } from '@/lib/payday'
+import { paydayDate, paydayGuess } from '@/lib/payday'
 import { parsePayday, SIGNAL } from '@/lib/signals'
 import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
@@ -64,7 +64,7 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
           .limit(1)
           .then((r) => {
             const m = ((r.data ?? []) as { body: string; created_at: string }[]).filter((x) => x.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
-            return m ? { label: parsePayday(m.body), at: kstDateTime(m.created_at) } : null
+            return m ? { label: parsePayday(m.body), at: kstDateTime(m.created_at), day: kstDate(new Date(m.created_at)) } : null
           })
       : Promise.resolve(null),
   ])
@@ -111,6 +111,8 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
   const paidPct = payable.length ? Math.round((paidN / payable.length) * 100) : 0
   // 처음 고를 정산 예정일은 공고의 지급일 글자로 짐작 (마지막으로 알린 날짜는 위에서 함께 받아 옴)
   const guess = paydayGuess(job.pay_day, job.end_date)
+  // 근무자에게 알린 정산일 (날짜 모양으로 알렸을 때만)
+  const promised = lastPayday?.label ? paydayDate(lastPayday.label, lastPayday.day) : null
 
   return (
     <div className="space-y-4">
@@ -126,6 +128,18 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
             </div>
             {job.pay_day && <span className="badge shrink-0 bg-bg text-sub">지급일 {job.pay_day}</span>}
           </div>
+          {/* 알린 정산일이 오늘이거나 지났는데 아직 지급 전인 사람이 있으면 (약속을 놓치지 않게 · 대시보드 할 일과 같은 말) */}
+          {promised && promised <= todayKst && (
+            <p className={`flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-bold ${promised < todayKst ? 'bg-rose-50 text-rose-600' : 'bg-amber-50 text-amber-800'}`} data-payday-due={promised < todayKst ? 'over' : 'today'}>
+              <span className="relative flex size-2 shrink-0">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-current opacity-60" />
+                <span className="relative inline-flex size-2 rounded-full bg-current" />
+              </span>
+              <span className="min-w-0 truncate">
+                {promised < todayKst ? `정산일 ${fmtDate(promised)} 지남` : '오늘이 정산일이에요'} · {unpaid.length}명 지급 전
+              </span>
+            </p>
+          )}
           <div className="flex gap-2">
             <input type="date" name="payday" required defaultValue={guess?.date ?? ''} min={job.end_date} className="input min-w-0 flex-1" aria-label="정산 예정일" />
             <SubmitButton className="btn-primary shrink-0" pendingText="알리는 중…" track="정산 예정일 알리기">

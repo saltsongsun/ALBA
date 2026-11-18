@@ -7,7 +7,8 @@ import { APP_NAME } from './brand'
 import { clientInfo } from './session'
 import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
 import { kstDate } from './time'
-import { isQuietNotice, needsReply } from './signals'
+import { isQuietNotice, needsReply, parsePayday, SIGNAL } from './signals'
+import { paydayDate, paydayGuess } from './payday'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
 
 const COMPANY_COLS =
@@ -326,7 +327,7 @@ export async function otherCompaniesTodo(
  * 끝난 행사에서 근무를 마쳤는데 아직 '지급 완료'로 처리하지 않은 근무자 수 (공고별, 이 회사만).
  * 급여 지급을 빠뜨리지 않게 대시보드 '확인할 일'·지난 공고 목록에 표시
  */
-export async function unpaidByJob(companyId: string, today: string): Promise<Record<string, { title: string; n: number }>> {
+export async function unpaidByJob(companyId: string, today: string): Promise<Record<string, { title: string; n: number; payday: string | null }>> {
   // 1000줄이 넘으면 DB가 말없이 잘라서 끝까지 나눠 받음 (지급 안 한 사람이 빠지지 않게)
   const rows = (
     await allPages<{ job_id: string; user_id: string; clock_out: string | null; paid: boolean }>((a, b) =>
@@ -335,14 +336,42 @@ export async function unpaidByJob(companyId: string, today: string): Promise<Rec
   ).filter((r) => !r.paid && r.clock_out)
   const ids = [...new Set(rows.map((r) => r.job_id))]
   if (!ids.length) return {}
-  const jobs = must(await db().from('jobs').select('id, title, end_date, status').eq('company_id', companyId).in('id', ids)) as Pick<
+  const jobs = must(await db().from('jobs').select('id, title, end_date, status, pay_day').eq('company_id', companyId).in('id', ids)) as Pick<
     Job,
-    'id' | 'title' | 'end_date' | 'status'
+    'id' | 'title' | 'end_date' | 'status' | 'pay_day'
   >[]
-  const ended = new Map(jobs.filter((j) => j.end_date < today && j.status !== 'cancelled').map((j) => [j.id, j.title]))
+  const endedJobs = jobs.filter((j) => j.end_date < today && j.status !== 'cancelled')
+  const ended = new Map(endedJobs.map((j) => [j.id, j.title]))
   const users: Record<string, Set<string>> = {}
   for (const r of rows) if (ended.has(r.job_id)) (users[r.job_id] ??= new Set()).add(r.user_id)
-  return Object.fromEntries(Object.entries(users).map(([id, s]) => [id, { title: ended.get(id)!, n: s.size }]))
+  // 근무자에게 약속한 정산일: 마지막으로 알린 '💰 정산 예정일' (우리 회사 문의함) · 알린 적 없으면 공고의 지급일 글자로 짐작
+  const told = new Map<string, string>()
+  const endedIds = Object.keys(users)
+  if (endedIds.length) {
+    const notes = await allByIds<{ job_id: string; body: string; created_at: string }>(endedIds, (part, a, b) =>
+      db()
+        .from('messages')
+        .select('id, job_id, body, created_at')
+        .eq('company_id', companyId)
+        .eq('from_admin', true)
+        .in('job_id', part)
+        .like('body', `${SIGNAL.payday}%`)
+        .order('id')
+        .range(a, b),
+    ).catch(() => [] as { job_id: string; body: string; created_at: string }[])
+    for (const m of notes.filter((x) => x.body.startsWith(SIGNAL.payday)).sort((a, b) => b.created_at.localeCompare(a.created_at))) {
+      if (told.has(m.job_id)) continue
+      const d = paydayDate(parsePayday(m.body), kstDate(new Date(m.created_at)))
+      if (d) told.set(m.job_id, d)
+    }
+  }
+  const byId = new Map(endedJobs.map((j) => [j.id, j]))
+  return Object.fromEntries(
+    Object.entries(users).map(([id, s]) => {
+      const j = byId.get(id)!
+      return [id, { title: ended.get(id)!, n: s.size, payday: told.get(id) ?? paydayGuess(j.pay_day, j.end_date)?.date ?? null }]
+    }),
+  )
 }
 
 export type JobWage = { gross: number; net: number; paidNet: number; people: number; incomplete: number }
