@@ -3,6 +3,7 @@
 import AccountDigits from './AccountDigits'
 import HolderHint from './HolderHint'
 import BizNoField from './BizNoField'
+import PinDots from './PinDots'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
@@ -138,15 +139,6 @@ function LoginWithPhone({ next }: { next: string }) {
 }
 
 /** 비밀번호 칸 옆 점 6개: 친 자리만큼 하나씩 참 (톡) · 6자리면 초록 (로그인·가입 같은 모양) */
-function PinDots({ n }: { n: number }) {
-  return (
-    <span aria-hidden className="mb-1.5 flex shrink-0 gap-1" data-pin-dots={n}>
-      {Array.from({ length: 6 }, (_, i) => (
-        <span key={i} className={`size-2 rounded-full transition-colors duration-150 ${i < n ? `animate-pop ${n === 6 ? 'bg-emerald-500' : 'bg-brand-600'}` : 'bg-line'}`} />
-      ))}
-    </span>
-  )
-}
 
 export function LoginForm({ next, helps = [] }: { next: string; helps?: { name: string; phone: string }[] }) {
   const [state, action] = useActionState(login, null)

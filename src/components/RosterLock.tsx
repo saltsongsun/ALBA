@@ -4,16 +4,43 @@ import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { lockRoster, unlockRoster } from '@/app/actions/roster'
 import { FormMessage, SubmitButton } from './ui'
+import PinDots from './PinDots'
 
 /** 근무자 명단 잠금 화면: 관리자 본인 로그인 비밀번호를 한 번 더 (10분 동안 열림) */
 export default function RosterLock({ next, minutes }: { next: string; minutes: number }) {
   const [state, action] = useActionState(unlockRoster.bind(null, next), null)
   const pin = useRef<HTMLInputElement>(null)
+  const form = useRef<HTMLFormElement>(null)
+  // 손으로 마지막(6번째) 숫자를 쓰면 잠깐 뒤 저절로 '명단 열기' (10분마다 여는 화면이라 한 번 덜 누르게)
+  // · 그 사이 버튼을 눌렀거나 고쳐 쓰면 안 보냄 · 한 번에 붙여 넣은 값(자동 완성)은 버튼으로
+  const [len, setLen] = useState(0)
+  const prev = useRef(0)
+  const sent = useRef(false)
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     pin.current?.focus()
     // 틀렸으면 지우고 다시 입력하기 좋게
     if (state?.error && pin.current) pin.current.value = ''
+    setLen(0)
+    prev.current = 0
+    sent.current = false
   }, [state])
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
+  const onPin = (e: React.FormEvent<HTMLInputElement>) => {
+    const el = e.currentTarget
+    const digits = el.value.replace(/\D/g, '').slice(0, 6)
+    if (digits !== el.value) el.value = digits
+    const typedLast = prev.current === 5 && digits.length === 6
+    prev.current = digits.length
+    setLen(digits.length)
+    if (timer.current) clearTimeout(timer.current)
+    if (typedLast)
+      timer.current = setTimeout(() => {
+        if (!sent.current && pin.current?.value.length === 6) form.current?.requestSubmit()
+      }, 350)
+  }
   return (
     <div className="mx-auto max-w-sm pt-6" data-roster-lock>
       <div className="card animate-pop space-y-4 text-center">
@@ -28,12 +55,24 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
             로그인할 때 쓰는 비밀번호를 넣어 주세요.
           </p>
         </div>
-        <form action={action} className="space-y-3 text-left" key={state?.error ? 'retry' : 'first'}>
-          <label className="label" htmlFor="roster-pin">
-            내 비밀번호 (숫자 6자리)
-          </label>
+        <form
+          ref={form}
+          action={action}
+          onSubmit={() => {
+            sent.current = true
+          }}
+          className="space-y-3 text-left"
+          key={state?.error ? 'retry' : 'first'}
+        >
+          <div className="flex items-end justify-between gap-2">
+            <label className="label" htmlFor="roster-pin">
+              내 비밀번호 (숫자 6자리)
+            </label>
+            <PinDots n={len} />
+          </div>
           <input
             ref={pin}
+            onInput={onPin}
             id="roster-pin"
             name="pin"
             type="password"
