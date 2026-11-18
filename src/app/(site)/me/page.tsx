@@ -777,10 +777,11 @@ export default async function MePage(props: PageProps<'/me'>) {
         </section>
       )}
 
-      {/* 사진이 없으면 (사진 필수 전에 가입한 사람 포함) 열 때 등록 창을 띄우고, 카드로도 계속 안내 */}
-      {!photoAt && user.role === 'worker' && <PhotoPrompt userId={user.id} name={user.name} />}
-      {/* 알림을 안 켰으면 켜기 권유 (사진 등록 창이 떠 있으면 그 뒤에, '나중에'면 하루 쉼) */}
-      <PushNudge publicKey={pushPublicKey()} reason="알림을 켜야 확정 소식을 놓치지 않아요" />
+      {/* 사진이 없으면 (사진 필수 전에 가입한 사람 포함) 열 때 등록 창을 띄우고, 카드로도 계속 안내
+          · 지금 근무 중이면 창은 띄우지 않음 (근무 종료 버튼을 가리지 않게 · 아래 '얼굴 사진을 올려 주세요' 카드는 그대로) */}
+      {!photoAt && user.role === 'worker' && !openAtt && <PhotoPrompt userId={user.id} name={user.name} />}
+      {/* 알림을 안 켰으면 켜기 권유 (사진 등록 창이 떠 있으면 그 뒤에, '나중에'면 하루 쉼 · 근무 중에는 안 띄움) */}
+      {!openAtt && <PushNudge publicKey={pushPublicKey()} reason="알림을 켜야 확정 소식을 놓치지 않아요" />}
       {/* 근무 날에는 출퇴근 버튼이 먼저 보이게 계좌·사진 안내를 오늘의 근무 아래로 */}
       {todayApps.length === 0 && profileNags}
       {/* 근무가 없는 날: 레벨 카드·이번 주·새 댓글·후기 권유가 먼저 */}

@@ -41,7 +41,8 @@ export default function PhotoPrompt({ userId, name }: { userId: string; name: st
           </h2>
           <p className="mt-1 text-sm text-sub">현장에서 담당자가 바로 알아볼 수 있게 얼굴이 잘 보이는 사진 한 장이 필요해요. 사진은 담당자만 볼 수 있어요.</p>
         </div>
-        <PhotoUpload userId={userId} name={name} photoAt={null} />
+        {/* 같은 안내를 위 제목 아래에서 이미 했으니 칸 아래 안내 줄은 뺌 (올리는 중·오류만) */}
+        <PhotoUpload userId={userId} name={name} photoAt={null} quiet />
         <button type="button" onClick={close} className="btn-gray w-full">
           나중에 할게요
         </button>

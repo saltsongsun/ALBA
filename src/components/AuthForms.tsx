@@ -851,8 +851,52 @@ export function SignupForm({ next, type }: { next: string; type: MemberType }) {
  * 회사로 시작하기: 회사 정보 + 담당자(관리자) 계정 → 바로 관리자 화면.
  * signedIn: 이미 로그인한 관리자면 회사 정보만 (한 관리자가 여러 회사 운영)
  */
+/**
+ * 담당자 이름: 작은 회사는 대표가 직접 관리하는 일이 많아서 위에 쓴 대표자 이름을 한 번에 넣는 칩
+ * · 대표자 이름을 쓰고 담당자 칸이 비어 있을 때만 · 넣으면(또는 같게 쓰면) '✓ 대표자와 같아요'
+ */
+function ManagerName({ ceo }: { ceo: string }) {
+  const ref = useRef<HTMLInputElement>(null)
+  const [val, setVal] = useState('')
+  const c = ceo.trim()
+  const v = val.trim()
+  return (
+    <div>
+      <label className="label" htmlFor="name">
+        담당자 이름
+      </label>
+      <input ref={ref} id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required onInput={(e) => setVal(e.currentTarget.value)} />
+      {c && v === c ? (
+        <p className="mt-1.5 animate-pop text-[13px] font-semibold text-emerald-600" data-same-ceo="on">
+          ✓ 대표자와 같아요
+        </p>
+      ) : (
+        c &&
+        !v && (
+          <button
+            type="button"
+            className="mt-1.5 inline-flex max-w-full animate-pop items-center gap-1 rounded-full border border-line px-3 py-1.5 text-[13px] font-semibold text-sub transition hover:border-brand-500 hover:text-brand-700 active:scale-95 motion-reduce:transition-none"
+            data-same-ceo="off"
+            onClick={() => {
+              if (!ref.current) return
+              ref.current.value = c
+              setVal(c)
+              // 다음 칸(휴대폰 번호)으로 바로
+              document.getElementById('phone')?.focus()
+            }}
+          >
+            <span className="shrink-0">대표자와 같아요</span>
+            <span className="min-w-0 truncate font-medium text-mute">· {c}</span>
+          </button>
+        )
+      )}
+    </div>
+  )
+}
+
 export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
   const [state, action] = useActionState(signupCompany, null)
+  const [ceo, setCeo] = useState('')
   return (
     <form action={action} onReset={keepInputs} className="space-y-5">
       <Honeypot />
@@ -877,7 +921,7 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
           <label className="label" htmlFor="ceo_name">
             대표자 이름
           </label>
-          <input id="ceo_name" name="ceo_name" className="input" placeholder="홍길동" required />
+          <input id="ceo_name" name="ceo_name" className="input" placeholder="홍길동" required onInput={(e) => setCeo(e.currentTarget.value)} />
         </div>
       </section>
 
@@ -887,12 +931,7 @@ export function CompanySignupForm({ signedIn }: { signedIn: boolean }) {
             <h2 className="font-bold">
               담당자 (관리자 계정) <span className="text-sm font-medium text-rose-500">필수</span>
             </h2>
-            <div>
-              <label className="label" htmlFor="name">
-                담당자 이름
-              </label>
-              <input id="name" name="name" className="input" autoComplete="name" placeholder="홍길동" required />
-            </div>
+            <ManagerName ceo={ceo} />
             <div>
               <label className="label" htmlFor="phone">
                 휴대폰 번호 (로그인할 때 써요)

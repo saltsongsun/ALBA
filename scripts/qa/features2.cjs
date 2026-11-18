@@ -24,7 +24,11 @@ const errs = []
   }
 
   // ── 얼굴 사진 등록 창 (사진 없는 기존 가입자) ──
-  const wp = await page(D, WK, { prompt: true })
+  // (가짜 DB의 WK는 지금 근무 중 → 근무 중에는 창을 안 띄우므로, 근무 중이 아닌 사진 없는 가입자로)
+  const WP = 'bbbbbbbb-0000-4000-8000-0000000000f2'
+  const [wk0] = await rest(MD, `users?id=eq.${WK}`)
+  if (!(await rest(MD, `users?id=eq.${WP}`)).length) await fetch(`${MD}/rest/v1/users`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ...wk0, id: WP, name: '사진없음', phone: '01000000f02', photo_at: null, attendance: [], ratings: [] }) })
+  const wp = await page(D, WP, { prompt: true })
   await wp.goto(`${D}/me`)
   ok('사진 없으면 열자마자 등록 창', await see(wp, '얼굴 사진을 등록해 주세요'))
   ok('창 안에서 바로 사진 올리기', (await wp.locator('dialog[open] input[type=file]').count()) > 0)

@@ -912,9 +912,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
         </div>
       </div>
-      {/* 지원·확정한 공고: 사진이 없으면 등록 창, 알림을 안 켰으면 켜기 권유 (공고마다 한 번) */}
-      {activeApp && needPhoto && user && <PhotoPrompt userId={user.id} name={user.name} />}
-      {activeApp && app && user && asWorker && (
+      {/* 지원·확정한 공고: 사진이 없으면 등록 창, 알림을 안 켰으면 켜기 권유 (공고마다 한 번)
+          · 지금 근무 중이면 띄우지 않음 (근무 종료 버튼을 가리지 않게 · 사진 안내는 '내 근무' 카드로 계속) */}
+      {activeApp && needPhoto && user && !liveAtt && <PhotoPrompt userId={user.id} name={user.name} />}
+      {activeApp && app && user && asWorker && !liveAtt && (
         <PushNudge
           publicKey={pushPublicKey()}
           pro={expert}

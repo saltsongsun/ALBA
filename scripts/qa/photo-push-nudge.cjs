@@ -124,9 +124,10 @@ function fakePush({ permission = 'default', inapp = false } = {}) {
   ok('권유 창에 받을 소식 (확정·전날 안내·급여)', (await nudge(ap).getByText('✅ 근무 확정').isVisible()) && (await nudge(ap).getByText('💸 급여 지급').isVisible()))
 
   // 사진 없는 사람: 사진 창 먼저, 닫으면 알림 권유
-  await rest(`users?id=eq.${W}`, 'PATCH', { photo_at: null })
-  await rest(`push_subscriptions?user_id=eq.${W}`, 'DELETE')
-  const w2 = await pg(W, {}, {})
+  // (가짜 DB의 W는 지금 근무 중 → 근무 중에는 두 창 다 안 띄우므로, 근무 중이 아닌 사진 없는 근무자로)
+  const NP = 'bbbbbbbb-0000-4000-8000-0000000000e3'
+  await rest('users', 'POST', { ...w, id: NP, name: '박사진없음', phone: '01088880003', photo_at: null, attendance: [], ratings: [] })
+  const w2 = await pg(NP, {}, {})
   await w2.goto(`${D}/me`)
   ok('사진 없음: 사진 등록 창 먼저', await isOpen(photoBox(w2), 8000))
   ok('그동안 알림 권유는 안 뜸', !(await isOpen(nudge(w2), 1500)))

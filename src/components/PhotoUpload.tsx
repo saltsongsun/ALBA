@@ -17,6 +17,7 @@ export default function PhotoUpload({
   admin = false,
   children,
   doneKey,
+  quiet = false,
 }: {
   userId: string
   name: string
@@ -25,6 +26,8 @@ export default function PhotoUpload({
   children?: React.ReactNode
   /** 올릴 때 이 이름으로 잠깐 표시를 남김 (공고 화면: 사진 칸이 지원 칸으로 바뀐 뒤 '이제 지원할 수 있어요' 안내) */
   doneKey?: string
+  /** 위에서 이미 같은 안내를 했을 때 (사진 등록 창): 칸 아래 안내 줄은 올리는 중일 때만 */
+  quiet?: boolean
 }) {
   const [state, action, pending] = useActionState(savePhoto.bind(null, admin ? userId : null), null)
   const form = useRef<HTMLFormElement>(null)
@@ -102,12 +105,20 @@ export default function PhotoUpload({
       <form ref={form} action={action} hidden>
         <input ref={photo} type="hidden" name="photo" />
       </form>
-      <p className="hint">
-        {admin
-          ? '얼굴이 잘 보이게, 본인 동의를 받고 찍어 주세요 · 관리자만 봐요'
-          : '현장에서 담당자가 알아볼 수 있게 얼굴이 잘 보이는 사진을 올려 주세요. 담당자만 볼 수 있어요.'}
-        {working && ' · 올리는 중…'}
-      </p>
+      {quiet ? (
+        working && (
+          <p className="hint" data-photo-busy>
+            올리는 중…
+          </p>
+        )
+      ) : (
+        <p className="hint">
+          {admin
+            ? '얼굴이 잘 보이게, 본인 동의를 받고 찍어 주세요 · 관리자만 봐요'
+            : '현장에서 담당자가 알아볼 수 있게 얼굴이 잘 보이는 사진을 올려 주세요. 담당자만 볼 수 있어요.'}
+          {working && ' · 올리는 중…'}
+        </p>
+      )}
       <FormMessage state={err ? { error: err } : state} />
     </div>
   )
