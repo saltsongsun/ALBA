@@ -25,12 +25,14 @@ const TAX_SHORT: Record<Job['tax_type'], string> = { daily: '일용근로 2.7%',
 import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
+import LedgerPanel from '../../LedgerPanel'
+import { isLedgerCompany, ledgerStatus } from '@/lib/ledger'
 
 export default async function PayTab({ job, atts, users, origin, company = '' }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string }) {
   const userIds = [...new Set(atts.map((a) => a.user_id))]
   // 아래 조회들은 서로 기다릴 필요가 없어서 한 번에 출발 (예전: 외주 비용 → 업체 이름 → 주휴 → 계좌 요청 → 정산일 안내를 차례로)
   const noAccountIds = userIds.filter((uid) => !users.get(uid)?.bank_account_enc)
-  const [{ vpays, vnames }, weekly, accountAt, lastPayday, payAsked] = await Promise.all([
+  const [{ vpays, vnames }, weekly, accountAt, lastPayday, payAsked, ledger] = await Promise.all([
     // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
     db()
       .from('vendor_payments')
@@ -82,6 +84,8 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
             () => new Set<string>(),
           )
       : Promise.resolve(new Set<string>()),
+    // 대금 시트(거래장부) 연동: 장부 회사의 관리자 화면에만 · 이 공고에서 장부에 올린 사람 / 장부 입금확인으로 지급 완료가 된 사람
+    isLedgerCompany(job.company_id).then((on) => (on ? ledgerStatus(job.company_id, job.id) : null), () => null),
   ])
   const wk = (a: Attendance) => ({ ...a, weekly_pay: weekly.get(a.id) ?? 0 })
   const rows = userIds
@@ -255,6 +259,14 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
           />
         </div>
       </div>
+      {/* 대금 시트(연결된 뒤에만): 행사가 끝났거나 이미 장부와 맞춘 사람이 있을 때 한 줄 (지금 연동 버튼) */}
+      {ledger?.configured && payable.length > 0 && (job.end_date < todayKst || ledger.exported.size > 0 || ledger.paid.size > 0) && (
+        <LedgerPanel
+          status={ledger}
+          from={`/admin/jobs/${job.id}?tab=pay`}
+          counts={{ total: payable.length, exported: payable.filter((r) => ledger.exported.has(r.uid)).length, paid: payable.filter((r) => ledger.paid.has(r.uid)).length }}
+        />
+      )}
       {noAccount.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {/* 휴대폰: 이름은 한 줄 전체로 (버튼 옆에 세로로 좁게 꺾이지 않게) · 많으면 두 줄까지 */}
@@ -364,6 +376,13 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
                       <Link href={`/admin/chat/${r.uid}`} className="mt-0.5 flex w-fit animate-pop items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-600" data-pay-asked>
                         💬 급여 문의
                       </Link>
+                    )}
+                    {/* 대금 시트: 장부에 올라간 사람 · 장부에서 입금확인해 지급 완료가 된 사람 */}
+                    {ledger && (ledger.exported.has(r.uid) || (r.paid && ledger.paid.has(r.uid))) && (
+                      <span className="mt-0.5 flex w-fit gap-1 text-[11px] font-bold" data-ledger-row>
+                        {ledger.exported.has(r.uid) && <span className="rounded-md bg-sky-50 px-1.5 py-0.5 text-sky-800" data-ledger-tag="export">🤖 장부</span>}
+                        {r.paid && ledger.paid.has(r.uid) && <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-700" data-ledger-tag="paid">📒 입금확인</span>}
+                      </span>
                     )}
                     {/* 지난 정산도 출근·퇴근 시각·휴게·추가 지급·공제를 고칠 수 있게: 그날 기록 수정 칸으로 (저장하면 정산 탭으로 돌아옴) */}
                     <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs font-semibold" data-pay-edit>

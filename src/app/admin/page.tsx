@@ -19,6 +19,7 @@ import { companyLevels } from '@/lib/xpCompany'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import FilingChecklist from '@/components/FilingChecklist'
+import { LedgerToday } from './LedgerPanel'
 import { filingDues, prevMonthOf } from '@/lib/filing'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
@@ -1387,6 +1388,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       </section>
       )}
 
+      {/* 대금 시트(거래장부): 오늘 아침 연동 결과 한 줄 (장부 회사 관리자만) */}
+      <LedgerToday companyId={admin.companyId} />
       {/* 지난달 근무가 있으면: 이번 달 신고 마감 (원천세 · 근로내용확인신고 · 일용근로소득 지급명세) */}
       {(await filingP) && filingDues(filingToday).length > 0 && (
         <FilingChecklist companyId={admin.companyId} month={filingMonth} monthLabel={`${Number(filingMonth.slice(5, 7))}월`} dues={filingDues(filingToday)} />

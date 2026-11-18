@@ -8,6 +8,8 @@ import Team from './Team'
 import ThemeToggle from '@/components/ThemeToggle'
 import Icon from '@/components/Icon'
 import { isUuid } from '@/lib/validate'
+import LedgerPanel from '../LedgerPanel'
+import { isLedgerCompany, ledgerStatus } from '@/lib/ledger'
 
 export const metadata: Metadata = { title: '회사 설정' }
 
@@ -16,7 +18,7 @@ export default async function SettingsPage(props: PageProps<'/admin/settings'>) 
   const admin = await requireAdmin()
   const multi = admin.companies.length > 1
   // jobsEver: 이 회사가 올린 공고 수 (0이면 새 회사 → 저장 뒤 '첫 공고 올리기'로 이어 줌)
-  const [s, jobsEver] = await Promise.all([
+  const [s, jobsEver, ledger] = await Promise.all([
     getSettings(admin.companyId, { seal: true }),
     db()
       .from('jobs')
@@ -26,6 +28,8 @@ export default async function SettingsPage(props: PageProps<'/admin/settings'>) 
         (r) => r.count ?? 0,
         () => 1,
       ),
+    // 대금 시트(거래장부) 연동: 장부 회사의 관리자만
+    isLedgerCompany(admin.companyId).then((on) => (on ? ledgerStatus(admin.companyId) : null), () => null),
   ])
   return (
     <div className="mx-auto max-w-3xl space-y-4">
@@ -50,6 +54,7 @@ export default async function SettingsPage(props: PageProps<'/admin/settings'>) 
         companyId={admin.companyId}
         backJob={typeof sp.job === 'string' && isUuid(sp.job) ? sp.job : undefined}
       />
+      {ledger && <LedgerPanel status={ledger} from="/admin/settings#ledger" full />}
       {/* 이 휴대폰 화면 설정 (회사 설정과 별개) */}
       <div className="card p-4">
         <ThemeToggle />
