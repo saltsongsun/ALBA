@@ -563,7 +563,7 @@ export async function ledgerRuns(companyId: string, days = 14): Promise<LedgerRu
   const out = [...runs.values()].map((r) => ({
     ...r,
     actor: r.actor ? (nameOf.get(r.actor) ?? null) : null,
-    summary: r.summary || (r.via === 'first' ? `처음 맞춤 · 입금확인 ${r.items.filter((i) => i.kind === 'paid').length}명 지급 완료` : ''),
+    summary: r.summary || (r.via === 'first' ? `처음 맞춤 · 입금확인 ${r.items.filter((i) => i.kind === 'paid').length}건 지급 완료` : ''),
     items: r.items.map((i) => ({ ...i, name: i.user ? (nameOf.get(i.user) ?? null) : null, jobTitle: i.job ? (titleOf.get(i.job) ?? null) : null })),
   }))
   return out.sort((a, b) => b.at.localeCompare(a.at))
