@@ -43,7 +43,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 2. 빠른 답장 칩: ✓ · 한 번 더 누르면 뺌
   const box = p.locator('textarea[name=body]')
-  const chip = p.locator('[data-quick-replies] button', { hasText: '쉬는 시간이 언제인가요?' })
+  const chip = p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '쉬는 시간이 언제인가요?' })
   await chip.click()
   ok("누르면 입력칸에 들어가고 칩에 ✓ (aria-pressed)", (await box.inputValue()) === '쉬는 시간이 언제인가요?' && (await chip.getAttribute('aria-pressed')) === 'true' && one(await chip.innerText()).startsWith('✓'), JSON.stringify([await box.inputValue(), await chip.innerText()]))
   if (SHOTS) {

@@ -74,7 +74,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   // ── 2. 누르면 그 회사 문의함 + 준비된 글 → 보냄
   await Promise.all([p.waitForURL((u) => u.pathname === '/me/chat', { timeout: 15000 }).catch(() => {}), ask1.click()])
   await p.waitForLoadState('networkidle')
-  const chips = p.locator('[data-quick-replies] button')
+  const chips = p.locator('[data-quick-lead], [data-quick-replies] button')
   await chips.first().waitFor({ timeout: 15000 }).catch(() => {})
   ok(`빠른 답장 맨 앞 '${ASK}'`, one(await chips.first().textContent().catch(() => '')).endsWith(ASK), one(await chips.first().textContent().catch(() => '')))
   ok('360px 옆으로 안 밀림 (문의함)', await noSide(p))
@@ -96,12 +96,12 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 3. 지급일 전 대금 · 다른 회사 대금 번호 · 근무자: 글이 안 채워짐
   await p.goto(`${D}/me/chat?co=${C1}&ask=paydue&pay=${PAY2}`, { waitUntil: 'networkidle' })
-  ok('지급일 전 대금 번호로는 글이 안 채워짐', (await p.locator('[data-quick-replies] button', { hasText: HEAD }).count()) === 0)
+  ok('지급일 전 대금 번호로는 글이 안 채워짐', (await p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: HEAD }).count()) === 0)
   await p.goto(`${D}/me/chat?co=${C1}&ask=paydue&pay=${PAY4}`, { waitUntil: 'networkidle' })
-  ok('다른 회사 대금 번호로는 글이 안 채워짐', (await p.locator('[data-quick-replies] button', { hasText: HEAD }).count()) === 0)
+  ok('다른 회사 대금 번호로는 글이 안 채워짐', (await p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: HEAD }).count()) === 0)
   await as(W)
   await p.goto(`${D}/me/chat?co=${C2}&ask=paydue&pay=${PAY4}`, { waitUntil: 'networkidle' })
-  ok('외주사가 아닌 근무자는 글이 안 채워짐', (await p.locator('[data-quick-replies] button', { hasText: HEAD }).count()) === 0)
+  ok('외주사가 아닌 근무자는 글이 안 채워짐', (await p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: HEAD }).count()) === 0)
 
   // ── 4. 회사 관리자: 문의 목록 '대금 문의' · 대화에 알맞은 빠른 답장
   await as(A)
@@ -111,9 +111,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const thread = p.locator(`a[href="/admin/chat/${P}"]`).first()
   ok("문의 목록: 그 업체 줄에 '대금 문의'", one(await thread.textContent().catch(() => '')).includes('대금 문의'), one(await thread.textContent().catch(() => '')).slice(0, 80))
   await p.goto(`${D}/admin/chat/${P}`, { waitUntil: 'networkidle' })
-  const reply = p.locator('[data-quick-replies] button', { hasText: '확인해 보고 오늘 안에 알려 드릴게요.' })
+  const reply = p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '확인해 보고 오늘 안에 알려 드릴게요.' })
   await reply.first().waitFor({ timeout: 15000 }).catch(() => {})
-  ok("대화: 빠른 답장 '확인해 보고 오늘 안에 알려 드릴게요.' · '늦어서 죄송해요. 이번 주 안에 지급할게요.'", (await reply.count()) === 1 && (await p.locator('[data-quick-replies] button', { hasText: '이번 주 안에 지급할게요.' }).count()) === 1)
+  ok("대화: 빠른 답장 '확인해 보고 오늘 안에 알려 드릴게요.' · '늦어서 죄송해요. 이번 주 안에 지급할게요.'", (await reply.count()) === 1 && (await p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '이번 주 안에 지급할게요.' }).count()) === 1)
   ok('관리자 화면 360px 옆으로 안 밀림', await noSide(p))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

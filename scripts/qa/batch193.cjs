@@ -56,7 +56,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   if (SHOTS) { await line.evaluate((el) => el.scrollIntoView({ block: 'center', behavior: 'instant' })); await p.waitForTimeout(500); await p.screenshot({ path: `${SHOTS}/job-confirm-soon.png` }).catch(() => {}) }
   await line.click({ position: { x: 20, y: 20 } })
   await p.waitForURL((u) => u.pathname === '/me/chat' && u.searchParams.get('ask') === 'confirm', { timeout: 15000 }).catch(() => {})
-  const chips = p.locator('[data-quick-replies] button')
+  const chips = p.locator('[data-quick-lead], [data-quick-replies] button')
   await chips.first().waitFor({ timeout: 15000 }).catch(() => {})
   ok("누르면 문의 화면 · 첫 빠른 답 '지원했는데 확정 여부가 궁금해요.'", one(await chips.first().innerText().catch(() => '')) === '지원했는데 확정 여부가 궁금해요.', p.url())
 

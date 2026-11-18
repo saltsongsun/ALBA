@@ -7,7 +7,7 @@ import { APP_NAME } from './brand'
 import { clientInfo } from './session'
 import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
 import { kstDate } from './time'
-import { isQuietNotice, needsReply, parsePayday, SIGNAL } from './signals'
+import { isQuietNotice, needsReply, paidAfterAsk, parsePayday, SIGNAL } from './signals'
 import { paydayDate, paydayGuess } from './payday'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
 
@@ -178,13 +178,13 @@ export const unreadForWorker = cache(async (userId: string): Promise<number> => 
  * 한꺼번에 보낸 안내가 많아도 근무자 문의가 밀려나지 않게
  */
 export async function noReplyThreads(companyId: string): Promise<{ n: number; only: string | null }> {
-  type M = { thread_user_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string }
+  type M = { thread_user_id: string; from_admin: boolean; read_at: string | null; created_at: string; body: string; job_id: string | null }
   const since = new Date(Date.now() - 7 * 86_400_000).toISOString()
   const [mine, ours] = await Promise.all(
     [false, true].map((fromAdmin) =>
       db()
         .from('messages')
-        .select('thread_user_id, from_admin, read_at, created_at, body')
+        .select('thread_user_id, from_admin, read_at, created_at, body, job_id')
         .eq('company_id', companyId)
         .eq('from_admin', fromAdmin)
         .gte('created_at', since)
@@ -199,7 +199,9 @@ export async function noReplyThreads(companyId: string): Promise<{ n: number; on
     const cur = last.get(m.thread_user_id)
     if (!cur || m.created_at > cur.created_at) last.set(m.thread_user_id, m)
   }
-  const wait = [...last.values()].filter((m) => !m.from_admin && !!m.read_at && needsReply(m.body))
+  // 급여 문의 뒤에 그 공고 급여를 지급했다고 알렸으면 답한 것으로 (문의 목록과 같은 기준)
+  const pays = ours.filter((m) => m.body.startsWith(SIGNAL.paid))
+  const wait = [...last.values()].filter((m) => !m.from_admin && !!m.read_at && needsReply(m.body) && !paidAfterAsk(m, pays.filter((p) => p.thread_user_id === m.thread_user_id)))
   // 한 사람뿐이면 홈 할 일에서 목록을 거치지 않고 그 대화로 바로
   return { n: wait.length, only: wait.length === 1 ? wait[0].thread_user_id : null }
 }

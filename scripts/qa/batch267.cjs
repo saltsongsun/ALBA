@@ -64,7 +64,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await need1.click()
   await p.waitForURL((u) => u.pathname === '/me/chat', { timeout: 15000 }).catch(() => {})
   await p.waitForLoadState('networkidle')
-  const chip = p.locator('[data-quick-replies] button', { hasText: '세금계산서를 보냈어요.' })
+  const chip = p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '세금계산서를 보냈어요.' })
   await chip.first().waitFor({ timeout: 15000 }).catch(() => {})
   ok(`빠른 답장 '${ASK}' (대화가 없던 회사여도 그 회사 문의함)`, one(await chip.first().textContent().catch(() => '')).endsWith(ASK) && (await chip.count()) === 1, one(await chip.first().textContent().catch(() => '')))
   await chip.first().click()
@@ -77,10 +77,10 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 3. 다른 회사 대금 번호 · 외주사 아닌 사람: 글이 채워지지 않음
   await p.goto(`${D}/me/chat?co=${C1}&ask=invoice&pay=${PAY2}`, { waitUntil: 'networkidle' })
-  ok('다른 회사 대금 번호로는 글이 안 채워짐', (await p.locator('[data-quick-replies] button', { hasText: '세금계산서를 보냈어요.' }).count()) === 0)
+  ok('다른 회사 대금 번호로는 글이 안 채워짐', (await p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '세금계산서를 보냈어요.' }).count()) === 0)
   await as(W)
   await p.goto(`${D}/me/chat?co=${C2}&ask=invoice&pay=${PAY2}`, { waitUntil: 'networkidle' })
-  ok('외주사가 아닌 근무자는 그 회사 문의함도 글도 없음', (await p.locator('[data-quick-replies] button', { hasText: '세금계산서를 보냈어요.' }).count()) === 0 && !(await p.locator('body').innerText()).includes('두번째기획'))
+  ok('외주사가 아닌 근무자는 그 회사 문의함도 글도 없음', (await p.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '세금계산서를 보냈어요.' }).count()) === 0 && !(await p.locator('body').innerText()).includes('두번째기획'))
 
   // ── 4. 회사 관리자 문의 화면: 계산서 받음 한 번에
   await as(A)

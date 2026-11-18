@@ -38,6 +38,8 @@ function SendButton() {
 /** 쓰던 글을 넣어 두는 이름 (대화 주소를 뒤에 붙임) · 보관 시간 */
 export const DRAFT_PREFIX = 'chat-draft:'
 const DRAFT_TTL = 30 * 60_000
+/** 이보다 긴 첫 빠른 답장(준비해 둔 글)은 칩 줄 위에 한 줄 전체로 (360px 칩 줄에서 뒤가 잘리지 않게) */
+const LEAD_MIN = 20
 
 export default function ChatComposer({
   action,
@@ -230,9 +232,42 @@ export default function ChatComposer({
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
   }, [state])
 
+  // 빠른 답장: 첫 말이 길면(준비해 둔 글) 한 줄 전체 버튼으로, 나머지는 옆으로 미는 칩 줄
+  const lead = quickReplies[0] && quickReplies[0].length > LEAD_MIN ? quickReplies[0] : null
+  const rest = lead ? quickReplies.slice(1) : quickReplies
+  const quick = (q: string, wide: boolean) => {
+    // 입력칸에 이미 들어간 말은 ✓ · 한 번 더 누르면 뺌 (같은 말이 두 번 들어가지 않게)
+    const on = typed.includes(q)
+    return (
+      <button
+        key={q}
+        type="button"
+        aria-pressed={on}
+        data-quick-on={on ? '' : undefined}
+        data-quick-lead={wide ? '' : undefined}
+        className={`${wide ? 'flex w-full items-start gap-1 rounded-2xl px-3.5 py-2 text-left leading-snug' : 'shrink-0 rounded-full px-3 py-1.5'} text-[13px] font-semibold ring-1 transition-[background-color,color,transform] duration-200 active:scale-[0.97] ${on ? 'bg-brand-50 text-brand-700 ring-brand-200' : wide ? 'bg-white text-ink ring-brand-100' : 'bg-white text-sub ring-line'}`}
+        onClick={() => {
+          const el = textRef.current!
+          el.value = on
+            ? el.value.replace(q, '').replace(/\s{2,}/g, ' ').trim()
+            : el.value.trim()
+              ? `${el.value.trim()} ${q}`
+              : q
+          el.dispatchEvent(new Event('input', { bubbles: true })) // 높이·쓰던 글 저장·보내기 버튼을 맞춤
+          el.focus()
+        }}
+      >
+        {on ? <span className="mr-0.5 inline-block shrink-0 animate-[pop_0.2s_var(--ease-spring)_both]">✓</span> : wide && <Icon name="pen" className="mt-0.5 shrink-0 text-brand-600" />}
+        <span className={wide ? 'min-w-0' : undefined}>{q}</span>
+      </button>
+    )
+  }
+
   return (
     <form ref={formRef} action={formAction} onReset={keepInputs} className="space-y-2">
-      {(quickReplies.length > 0 || !!buttons?.length) && (
+      {/* 준비해 둔 긴 글(정산일 지남 문의 · 대금 문의 · 사과 답장 등)은 칩 줄에서 잘리지 않게 위에 한 줄 전체로 */}
+      {lead && quick(lead, true)}
+      {(rest.length > 0 || !!buttons?.length) && (
         <div className="fade-x flex gap-1.5 overflow-x-auto pb-0.5" data-quick-replies>
           {!!buttons?.length && (
             <button
@@ -248,32 +283,7 @@ export default function ChatComposer({
               <Icon name="sparkle" /> 버튼 보내기
             </button>
           )}
-          {quickReplies.map((q) => {
-            // 입력칸에 이미 들어간 말은 ✓ · 한 번 더 누르면 뺌 (같은 말이 두 번 들어가지 않게)
-            const on = typed.includes(q)
-            return (
-              <button
-                key={q}
-                type="button"
-                aria-pressed={on}
-                data-quick-on={on ? '' : undefined}
-                className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-semibold ring-1 transition-[background-color,color,transform] duration-200 active:scale-95 ${on ? 'bg-brand-50 text-brand-700 ring-brand-200' : 'bg-white text-sub ring-line'}`}
-                onClick={() => {
-                  const el = textRef.current!
-                  el.value = on
-                    ? el.value.replace(q, '').replace(/\s{2,}/g, ' ').trim()
-                    : el.value.trim()
-                      ? `${el.value.trim()} ${q}`
-                      : q
-                  el.dispatchEvent(new Event('input', { bubbles: true })) // 높이·쓰던 글 저장·보내기 버튼을 맞춤
-                  el.focus()
-                }}
-              >
-                {on && <span className="mr-0.5 inline-block animate-[pop_0.2s_var(--ease-spring)_both]">✓</span>}
-                {q}
-              </button>
-            )
-          })}
+          {rest.map((q) => quick(q, false))}
         </div>
       )}
       {context}

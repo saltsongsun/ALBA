@@ -41,7 +41,7 @@ const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAI
   ok('회사 줄을 누르면 문의 이어짐 (&ask=info)', ((await coRow.getAttribute('href')) ?? '').endsWith('&ask=info'))
   await coRow.click()
   await p.waitForURL(/co=.*ask=info/, { timeout: 10000 }).catch(() => {})
-  const chips = p.locator('[data-quick-replies] button')
+  const chips = p.locator('[data-quick-lead], [data-quick-replies] button')
   await chips.first().waitFor({ timeout: 8000 }).catch(() => {})
   ok("첫 빠른 답장 '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.'", (await chips.first().innerText().catch(() => '')) === '이름·주민번호·휴대폰 번호를 바꾸고 싶어요.')
   await chips.first().click()

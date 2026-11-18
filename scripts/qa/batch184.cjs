@@ -92,7 +92,7 @@ const DAY = '[일월화수목금토]'
   // ── 6. 단체방 (근무자): 대화가 없으면 첫 인사
   await rest(`job_chat?job_id=eq.${J}`, 'DELETE')
   await w.goto(`${D}/me/chat/room/${J}`)
-  const wq = w.locator('[data-quick-replies] button')
+  const wq = w.locator('[data-quick-lead], [data-quick-replies] button')
   await wq.first().waitFor({ timeout: 15000 }).catch(() => {})
   const wChips = (await wq.allInnerTexts()).map(one)
   ok('근무자 방: 첫 인사 3개', JSON.stringify(wChips) === JSON.stringify(['안녕하세요, 잘 부탁드려요!', '처음이라 잘 부탁드립니다.', '같이 가실 분 계신가요?']), JSON.stringify(wChips))
@@ -114,7 +114,7 @@ const DAY = '[일월화수목금토]'
   const d1 = kstDay(now + 864e5)
   await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: d1, end_date: d1, start_time: '09:00:00', end_time: '18:00:00' })
   await a.goto(`${D}/admin/chat/room/${J}`)
-  const aq = a.locator('[data-quick-replies] button')
+  const aq = a.locator('[data-quick-lead], [data-quick-replies] button')
   await aq.first().waitFor({ timeout: 15000 }).catch(() => {})
   const aChips = (await aq.allInnerTexts()).map(one)
   ok('관리자 방: 담당자 이름 · 집합 시각 · 문의 안내', aChips.length === 3 && aChips[0] === `안녕하세요, 담당자 ${adminName}입니다.` && new RegExp(`^\\d{1,2}/\\d{1,2}\\(${DAY}\\) 09:00까지 와 주세요\\.$`).test(aChips[1]) && aChips[2] === '궁금한 점은 여기에 남겨 주세요.', JSON.stringify(aChips))

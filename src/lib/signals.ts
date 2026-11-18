@@ -17,6 +17,19 @@ export const ASK_INVOICE = '세금계산서를 보냈어요.'
 export const ASK_PAYDUE = '대금 지급일이 지났어요. 확인 부탁드려요.'
 /** 근무자 '지난 근무'에서 약속한 정산일이 지난 입금 대기 → 그 회사 담당자에게 (문의함에 '급여 문의' 표시 · 사과 답장 제안) */
 export const ASK_PAYLATE = '정산일이 지났는데 급여가 아직 안 들어왔어요. 확인 부탁드려요.'
+/** 근무자의 '정산일 지남' 급여 문의인지 (앞부분만 보고 · 뒤에 말을 덧붙여도) */
+export const isPayLateAsk = (body: string) => body.startsWith(ASK_PAYLATE.slice(0, 12))
+/**
+ * 급여 문의 뒤에 그 공고 급여를 '💸 급여 지급'으로 알렸으면 답한 것으로 — 지급하고 나서도 문의함·홈 '답장 전'에 남지 않게.
+ * 문의한 공고를 모르면(공고 없이 보낸 글) 어느 공고 지급이든
+ */
+export function paidAfterAsk(
+  ask: { from_admin: boolean; body: string; created_at: string; job_id?: string | null },
+  msgs: readonly { from_admin: boolean; body: string; created_at: string; job_id?: string | null }[],
+): boolean {
+  if (ask.from_admin || !isPayLateAsk(ask.body)) return false
+  return msgs.some((m) => m.from_admin && m.body.startsWith(SIGNAL.paid) && m.created_at > ask.created_at && (!ask.job_id || !m.job_id || m.job_id === ask.job_id))
+}
 /** 위 문구 뒤에 붙는 대금 표시 ('개막식 음향 · 1,500,000원') */
 export const invoiceTag = (title: string, amountText: string) => `${title} · ${amountText}`
 
@@ -141,7 +154,7 @@ export function askTag(body: string): { label: string; urgent: boolean } | null 
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
   if (head.startsWith(ASK_INVOICE)) return { label: '계산서', urgent: false }
   if (head.startsWith(ASK_PAYDUE)) return { label: '대금 문의', urgent: false }
-  if (head.startsWith(ASK_PAYLATE.slice(0, 12))) return { label: '급여 문의', urgent: true }
+  if (isPayLateAsk(head)) return { label: '급여 문의', urgent: true }
   return null
 }
 

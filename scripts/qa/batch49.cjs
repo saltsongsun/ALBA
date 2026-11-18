@@ -28,7 +28,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
     return p
   }
-  const chips = (p) => p.locator('[data-quick-replies] button').allInnerTexts()
+  const chips = (p) => p.locator('[data-quick-lead], [data-quick-replies] button').allInnerTexts()
   const fade = (loc) => loc.evaluate((el) => { const s = getComputedStyle(el); return { s: s.getPropertyValue('--fade-s').trim(), e: s.getPropertyValue('--fade-e').trim(), mask: s.maskImage || s.webkitMaskImage, over: el.scrollWidth > el.clientWidth + 1 } })
 
   // ── 1. 새 회원: 해피워크 고객센터 ──
@@ -38,7 +38,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const nc = await chips(n)
   ok("고객센터: '지원은 어떻게 하나요?' 같은 앱 사용 문의", nc.some((t) => t.includes('지원은 어떻게 하나요?')) && nc.some((t) => t.includes('회원 탈퇴')), nc.join(' / '))
   ok("고객센터엔 근무 날 문의('조금 늦을 것 같아요')가 없음", !nc.some((t) => t.includes('조금 늦을 것 같아요')))
-  await n.locator('[data-quick-replies] button', { hasText: '지원은 어떻게 하나요?' }).click()
+  await n.locator('[data-quick-lead], [data-quick-replies] button', { hasText: '지원은 어떻게 하나요?' }).click()
   const box = n.locator('textarea[name=body]').first()
   ok('누르면 입력칸에 채워짐', (await box.inputValue()).includes('지원은 어떻게 하나요?'), await box.inputValue())
 

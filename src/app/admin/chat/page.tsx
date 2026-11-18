@@ -16,7 +16,7 @@ import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
 import { ConfirmSubmit, ShareButton } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
-import { ASK_INVOICE, askTag, isQuietNotice, needsReply } from '@/lib/signals'
+import { ASK_INVOICE, askTag, isQuietNotice, needsReply, paidAfterAsk, SIGNAL } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -27,6 +27,7 @@ type Row = {
   body: string
   created_at: string
   read_at: string | null
+  job_id?: string | null
   user: { id: string; name: string; phone: string; photo_at: string | null; member_type?: string | null } | null
 }
 
@@ -53,7 +54,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       [false, true].map((fromAdmin) =>
         db()
           .from('messages')
-          .select('id, thread_user_id, from_admin, body, created_at, read_at, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at, member_type)')
+          .select('id, thread_user_id, from_admin, body, created_at, read_at, job_id, user:users!messages_thread_user_id_fkey(id, name, phone, photo_at, member_type)')
           .eq('company_id', admin.companyId)
           .eq('from_admin', fromAdmin)
           .order('created_at', { ascending: false })
@@ -77,11 +78,13 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   // 대화마다: 사람이 직접 쓴 마지막 글(근무자 글 · 담당자가 직접 쓴 답장) · 자동 안내 수
   // 목록은 직접 쓴 마지막 글로 줄 세우고 미리보기도 그 글로 (자동 안내가 나중에 와도 위로 올라오지 않게)
   // 자동 안내만 있는 대화는 맨 아래 '알림만 보낸 대화'로 접어 둠
-  const threads = new Map<string, { last: Row; real: Row | null; unread: number; auto: number; user: Row['user'] }>()
+  // pays: '💸 급여 지급' 안내 — 급여 문의 뒤에 지급했으면 답한 것으로 ('✓ 지급함' · 답장 전에서 빠짐)
+  const threads = new Map<string, { last: Row; real: Row | null; unread: number; auto: number; user: Row['user']; pays: Row[] }>()
   for (const r of rows) {
-    const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, real: null, unread: 0, auto: 0, user: null }).get(r.thread_user_id)!
+    const t = threads.get(r.thread_user_id) ?? threads.set(r.thread_user_id, { last: r, real: null, unread: 0, auto: 0, user: null, pays: [] }).get(r.thread_user_id)!
     t.user ??= r.user
     if (!r.from_admin && !r.read_at) t.unread++
+    if (r.from_admin && r.body.startsWith(SIGNAL.paid)) t.pays.push(r)
     if (isQuietNotice(r)) t.auto++
     else t.real ??= r
   }
@@ -90,7 +93,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   // 직접 쓴 글이 있는 대화 (그 글이 최근인 순서)
   const all = every
     .filter((t) => t.real)
-    .map((t) => ({ last: { ...t.real!, user: t.user }, unread: t.unread }))
+    .map((t) => ({ last: { ...t.real!, user: t.user }, unread: t.unread, paid: paidAfterAsk(t.real!, t.pays) }))
     .sort((a, b) => b.last.created_at.localeCompare(a.last.created_at))
   // 우리가 보낸 자동 안내만 있는 대화 (근무자가 답하면 위로 올라감)
   const autoOnly = every.filter((t) => !t.real)
@@ -116,7 +119,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const found = all.filter(matches)
   // 답장 전: 근무자가 마지막으로 보낸 글을 읽기만 하고 답하지 않은 대화 (최근 7일 · 알리기만 하는 글은 빼고) — 읽고 나면 빨간 숫자가 사라져 묻히기 쉬움
   const noReplySince = Date.now() - 7 * 86_400_000
-  const noReply = (t: { last: Row; unread: number }) => !t.last.from_admin && t.unread === 0 && needsReply(t.last.body) && Date.parse(t.last.created_at) >= noReplySince
+  const noReply = (t: { last: Row; unread: number; paid?: boolean }) => !t.last.from_admin && !t.paid && t.unread === 0 && needsReply(t.last.body) && Date.parse(t.last.created_at) >= noReplySince
   const noReplyCount = found.filter(noReply).length
   const list = onlyUnread ? found.filter((t) => t.unread > 0) : onlyNoReply ? found.filter(noReply) : found
   // 알림만 보낸 대화: 안 읽음·답장 전으로 거를 때는 숨김 (근무자 글이 없어 해당 없음) · 검색하면 거기서도 찾음
@@ -303,7 +306,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         )
       ) : (
         <div className="stagger space-y-2">
-          {list.map(({ last, unread }) => (
+          {list.map(({ last, unread, paid }) => (
             <Link key={last.thread_user_id} data-inbox-row={last.thread_user_id} href={`/admin/chat/${last.thread_user_id}`} className="card-link flex items-center gap-3 p-4">
               <span className="relative shrink-0">
                 <Avatar id={last.user!.id} name={last.user!.name} photoAt={last.user!.photo_at} zoom={false} />
@@ -331,7 +334,8 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                     const hit = term && !last.user!.name.toLowerCase().includes(low) ? hitOf.get(last.thread_user_id) : undefined
                     const m = hit ?? last
                     // 바로 처리할 요청이면 종류를 짧게 (출근 확인 · 출근 기록 · 기록 정정 · 확정 문의 · 계산서) — 머리말 줄은 같은 말이라 빼고 내용만
-                    const tag = !hit && !m.from_admin ? askTag(m.body) : null
+                    // 급여 문의 뒤에 지급까지 했으면 빨간 '급여 문의' 대신 '✓ 지급함'
+                    const tag = !hit && !m.from_admin ? (paid ? { label: '✓ 지급함', urgent: false, done: true } : askTag(m.body)) : null
                     // 머리말과 같은 말은 빼고 내용만 (계산서: '개막식 음향 · 1,500,000원')
                     const rest = tag && /^(📍|✏️)/.test(m.body) ? m.body.split('\n').slice(1).join(' ').trim() : tag && m.body.startsWith(ASK_INVOICE) ? m.body.slice(ASK_INVOICE.length).trim() : ''
                     return (
@@ -340,7 +344,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                         {hit && <span className="mr-1 rounded bg-amber-100 px-1 text-[11px] font-bold text-amber-800">찾은 말</span>}
                         {tag && (
                           <>
-                            <span className={`rounded px-1 text-[11px] font-bold ${tag.urgent ? 'bg-rose-50 text-rose-600' : 'bg-brand-50 text-brand-700'}`} data-inbox-tag={tag.urgent ? 'urgent' : 'ask'}>
+                            <span className={`rounded px-1 text-[11px] font-bold ${tag.urgent ? 'bg-rose-50 text-rose-600' : 'done' in tag ? 'bg-emerald-50 text-emerald-700' : 'bg-brand-50 text-brand-700'}`} data-inbox-tag={tag.urgent ? 'urgent' : 'done' in tag ? 'paid' : 'ask'}>
                               {tag.label}
                             </span>{' '}
                           </>
@@ -353,7 +357,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                     <span className="grid h-5 min-w-5 shrink-0 animate-pop place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white">{unread}</span>
                   ) : (
                     // 읽었지만 아직 답하지 않음
-                    noReply({ last, unread }) && (
+                    noReply({ last, unread, paid }) && (
                       <span className="shrink-0 text-[11px] font-bold whitespace-nowrap text-amber-700" data-inbox-noreply>
                         답장 전
                       </span>

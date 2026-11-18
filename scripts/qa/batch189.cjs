@@ -68,7 +68,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   // ── 2. '담당자에게 문의' → 확정 여부를 묻는 말이 첫 빠른 답
   await soon.click() // 줄 전체가 누르는 곳 (묶음 192)
   await p.waitForURL((u) => u.pathname === '/me/chat' && u.searchParams.get('ask') === 'confirm', { timeout: 15000 }).catch(() => {})
-  const chips = p.locator('[data-quick-replies] button')
+  const chips = p.locator('[data-quick-lead], [data-quick-replies] button')
   await chips.first().waitFor({ timeout: 15000 }).catch(() => {})
   await p.waitForLoadState('networkidle').catch(() => {})
   const texts = (await chips.allInnerTexts()).map(one)

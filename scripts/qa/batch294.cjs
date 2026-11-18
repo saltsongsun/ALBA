@@ -48,7 +48,7 @@ const notes = async (uid) => (await rest(`messages?thread_user_id=eq.${uid}`)).f
   }
   const ask = async (p) => {
     await p.goto(`${D}/me/chat?job=${J}&ask=confirm`, { waitUntil: 'networkidle' })
-    const chip = p.locator('[data-quick-replies] button').first()
+    const chip = p.locator('[data-quick-lead], [data-quick-replies] button').first()
     await chip.waitFor({ timeout: 15000 }).catch(() => {})
     await chip.click()
     await p.locator('textarea[name=body]').press('Enter')

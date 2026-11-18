@@ -11,7 +11,7 @@ import { maskAccount, smsHead, won } from '@/lib/format'
 import { calcDay, settle, TAX_LABEL, workingToday, roundCut } from '@/lib/pay'
 import { fmtDate, kstDate, kstDateTime, minutesText } from '@/lib/time'
 import { paydayDate, paydayGuess } from '@/lib/payday'
-import { parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_PAYLATE, isPayLateAsk, parsePayday, SIGNAL } from '@/lib/signals'
 import type { Attendance, Job, VendorPayment } from '@/lib/types'
 import { db } from '@/lib/db'
 import { payState } from '@/lib/vendors'
@@ -30,7 +30,7 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
   const userIds = [...new Set(atts.map((a) => a.user_id))]
   // 아래 조회들은 서로 기다릴 필요가 없어서 한 번에 출발 (예전: 외주 비용 → 업체 이름 → 주휴 → 계좌 요청 → 정산일 안내를 차례로)
   const noAccountIds = userIds.filter((uid) => !users.get(uid)?.bank_account_enc)
-  const [{ vpays, vnames }, weekly, accountAt, lastPayday] = await Promise.all([
+  const [{ vpays, vnames }, weekly, accountAt, lastPayday, payAsked] = await Promise.all([
     // 이 행사의 외주 비용 (협력업체 대금) → 인건비와 합쳐 행사 비용 합계
     db()
       .from('vendor_payments')
@@ -67,6 +67,21 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
             return m ? { label: parsePayday(m.body), at: kstDateTime(m.created_at), day: kstDate(new Date(m.created_at)) } : null
           })
       : Promise.resolve(null),
+    // 근무자가 '지난 근무'에서 보낸 급여 문의 (정산일이 지났는데 안 들어왔어요) — 이 공고 · 우리 회사 문의함에서만
+    userIds.length
+      ? db()
+          .from('messages')
+          .select('thread_user_id, body')
+          .eq('company_id', job.company_id)
+          .eq('job_id', job.id)
+          .eq('from_admin', false)
+          .like('body', `${ASK_PAYLATE.slice(0, 12)}%`)
+          .limit(500)
+          .then(
+            (r) => new Set(((r.data ?? []) as { thread_user_id: string; body: string }[]).filter((m) => isPayLateAsk(m.body)).map((m) => m.thread_user_id)),
+            () => new Set<string>(),
+          )
+      : Promise.resolve(new Set<string>()),
   ])
   const wk = (a: Attendance) => ({ ...a, weekly_pay: weekly.get(a.id) ?? 0 })
   const rows = userIds
@@ -344,6 +359,12 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
                       </label>
                     )}
                     <Link href={`/admin/workers/${r.uid}`}>{r.user?.name}</Link>
+                    {/* 급여가 늦었다고 물어본 사람 (지급 전일 때만) → 그 대화로 · 지급 완료하면 사라짐 */}
+                    {payAsked.has(r.uid) && !r.paid && (
+                      <Link href={`/admin/chat/${r.uid}`} className="mt-0.5 flex w-fit animate-pop items-center gap-1 rounded-md bg-rose-50 px-1.5 py-0.5 text-[11px] font-bold text-rose-600" data-pay-asked>
+                        💬 급여 문의
+                      </Link>
+                    )}
                     {/* 지난 정산도 출근·퇴근 시각·휴게·추가 지급·공제를 고칠 수 있게: 그날 기록 수정 칸으로 (저장하면 정산 탭으로 돌아옴) */}
                     <span className="mt-0.5 flex flex-wrap gap-x-2 text-xs font-semibold" data-pay-edit>
                       {(() => {
