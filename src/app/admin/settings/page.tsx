@@ -8,9 +8,7 @@ import Team from './Team'
 import ThemeToggle from '@/components/ThemeToggle'
 import Icon from '@/components/Icon'
 import { isUuid } from '@/lib/validate'
-import LedgerPanel from '../LedgerPanel'
-import { proxySecret } from '@/lib/gsheets'
-import { bridgeScript } from '@/lib/ledger-script'
+import { LedgerLink } from '../LedgerPanel'
 import { isLedgerCompany, ledgerStatus } from '@/lib/ledger'
 
 export const metadata: Metadata = { title: '회사 설정' }
@@ -56,7 +54,8 @@ export default async function SettingsPage(props: PageProps<'/admin/settings'>) 
         companyId={admin.companyId}
         backJob={typeof sp.job === 'string' && isUuid(sp.job) ? sp.job : undefined}
       />
-      {ledger && <LedgerPanel status={ledger} from="/admin/settings#ledger" full code={ledger.configured ? undefined : bridgeScript(proxySecret())} />}
+      {/* 대금 시트(거래장부) 연동: 장부 회사 관리자에게만 한 줄 → 연동 화면 */}
+      {ledger && <LedgerLink status={ledger} />}
       {/* 이 휴대폰 화면 설정 (회사 설정과 별개) */}
       <div className="card p-4">
         <ThemeToggle />

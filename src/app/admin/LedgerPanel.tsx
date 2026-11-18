@@ -55,7 +55,7 @@ export default function LedgerPanel({
         {status.configured ? (
           button
         ) : (
-          <Link href="/admin/settings#ledger" className="tap shrink-0 font-bold text-sky-700" data-ledger-setup>
+          <Link href="/admin/ledger" className="tap shrink-0 font-bold text-sky-700" data-ledger-setup>
             연결하기 →
           </Link>
         )}
@@ -132,6 +132,22 @@ export async function LedgerToday({ companyId }: { companyId: string }) {
         <span className="block truncate text-[13px]">{text}</span>
       </span>
       <span aria-hidden className="shrink-0">›</span>
+    </Link>
+  )
+}
+
+/** 회사 설정 한 줄: 대금 시트 연동 상태 → 연동 화면 (연결 방법·코드 복사·지금 연동·기록은 그 화면에) */
+export function LedgerLink({ status }: { status: LedgerStatus }) {
+  const last = status.last
+  return (
+    <Link href="/admin/ledger" id="ledger" className="card flex min-w-0 scroll-mt-24 items-center gap-2 py-3 text-sm active:bg-bg" data-ledger-link={status.configured ? 'on' : 'off'}>
+      <span aria-hidden>📒</span>
+      <b className="shrink-0">대금 시트 연동</b>
+      <span className={`min-w-0 flex-1 truncate text-xs ${status.configured ? (last && !last.ok ? 'font-semibold text-rose-600' : 'text-sub') : 'text-sub'}`}>
+        {!status.configured ? '연결 전 · 연결 방법' : last ? `${kstDateTime(last.at)} ${last.ok ? '맞춤' : '실패'}` : '연결됨'}
+      </span>
+      <span className={`badge shrink-0 ${status.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-sub'}`}>{status.configured ? '연결됨' : '연결 전'}</span>
+      <span aria-hidden className="shrink-0 text-mute">›</span>
     </Link>
   )
 }

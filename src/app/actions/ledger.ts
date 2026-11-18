@@ -10,7 +10,7 @@ import { requireAdmin } from '@/lib/session'
 /** 돌아갈 화면 (관리자 화면 안의 주소만) */
 function backTo(form: FormData): string {
   const p = String(form.get('from') ?? '')
-  return /^\/admin(\/[\w\-/]*)?(\?[\w=&\-]*)?(#[\w-]*)?$/.test(p) ? p : '/admin/settings'
+  return /^\/admin(\/[\w\-/]*)?(\?[\w=&\-]*)?(#[\w-]*)?$/.test(p) ? p : '/admin/ledger'
 }
 function back(path: string, msg: string): never {
   const [base, hash] = path.split('#')

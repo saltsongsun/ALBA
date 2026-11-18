@@ -153,12 +153,14 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   }
   const a = await mk(A)
 
-  // ── 1. 회사 설정: 대금 시트 카드 (연결됨 · 아직 맞춘 적 없음)
+  // ── 1. 회사 설정: 한 줄 '📒 대금 시트 연동 · 연결됨' → 연동 화면 카드 (아직 맞춘 적 없음)
   await a.goto(`${D}/admin/settings`, { waitUntil: 'networkidle' })
-  const card = a.locator('[data-ledger-card]')
-  ok("회사 설정 '📒 대금 시트 연동' 카드 · 연결됨", (await card.count()) === 1 && (await card.locator('[data-ledger-state="on"]').count()) === 1)
-  ok("마지막: '아직 맞춘 적 없어요'", one(await card.locator('[data-ledger-last]').textContent()).includes('아직 맞춘 적 없어요'))
+  const link = a.locator('[data-ledger-link]')
+  ok("회사 설정 한 줄 '대금 시트 연동 · 연결됨' → 연동 화면", (await link.getAttribute('data-ledger-link')) === 'on' && (await link.getAttribute('href')) === '/admin/ledger' && (await link.evaluate((el) => el.getBoundingClientRect().height < 60)))
   ok('360px 옆으로 안 밀림 (설정)', await noSide(a))
+  await a.goto(`${D}/admin/ledger`, { waitUntil: 'networkidle' })
+  const card = a.locator('[data-ledger-card]')
+  ok("연동 화면 카드 · 연결됨 · '아직 맞춘 적 없어요'", (await card.locator('[data-ledger-state="on"]').count()) === 1 && one(await card.locator('[data-ledger-last]').textContent()).includes('아직 맞춘 적 없어요'))
 
   // ── 2. 정산 탭 한 줄 → 지금 연동
   await a.goto(`${D}/admin/jobs/${JL1}?tab=pay`, { waitUntil: 'networkidle' })
@@ -232,7 +234,7 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   await rest(`attendance?id=eq.${a3}`, 'PATCH', { clock_out: `${kday(-1)}T18:00:00+09:00` })
   await g('/_set', { tab: T05, rows: 14, cells: { '12,14': '대표님 메모' } })
   const s3 = await g('/_dump')
-  await a.goto(`${D}/admin/settings`, { waitUntil: 'networkidle' })
+  await a.goto(`${D}/admin/ledger`, { waitUntil: 'networkidle' })
   await a.locator('[data-ledger-card] button[type=submit]').click()
   await a.waitForURL(/m=/, { timeout: 30000 }).catch(() => {})
   const flash3 = decodeURIComponent(new URL(a.url()).searchParams.get('m') ?? '')
@@ -240,7 +242,7 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   ok('13줄에 메모 → 실패 알림 · 시트 전부 그대로 (03에도 안 씀)', flash3.startsWith('대금 시트 연동 실패 · 05)일용직거래장부 13줄이 비어 있지 않아') && JSON.stringify(s4) === JSON.stringify(s3), flash3)
   await g('/_set', { tab: T05, cells: { '12,14': null } })
   // 알림 글을 보여 준 뒤 주소의 m=은 지워지므로, 버튼이 보낸 요청의 응답을 기다림
-  await a.goto(`${D}/admin/settings`, { waitUntil: 'networkidle' })
+  await a.goto(`${D}/admin/ledger`, { waitUntil: 'networkidle' })
   const syncs = async () => (await rest('audit_logs')).filter((l) => l.action === 'ledger.sync').length
   const before4 = await syncs()
   await a.locator('[data-ledger-card] button[type=submit]').click()
@@ -267,8 +269,9 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
     await first.evaluate((el) => el.scrollIntoView({ block: 'start' }))
     await a.waitForTimeout(300)
     await a.screenshot({ path: `${SHOTS}/ledger-history.png` })
-    await a.goto(`${D}/admin/settings#ledger`, { waitUntil: 'networkidle' })
-    await a.locator('[data-ledger-card]').screenshot({ path: `${SHOTS}/settings-card.png` }).catch(() => {})
+    await a.locator('[data-ledger-card]').screenshot({ path: `${SHOTS}/ledger-card.png` }).catch(() => {})
+    await a.goto(`${D}/admin/settings`, { waitUntil: 'networkidle' })
+    await a.locator('[data-ledger-link]').screenshot({ path: `${SHOTS}/settings-link.png` }).catch(() => {})
   }
 
   // ── 10. 관리자에게만: 근무자 · 다른 회사 관리자에겐 없음
@@ -279,7 +282,7 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   }
   const a2 = await mk(A2)
   await a2.goto(`${D}/admin/settings`, { waitUntil: 'networkidle' })
-  ok('다른 회사 관리자: 설정에 대금 시트 카드 없음', (await a2.locator('[data-ledger-card]').count()) === 0)
+  ok('다른 회사 관리자: 설정에 대금 시트 줄 없음', (await a2.locator('[data-ledger-card], [data-ledger-link]').count()) === 0)
   await a2.goto(`${D}/admin`, { waitUntil: 'networkidle' })
   ok('다른 회사 관리자: 홈에 오늘 대금 시트 없음', (await a2.locator('[data-ledger-today]').count()) === 0)
   await a2.goto(`${D}/admin/ledger`, { waitUntil: 'networkidle' })
@@ -302,7 +305,9 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   await offCtx.addCookies([{ name: 'alba_session', value: cookie(A), url: 'http://127.0.0.1:3007' }])
   const off = await offCtx.newPage()
   off.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
-  await off.goto('http://127.0.0.1:3007/admin/settings#ledger', { waitUntil: 'networkidle' })
+  await off.goto('http://127.0.0.1:3007/admin/settings', { waitUntil: 'networkidle' })
+  ok("연결 전 회사 설정: '대금 시트 연동 · 연결 전' 한 줄", (await off.locator('[data-ledger-link]').getAttribute('data-ledger-link')) === 'off' && !(await off.content()).includes(BRIDGE))
+  await off.goto('http://127.0.0.1:3007/admin/ledger', { waitUntil: 'networkidle' })
   const offCard = off.locator('[data-ledger-card]')
   ok("연결 전: '연결 전' · 방법 4단계 · '연결 코드 복사'", (await offCard.locator('[data-ledger-state="off"]').count()) === 1 && (await offCard.locator('[data-ledger-howto] li').count()) === 4 && (await offCard.locator('[data-copy-code]').count()) === 1)
   await offCard.locator('[data-copy-code]').click()
@@ -313,7 +318,7 @@ const sameCells = (a, b, tab, maxRow) => Object.keys(a[tab].cells).filter((k) =>
   if (SHOTS) await offCard.screenshot({ path: `${SHOTS}/settings-card-off.png` }).catch(() => {})
   const offA2 = await offCtx.newPage()
   await offCtx.addCookies([{ name: 'alba_session', value: cookie(A2), url: 'http://127.0.0.1:3007' }])
-  await offA2.goto('http://127.0.0.1:3007/admin/settings', { waitUntil: 'networkidle' })
+  await offA2.goto('http://127.0.0.1:3007/admin/ledger', { waitUntil: 'networkidle' })
   ok('다른 회사 관리자에겐 연결 코드 없음', (await offA2.locator('[data-ledger-card], [data-copy-code]').count()) === 0 && !(await offA2.content()).includes(BRIDGE))
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

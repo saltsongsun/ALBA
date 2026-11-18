@@ -57,7 +57,7 @@ export default async function LedgerPage(props: { searchParams: Promise<Record<s
     <div className="mx-auto max-w-3xl space-y-4" data-ledger-page>
       <Flash m={sp.m} />
       <div>
-        <Link href="/admin/settings#ledger" className="tap text-sm font-semibold text-sub">
+        <Link href="/admin/settings" className="tap text-sm font-semibold text-sub">
           ‹ 회사 설정
         </Link>
         <h1 className="mt-1 text-2xl font-extrabold">대금 시트 연동 기록</h1>
