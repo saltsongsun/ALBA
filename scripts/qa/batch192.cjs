@@ -90,8 +90,11 @@ const tall = (loc) => loc.first().evaluate((el) => Math.round(el.getBoundingClie
   await soon.waitFor({ timeout: 15000 }).catch(() => {})
   const sBox = await soon.evaluate((el) => ({ tag: el.tagName, h: Math.round(el.getBoundingClientRect().height), w: Math.round(el.getBoundingClientRect().width), href: el.getAttribute('href') }))
   ok("'곧 시작인데 아직 확정 전이에요' 줄 전체가 누르는 곳 (40px 이상 · 카드 너비)", sBox.tag === 'A' && sBox.h >= 40 && sBox.w >= 280 && sBox.href === `/me/chat?job=${J}&ask=confirm`, JSON.stringify(sBox))
-  const cBox = await compact.evaluate((el) => ({ tag: el.tagName, h: Math.round(el.getBoundingClientRect().height), w: Math.round(el.getBoundingClientRect().width), href: el.getAttribute('href') }))
-  ok("'오늘 예정된 근무가 없어요' 한 줄 카드 전체가 누르는 곳", cBox.tag === 'A' && cBox.h >= 40 && cBox.w === 328 && cBox.href === '/' && one(await compact.innerText()) === '오늘 예정된 근무가 없어요 다른 알바 보기 →', JSON.stringify(cBox))
+  // (23시간 뒤 시작이 오늘이면 — 새벽 1시 전 — 누르는 줄 대신 '오늘 근무는 아직 확정 전이에요' 안내 줄: batch309)
+  if (kstDay(at) !== kstDay(now)) {
+    const cBox = await compact.evaluate((el) => ({ tag: el.tagName, h: Math.round(el.getBoundingClientRect().height), w: Math.round(el.getBoundingClientRect().width), href: el.getAttribute('href') }))
+    ok("'오늘 예정된 근무가 없어요' 한 줄 카드 전체가 누르는 곳", cBox.tag === 'A' && cBox.h >= 40 && cBox.w === 328 && cBox.href === '/' && one(await compact.innerText()) === '오늘 예정된 근무가 없어요 다른 알바 보기 →', JSON.stringify(cBox))
+  } else ok("(오늘 시작) '오늘 근무는 아직 확정 전이에요' 줄", (await p.locator('[data-today-empty=waiting]').count()) === 1)
   // 줄의 왼쪽(글자 없는 쪽)을 눌러도 문의로
   await soon.click({ position: { x: 20, y: sBox.h / 2 } })
   await p.waitForURL((u) => u.pathname === '/me/chat' && u.searchParams.get('ask') === 'confirm', { timeout: 15000 }).catch(() => {})

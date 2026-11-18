@@ -736,6 +736,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 남은 근무일이 오늘뿐인데 오늘 근무가 이미 시작함: 확정하면 바로 와야 해서 한 번 더 묻고 '전화로 확인' 안내 (알림만 믿고 기다리지 않게)
   // 겹침·인원·주휴처럼 다른 까닭이 있으면 확인 문구는 그쪽 (주황 줄은 따로 보임)
   const startedNow = (p: (typeof pendingApps)[number]) => !ended(p) && startedTodayOnly(p.job, p.available_dates, today)
+  // 오늘 하는 근무인데 아직 시작 전: 확정 대기 카드에 '오늘 HH:MM 시작' (여러 공고 지원자 중 먼저 정할 사람이 보이게)
+  const startsToday = (p: (typeof pendingApps)[number]) =>
+    !ended(p) &&
+    !startedNow(p) &&
+    (p.available_dates?.length ? p.available_dates.includes(today) : p.job.start_date <= today && p.job.end_date >= today) &&
+    Date.now() < kstAt(today, p.job.start_time).getTime()
   const confirmText = (p: (typeof pendingApps)[number]) =>
     ended(p)
       ? '끝난 행사 · 확정?'
@@ -813,6 +819,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         {ended(p) && (
           <span className="badge shrink-0 bg-bg text-mute" data-pending-ended>
             끝난 행사
+          </span>
+        )}
+        {startsToday(p) && (
+          <span className="badge shrink-0 bg-amber-50 text-amber-800" data-pending-today>
+            오늘 {hhmm(p.job.start_time)} 시작
           </span>
         )}
         {notedBadge(p)}

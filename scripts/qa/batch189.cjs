@@ -56,8 +56,10 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
     return { before: !!w && !!t && !!(w.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING), top: w ? Math.round(w.querySelector('[data-waiting-app]').getBoundingClientRect().top) : -1, bottom: w ? Math.round(w.querySelector('[data-waiting-app]').getBoundingClientRect().bottom) : -1 }
   })
   ok("'확정 대기' 칸이 '오늘의 근무' 위에 · 첫 화면 안에 다 보임 (아래 메뉴 위)", (await wait.getAttribute('data-waiting')) === 'first' && order.before && order.top > 0 && order.bottom < 660, JSON.stringify(order))
-  const compact = p.locator('[data-today-empty=compact]')
-  ok("'오늘의 근무'는 한 줄 안내로 (큰 빈 화면 그림 없음)", one(await compact.innerText().catch(() => '')) === '오늘 예정된 근무가 없어요 다른 알바 보기 →' && (await compact.evaluate((el) => el.getBoundingClientRect().height <= 56).catch(() => false)) && (await p.locator('[data-empty=schedule]').count()) === 0 && (await compact.getAttribute('href')) === '/', one(await compact.innerText().catch(() => '')))
+  // (23시간 뒤 시작이 오늘이면 — 새벽 1시 전 — '오늘 근무는 아직 확정 전이에요' 한 줄: batch309)
+  const sameDay = kstDay(at) === kstDay(now)
+  const compact = p.locator(sameDay ? '[data-today-empty=waiting]' : '[data-today-empty=compact]')
+  ok("'오늘의 근무'는 한 줄 안내로 (큰 빈 화면 그림 없음)", one(await compact.innerText().catch(() => '')) === (sameDay ? '오늘 근무는 아직 확정 전이에요 확정되면 바로 알려 드려요' : '오늘 예정된 근무가 없어요 다른 알바 보기 →') && (await compact.evaluate((el, max) => el.getBoundingClientRect().height <= max, sameDay ? 72 : 56).catch(() => false)) && (await p.locator('[data-empty=schedule]').count()) === 0 && (sameDay || (await compact.getAttribute('href')) === '/'), one(await compact.innerText().catch(() => '')))
   const soon = p.locator('[data-waiting-soon]')
   ok("곧 시작(하루 안): '곧 시작인데 아직 확정 전이에요 · 담당자에게 문의 →'", (await soon.getAttribute('data-waiting-soon')) === 'soon' && one(await soon.innerText()) === '곧 시작인데 아직 확정 전이에요 담당자에게 문의 →' && (await soon.getAttribute('href')) === `/me/chat?job=${J}&ask=confirm`, one(await soon.innerText().catch(() => '')))
   ok('한 줄 · 360px 옆으로 안 밀림', (await soon.evaluate((el) => el.getBoundingClientRect().height <= 44).catch(() => false)) && (await noSide(p)), String(await soon.evaluate((el) => Math.round(el.getBoundingClientRect().height)).catch(() => '')))
