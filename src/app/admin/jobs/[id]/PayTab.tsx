@@ -185,6 +185,15 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
           <div className="h-2 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="지급 진행" aria-valuenow={paidPct} aria-valuemin={0} aria-valuemax={100}>
             <div className="h-full origin-left rounded-full bg-emerald-500 transition-transform duration-500" style={{ transform: `scaleX(${paidPct / 100})` }} />
           </div>
+          {/* 모두 지급하면: 체크가 그려지며 한 줄 (마지막 한 명까지 끝났다는 걸 바로 알게) */}
+          {paidN === payable.length && (
+            <p className="flex animate-pop items-center justify-center gap-1.5 text-sm font-bold text-emerald-700" data-all-paid>
+              <svg viewBox="0 0 24 24" className="size-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M5 12.5l4.5 4.5L19 7.5" pathLength={1} className="check-draw" />
+              </svg>
+              모두 지급했어요
+            </p>
+          )}
           {/* 주휴수당이 붙은 사람 (같은 회사 여러 공고를 합쳐 주마다 확인 → 그 주 마지막 근무일 정산에 들어감) */}
           {(() => {
             const wp = rows.filter((r) => r.s.weeklyPay > 0)

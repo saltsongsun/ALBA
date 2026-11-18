@@ -302,25 +302,33 @@ export async function lapsedWaiting(companyId: string, today: string): Promise<{
 export async function otherCompaniesTodo(
   companies: { id: string; name: string }[],
   currentId: string,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number }[]> {
+  /** 관리자 홈에서만: 약속한 정산일이 오늘이거나 지났는데 지급 전인 근무자 수 (메뉴의 회사 바꾸기에서는 묻지 않음 — 화면마다 느려지지 않게) */
+  withPay = false,
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, now, lapsed] = await Promise.all([
+      const [n, now, lapsed, payLate] = await Promise.all([
         unreadForAdmins(c.id).catch(() => 0),
         companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0 })),
         lapsedWaiting(c.id, today).then(
           (l) => l.reduce((t, j) => t + j.n, 0),
           () => 0,
         ),
+        withPay
+          ? unpaidByJob(c.id, today).then(
+              (u) => Object.values(u).reduce((t, j) => t + (j.payday && j.payday <= today ? j.n : 0), 0),
+              () => 0,
+            )
+          : 0,
       ])
-      return { id: c.id, name: c.name, n, ...now, lapsed }
+      return { id: c.id, name: c.name, n, ...now, lapsed, payLate }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0)
 }
 
 /**

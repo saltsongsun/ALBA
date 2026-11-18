@@ -174,7 +174,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       ).catch(() => null)
   // 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (바로 그 회사로 바꿔 보기)
   // 여러 회사를 맡았으면: 다른 회사의 새 문의 + 확정을 기다리는 지원자 (회사를 바꿔 보지 않아도 알게)
-  const othersP = admin.companies.length > 1 ? otherCompaniesTodo(admin.companies, admin.companyId).catch(() => []) : Promise.resolve([])
+  const othersP = admin.companies.length > 1 ? otherCompaniesTodo(admin.companies, admin.companyId, true).catch(() => []) : Promise.resolve([])
   // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
   vendorP.catch(() => {})
   const today = kstDate()
@@ -997,7 +997,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
           </span>
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany} className="max-w-full">
@@ -1005,6 +1005,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
               {/* 누르면 그 회사로: 새 문의 n · 확정을 기다리는 지원자 n (있는 것만) */}
               <SubmitButton className="chip max-w-full" pendingText="바꾸는 중…" track="다른 회사 문의로 바꾸기">
                 <span className="min-w-0 truncate">{c.name}</span>
+                {/* 그 회사에서 근무자에게 약속한 정산일이 오늘이거나 지났는데 아직 지급 전 (회사를 바꾸면 '급여 지급 전' 할 일에 빨갛게) */}
+                {c.payLate > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-paylate>
+                    정산일 지남 <b className="text-rose-600">{c.payLate}</b>
+                  </span>
+                )}
                 {c.n > 0 && (
                   <span className="shrink-0 whitespace-nowrap" data-other-unread-n>
                     문의 <b className="text-rose-600">{c.n}</b>
