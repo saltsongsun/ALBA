@@ -843,3 +843,42 @@ export function AdminDocsSkeleton() {
     </div>
   )
 }
+
+/** 대금 시트 연동 기록: 제목 · 연결 카드(상태 · 마지막 연동 · 버튼) · 날짜별 연동 줄(점 · 시각 · 결과 한 줄) */
+export function LedgerSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="대금 시트 연동 기록 불러오는 중" className="skeleton mx-auto max-w-3xl space-y-4" data-skeleton="ledger">
+      <div className="space-y-2">
+        <div className={`h-3.5 w-16 ${bar}`} />
+        <div className={`h-7 w-48 ${bar}`} />
+        <div className={`h-3.5 w-64 max-w-full ${bar}`} />
+      </div>
+      <div className="card space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="space-y-1.5">
+            <div className={`h-5 w-32 ${bar}`} />
+            <div className={`h-3 w-48 ${bar}`} />
+          </div>
+          <div className={`h-6 w-14 rounded-full ${bar}`} />
+        </div>
+        {[0, 1, 2].map((i) => (
+          <div key={i} className={`h-3.5 ${i === 2 ? 'w-2/3' : 'w-5/6'} ${bar}`} />
+        ))}
+        <div className="flex items-center gap-2">
+          <div className={`h-3 flex-1 ${bar}`} />
+          <div className={`h-11 w-32 rounded-xl ${bar}`} />
+        </div>
+      </div>
+      <div className={`h-5 w-12 ${bar}`} />
+      {[0, 1, 2].map((i) => (
+        <div key={i} className="card flex items-start gap-2 py-3">
+          <div className={`mt-1.5 size-2 rounded-full ${bar}`} />
+          <div className="flex-1 space-y-1.5">
+            <div className={`h-4 w-32 ${bar}`} />
+            <div className={`h-3.5 w-4/5 ${bar}`} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}

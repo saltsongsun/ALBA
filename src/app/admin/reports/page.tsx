@@ -9,6 +9,7 @@ import Empty from '@/components/Empty'
 import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import ReportDownloads from '@/components/ReportDownloads'
+import { isLedgerCompany } from '@/lib/ledger'
 
 export const metadata: Metadata = { title: '정산 · 신고자료' }
 
@@ -30,7 +31,14 @@ const ACTIONS: Record<string, string> = {
   'export.business_income': '사업소득 자료 내려받기',
   'export.other_income': '기타소득 자료 내려받기',
   'export.employment': '근로내용확인신고 자료 내려받기',
+  // 대금 시트(거래장부)로 근무자의 주민번호·계좌를 보낸 것 (개인정보 제공) — 나머지 장부 연동 기록은 연동 화면에
+  'ledger.worker': '거래장부에 근무자 등록',
 }
+
+/** 대금 시트 연동의 일상 기록(맞춤·장부 줄·입금확인·프로젝트) — 개인정보 처리 기록이 아니라 연동 화면(/admin/ledger)에서 봄 */
+const LEDGER_ROUTINE = ['ledger.sync', 'ledger.export', 'ledger.paid', 'ledger.project']
+/** 기록 글의 기계용 조각(job=… · user=… · run=…)은 빼고 보여 줌 */
+const cleanDetail = (d: string) => d.replace(/ · [a-z]+=\S+/g, '').trim()
 
 function shiftMonth(ym: string, delta: number): string {
   const [y, m] = ym.split('-').map(Number)
@@ -43,16 +51,17 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
   const sp = await props.searchParams
   const thisMonth = kstDate().slice(0, 7)
   const month = typeof sp.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) ? sp.month : thisMonth
-  const [rows, logs] = await Promise.all([
+  const [rows, logs, ledgerOn] = await Promise.all([
     monthlyRows(month, admin.companyId),
     db()
       .from('audit_logs')
       .select('id, action, detail, ip, created_at, actor:users!audit_logs_actor_id_fkey(name), target:users!audit_logs_target_user_id_fkey(name)').eq('company_id', admin.companyId)
+      .not('action', 'in', `(${LEDGER_ROUTINE.map((a) => `"${a}"`).join(',')})`)
       .order('created_at', { ascending: false })
       .limit(40)
       .then(
         (r) =>
-          must(r) as unknown as {
+          (must(r) as unknown as {
             id: number
             action: string
             detail: string | null
@@ -60,8 +69,10 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
             created_at: string
             actor: { name: string } | null
             target: { name: string } | null
-          }[],
+          }[]
+          ).filter((l) => !LEDGER_ROUTINE.includes(l.action)),
       ),
+    isLedgerCompany(admin.companyId).catch(() => false),
   ])
   // 이 달 기록이 없으면: 기록이 있는 가장 최근 달 (월초에 열면 늘 비어 있어 지난달로 넘겨야 했음)
   const latestMonth =
@@ -303,7 +314,12 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
                   <td>{l.actor?.name ?? '-'}</td>
                   <td>
                     {ACTIONS[l.action] ?? l.action}
-                    {l.detail && <span className="ml-1 text-mute">{l.detail}</span>}
+                    {/* 장부 근무자 등록: 무엇을 보냈는지만 짧게 (이름은 '대상' 칸에 있음) */}
+                    {l.action === 'ledger.worker' ? (
+                      <span className="ml-1 text-mute">주민번호·계좌</span>
+                    ) : (
+                      l.detail && <span className="ml-1 text-mute">{cleanDetail(l.detail)}</span>
+                    )}
                   </td>
                   <td>{l.target?.name ?? ''}</td>
                   <td className="text-mute">{l.ip}</td>
@@ -314,6 +330,12 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         </div>
         </div>
         <p className="hint">개인정보의 안전성 확보조치 기준에 따라 접속·처리 기록은 1년 이상 보관하세요.</p>
+        {/* 대금 시트 연동의 매일 기록(맞춤·장부 줄·입금확인)은 여기 대신 연동 화면에 */}
+        {ledgerOn && (
+          <Link href="/admin/ledger" className="tap mt-1 inline-block text-sm font-semibold text-brand-600" data-audit-ledger-link>
+            📒 대금 시트 연동 기록은 연동 화면에서 →
+          </Link>
+        )}
       </details>
     </div>
   )
