@@ -882,3 +882,23 @@ export function LedgerSkeleton() {
     </div>
   )
 }
+
+/** 현장 긴급 투입 (QR로 들어온 화면): 공고 카드(긴급 · 제목 · 회사 · 일정 · 시급) + 합류 카드 — 현장 데이터가 느려도 바로 모양이 보이게 */
+export function JoinSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="긴급 투입 불러오는 중" className="skeleton space-y-4" data-skeleton="join">
+      <div className="card space-y-2.5 text-center">
+        <div className="mx-auto h-4 w-24 rounded bg-rose-500/15" />
+        <div className={`mx-auto h-6 w-3/4 ${bar}`} />
+        <div className={`mx-auto h-4 w-28 ${bar}`} />
+        <div className={`mx-auto h-4 w-1/2 ${bar}`} />
+        <div className={`mx-auto h-5 w-32 ${bar}`} />
+      </div>
+      <div className="card space-y-3">
+        <div className={`mx-auto h-5 w-2/3 ${bar}`} />
+        <div className={`mx-auto h-4 w-5/6 ${bar}`} />
+        <div className="h-12 rounded-2xl bg-line/60" />
+      </div>
+    </div>
+  )
+}

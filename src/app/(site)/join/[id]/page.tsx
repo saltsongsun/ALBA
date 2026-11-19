@@ -4,7 +4,8 @@ import { notFound } from 'next/navigation'
 import { joinNow } from '@/app/actions/worker'
 import { wageBadge } from '@/components/JobCard'
 import { SubmitButton } from '@/components/ui'
-import { getJob } from '@/lib/data'
+import { getJob, getSettings } from '@/lib/data'
+import { workerInCompany } from '@/lib/company'
 import { db } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { joinOk } from '@/lib/emergency'
@@ -22,6 +23,11 @@ export default async function JoinPage(props: PageProps<'/join/[id]'>) {
   const code = typeof sp.c === 'string' ? sp.c.slice(0, 40) : ''
   const [job, user] = await Promise.all([getJob(id), getUser()])
   if (!job || job.status === 'draft') notFound()
+  // 현장 QR로 처음 오는 사람도 어느 회사에 합류하는지 알게 (여러 회사가 함께 쓰는 앱 · 합류하면 그 회사가 내 정보를 봄)
+  const [company, known] = await Promise.all([
+    getSettings(job.company_id).catch(() => null),
+    user ? workerInCompany(job.company_id, user.id).catch(() => true) : true,
+  ])
   const ok = joinOk(job, code)
   const here = `/join/${job.id}?c=${encodeURIComponent(code)}`
   const app = user
@@ -33,6 +39,11 @@ export default async function JoinPage(props: PageProps<'/join/[id]'>) {
       <div className="card space-y-2 text-center">
         <p className="text-sm font-bold text-rose-600">🚨 현장 긴급 투입</p>
         <h1 className="text-xl font-extrabold">{job.title}</h1>
+        {company?.company_name && (
+          <p className="text-sm font-semibold text-sub" data-join-company>
+            🏢 {company.company_name}
+          </p>
+        )}
         <p className="text-sm text-sub">
           {fmtDate(kstDate())} {scheduleText(job)}
           {job.location_name && ` · ${job.location_name}`}
@@ -67,6 +78,13 @@ export default async function JoinPage(props: PageProps<'/join/[id]'>) {
         <form action={joinNow.bind(null, job.id, code)} className="card space-y-3 text-center">
           <p className="font-semibold">{user.name}님, 지금 바로 합류할까요?</p>
           <p className="text-sm text-sub">합류하면 근무가 확정돼요. 근로계약서 등 서류에 서명한 뒤 출근 버튼을 눌러 주세요.</p>
+          {/* 이 회사와 처음이면: 합류하면 담당자가 내 정보를 본다는 것을 미리 (공고 지원 칸과 같은 안내) */}
+          {!known && company?.company_name && (
+            <p className="rounded-xl bg-bg px-3.5 py-2.5 text-left text-sm text-sub" data-join-first>
+              <b className="font-semibold text-ink">{company.company_name}</b> · 처음 일하는 회사예요
+              <span className="block text-xs">합류하면 이 회사 담당자가 내 정보를 봐요</span>
+            </p>
+          )}
           <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText="합류 중…">
             바로 합류하기
           </SubmitButton>
