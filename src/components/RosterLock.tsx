@@ -88,7 +88,7 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
             명단 열기
           </SubmitButton>
         </form>
-        <p className="text-xs text-mute">한 번 열면 {minutes}분 동안 다시 묻지 않아요. 누가 언제 열었는지 기록돼요.</p>
+        <p className="text-balance text-xs text-mute">한 번 열면 {minutes}분 동안 다시 묻지 않아요. 누가 언제 열었는지 기록돼요.</p>
       </div>
     </div>
   )

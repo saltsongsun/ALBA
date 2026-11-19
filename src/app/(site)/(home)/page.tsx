@@ -24,6 +24,7 @@ import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
 import CompanyMark from '@/components/CompanyMark'
 import MoreJobs from '@/components/MoreJobs'
+import KeepChipInView from '@/components/KeepChipInView'
 
 /** 홈 공고 목록: 한 번에 보이는 공고 수 · '더 보기' 한 번에 늘어나는 수 · 최대 */
 const MORE_STEP = 50
@@ -146,17 +147,23 @@ export default async function HomePage(props: PageProps<'/'>) {
   const avail = sp.avail === '1'
   // 근무자 후기 별점 4점 이상인 회사 공고만 (회원)
   const good = sp.good === '1' && !!user && reviewsOn
+  // 전에 일했던 회사 (확정되고 근무가 시작된 공고의 회사 · 취소된 공고는 빼고) — 여러 회사 공고가 섞여도 아는 곳만 바로 (회원 · 회사 공고 모음에서는 이미 한 회사라 없음)
+  const workedCos = new Set(myApps.filter((r) => r.status === 'approved' && r.job && r.job.status !== 'cancelled' && r.job.start_date <= today).map((r) => r.job!.company_id))
+  const known = sp.known === '1' && !!user && !company
+  // 칩 줄에서 가장 오른쪽에 켜진 거르기 (줄 밖에 숨어 있으면 보이게 밀어 줌)
+  const lastOn = known ? 'known' : good ? 'good' : avail ? 'avail' : when
   const plus = (n: number) => kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + n * 86_400_000))
   const dow = new Date(`${today}T00:00:00Z`).getUTCDay() // 0 일요일
   const sat = dow === 0 ? today : plus(6 - dow)
   const sun = dow === 0 ? today : plus(7 - dow)
   const overlaps = (j: JobWithAppStatus, from: string, to: string) => j.start_date <= to && j.end_date >= from
-  const matches = (j: JobWithAppStatus, w: typeof when, a: boolean, g: boolean) => {
+  const matches = (j: JobWithAppStatus, w: typeof when, a: boolean, g: boolean, k: boolean = known) => {
     if (w === 'soon' && !overlaps(j, today, plus(1))) return false
     if (w === 'weekend' && !overlaps(j, dow === 0 ? today : sat, sun)) return false
     if (w === 'week' && !overlaps(j, today, plus(7))) return false
     if (a && (j.status !== 'open' || (counts[j.id] ?? 0) >= j.headcount || (mine[j.id] && mine[j.id] !== 'cancelled') || (j.end_date === today && workOver(j, j.end_date)))) return false
     if (g && !((ratings[j.company_id]?.avg ?? 0) >= 4)) return false
+    if (k && !workedCos.has(j.company_id)) return false
     return true
   }
   const listed = jobs.filter((j) => matches(j, when, avail, good))
@@ -183,16 +190,17 @@ export default async function HomePage(props: PageProps<'/'>) {
       anchorId={j.id === firstNew ? `more-${shown - MORE_STEP}` : undefined}
     />
   )
-  const filterQuery = (w: string | null, a: boolean, g: boolean) => {
+  const filterQuery = (w: string | null, a: boolean, g: boolean, k: boolean = known) => {
     const q = new URLSearchParams()
     if (company) q.set('co', company.id)
     if (w) q.set('when', w)
     if (a) q.set('avail', '1')
     if (g) q.set('good', '1')
+    if (k) q.set('known', '1')
     return q
   }
-  const filterHref = (w: string | null, a: boolean, g: boolean = good) => {
-    const s = filterQuery(w, a, g).toString()
+  const filterHref = (w: string | null, a: boolean, g: boolean = good, k: boolean = known) => {
+    const s = filterQuery(w, a, g, k).toString()
     return s ? `/?${s}#jobs` : '/#jobs'
   }
   // 같은 거르기 그대로 50개 더 · 새로 붙은 첫 공고로 내려감
@@ -216,6 +224,9 @@ export default async function HomePage(props: PageProps<'/'>) {
     }
     if (avail && count(when, false, good) > 0) loosen.push({ label: '마감 포함', n: count(when, false, good), href: filterHref(when, false) })
     if (good && count(when, avail, false) > 0) loosen.push({ label: '후기 조건 빼고', n: count(when, avail, false), href: filterHref(when, avail, false) })
+    // 일했던 회사 공고가 없으면 다른 회사 공고까지 (가장 먼저 권함)
+    const others = known ? jobs.filter((j) => matches(j, when, avail, good, false)).length : 0
+    if (others > 0) loosen.unshift({ label: '다른 회사도', n: others, href: filterHref(when, avail, good, false) })
     loosen.splice(2)
   }
   // 오늘 확정된 근무가 있으면 맨 위에서 바로 출퇴근 화면으로 (카톡 링크로 들어와도 한 번에)
@@ -517,6 +528,8 @@ export default async function HomePage(props: PageProps<'/'>) {
       </h2>
       {jobs.length > 0 && (
         <div className="fade-x -mt-1 mb-3 flex gap-1.5 overflow-x-auto pb-1" data-chip-row>
+          {/* 오른쪽 끝에 켜진 거르기가 줄 밖에 숨어 있으면 보이게 (링크로 켠 채 들어오거나 새로 고쳤을 때) */}
+          {lastOn && <KeepChipInView on={lastOn} />}
           {(
             [
               [null, '전체'],
@@ -529,6 +542,8 @@ export default async function HomePage(props: PageProps<'/'>) {
               key={label}
               href={filterHref(w, avail)}
               scroll={false}
+              aria-pressed={when === w}
+              data-chip-on={w && lastOn === w ? '' : undefined}
               data-track={`홈 거르기: ${label}`}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
                 when === w ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'
@@ -540,6 +555,8 @@ export default async function HomePage(props: PageProps<'/'>) {
           <Link
             href={filterHref(when, !avail)}
             scroll={false}
+            aria-pressed={avail}
+            data-chip-on={lastOn === 'avail' ? '' : undefined}
             data-track="홈 거르기: 지원 가능만"
             className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
               avail ? 'bg-brand-600 text-white' : 'bg-white text-sub ring-1 ring-line'
@@ -554,6 +571,7 @@ export default async function HomePage(props: PageProps<'/'>) {
               scroll={false}
               data-good-filter
               aria-pressed={good}
+              data-chip-on={lastOn === 'good' ? '' : undefined}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
                 good ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'
               }`}
@@ -561,12 +579,36 @@ export default async function HomePage(props: PageProps<'/'>) {
               {good ? '✓ ' : '⭐ '}후기 좋은 곳
             </Link>
           )}
+          {/* 전에 일했던 회사 공고만 (그 회사 공고가 지금 목록에 있을 때 · 회원) */}
+          {!company && (known || jobs.some((j) => workedCos.has(j.company_id))) && (
+            <Link
+              href={filterHref(when, avail, good, !known)}
+              scroll={false}
+              data-known-filter
+              aria-pressed={known}
+              data-chip-on={lastOn === 'known' ? '' : undefined}
+              data-track="홈 거르기: 일했던 회사"
+              className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-semibold transition active:scale-95 ${
+                known ? 'bg-emerald-600 text-white' : 'bg-white text-sub ring-1 ring-line'
+              }`}
+            >
+              {known ? '✓ ' : '🏢 '}일했던 회사
+            </Link>
+          )}
         </div>
       )}
       {/* 거르기를 켜면 몇 개가 남았는지 바로 */}
-      {jobs.length > 0 && (when || avail || good) && listed.length > 0 && (
-        <p key={`${when}-${avail}-${good}`} className="-mt-1 mb-2 animate-pop text-sm text-sub" data-filter-count>
-          조건에 맞는 공고 <b className="text-brand-700 tabular-nums">{listed.length}{hasMore && '+'}</b>개
+      {jobs.length > 0 && (when || avail || good || known) && listed.length > 0 && (
+        <p key={`${when}-${avail}-${good}-${known}`} className="-mt-1 mb-2 flex animate-pop items-center justify-between gap-2 text-sm text-sub" data-filter-count>
+          <span>
+            조건에 맞는 공고 <b className="text-brand-700 tabular-nums">{listed.length}{hasMore && '+'}</b>개
+          </span>
+          {/* 거르기를 여러 개 켰을 때 한 번에 처음으로 (칩을 하나씩 다시 누르지 않게) */}
+          {[when, avail, good, known].filter(Boolean).length > 1 && (
+            <Link href={filterHref(null, false, false, false)} scroll={false} className="tap shrink-0 text-xs font-semibold text-mute" data-filter-clear data-track="홈 거르기: 모두 풀기">
+              모두 풀기 ✕
+            </Link>
+          )}
         </p>
       )}
       {jobs.length === 0 ? (
