@@ -184,6 +184,7 @@ export default async function HomePage(props: PageProps<'/'>) {
       showNew
       rating={ratings[j.company_id]}
       pals={palCounts[j.id] ?? 0}
+      worked={workedCos.has(j.company_id)}
       track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
       // 회사 공고 모음에서는 위 카드에 회사 이름·확인 표시·별점이 이미 있음 → 카드마다 되풀이하지 않음
       hideCompany={!!company}

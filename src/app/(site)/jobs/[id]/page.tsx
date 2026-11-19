@@ -109,7 +109,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     user
       ? db()
           .from('applications')
-          .select('status, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+          .select('status, available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status, company_id)')
           .eq('user_id', user.id)
           .in('status', ['approved', 'applied'])
           .neq('job_id', job.id)
@@ -118,7 +118,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               (r.data ?? []) as unknown as {
                 status: string
                 available_dates: string[] | null
-                job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status'> | null
+                job: Pick<Job, 'id' | 'title' | 'start_date' | 'end_date' | 'start_time' | 'end_time' | 'status' | 'company_id'> | null
               }[],
           )
       : [],
@@ -221,6 +221,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const needPhoto = !!user && asWorker && user.memberType !== 'vendor' && !photoAt
   const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
+  // 전에 확정돼 일한 회사 (이 공고 말고 다른 공고 · 근무가 시작됨 · 취소 공고는 빼고) — 회사 이름 옆·아래 다른 공고 카드에 '✓ 일했던 곳'
+  const workedCos = new Set(mine.filter((m) => m.status === 'approved' && m.job && m.job.status !== 'cancelled' && m.job.start_date <= kstDate()).map((m) => m.job!.company_id))
   // 처음 지원하는 회사 (여러 회사가 함께 쓰는 앱): 지원하면 그 회사 담당자가 내 정보(연락처·계좌·사진)를 보게 됨 → 지원 버튼 위에 한 줄
   // '내 정보를 보는 회사'(내 정보 화면)와 같은 기준 · 못 읽으면 안내 안 함
   const firstHere = !!user && asWorker && !app && canApply && !wrongType ? !(await workerInCompany(job.company_id, user.id).catch(() => true)) : false
@@ -358,7 +360,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           // 회사 이름을 누르면 그 회사 공고만 모아 보기
           <Link href={`/?co=${job.company_id}`} className="tap mt-1 flex items-center gap-1.5 text-sm font-semibold text-sub" data-company-line>
             <span className="min-w-0 truncate">🏢 {company.company_name}</span>
-            {coInfo.verified && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ 확인된 회사</span>}
+            {/* 전에 일한 회사면 '✓ 일했던 곳' (확인된 회사 표시 자리에 · 홈 카드·'일했던 회사' 거르기와 같은 기준) */}
+            {workedCos.has(job.company_id) ? (
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700" data-job-worked>
+                ✓ 일했던 곳
+              </span>
+            ) : (
+              coInfo.verified && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ 확인된 회사</span>
+            )}
             {coInfo.open > 0 && <span className="ml-auto shrink-0 text-xs text-brand-600">공고 {coInfo.open}개 →</span>}
           </Link>
         )}
@@ -928,7 +937,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <h2 className="section-title">{expert ? '다른 전문가 의뢰' : '다른 모집 중인 알바'}</h2>
           <div className="space-y-3">
             {others.map((j) => (
-              <JobCard key={j.id} job={j} approved={otherCounts[j.id] ?? 0} />
+              <JobCard key={j.id} job={j} approved={otherCounts[j.id] ?? 0} worked={workedCos.has(j.company_id)} />
             ))}
           </div>
         </section>
