@@ -138,6 +138,8 @@ const errs = []
   await pf.getByRole('button', { name: '지급 건 등록' }).click()
   ok('지급 건 직접 등록', await see(a, '300,000원 지급 건을 등록했어요', 15000))
   await a.goto(`${D}/admin/vendors?tab=pay`)
+  // 카드가 그려질 때까지 기다린 뒤 셈 (여러 테스트를 함께 돌려 느릴 때 너무 일찍 세지 않게)
+  await a.locator('div.card', { hasText: '조명 추가 임차' }).getByRole('button', { name: '계좌 복사' }).waitFor({ timeout: 15000 }).catch(() => {})
   ok('계좌 있는 업체는 계좌 복사', (await a.locator('div.card', { hasText: '조명 추가 임차' }).getByRole('button', { name: '계좌 복사' }).count()) === 1)
 
   // ── 8. 행사 비용 합계 (정산 탭) ──
