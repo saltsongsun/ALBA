@@ -20,6 +20,7 @@ import { isUuid } from '@/lib/validate'
 import { plainBody } from '@/lib/stickers'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import ChatClock from '@/components/ChatClock'
+import { isPro } from '@/lib/members'
 
 export const metadata: Metadata = { title: '문의' }
 
@@ -160,6 +161,22 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         ).data ?? []) as { clock_in: string | null; clock_out: string | null }[]
       : []
   const dayNow = todayAtts.some((a) => a.clock_in && !a.clock_out) ? 'working' : todayAtts.some((a) => a.clock_out) ? 'done' : null
+  // 이 회사의 지금 모집 중인 알바 공고 수 → 대화 위 '공고 n개 →' (담당자가 '새 공고 올렸어요' 해도 바로 가서 봄)
+  // 고객센터 대화 · 전문가·외주 업체(알바 공고를 보지 않음)에게는 없음
+  const coOpen =
+    companyId && !support(companyId) && !isPro(user.memberType)
+      ? await db()
+          .from('jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', companyId)
+          .eq('audience', 'worker')
+          .eq('status', 'open')
+          .gte('end_date', kstDate())
+          .then(
+            (r) => r.count ?? 0,
+            () => 0,
+          )
+      : 0
   const quickDay = dayNow === 'working' ? QUICK_WORKING : dayNow === 'done' ? QUICK_DONE : QUICK_DAY
   // 이 회사에서 받을 내 대금이면: '세금계산서를 보냈어요. 개막식 음향 · 1,500,000원'을 첫 빠른 답장으로
   const askPay = payId && companyId ? (await partnerPayments(user.id).catch(() => [])).find((x) => x.id === payId && x.company_id === companyId) : null
@@ -191,13 +208,21 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           )}
         </div>
         {/* 대화가 이어지는 중이면 설명 대신 누구와의 대화인지만 한 줄 (설명은 첫 문의 때만 · 화면을 덜 차지하게) */}
-        <p className="mt-1 truncate text-sm text-sub" data-chat-intro>
-          {messages.length === 0 ? (
-            <>궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.</>
-          ) : (
-            <>{withWa(support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자'))}의 대화</>
+        <div className="mt-1 flex items-center gap-2">
+          <p className="min-w-0 flex-1 truncate text-sm text-sub" data-chat-intro>
+            {messages.length === 0 ? (
+              <>궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.</>
+            ) : (
+              <>{withWa(support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자'))}의 대화</>
+            )}
+          </p>
+          {/* 이 회사 공고 모음으로 (모집 중인 공고가 있을 때만) */}
+          {coOpen > 0 && (
+            <Link href={`/?co=${companyId}`} className="tap shrink-0 text-sm font-semibold whitespace-nowrap text-brand-600" data-chat-co-jobs>
+              공고 {coOpen}개 →
+            </Link>
           )}
-        </p>
+        </div>
         {settings?.contact_phone && (
           <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
             <span className="text-mute">급한 일은</span>

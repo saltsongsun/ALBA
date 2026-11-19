@@ -1,6 +1,7 @@
 // 묶음 309 (정기 개선 2026-11-19 04:35 KST)
 // · 근무자 '내 근무': 오늘 하는 근무에 지원하고 확정을 기다리는 중이면 '오늘 예정된 근무가 없어요 · 다른 알바 보기' 대신
-//   '오늘 근무는 아직 확정 전이에요 · 확정되면 바로 알려 드려요' (숨 쉬는 주황 점 · 다른 알바를 권하지 않음)
+//   '오늘 HH:MM 시작 · 확정되면 바로 알려 드려요' (숨 쉬는 주황 점 · 다른 알바를 권하지 않음)
+//   (2026-11-20 정기 개선: '아직 확정 전'은 위 확정 대기 칸이 이미 말하므로 이 줄은 시작 시각만 — 같은 말 두 번 하지 않게)
 // · 관리자 홈 '확정 대기 지원자' 카드: 오늘 하는 근무인데 아직 시작 전이면 공고 이름 옆 '오늘 HH:MM 시작' (먼저 정할 사람이 보이게)
 // node scripts/qa/batch309.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
@@ -55,7 +56,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const w = await mk(K9)
   await w.goto(`${D}/me`, { waitUntil: 'networkidle' })
   const row = w.locator('[data-today-empty="waiting"]')
-  ok("오늘 근무 확정 대기 → '오늘 근무는 아직 확정 전이에요 · 확정되면 바로 알려 드려요'", (await row.locator('b').textContent().catch(() => '')) === '오늘 근무는 아직 확정 전이에요' && one(await row.textContent().catch(() => '')).endsWith('확정되면 바로 알려 드려요'), one(await row.textContent().catch(() => '')))
+  ok("오늘 근무 확정 대기 → '오늘 HH:MM 시작 · 확정되면 바로 알려 드려요'", /^오늘 \d{2}:\d{2} 시작$/.test(one(await row.locator('b').textContent().catch(() => ''))) && one(await row.textContent().catch(() => '')).endsWith('확정되면 바로 알려 드려요'), one(await row.textContent().catch(() => '')))
+  ok("'아직 확정 전'은 화면에 한 번만 (위 확정 대기 칸 · 아래 줄은 시각만)", (one(await w.locator('main').textContent()).match(/확정 전이에요/g) ?? []).length === 1)
   const main = one(await w.locator('main').textContent())
   ok("'오늘 예정된 근무가 없어요'·'다른 알바 보기'는 안 나옴 (같은 날 겹쳐 지원하지 않게)", !main.includes('오늘 예정된 근무가 없어요') && !main.includes('다른 알바 보기'))
   ok('위에 확정 대기 칸이 그대로 (그 공고)', (await w.locator(`[data-waiting="first"] [data-waiting-app="${J9}"]`).count()) === 1)
