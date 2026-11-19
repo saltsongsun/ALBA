@@ -35,7 +35,8 @@ const notice = (id, job, ago, text) => ({ id, thread_user_id: W, sender_id: A, f
 
   // ── 1. 보낸 공지가 없으면 원래 안내
   await open()
-  ok("공지 없음: '확정 1명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요'", one(await summary.innerText()).endsWith('확정 1명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요') && (await fold.locator('[data-last-notice]').count()) === 0)
+  // (묶음 316: 360px에서 끝이 잘리던 안내를 짧게 '확정 n명에게 앱·문자로 한 번에')
+  ok("공지 없음: '확정 1명에게 앱·문자로 한 번에'", one(await summary.innerText()).endsWith('확정 1명에게 앱·문자로 한 번에') && (await fold.locator('[data-last-notice]').count()) === 0)
   await summary.click()
   ok("공지 없으면 '지난 공지 불러오기' 없음", (await fold.locator('[data-reuse-notice]').count()) === 0)
 

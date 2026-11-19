@@ -43,5 +43,6 @@ export async function GET(req: Request) {
   const name = docs.length === 1 ? `${docs[0].title}_${docs[0].worker.name}_${(docs[0].signedAt ? kstDate(docs[0].signedAt) : kstDate())}` : `서류_${label || '모음'}_${docs.length}건_${kstDate()}`
   const bytes = await docsToPdf(docs, { title: name })
   await audit(admin.id, 'doc.pdf', null, `${docs.length}건${label ? ` · ${label}` : docs.length === 1 ? ` · ${docs[0].title} · ${docs[0].worker.name}` : ''}`, admin.companyId)
-  return pdfResponse(bytes, name)
+  // 파일 이름 맨 앞에 회사 이름 (여러 회사를 맡은 관리자가 받은 서류끼리 섞이지 않게 · PDF 안 제목은 그대로)
+  return pdfResponse(bytes, `${admin.companyName}_${name}`)
 }

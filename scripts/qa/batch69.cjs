@@ -75,7 +75,8 @@ const pdfText = (buf) => {
   // ── 2. PDF 하나 ──
   const one = await ad.request.get(`${D}/admin/docs/pdf?id=${DOC_SIGNED}`)
   const disp = decodeURIComponent(one.headers()['content-disposition'] || '')
-  ok('서류 하나 PDF: application/pdf · 파일 이름 서약서_근무자_….pdf', one.status() === 200 && one.headers()['content-type'] === 'application/pdf' && /filename\*=UTF-8''서약서_근무자_\d{4}-\d{2}-\d{2}\.pdf/.test(disp), `${one.status()} ${disp}`)
+  // (묶음 316: 파일 이름 맨 앞에 회사 이름 '회사_서약서_근무자_….pdf')
+  ok('서류 하나 PDF: application/pdf · 파일 이름 회사_서약서_근무자_….pdf', one.status() === 200 && one.headers()['content-type'] === 'application/pdf' && /filename\*=UTF-8''[^_]+_서약서_근무자_\d{4}-\d{2}-\d{2}\.pdf/.test(disp), `${one.status()} ${disp}`)
   const t1 = pdfText(await one.body())
   ok('PDF 글꼴이 통째로 들어감 (한글 글자 모양이 빠지지 않게)', t1.fullFonts, t1.fonts)
   ok('PDF 안 한글: 제목·이름·전자서명 기록', t1.text.includes('서약서') && t1.text.includes('근무자') && t1.text.includes('전자서명 일시') && t1.text.includes('(근로자)'), t1.text.slice(0, 200).replace(/\n/g, ' | '))

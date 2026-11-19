@@ -87,7 +87,8 @@ export default function Announce({
             <b className={last.recent ? 'text-amber-700' : 'text-sub'}>마지막 공지 {last.when}</b> · {last.body.replace(/\s+/g, ' ')}
           </span>
         ) : (
-          `확정 ${recipients.length}명에게 앱으로 한 번에 · 문자로도 보낼 수 있어요`
+          // 360px에서 한 줄 (예전 '… · 문자로도 보낼 수 있어요'는 끝이 잘려 '…'로 보였음)
+          `확정 ${recipients.length}명에게 앱·문자로 한 번에`
         )
       }>
       {/* 마지막 공지 읽음: 막대가 차오름 · 안 읽은 사람만 골라 같은 내용을 문자로 */}
