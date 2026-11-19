@@ -216,7 +216,8 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
               />
             </div>
           )}
-          <Fold title="＋ 지급 건 등록" summary="견적 없이 바로 등록할 때 (선정한 견적은 자동으로 올라와요)" open={!!presetJob} className="space-y-4">
+          {/* 접힌 줄은 360px 한 줄 (예전 문구는 끝이 잘려 '(선정한 견적은 자동으로 올…'로 보였음) */}
+          <Fold title="＋ 지급 건 등록" summary="견적 없이 직접 등록 · 선정한 견적은 자동" open={!!presetJob} className="space-y-4">
             {activeVendors.length === 0 ? (
               <p className="text-sm text-mute">먼저 ‘업체’ 탭에서 외주사를 등록해 주세요.</p>
             ) : (

@@ -614,9 +614,13 @@ export default async function HomePage(props: PageProps<'/'>) {
           <NewJobsChip createdAts={jobs.filter((j) => j.status === 'open').map((j) => j.created_at)} />
           {/* 지원할 수 있는 공고가 없고 끝난 공고만 남음 (회사 공고 모음은 위 카드가 이미 '모집 중인 공고가 없어요'라고 말함) */}
           {live.length === 0 && !company && (
-            <p className="rounded-2xl bg-white px-4 py-3 text-sm text-sub ring-1 ring-line" data-no-live>
-              지금 지원할 수 있는 공고가 없어요
-            </p>
+            <div className="space-y-2">
+              <p className="rounded-2xl bg-white px-4 py-3 text-sm text-sub ring-1 ring-line" data-no-live>
+                지금 지원할 수 있는 공고가 없어요
+              </p>
+              {/* 오늘 공고가 모두 끝났을 때도 (공고가 아예 없을 때처럼) 알림을 안 켠 회원에게 바로 켜는 카드 — 그냥 나가지 않게 (켰으면 안 보임) */}
+              {user && <PushToggle publicKey={pushPublicKey()} variant="card" reason="모집·확정을 바로 알려요" />}
+            </div>
           )}
           <div className="stagger space-y-3">
             {live.map(jobCard)}
