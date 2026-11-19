@@ -148,7 +148,10 @@ export default async function HomePage(props: PageProps<'/'>) {
   // 근무자 후기 별점 4점 이상인 회사 공고만 (회원)
   const good = sp.good === '1' && !!user && reviewsOn
   // 전에 일했던 회사 (확정되고 근무가 시작된 공고의 회사 · 취소된 공고는 빼고) — 여러 회사 공고가 섞여도 아는 곳만 바로 (회원 · 회사 공고 모음에서는 이미 한 회사라 없음)
-  const workedCos = new Set(myApps.filter((r) => r.status === 'approved' && r.job && r.job.status !== 'cancelled' && r.job.start_date <= today).map((r) => r.job!.company_id))
+  const workedApps = myApps.filter((r) => r.status === 'approved' && r.job && r.job.status !== 'cancelled' && r.job.start_date <= today)
+  const workedCos = new Set(workedApps.map((r) => r.job!.company_id))
+  // 카드의 '✓ 일했던 곳': 그 회사의 '다른' 공고에서 일했을 때만 (지금 이 공고 하나로만 일한 회사면 그 카드엔 없음 · 공고 화면과 같은 기준)
+  const workedElsewhere = (j: JobWithAppStatus) => workedApps.some((r) => r.job!.company_id === j.company_id && r.job_id !== j.id)
   const known = sp.known === '1' && !!user && !company
   // 칩 줄에서 가장 오른쪽에 켜진 거르기 (줄 밖에 숨어 있으면 보이게 밀어 줌)
   const lastOn = known ? 'known' : good ? 'good' : avail ? 'avail' : when
@@ -184,7 +187,7 @@ export default async function HomePage(props: PageProps<'/'>) {
       showNew
       rating={ratings[j.company_id]}
       pals={palCounts[j.id] ?? 0}
-      worked={workedCos.has(j.company_id)}
+      worked={workedElsewhere(j)}
       track={user ? '홈 공고 카드' : '홈 공고 카드(비회원)'}
       // 회사 공고 모음에서는 위 카드에 회사 이름·확인 표시·별점이 이미 있음 → 카드마다 되풀이하지 않음
       hideCompany={!!company}

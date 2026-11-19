@@ -222,7 +222,10 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
   // 전에 확정돼 일한 회사 (이 공고 말고 다른 공고 · 근무가 시작됨 · 취소 공고는 빼고) — 회사 이름 옆·아래 다른 공고 카드에 '✓ 일했던 곳'
-  const workedCos = new Set(mine.filter((m) => m.status === 'approved' && m.job && m.job.status !== 'cancelled' && m.job.start_date <= kstDate()).map((m) => m.job!.company_id))
+  const workedMine = mine.filter((m) => m.status === 'approved' && m.job && m.job.status !== 'cancelled' && m.job.start_date <= kstDate())
+  const workedCos = new Set(workedMine.map((m) => m.job!.company_id))
+  // 아래 다른 공고 카드: 그 공고 말고 그 회사의 다른 공고에서 일했을 때만 (카드 자기 공고 하나로는 표시 없음)
+  const workedElsewhere = (j: Pick<Job, 'id' | 'company_id'>) => workedMine.some((m) => m.job!.company_id === j.company_id && m.job!.id !== j.id)
   // 처음 지원하는 회사 (여러 회사가 함께 쓰는 앱): 지원하면 그 회사 담당자가 내 정보(연락처·계좌·사진)를 보게 됨 → 지원 버튼 위에 한 줄
   // '내 정보를 보는 회사'(내 정보 화면)와 같은 기준 · 못 읽으면 안내 안 함
   const firstHere = !!user && asWorker && !app && canApply && !wrongType ? !(await workerInCompany(job.company_id, user.id).catch(() => true)) : false
@@ -937,7 +940,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           <h2 className="section-title">{expert ? '다른 전문가 의뢰' : '다른 모집 중인 알바'}</h2>
           <div className="space-y-3">
             {others.map((j) => (
-              <JobCard key={j.id} job={j} approved={otherCounts[j.id] ?? 0} worked={workedCos.has(j.company_id)} />
+              <JobCard key={j.id} job={j} approved={otherCounts[j.id] ?? 0} worked={workedElsewhere(j)} />
             ))}
           </div>
         </section>

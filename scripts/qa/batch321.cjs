@@ -1,6 +1,7 @@
 // 묶음 321 (정기 개선 2026-11-20 04:35 KST)
 // · 전에 확정돼 일한 회사의 공고: 홈 공고 카드와 공고 화면 회사 줄에 '✓ 일했던 곳' (확인된 회사 표시 자리에 · 줄이 길어지지 않게)
-//   홈 '일했던 회사' 거르기와 같은 기준 (확정 + 근무 시작 · 취소 공고 빼고) · 공고 화면은 그 공고 말고 다른 공고로 셈
+//   홈 '일했던 회사' 거르기와 같은 기준 (확정 + 근무 시작 · 취소 공고 빼고) · 단 그 회사의 '다른' 공고에서 일했을 때만
+//   (지금 이 공고 하나로만 일한 회사면 그 카드·공고 화면엔 없음 — '확인된 회사' 그대로)
 //   로그인 전 · 지원만 한 회원에게는 없음
 // · 공고 화면 지도 버튼: 같은 너비 칸 (4개면 2×2 · 3개면 한 줄) — 360px에서 '주소 복사'만 아랫줄로 떨어지던 것
 // node scripts/qa/batch321.cjs <default 앱> <default 가짜> <shots>
@@ -13,7 +14,7 @@ const [D, MD, SHOTS] = process.argv.slice(2)
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true })
 const W = 'bbbbbbbb-0000-4000-8000-000000000002', J = 'cccccccc-0000-4000-8000-000000000003'
 const C1 = '99999999-0000-4000-8000-000000000099', C2 = '99999999-0000-4000-8000-0000000321c2'
-const J2 = 'cccccccc-0000-4000-8000-0000000321a2', J3 = 'cccccccc-0000-4000-8000-0000000321a3', J5 = 'cccccccc-0000-4000-8000-0000000321a5'
+const J2 = 'cccccccc-0000-4000-8000-0000000321a2', J3 = 'cccccccc-0000-4000-8000-0000000321a3', J5 = 'cccccccc-0000-4000-8000-0000000321a5', JP = 'cccccccc-0000-4000-8000-0000000321a9'
 const W4 = 'bbbbbbbb-0000-4000-8000-0000000321b4'
 let fails = 0
 const ok = (l, c, x = '') => { if (!c) fails++; console.log(`${c ? 'PASS' : 'FAIL'}  ${l}${x ? '  ' + x : ''}`) }
@@ -58,6 +59,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok("같은 줄에 '확인된 회사'는 되풀이하지 않음", !m3.includes('확인된 회사'))
   const m2 = one(await card(w, J2).textContent())
   ok("다른 회사 공고 카드: 표시 없음 (확인된 회사는 그대로)", (await card(w, J2).locator('[data-card-worked]').count()) === 0 && m2.includes('✓ 확인된 회사'), m2.slice(0, 80))
+  ok('지금 이 공고 하나로만 일한 회사면 그 카드엔 없음 (자기 공고로 셈하지 않음)', (await card(w, J).locator('[data-card-worked]').count()) === 0)
   ok('회사 줄이 한 줄 그대로 (넘치면 말줄임)', await card(w, J3).evaluate((a) => { const p = a.querySelector('[data-card-worked]').parentElement; return p.getBoundingClientRect().height < 24 }))
   if (SHOTS) {
     await card(w, J3).scrollIntoViewIfNeeded()
@@ -68,10 +70,17 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await go(w, `/jobs/${J3}`)
   const line = w.locator('[data-company-line]')
   ok("공고 화면 회사 줄: '✓ 일했던 곳'", (await line.locator('[data-job-worked]').count()) === 1 && !one(await line.textContent()).includes('확인된 회사'), one(await line.textContent()))
-  ok('아래 다른 공고 카드: 일한 회사만 표시', (await card(w, J).locator('[data-card-worked]').count()) === 1 && (await card(w, J2).locator('[data-card-worked]').count()) === 0)
+  ok('아래 다른 공고 카드: 자기 공고로만 일한 회사·다른 회사는 표시 없음', (await card(w, J).locator('[data-card-worked]').count()) === 0 && (await card(w, J2).locator('[data-card-worked]').count()) === 0)
   // 지금 이 공고만 확정(다른 곳에서 일한 적 없음)이면 표시 없음
   await go(w, `/jobs/${J}`)
   ok("이 공고 말고는 일한 적 없으면 회사 줄에 표시 없음 ('확인된 회사'는 그대로)", (await w.locator('[data-company-line] [data-job-worked]').count()) === 0)
+
+  // 테스트 회사의 지난 공고(JP)에서도 일했으면: 오늘 공고(J) 카드에도 표시 (다른 공고에서 일했으니까)
+  await rest('applications', 'POST', { id: 'dddddddd-0000-4000-8000-0000000321d9', job_id: JP, user_id: W, status: 'approved', available_dates: null, job: { id: JP, title: '지난 행사', start_date: kday(-6), end_date: kday(-6), start_time: '09:00:00', end_time: '18:00:00', status: 'closed', company_id: C1, audience: 'worker' }, created_at: '2026-11-01T00:00:00Z' })
+  await go(w, '/')
+  ok('같은 회사 다른 공고에서도 일했으면 오늘 공고 카드에도 표시', (await card(w, J).locator('[data-card-worked]').count()) === 1)
+  await go(w, `/jobs/${J}`)
+  ok('그 공고 화면 회사 줄에도 표시', (await w.locator('[data-company-line] [data-job-worked]').count()) === 1)
 
   // ── 3. 지도 버튼: 4개면 2×2 같은 너비 · 3개면 한 줄
   await go(w, `/jobs/${J3}`)
