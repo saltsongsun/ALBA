@@ -10,6 +10,8 @@ import { rosterUnlockedFor } from '@/lib/rosterLock'
 import { companyJob, companyWorkerIds } from '@/lib/company'
 import type { Attendance, UserRow } from '@/lib/types'
 import { formatRrn, isUuid } from '@/lib/validate'
+import { safeName } from '@/lib/chatExport'
+import { kstDate } from '@/lib/time'
 
 const hours = (min: number) => Math.round((min / 60) * 100) / 100
 
@@ -27,6 +29,8 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
   const user = await getUser()
   if (!user || user.role !== 'admin') return new Response('권한이 없습니다.', { status: 403 })
   const admin = await requireAdmin()
+  // 파일 이름 맨 앞에 회사 이름 (여러 회사를 맡은 관리자가 받은 파일끼리 헷갈려 다른 회사 자료로 신고하지 않게)
+  const file = (name: string) => `${safeName(admin.companyName)}_${name}.csv`
   // 관리자 계정이 털려도 개인정보 파일을 대량으로 내려받지 못하게
   if (await overLimit(`export:${admin.id}`, 30, 3600)) return new Response('내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.', { status: 429 })
   const { kind } = await ctx.params
@@ -81,7 +85,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
       })
     await audit(admin.id, 'export.settlement', null, job.title, admin.companyId)
     return csvResponse(
-      `정산표_${job.title}.csv`,
+      file(`정산표_${safeName(job.title)}`),
       toCsv([
         ['성명', '생년월일', '연락처', '은행', '계좌번호', '예금주', '근무일수', '인정시간', '기본급', '연장수당', '야간수당', '수당', '기타지급', '주휴수당', '지급총액', '소득세', '지방소득세', '고용보험', '기타공제', '공제합계', '실지급액', '지급여부'],
         ...rows,
@@ -126,7 +130,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     })
     await audit(admin.id, 'export.workers', null, null, admin.companyId)
     return csvResponse(
-      '근로자명부.csv',
+      file(`근로자명부_${kstDate()}`),
       toCsv([['성명', '성별', '생년월일', '연락처', '주소', '최초근무일', '최근근무일', '근무행사수', '근무일수', '가입일', '비고'], ...rows]),
     )
   }
@@ -152,7 +156,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
       ])
     await audit(admin.id, 'export.daily_income', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
-      `일용근로소득_지급명세_${month}.csv`,
+      file(`일용근로소득_지급명세_${month}`),
       toCsv([['귀속연월', '성명', '주민등록번호', '내외국인', '근무일수', '과세소득', '비과세소득', '소득세', '지방소득세', '연락처'], ...rows]),
     )
   }
@@ -173,7 +177,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
       ])
     await audit(admin.id, 'export.business_income', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
-      `사업소득_간이지급명세_${month}.csv`,
+      file(`사업소득_간이지급명세_${month}`),
       toCsv([['귀속연월', '성명', '주민등록번호', '내외국인', '업종코드', '지급액', '세율', '소득세', '지방소득세'], ...rows]),
     )
   }
@@ -189,7 +193,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
       })
     await audit(admin.id, 'export.other_income', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
-      `기타소득_지급명세_${month}.csv`,
+      file(`기타소득_지급명세_${month}`),
       toCsv([['귀속연월', '성명', '주민등록번호', '내외국인', '지급액', '필요경비(60%)', '소득금액', '세율', '소득세', '지방소득세'], ...rows]),
     )
   }
@@ -213,7 +217,7 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
       })
     await audit(admin.id, 'export.employment', null, `${month} ${rows.length}명 (주민번호 포함)`, admin.companyId)
     return csvResponse(
-      `근로내용확인신고_${month}.csv`,
+      file(`근로내용확인신고_${month}`),
       toCsv([['귀속연월', '성명', '주민등록번호', '근로일자', '근로일수', '일평균근로시간', '보수총액(과세)', '임금총액', '연락처'], ...rows]),
     )
   }

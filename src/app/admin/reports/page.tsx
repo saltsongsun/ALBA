@@ -98,6 +98,8 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
     { gross: 0, incomeTax: 0, localTax: 0, insurance: 0, net: 0 },
   )
   const eightPlus = rows.filter((r) => r.dates.length >= 8)
+  // 신고 파일마다 들어가는 사람 수 (내려받기 파일과 같은 기준: 그 소득 지급액이 있는 사람 · 근로내용확인신고는 일용근로와 같음)
+  const inFile = (k: 'daily' | 'business' | 'other') => rows.filter((r) => r.byTax[k].gross > 0).length
   const [y, m] = month.split('-').map(Number)
   const dueY = m === 12 ? y + 1 : y
   const dueM = m === 12 ? 1 : m + 1
@@ -192,10 +194,10 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         <ReportDownloads
           incomplete={open.length}
           files={[
-            { key: 'daily', href: `/admin/export/daily-income?month=${month}`, label: '일용근로소득 지급명세', note: `${due} 말일까지 · 홈택스` },
-            { key: 'employment', href: `/admin/export/employment?month=${month}`, label: '근로내용확인신고 (고용·산재)', note: `${due} 15일까지 · 고용·산재 토탈서비스` },
-            { key: 'business', href: `/admin/export/business-income?month=${month}`, label: '사업소득 간이지급명세' },
-            { key: 'other', href: `/admin/export/other-income?month=${month}`, label: '기타소득 지급명세' },
+            { key: 'daily', href: `/admin/export/daily-income?month=${month}`, label: '일용근로소득 지급명세', note: `${due} 말일까지 · 홈택스`, count: inFile('daily') },
+            { key: 'employment', href: `/admin/export/employment?month=${month}`, label: '근로내용확인신고 (고용·산재)', note: `${due} 15일까지 · 고용·산재 토탈서비스`, count: inFile('daily') },
+            { key: 'business', href: `/admin/export/business-income?month=${month}`, label: '사업소득 간이지급명세', count: inFile('business') },
+            { key: 'other', href: `/admin/export/other-income?month=${month}`, label: '기타소득 지급명세', count: inFile('other') },
           ]}
         />
         <ul className="space-y-0.5 text-xs text-sub" data-report-notes>
