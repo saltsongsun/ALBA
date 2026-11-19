@@ -14,6 +14,7 @@ import { phoneFmt, won } from '@/lib/format'
 import { getUser } from '@/lib/session'
 import PhotoPrompt from '@/components/PhotoPrompt'
 import PushNudge from '@/components/PushNudge'
+import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
 import { fmtDate, kstDate } from '@/lib/time'
 import { DUE_TONE, payDue } from '@/lib/due'
@@ -112,16 +113,27 @@ export default async function ProHome(props: PageProps<'/pro'>) {
           )}
           {user && type && type !== 'worker' && (
             <div className="mt-4 grid grid-cols-2 gap-2">
-              <Link href="/pro/money" className="rounded-2xl bg-white/12 px-4 py-3 backdrop-blur transition active:scale-95">
+              {/* 할 일이 있는 칸만 또렷하게: 0인 칸은 흐리게 (큰 '0건'·'0원'이 눈에 먼저 들어오지 않게) */}
+              <Link
+                href="/pro/money"
+                className={`rounded-2xl px-4 py-3 backdrop-blur transition active:scale-95 ${toAnswer.length ? 'bg-white/12' : 'bg-white/[0.06]'}`}
+                data-pro-tile="quotes"
+                data-zero={toAnswer.length ? undefined : ''}
+              >
                 <span className="block text-xs font-semibold text-white/75">답할 견적</span>
                 {/* 처음 열 때 0에서 짧게 올라감 ('움직임 줄이기'면 바로) */}
-                <span className="text-2xl font-extrabold">
+                <span className={`text-2xl font-extrabold ${toAnswer.length ? '' : 'text-white/45'}`}>
                   <LiveNumber value={toAnswer.length} countUp />건
                 </span>
               </Link>
-              <Link href="/pro/money#pay" className="rounded-2xl bg-white/12 px-4 py-3 backdrop-blur transition active:scale-95">
+              <Link
+                href="/pro/money#pay"
+                className={`rounded-2xl px-4 py-3 backdrop-blur transition active:scale-95 ${unpaidSum ? 'bg-white/12' : 'bg-white/[0.06]'}`}
+                data-pro-tile="pay"
+                data-zero={unpaidSum ? undefined : ''}
+              >
                 <span className="block text-xs font-semibold text-white/75">받을 대금</span>
-                <span className="text-lg font-extrabold whitespace-nowrap">
+                <span className={`text-lg font-extrabold whitespace-nowrap ${unpaidSum ? '' : 'text-white/45'}`}>
                   <LiveNumber value={unpaidSum} countUp />원
                 </span>
               </Link>
@@ -167,9 +179,13 @@ export default async function ProHome(props: PageProps<'/pro'>) {
             모집 중인 전문가 의뢰 {jobs.length > 0 && <span className="text-brand-600">{jobs.length}</span>}
           </h2>
           {jobs.length === 0 ? (
-            <Empty icon="🎛️" title="지금 모집 중인 전문가 의뢰가 없어요">
-              새 의뢰가 올라오면 여기에 보여요.
-            </Empty>
+            <div className="space-y-2">
+              <Empty icon="🎛️" title="지금 모집 중인 전문가 의뢰가 없어요">
+                새 의뢰가 올라오면 여기에 보여요.
+              </Empty>
+              {/* 의뢰가 없는 날 그냥 나가지 않게: 알림을 안 켠 전문가에게 바로 켜는 카드 (근무자 홈과 같음 · 켰으면 안 보임) */}
+              {user && type === 'expert' && <PushToggle publicKey={pushPublicKey()} variant="card" reason="새 의뢰·확정을 바로 알려요" />}
+            </div>
           ) : (
             <div className="stagger space-y-3">
               {jobs.map((j) => (
