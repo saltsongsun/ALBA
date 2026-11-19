@@ -902,3 +902,49 @@ export function JoinSkeleton() {
     </div>
   )
 }
+
+/** 외주 관리: 제목 · 지급할 금액 칸(금액 + 짧은 칩 셋) · 탭 세 개 · 새 견적 요청 접힌 줄 · 견적 요청 카드 */
+export function VendorsSkeleton() {
+  return (
+    <div aria-busy="true" aria-label="외주 관리 불러오는 중" className="skeleton space-y-5" data-skeleton="vendors">
+      <div className="space-y-2">
+        <div className={`h-7 w-28 ${bar}`} />
+        <div className={`h-4 w-60 max-w-full ${bar}`} />
+      </div>
+      <div className="card space-y-2.5 px-4 py-3.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <div className={`h-3 w-16 ${bar}`} />
+          <div className={`h-6 w-28 ${bar}`} />
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {['w-24', 'w-20', 'w-24'].map((w, i) => (
+            <div key={i} className={`h-6 ${w} rounded-full bg-line/60`} />
+          ))}
+        </div>
+      </div>
+      <div className="flex border-b border-line">
+        {['w-16', 'w-16', 'w-8'].map((w, i) => (
+          <div key={i} className={`-mb-px border-b-2 px-4 py-3 ${i === 0 ? 'border-line' : 'border-transparent'}`}>
+            <div className={`h-4 ${w} ${bar}`} />
+          </div>
+        ))}
+      </div>
+      <div className="space-y-3">
+        <div className="card flex items-center justify-between gap-3 py-3.5">
+          <div className={`h-4 w-28 ${bar}`} />
+          <div className={`size-4 rounded ${bar}`} />
+        </div>
+        {[0, 1].map((i) => (
+          <div key={i} className="card space-y-2">
+            <div className="flex items-start justify-between gap-2">
+              <div className={`h-5 ${i ? 'w-1/2' : 'w-2/3'} ${bar}`} />
+              <div className={`h-5 w-16 shrink-0 rounded-full ${bar}`} />
+            </div>
+            <div className={`h-4 w-3/5 ${bar}`} />
+            <div className="h-3 w-2/5 rounded bg-line/60" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}

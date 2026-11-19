@@ -6,6 +6,7 @@ import QRCode from 'qrcode'
 import AutoRefresh from '@/components/AutoRefresh'
 import { CopyButton, PrintButton } from '@/components/ui'
 import { companyJob } from '@/lib/company'
+import { getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { EMERGENCY_MEMO, joinCode } from '@/lib/emergency'
@@ -25,6 +26,8 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
   const today = kstDate()
   const active = ['open', 'closed'].includes(job.status) && dateList(job.start_date, job.end_date).includes(today)
   const url = `${await siteOrigin()}/join/${job.id}?c=${joinCode(job.id, today)}`
+  // 현장에 붙인 QR 종이에도 어느 회사인지 (여러 회사가 같은 행사장에 있을 때 헷갈리지 않게)
+  const company = await getSettings(job.company_id).catch(() => null)
   const svg = active ? await QRCode.toString(url, { type: 'svg', margin: 1, errorCorrectionLevel: 'M', color: { dark: '#191f28', light: '#ffffff' } }) : ''
   const joined = active
     ? (must(
@@ -75,6 +78,11 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
           <Icon name="qr" /> 긴급 투입
         </p>
         <h1 className="text-xl font-extrabold">{job.title}</h1>
+        {company?.company_name && (
+          <p className="-mt-2 text-sm font-semibold text-sub" data-qr-company>
+            🏢 {company.company_name}
+          </p>
+        )}
         <p className="text-sm text-sub">
           {fmtDate(today)} {scheduleText(job)}
           {job.location_name && ` · ${job.location_name}`}
