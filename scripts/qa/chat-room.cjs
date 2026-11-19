@@ -169,6 +169,8 @@ const download = (p, url) =>
   await ad.goto(`${D}/admin/chat`)
   ok('관리자 목록 미리보기: [이모티콘] 글자', await see(ad, '[이모티콘] 감사합니다'), JSON.stringify(dm && { id: dm.id, c: dm.created_at }) + ' ' + (await ad.locator('main').innerText().catch(() => '')).slice(0, 400).replace(/\n/g, ' | '))
   await ad.goto(`${D}/admin/chat/${W}`)
+  // 대화가 그려질 때까지 기다린 뒤 셈 (여러 테스트를 함께 돌려 느릴 때 너무 일찍 세지 않게)
+  await ad.locator('main ol img[alt="이모티콘: 감사합니다"]').first().waitFor({ timeout: 15000 }).catch(() => {})
   ok('관리자 대화: 그림으로', (await ad.locator('main ol img[alt="이모티콘: 감사합니다"]').count()) >= 1)
 
   // ── 6. 내려받기 ──
