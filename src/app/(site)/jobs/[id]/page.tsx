@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import LiveNumber from '@/components/LiveNumber'
 import SlotBar from '@/components/SlotBar'
 import Icon from '@/components/Icon'
+import CalendarLink from '@/components/CalendarLink'
 import Link from 'next/link'
 import HashFocus from '@/components/HashFocus'
 import { WorkerIdentityForm } from '@/components/AuthForms'
@@ -668,9 +669,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               <div className="flex flex-wrap items-center gap-2 text-sm">
                 {app.position && <span className="inline-flex items-center gap-1 rounded-lg bg-brand-50 px-2.5 py-1 font-bold text-brand-700"><Icon name="pin" /> 내 배치 · {app.position}</span>}
                 {!ended && (
-                  <a href={`/me/calendar/${app.id}`} className="chip h-8 px-3 text-xs">
-                    <Icon name="calendar" /> 달력에 넣기
-                  </a>
+                  <CalendarLink href={`/me/calendar/${app.id}`} />
                 )}
               </div>
             )}

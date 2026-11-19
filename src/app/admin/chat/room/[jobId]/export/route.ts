@@ -12,5 +12,5 @@ export async function GET(_: Request, ctx: RouteContext<'/admin/chat/room/[jobId
   const job = await companyJob(admin, jobId)
   if (!job) return forbidden()
   const msgs = await roomMessages(job.id, 10000)
-  return txtDownload(`단체방_${job.title}`, chatText(`${job.title} 단체방`, msgs.map((m) => ({ at: m.created_at, who: m.from_admin ? `${m.name} (담당자)` : m.name, body: m.body }))))
+  return txtDownload(`${admin.companyName}_단체방_${job.title}`, chatText(`${job.title} 단체방`, msgs.map((m) => ({ at: m.created_at, who: m.from_admin ? `${m.name} (담당자)` : m.name, body: m.body }))))
 }

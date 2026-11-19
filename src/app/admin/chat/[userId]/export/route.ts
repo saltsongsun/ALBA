@@ -26,5 +26,5 @@ export async function GET(_: Request, ctx: RouteContext<'/admin/chat/[userId]/ex
   const lines = msgs
     .sort((a, b) => a.created_at.localeCompare(b.created_at))
     .map((m) => ({ at: m.created_at, who: m.from_admin ? `${(m.sender_id && name.get(m.sender_id)) || '담당자'} (담당자)` : worker, body: m.body }))
-  return txtDownload(`문의_${worker}`, chatText(`${admin.companyName} · ${worker} 문의`, lines))
+  return txtDownload(`${admin.companyName}_문의_${worker}`, chatText(`${admin.companyName} · ${worker} 문의`, lines))
 }

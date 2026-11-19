@@ -25,6 +25,7 @@ import { scheduleText } from '@/lib/docs'
 import { mapLinks } from '@/lib/map'
 import PrepChecklist from '@/components/PrepChecklist'
 import Icon from '@/components/Icon'
+import CalendarLink from '@/components/CalendarLink'
 import HashFlash from '@/components/HashFlash'
 import { won } from '@/lib/format'
 import { answerOvertime, answerShift, confirmComing } from '@/app/actions/worker'
@@ -843,9 +844,7 @@ export default async function MePage(props: PageProps<'/me'>) {
               <p className="text-xs text-mute" data-next-hint>오늘은 쉬는 날 · 근무 날 여기서 출퇴근해요</p>
               {/* 전날 미리: 휴대폰 달력에 넣기(.ics) · 가는 길 보기 (좌표가 있으면 길찾기, 주소만 있으면 지도) */}
               <div className="flex flex-wrap gap-1.5">
-                <a href={`/me/calendar/${nextApp.id}`} className="chip h-8 px-3 text-xs" data-next-calendar>
-                  <Icon name="calendar" /> 달력에 넣기
-                </a>
+                <CalendarLink href={`/me/calendar/${nextApp.id}`} data-next-calendar />
                 {nextMap && (
                   <a href={nextMap.route ?? nextMap.kakao} target="_blank" rel="noreferrer" className="chip h-8 px-3 text-xs" data-next-map>
                     <Icon name="route" /> {nextMap.route ? '길찾기' : '지도'}
@@ -1224,9 +1223,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                 <div className="flex shrink-0 flex-col items-end gap-2">
                   <span className={`badge ${APP_STATUS.approved.cls}`}>확정</span>
                   {/* 휴대폰 달력에 넣기 (.ics) */}
-                  <a href={`/me/calendar/${a.id}`} className="chip h-8 px-3 text-xs">
-                    <Icon name="calendar" /> 달력에 넣기
-                  </a>
+                  <CalendarLink href={`/me/calendar/${a.id}`} />
                 </div>
               </div>
               {changeNote(a)}
