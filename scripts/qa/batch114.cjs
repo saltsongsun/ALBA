@@ -62,8 +62,11 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
     const card = w.locator('[data-history-job]').first()
     await card.waitFor({ timeout: 15000 }).catch(() => {})
     const t = await card.innerText().catch(() => '')
-    const times = (t.match(/근무 중/g) ?? []).length
-    ok(`${path}: '오늘 근무 중' 한 번만 + '끝나면 계산돼요'`, times === 1 && t.includes('오늘 근무 중') && t.includes('끝나면 계산돼요') && (await card.locator('[data-live-shift]').count()) === 1, t.replace(/\n/g, ' | '))
+    // (묶음 318: 근무 시간(18:00)이 지났는데 종료 전이면 '근무 종료 전 / 종료를 눌러야 계산돼요')
+    const over = (new Date(Date.now() + 9 * 3600e3).getUTCHours()) >= 18
+    const [label, sub] = over ? ['근무 종료 전', '종료를 눌러야 계산돼요'] : ['오늘 근무 중', '끝나면 계산돼요']
+    const times = (t.match(over ? /근무 종료 전/g : /근무 중/g) ?? []).length
+    ok(`${path}: '${label}' 한 번만 + '${sub}'`, times === 1 && t.includes(label) && t.includes(sub) && (await card.locator('[data-live-shift]').count()) === 1, t.replace(/\n/g, ' | '))
     ok(`${path}: 360px 옆으로 안 밀림`, await wide(w))
     if (SHOTS) await card.screenshot({ path: `${SHOTS}/live-${path.replace(/\//g, '_')}.png` }).catch(() => {})
   }

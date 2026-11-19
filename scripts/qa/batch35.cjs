@@ -38,12 +38,15 @@ const kst = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
   const w = await pg(W)
   await open(w, '/me')
   let t = await text(w)
-  ok("내 근무: '오늘 근무 중' 표시", (await card(w).locator('[data-live-shift]').count()) === 1 && t.includes('오늘 근무 중'), t)
-  ok("내 근무: '종료 기록 없음'·'0원'·'0일 · 0분' 대신 '근무 중 · 끝나면 계산돼요'", !t.includes('종료 기록 없음') && !t.includes('0원') && !t.includes('0일 · 0분') && t.includes('끝나면 계산돼요'), t)
+  // (묶음 318: 근무 시간(18:00)이 지났는데 종료 전이면 '근무 종료 전 / 종료를 눌러야 계산돼요')
+  const over = (new Date(Date.now() + 9 * 3600e3).getUTCHours()) >= 18
+  const [label, sub] = over ? ['근무 종료 전', '종료를 눌러야 계산돼요'] : ['오늘 근무 중', '끝나면 계산돼요']
+  ok(`내 근무: '${label}' 표시`, (await card(w).locator('[data-live-shift]').count()) === 1 && t.includes(label), t)
+  ok(`내 근무: '종료 기록 없음'·'0원'·'0일 · 0분' 대신 '${sub}'`, !t.includes('종료 기록 없음') && !t.includes('0원') && !t.includes('0일 · 0분') && t.includes(sub), t)
   ok('360px: 옆으로 안 밀림 (내 근무)', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   await open(w, '/me/history')
   t = await text(w)
-  ok("지난 근무: '오늘 근무 중 · 끝나면 계산돼요' · 0원 없음", (await card(w).locator('[data-live-shift]').count()) === 1 && t.includes('끝나면 계산돼요') && !t.includes('종료 기록 없음') && !t.includes('0원') && !t.includes('0일 · 0분'), t)
+  ok(`지난 근무: '${label} · ${sub}' · 0원 없음`, (await card(w).locator('[data-live-shift]').count()) === 1 && t.includes(sub) && !t.includes('종료 기록 없음') && !t.includes('0원') && !t.includes('0일 · 0분'), t)
   ok('360px: 옆으로 안 밀림 (지난 근무)', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 2. 어제 퇴근을 안 누른 날이 있으면: 그날은 그대로 '종료 기록 없음' ──
@@ -51,7 +54,7 @@ const kst = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
   await rest('attendance', 'POST', { ...att, id: '22222222-0000-4000-8000-0000000000f5', work_date: kst(y), clock_in: new Date(y - 3600e3).toISOString(), clock_out: null })
   await open(w, '/me')
   t = await text(w)
-  ok("어제 퇴근 기록이 없으면 '종료 기록 없음 1일' + 오늘은 '오늘 근무 중'", t.includes('오늘 근무 중') && t.includes('종료 기록 없음 1일'), t)
+  ok(`어제 퇴근 기록이 없으면 '종료 기록 없음 1일' + 오늘은 '${label}'`, t.includes(label) && t.includes('종료 기록 없음 1일'), t)
 
   // ── 3. 오늘 퇴근하면: 금액으로 (근무 중 표시 없음) ──
   await rest(`attendance?id=eq.${att.id}`, 'PATCH', inShift())

@@ -5,7 +5,7 @@ import LiveNumber from '@/components/LiveNumber'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { won } from '@/lib/format'
-import { calcDay, effectiveTimes, settle, workingToday, roundCut } from '@/lib/pay'
+import { calcDay, effectiveTimes, scheduledEnd, settle, shiftOf, workingToday, roundCut } from '@/lib/pay'
 import { requireUser } from '@/lib/session'
 import { fmtDate, fmtDateRange, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Attendance, Job, SignedDoc } from '@/lib/types'
@@ -100,6 +100,8 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
     paid: rows.every((r) => r.paid),
     // 오늘 아직 근무 중 (퇴근 전) — '종료 기록 없음'이 아니라 '오늘 근무 중'으로
     live: workingToday(rows, kstDate()),
+    // 근무 시간이 끝났는데 종료를 안 누름 → '종료를 눌러야 계산돼요' (내 근무와 같은 말)
+    liveOver: rows.some((r) => !!r.clock_in && !r.clock_out && r.work_date === kstDate() && Date.now() >= scheduledEnd(shiftOf(job, r), r.work_date).getTime()),
     worked: rows.some((r) => !!r.clock_in),
     first: rows[rows.length - 1].work_date,
     last: rows[0].work_date,
@@ -367,7 +369,7 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                 })()}
               </div>
               <div className="stagger space-y-2">
-                {list.map(({ job, s, cut, paid, live, worked, first, last, days }) => (
+                {list.map(({ job, s, cut, paid, live, liveOver, worked, first, last, days }) => (
                   <div key={job.id} className="card space-y-3" data-history-job={job.id}>
                     <div className="flex items-start justify-between gap-3">
                       {/* 제목·회사·날짜 줄 어디를 눌러도 공고로 (이용 기록: 회사·날짜 줄을 여러 번 누름) — 제목 링크가 왼쪽 칸 전체를 덮음 */}
@@ -388,7 +390,11 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                           </p>
                         )}
                         {/* 여러 날 근무 중 오늘 몫 (첫날 근무 중이면 오른쪽에 한 번만) */}
-                        {live > 0 && s.days > 0 && <p className="text-xs font-semibold text-emerald-600" data-live-shift>오늘 근무 중 · 끝나면 계산돼요</p>}
+                        {live > 0 && s.days > 0 && (
+                          <p className={`text-xs font-semibold ${liveOver ? 'text-amber-600' : 'text-emerald-600'}`} data-live-shift data-live-over={liveOver ? '' : undefined}>
+                            {liveOver ? '오늘 근무 종료 전 · 종료를 눌러야 계산돼요' : '오늘 근무 중 · 끝나면 계산돼요'}
+                          </p>
+                        )}
                         {/* 정산 예정일: 담당자가 알린 날짜, 없으면 공고의 지급일 */}
                         {!paid && !(live > 0 && s.days === 0) && <PaydayLine jobId={job.id} companyId={job.company_id} label={pd.label(job)} due={pd.due(job)} asked={pd.asked(job)} today={today} />}
                         {s.incomplete - live > 0 && <p className="text-xs text-amber-600">종료 기록 없음 {s.incomplete - live}일</p>}
@@ -396,10 +402,10 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
                       <div className="shrink-0 text-right">
                         {live > 0 && s.days === 0 ? (
                           <>
-                            <p className="text-base font-extrabold whitespace-nowrap text-emerald-600" data-live-shift>
-                              오늘 근무 중
+                            <p className={`text-base font-extrabold whitespace-nowrap ${liveOver ? 'text-amber-600' : 'text-emerald-600'}`} data-live-shift data-live-over={liveOver ? '' : undefined}>
+                              {liveOver ? '근무 종료 전' : '오늘 근무 중'}
                             </p>
-                            <p className="text-xs whitespace-nowrap text-mute">끝나면 계산돼요</p>
+                            <p className="text-xs whitespace-nowrap text-mute">{liveOver ? '종료를 눌러야 계산돼요' : '끝나면 계산돼요'}</p>
                           </>
                         ) : (
                           <>

@@ -392,7 +392,9 @@ export default async function MePage(props: PageProps<'/me'>) {
       const s = settle(job, rows.map((r) => calcDay(job, r)))
       // 오늘 아직 근무 중이면 '종료 기록 없음'이 아니라 '오늘 근무 중' (퇴근하면 그날이 계산됨)
       const live = workingToday(rows, today)
-      return { job, rows, s, live, paid: rows.every((r) => r.paid) }
+      // 근무 시간이 끝났는데 종료를 안 누름 → '끝나면 계산돼요' 대신 '종료를 눌러야 계산돼요' (오늘 근무 카드의 안내와 같은 말)
+      const liveOver = rows.some((r) => !!r.clock_in && !r.clock_out && r.work_date === today && Date.now() >= scheduledEnd(todayShift(job, r), r.work_date).getTime())
+      return { job, rows, s, live, liveOver, paid: rows.every((r) => r.paid) }
     })
     .filter((x) => x !== null)
 
@@ -1246,7 +1248,7 @@ export default async function MePage(props: PageProps<'/me'>) {
             </Link>
           </div>
           <div className="stagger space-y-2">
-            {history.slice(0, 3).map(({ job, s, live, paid }) => {
+            {history.slice(0, 3).map(({ job, s, live, liveOver, paid }) => {
               // 첫날 근무 중: 오른쪽에 '오늘 근무 중 / 끝나면 계산돼요' 한 번만 (왼쪽에 같은 말 반복 안 함)
               const firstLive = live > 0 && s.days === 0
               const miss = s.incomplete - live
@@ -1266,8 +1268,9 @@ export default async function MePage(props: PageProps<'/me'>) {
                         {/* 첫날 근무 중이면 '0일 · 0분' 없이 (오른쪽에 '오늘 근무 중') */}
                         {!firstLive && `${s.days}일 · ${minutesText(s.paidMin)}`}
                         {live > 0 && !firstLive && (
-                          <span className="font-semibold text-emerald-600" data-live-shift>
-                            {' · '}오늘 근무 중
+                          <span className={`font-semibold ${liveOver ? 'text-amber-600' : 'text-emerald-600'}`} data-live-shift data-live-over={liveOver ? '' : undefined}>
+                            {' · '}
+                            {liveOver ? '오늘 종료 전' : '오늘 근무 중'}
                           </span>
                         )}
                         {miss > 0 && <span className="text-amber-600">{firstLive ? '' : ' · '}종료 기록 없음 {miss}일</span>}
@@ -1280,10 +1283,10 @@ export default async function MePage(props: PageProps<'/me'>) {
                     {firstLive ? (
                       // 첫날 근무 중: 0원 대신 (퇴근하면 계산됨)
                       <>
-                        <p className="text-base font-extrabold whitespace-nowrap text-emerald-600" data-live-shift>
-                          오늘 근무 중
+                        <p className={`text-base font-extrabold whitespace-nowrap ${liveOver ? 'text-amber-600' : 'text-emerald-600'}`} data-live-shift data-live-over={liveOver ? '' : undefined}>
+                          {liveOver ? '근무 종료 전' : '오늘 근무 중'}
                         </p>
-                        <p className="text-xs whitespace-nowrap text-mute">끝나면 계산돼요</p>
+                        <p className="text-xs whitespace-nowrap text-mute">{liveOver ? '종료를 눌러야 계산돼요' : '끝나면 계산돼요'}</p>
                       </>
                     ) : (
                       <>
