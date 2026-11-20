@@ -56,7 +56,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   const today = kstDate()
   type WorkJob = { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string }
   const [{ data: worker }, messages, , myApps, todayAtts] = await Promise.all([
-    db().from('users').select('id, name, phone, photo_at, member_type').eq('id', userId).maybeSingle(),
+    db().from('users').select('id, name, phone, photo_at, member_type, role').eq('id', userId).maybeSingle(),
     db()
       .from('messages')
       .select(CHAT_MESSAGE_COLS).eq('company_id', admin.companyId)
@@ -102,7 +102,31 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     // 다른 회사(내가 맡은)와 주고받은 글이 있으면: 없는 화면 대신 그 회사로 — 안 읽은 글이 있는 회사 먼저, 없으면 가장 최근에 주고받은 회사
     const latest = [...otherMsgs].sort((a, b) => b.created_at.localeCompare(a.created_at))[0]
     const target = otherUnread[0] ?? admin.companies.find((c) => c.id === latest?.company_id)
-    if (!worker || !target) notFound()
+    if (!worker) notFound()
+    // 확인된 회사가 아직 이어지지 않은 회원(근무자 화면에서 볼 수 있는 회원)의 대화를 열면: 없는 화면 대신 왜 아직 대화가 없는지 + 갈 곳
+    // (이름 등 회원 정보는 싣지 않음 · 확인 전 회사는 예전처럼 없는 화면) — 정기 개선 2026-11-21 05:35
+    if (!target) {
+      const w = worker as { member_type?: string | null; role?: string | null }
+      if (!admin.companyVerified || w.member_type === 'vendor' || w.role === 'admin') notFound()
+      return (
+        <div className="mx-auto max-w-xl space-y-4" data-chat-unrelated>
+          <Link href="/admin/chat" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
+            ← 문의 목록
+          </Link>
+          <Empty icon="💬" title="아직 우리 회사와 대화가 없는 회원이에요">
+            우리 회사 공고에 지원하거나 문의를 보내면 여기서 대화할 수 있어요
+          </Empty>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href={`/admin/workers/${userId}`} className="btn-white" data-chat-unrelated-worker>
+              근무자 화면
+            </Link>
+            <Link href="/admin/jobs/poster" className="btn-soft" data-chat-unrelated-poster>
+              공고 링크 알리기
+            </Link>
+          </div>
+        </div>
+      )
+    }
     return (
       <OtherCompanyJob
         title="다른 회사로 온 문의예요"

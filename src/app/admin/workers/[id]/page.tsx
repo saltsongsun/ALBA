@@ -130,6 +130,10 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   // 메모·관리자 표시는 이 회사 기준 (다른 회사 메모·소속은 보이지 않게)
   const u: UserRow = { ...found, admin_memo: (note as { memo: string | null } | null)?.memo ?? null, role: member ? 'admin' : 'worker' }
   const rel = relMap[id]
+  // 앱 메시지를 열 수 있는지: 대화 화면(/admin/chat)과 같은 기준 — 이 회사에 지원했거나 이 회사와 주고받은 글이 있음
+  const canChat =
+    related ||
+    ((await db().from('messages').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('thread_user_id', id).then((r) => r.count, () => 0)) ?? 0) > 0
   // 병아리 레벨 (명단과 같게 이 회사 기록만 · 아르바이트만) — 사용자 요청 2026-11-13 '레벨도 근무자명단에 표기'
   // 레벨 · 주휴수당 포함 금액 · 계좌 요청 기록을 함께 기다림
   const [levels, attsPay, askedRaw, pd] = await Promise.all([
@@ -248,9 +252,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
             {/* 보안: 휴대폰·주소·계좌·비상연락처는 가려 두고 '전체 보기'(기록됨) · 전화·문자도 누르면 기록하고 바로 걸기 */}
             <dt className="text-mute">휴대폰</dt>
             <RevealInfo userId={u.id} field="phone" masked={maskPhone(u.phone)} call rows>
-              <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line">
-                앱 메시지
-              </Link>
+              {/* 앱 메시지: 이 회사에 지원했거나 이 회사와 주고받은 글이 있을 때만 (없으면 대화 화면이 '찾는 화면이 없어요'로 열림 · 정기 개선 2026-11-21 05:35) */}
+              {canChat && (
+                <Link href={`/admin/chat/${u.id}`} className="contact-btn bg-bg text-sub hover:bg-line" data-worker-chat>
+                  앱 메시지
+                </Link>
+              )}
             </RevealInfo>
             <dt className="text-mute">생년월일</dt>
             <dd>{u.birth_date ? fmtDateLong(u.birth_date) : '-'}</dd>
@@ -310,7 +317,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           </dl>
           {!related && (
             <p className="rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub">
-              아직 우리 회사에 지원한 적 없는 회원이에요. 공고에 확정하거나 이 사람이 지원하면 주민번호·계좌·주소를 볼 수 있어요.
+              아직 우리 회사에 지원한 적 없는 회원이에요. 공고에 확정하거나 이 사람이 지원하면 {canChat ? '주민번호·계좌·주소를 볼 수 있어요.' : '주민번호·계좌·주소를 보고 앱 메시지도 보낼 수 있어요.'}
             </p>
           )}
         </section>
