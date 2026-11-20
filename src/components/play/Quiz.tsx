@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { pickQuiz, type QuizItem } from '@/lib/playContent'
+import { pickQuiz, QUIZ, type QuizItem } from '@/lib/playContent'
 import { haptic, ShareButton } from '@/components/ui'
 
 const BEST = 'play-quiz-best'
+/** 이 휴대폰에서 이미 나온 문제(질문 글) — 다 나오면 처음부터 다시 */
+const SEEN = 'play-quiz-seen'
 export const QUIZ_WEEK = 'play-quiz-week'
 export const QUIZ_DONE_EVENT = 'play-quiz-done'
 const N = 5
@@ -21,6 +23,8 @@ export default function Quiz({ week }: { week: string }) {
   const [best, setBest] = useState<number | null>(null)
   const [newBest, setNewBest] = useState(false)
   const [done, setDone] = useState(false)
+  // 이번 판에 틀린 문제 (결과 화면에서 접어 둔 '틀린 문제 다시 보기')
+  const [wrong, setWrong] = useState<QuizItem[]>([])
   useEffect(() => {
     try {
       const b = localStorage.getItem(BEST)
@@ -39,7 +43,18 @@ export default function Quiz({ week }: { week: string }) {
   const start = () => {
     haptic(10)
     toTop(true)
-    setSet(pickQuiz(Math.random, N))
+    // 안 나온 문제 먼저 (다 나왔으면 새로 시작)
+    let seen = new Set<string>()
+    try {
+      seen = new Set(JSON.parse(localStorage.getItem(SEEN) ?? '[]') as string[])
+    } catch {}
+    const picked = pickQuiz(Math.random, N, seen)
+    try {
+      const next = new Set([...seen, ...picked.map((q) => q.q)])
+      localStorage.setItem(SEEN, JSON.stringify(next.size >= QUIZ.length ? picked.map((q) => q.q) : [...next]))
+    } catch {}
+    setSet(picked)
+    setWrong([])
     setI(0)
     setPicked(null)
     setScore(0)
@@ -52,6 +67,7 @@ export default function Quiz({ week }: { week: string }) {
     haptic(right ? 12 : [20, 40, 20])
     setPicked(n)
     if (right) setScore((s) => s + 1)
+    else setWrong((w) => [...w, set[i]])
   }
   const next = () => {
     if (!set) return
@@ -119,6 +135,21 @@ export default function Quiz({ week }: { week: string }) {
         <p className="mt-2 text-xs text-emerald-700" data-quiz-week-done>
           ✓ 이번 주 챌린지 &lsquo;퀴즈 한 판&rsquo; 완료
         </p>
+        {/* 틀린 문제 다시 보기: 접어 둠 (정답 + 짧은 풀이) — 정기 개선 2026-11-21 03:35 */}
+        {wrong.length > 0 && (
+          <details className="mt-3 rounded-xl bg-bg px-3 py-2 text-left" data-quiz-review>
+            <summary className="tap cursor-pointer text-sm font-semibold text-sub">틀린 문제 {wrong.length}개 다시 보기</summary>
+            <ol className="mt-2 space-y-2.5">
+              {wrong.map((w) => (
+                <li key={w.q} className="animate-rise text-xs leading-relaxed break-keep" data-quiz-review-item>
+                  <b className="block text-ink">Q. {w.q}</b>
+                  <span className="block font-semibold text-emerald-700">정답 · {w.choices[w.answer]}</span>
+                  <span className="block text-sub">{w.why}</span>
+                </li>
+              ))}
+            </ol>
+          </details>
+        )}
         {/* 다시 풀기 + 결과 자랑하기 (점수만 보냄 · 휴대폰은 공유 창, PC는 링크 복사) — 정기 개선 2026-11-21 01:35 */}
         <div className="mt-3 flex justify-center gap-2">
           <button type="button" onClick={start} className="btn-soft btn-sm" data-quiz-again>

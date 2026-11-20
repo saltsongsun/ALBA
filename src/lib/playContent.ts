@@ -133,12 +133,18 @@ export function fortuneOf(seed: string, date: string): Fortune {
   }
 }
 
-/** 퀴즈 5문제 고르기 (같은 날·같은 사람이면 섞는 순서가 매번 달라도 됨 — 화면에서 고름) */
-export function pickQuiz(rand: () => number, n = 5): QuizItem[] {
-  const pool = [...QUIZ]
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1))
-    ;[pool[i], pool[j]] = [pool[j], pool[i]]
+/**
+ * 퀴즈 5문제 고르기 (화면에서 고름). seen: 이 휴대폰에서 이미 푼 문제(질문 글) — 안 푼 문제를 먼저 내고 모자라면 푼 문제로 채움
+ * (정기 개선 2026-11-21 03:35: 몇 판 하면 같은 문제가 자꾸 나오던 것)
+ */
+export function pickQuiz(rand: () => number, n = 5, seen: ReadonlySet<string> = new Set()): QuizItem[] {
+  const shuffle = (arr: QuizItem[]) => {
+    const pool = [...arr]
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1))
+      ;[pool[i], pool[j]] = [pool[j], pool[i]]
+    }
+    return pool
   }
-  return pool.slice(0, n)
+  return [...shuffle(QUIZ.filter((q) => !seen.has(q.q))), ...shuffle(QUIZ.filter((q) => seen.has(q.q)))].slice(0, n)
 }

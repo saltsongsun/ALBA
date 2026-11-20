@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import CommunitySeen from '@/components/CommunitySeen'
+import PlayDot from '@/components/play/PlayDot'
 import { ago, canPost, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, listPosts, recentReviews } from '@/lib/community'
 import { requireUser } from '@/lib/session'
 import { coworkersEnabled, linkedAmong } from '@/lib/coworkers'
@@ -79,6 +80,8 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
           <span className="min-w-0 flex-1 truncate text-sm">
             <b className="text-ink">놀이터</b> <span className="text-sub">· 오늘의 운세 · 퀴즈 · 배지</span>
           </span>
+          {/* 오늘의 운세를 아직 안 열었으면 작은 점 (정기 개선 2026-11-21 03:35) */}
+          <PlayDot />
           <span aria-hidden className="shrink-0 text-mute">
             ›
           </span>
