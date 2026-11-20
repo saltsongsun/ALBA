@@ -46,6 +46,35 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
       .then((r) => ((r.data ?? []) as Job[]).filter((j) => j.start_date <= we && j.end_date >= ws && j.status !== 'draft').sort((a, b) => a.start_date.localeCompare(b.start_date))),
     weeklyChecks(admin.companyId, ws, we).catch(() => [] as WeekCheck[]),
   ])
+  // 공고를 한 번도 올리지 않은 회사 (새 회사): 0원 칸·빈 목록 둘 대신 어떻게 모이는지 한 줄 + 첫 공고로 (못 읽었으면 그대로)
+  const neverJobs =
+    jobs.length === 0
+      ? await db()
+          .from('jobs')
+          .select('id', { count: 'exact', head: true })
+          .eq('company_id', admin.companyId)
+          .neq('status', 'draft')
+          .then((r) => !r.error && (r.count ?? 1) === 0, () => false)
+      : false
+  if (neverJobs)
+    return (
+      <div className="space-y-4" data-weekly>
+        <h1 className="text-2xl font-extrabold">주간 근무 · 주휴</h1>
+        <section className="card flex flex-col items-center gap-3 py-8 text-center" data-weekly-first>
+          <span aria-hidden className="animate-float text-4xl">
+            📅
+          </span>
+          <div className="space-y-1">
+            <p className="font-semibold text-sub">아직 올린 공고가 없어요</p>
+            <p className="text-sm break-keep text-balance text-mute">공고를 올리면 주마다 인건비와 주휴수당이 여기에 모여요</p>
+          </div>
+          <Link href="/admin/jobs/new" className="btn-primary btn-sm animate-pop" data-weekly-first-job>
+            + 첫 공고 올리기
+          </Link>
+        </section>
+        <Rule />
+      </div>
+    )
   // 공고별 확정·대기 지원 (가능한 날짜까지)
   const allApps = jobs.length
     ? await db()
@@ -243,16 +272,22 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
         )}
       </section>
 
-      {/* 계산 규칙은 접어 둠 */}
-      <details className="px-1 text-xs text-sub" data-weekly-rule>
-        <summary className="cursor-pointer font-semibold">주휴수당 계산 방법</summary>
-        <ul className="mt-2 list-disc space-y-1 pl-5">
-          <li>같은 회사 공고를 합쳐 한 주(월~일) 15시간 이상 + 그 주 근무일 개근</li>
-          <li>소정시간(40시간까지) ÷ 40 × 8시간 × 시급 · 근로소득 알바 공고만</li>
-          <li>그 주 마지막 근무일 정산에 자동으로 들어가요 (명세서·정산표·신고자료)</li>
-          <li>예상 인건비: 확정된 사람이 예정대로 일했을 때의 세전 금액</li>
-        </ul>
-      </details>
+      <Rule />
     </div>
+  )
+}
+
+/** 계산 규칙은 접어 둠 (새 회사 첫 안내에서도 같이) */
+function Rule() {
+  return (
+    <details className="px-1 text-xs text-sub" data-weekly-rule>
+      <summary className="cursor-pointer font-semibold">주휴수당 계산 방법</summary>
+      <ul className="mt-2 list-disc space-y-1 pl-5">
+        <li>같은 회사 공고를 합쳐 한 주(월~일) 15시간 이상 + 그 주 근무일 개근</li>
+        <li>소정시간(40시간까지) ÷ 40 × 8시간 × 시급 · 근로소득 알바 공고만</li>
+        <li>그 주 마지막 근무일 정산에 자동으로 들어가요 (명세서·정산표·신고자료)</li>
+        <li>예상 인건비: 확정된 사람이 예정대로 일했을 때의 세전 금액</li>
+      </ul>
+    </details>
   )
 }

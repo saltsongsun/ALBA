@@ -17,7 +17,7 @@ import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { maskAccount, maskAddress, maskName, maskPhone, won } from '@/lib/format'
 import OpenOnHash from '@/components/OpenOnHash'
-import { calcDay, settle, workingToday } from '@/lib/pay'
+import { calcDay, scheduledEnd, settle, shiftOf, workingToday } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
@@ -149,7 +149,15 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       const job = jobs.get(jid)
       if (!job) return null
       const rows = attsPay.filter((a) => a.job_id === jid)
-      return { job, s: settle(job, rows.map((r) => calcDay(job, r))), live: workingToday(rows, today), paid: rows.filter((r) => r.clock_out).length > 0 && rows.filter((r) => r.clock_out).every((r) => r.paid) }
+      // 오늘 근무 시간이 끝났는데 종료를 안 누름 → '근무 중'이 아니라 '종료 안 누름' + 출퇴근에서 바로 고치기 (근무자 화면과 같은 기준: 바뀐 근무 시간 포함)
+      const over = rows.find((r) => !!r.clock_in && !r.clock_out && r.work_date === today && Date.now() >= scheduledEnd(shiftOf(job, r), r.work_date).getTime())
+      return {
+        job,
+        s: settle(job, rows.map((r) => calcDay(job, r))),
+        live: workingToday(rows, today),
+        liveOver: over ? shiftOf(job, over).end_time.slice(0, 5) : null,
+        paid: rows.filter((r) => r.clock_out).length > 0 && rows.filter((r) => r.clock_out).every((r) => r.paid),
+      }
     })
     .filter((x) => x !== null)
     .sort((a, b) => b.job.start_date.localeCompare(a.job.start_date))
@@ -405,7 +413,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         ) : (
           // 휴대폰에서 옆으로 밀지 않게 행사마다 한 줄 (공고 · 일정·일수·지급총액 / 실지급·명세서)
           <ul className="-my-2 divide-y divide-line" data-work-history>
-            {perJob.map(({ job, s, live, paid }) => (
+            {perJob.map(({ job, s, live, liveOver, paid }) => (
               <li key={job.id} className="flex items-start gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <Link href={`/admin/jobs/${job.id}?tab=pay`} className="line-clamp-2 font-semibold">
@@ -414,7 +422,11 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                   <p className="mt-0.5 text-xs text-sub">
                     <span className="whitespace-nowrap">{fmtDateRange(job.start_date, job.end_date)}</span>
                     {live > 0 && s.days === 0 ? (
-                      <span className="font-semibold text-emerald-600"> · 오늘 근무 중</span>
+                      liveOver ? (
+                        <span className="font-semibold text-amber-700"> · {liveOver} 끝 · 종료 안 누름</span>
+                      ) : (
+                        <span className="font-semibold text-emerald-600"> · 오늘 근무 중</span>
+                      )
                     ) : (
                       <>
                         {' '}
@@ -424,7 +436,20 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                   </p>
                 </div>
                 {/* 첫 근무가 아직 진행 중이면 금액·명세서는 끝난 뒤에 */}
-                {live > 0 && s.days === 0 ? (
+                {live > 0 && s.days === 0 && liveOver ? (
+                  // 끝날 시각이 지났는데 종료를 안 누름: 출퇴근 탭의 이 사람 줄로 바로 (끝난 시각 넣기)
+                  <Link
+                    href={`/admin/jobs/${job.id}?tab=att&date=${today}&fix=${u.id}#att-${u.id}`}
+                    className="tap flex shrink-0 animate-pop items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-sm font-bold text-amber-800"
+                    data-live-over
+                  >
+                    <span className="relative flex size-2">
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-500 opacity-60" />
+                      <span className="relative inline-flex size-2 rounded-full bg-amber-500" />
+                    </span>
+                    종료 넣기 →
+                  </Link>
+                ) : live > 0 && s.days === 0 ? (
                   <p className="flex shrink-0 items-center gap-1.5 text-sm font-bold text-emerald-600" data-live>
                     {/* 지금 일하는 중: 작은 점이 숨 쉬듯 (움직임 줄이기면 멈춤) */}
                     <span className="relative flex size-2">
