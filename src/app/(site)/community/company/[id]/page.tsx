@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Empty from '@/components/Empty'
 import { ReportButton } from '@/components/community'
-import { ago, companyReviews } from '@/lib/community'
+import { ago, canWrite, companyReviews } from '@/lib/community'
 import { db } from '@/lib/db'
 import { replyMinutes, replySpan } from '@/lib/data'
 import { kstDate } from '@/lib/time'
@@ -23,7 +23,7 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
   const company = co as { id: string; company_name: string; verified: boolean | null } | null
   if (!company) notFound()
   // 후기와 함께: 지금 모집 중인 공고 수 · 지원에 보통 얼마 만에 답하는지 (회사를 고를 때 한눈에)
-  const [{ avg, count, recent }, openN, replyMin] = await Promise.all([
+  const [{ avg, count, recent }, openN, replyMin, toReview] = await Promise.all([
     companyReviews(id, 50),
     db()
       .from('jobs')
@@ -34,6 +34,8 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
       .gte('end_date', kstDate())
       .then((r) => r.count ?? 0),
     replyMinutes(id).catch(() => null),
+    // 내가 이 회사에서 일을 마친 공고 중 아직 후기를 안 쓴 가장 최근 것 (지난 근무를 찾아 들어가지 않고 바로 쓰게 · 내 기록만)
+    canWrite(user) ? reviewableJob(user.id, id).catch(() => null) : null,
   ])
   const dist = [5, 4, 3, 2, 1].map((n) => ({ n, k: recent.filter((r) => r.rating === n).length }))
   // 정렬: 최신 · 별점 높은 · 별점 낮은 (같으면 최신 먼저)
@@ -101,10 +103,39 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
 
       {recent.length === 0 ? (
         <Empty icon="⭐" sticker="thanks" title="아직 후기가 없어요">
-          이 회사에서 일했다면 <Link href="/me/history" className="font-semibold text-brand-600">지난 근무</Link>에서 첫 후기를 남겨 주세요.
+          {toReview ? (
+            <span className="flex flex-col items-center gap-2">
+              <span>이 회사에서 일한 경험을 처음으로 남겨 주세요</span>
+              <Link href={`/me/review/${toReview.id}`} className="btn-primary btn-sm animate-pop" data-review-cta>
+                ⭐ 후기 쓰기
+              </Link>
+              <span className="max-w-full truncate text-xs text-mute" data-review-cta-job>
+                {toReview.title}
+              </span>
+            </span>
+          ) : (
+            <>
+              이 회사에서 일했다면 <Link href="/me/history" className="font-semibold text-brand-600">지난 근무</Link>에서 첫 후기를 남겨 주세요.
+            </>
+          )}
         </Empty>
       ) : (
         <>
+        {/* 일한 공고 후기가 아직 없으면: 목록 위 한 줄 (누르면 바로 후기 쓰기) */}
+        {toReview && (
+          <Link href={`/me/review/${toReview.id}`} className="card-link flex min-w-0 items-center gap-3 px-4 py-3 animate-pop" data-review-cta>
+            <span aria-hidden className="shrink-0 text-lg">
+              ⭐
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-sm font-semibold">내 후기 남기기</b>
+              <span className="block truncate text-xs text-mute" data-review-cta-job>
+                {toReview.title}
+              </span>
+            </span>
+            <span className="shrink-0 text-sm font-semibold text-brand-600">쓰기 →</span>
+          </Link>
+        )}
         {recent.length > 1 && (
           <nav aria-label="정렬" className="flex gap-2" data-review-sort>
             {(
@@ -149,4 +180,32 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
       )}
     </div>
   )
+}
+
+/**
+ * 이 회사에서 내가 하루 이상 일을 마친(퇴근 기록 있는) 공고 중 아직 후기를 안 쓴 가장 최근 공고.
+ * 지난 근무의 '후기 쓰기'와 같은 기준 (출근 기록 · 첫날이 진행 중이기만 하면 빼기) · 내 출퇴근·내 후기만 읽음
+ */
+async function reviewableJob(userId: string, companyId: string): Promise<{ id: string; title: string } | null> {
+  const { data } = await db()
+    .from('attendance')
+    .select('job_id, work_date, clock_out')
+    .eq('user_id', userId)
+    .eq('company_id', companyId)
+    .not('clock_in', 'is', null)
+    .order('work_date', { ascending: false })
+    .limit(100)
+  const rows = ((data ?? []) as { job_id: string; work_date: string; clock_out: string | null }[])
+    .filter((a) => a.clock_out)
+    .sort((a, b) => b.work_date.localeCompare(a.work_date))
+  const ids = [...new Set(rows.map((a) => a.job_id))]
+  if (!ids.length) return null
+  const [{ data: done }, { data: jobs }] = await Promise.all([
+    db().from('company_reviews').select('job_id').eq('author_id', userId).in('job_id', ids),
+    db().from('jobs').select('id, title, company_id').in('id', ids),
+  ])
+  const reviewed = new Set(((done ?? []) as { job_id: string }[]).map((r) => r.job_id))
+  const byId = new Map(((jobs ?? []) as { id: string; title: string; company_id: string }[]).filter((j) => j.company_id === companyId).map((j) => [j.id, j]))
+  const id = ids.find((j) => !reviewed.has(j) && byId.has(j))
+  return id ? { id, title: byId.get(id)!.title } : null
 }

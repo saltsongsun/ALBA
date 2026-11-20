@@ -3,6 +3,7 @@ import type { StickerId } from '@/lib/stickers'
 /**
  * 목록이 비었을 때: 둥실 떠 있는 그림과 안내.
  * sticker를 주면 이모티콘 병아리 그림으로 (그림 속 글자가 안내와 어울리는 것만 골라 씀)
+ * 안내 글은 줄 길이를 고르게 (마지막 줄에 '주세요.'만 남지 않게)
  */
 export default function Empty({ icon, sticker, title, children }: { icon: string; sticker?: StickerId; title: string; children?: React.ReactNode }) {
   return (
@@ -16,7 +17,7 @@ export default function Empty({ icon, sticker, title, children }: { icon: string
         </span>
       )}
       <p className="font-semibold text-sub">{title}</p>
-      {children && <div className="mt-1.5 text-sm text-mute">{children}</div>}
+      {children && <div className="mt-1.5 text-sm text-balance text-mute">{children}</div>}
     </div>
   )
 }
