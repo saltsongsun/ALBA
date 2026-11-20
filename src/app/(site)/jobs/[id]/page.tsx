@@ -93,7 +93,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt, jobNotes] = await Promise.all([
+  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt, jobNotes, lastMessage] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -194,6 +194,19 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             return { change: latest((m) => signalOf(m.body) === 'change'), wait: latest((m) => m.body.startsWith(WAIT_HEAD)) }
           })
       : { change: null, wait: null },
+    // 내가 전에 지원할 때 쓴 마지막 한마디 (지원 칸에서 눌러 그대로 넣게 · 내 지원서만)
+    user
+      ? db()
+          .from('applications')
+          .select('message, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(20)
+          .then((r) => {
+            const rows = ((r.data ?? []) as { message: string | null; created_at: string }[]).filter((a) => a.message?.trim())
+            return rows.sort((a, b) => b.created_at.localeCompare(a.created_at))[0]?.message?.trim() ?? null
+          })
+      : null,
   ])
   const lastChange = jobNotes.change
   const otherCounts = countApps(others, 'approved')
@@ -895,7 +908,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   maxLength={300}
                 />
                 {/* 전문가 의뢰는 회사가 고를 때 궁금한 말(경험·장비·포트폴리오)로 */}
-                <MessageChips target="message" pro={expert} multiDay={dates.length > 1} />
+                <MessageChips target="message" pro={expert} multiDay={dates.length > 1} last={lastMessage} />
               </div>
               {firstHere && (
                 <p className="flex items-start gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-first-company>
