@@ -60,7 +60,9 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   const tops = await a.locator('[data-worker-contact] [data-contact-group] > *').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
   ok('전화·문자·앱 메시지가 한 줄', tops.length === 3 && new Set(tops).size === 1, JSON.stringify(tops))
   const hist = a.locator('[data-work-history]')
-  ok("근무 이력: 표 대신 목록 · 오늘 근무 중이면 '근무 중'(0원·명세서 없음)", (await hist.count()) === 1 && (await a.locator('[data-work-history] ~ table, table').count()) === 0 && (await hist.locator('[data-live]').count()) === 1 && (await hist.locator('a[href*="/print/payslip/"]').count()) === 0)
+  // (정기 개선 2026-11-20 21:35: 끝날 시각(18:00)이 지났는데 종료를 안 눌렀으면 '근무 중' 대신 '종료 넣기 →' — batch329)
+  const pastEnd = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16) >= '18:00'
+  ok("근무 이력: 표 대신 목록 · 오늘 근무 중이면 '근무 중'(끝날 시각 지났으면 '종료 넣기') · 0원·명세서 없음", (await hist.count()) === 1 && (await a.locator('[data-work-history] ~ table, table').count()) === 0 && (await hist.locator(pastEnd ? '[data-live-over]' : '[data-live]').count()) === 1 && (await hist.locator('a[href*="/print/payslip/"]').count()) === 0)
   ok('근무 이력: 옆으로 넘치지 않음', await hist.evaluate((el) => el.scrollWidth <= el.clientWidth + 1))
   ok('360px: 옆으로 안 밀림 (근무자 화면)', await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
@@ -86,7 +88,7 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   ok('퇴근 뒤: 명세서·확인서가 다시 보임', (await card.locator('a[href*="/print/payslip/"]').count()) === 1 && (await card.locator('a[href*="/print/cert/"]').count()) === 1)
   await a.goto(`${D}/admin/workers/${W}`)
   await hist.waitFor({ timeout: 10000 }).catch(() => {})
-  ok('퇴근 뒤 관리자 근무 이력: 실지급·명세서', (await hist.locator('[data-net]').count()) === 1 && (await hist.locator('a[href*="/print/payslip/"]').count()) === 1 && (await hist.locator('[data-live]').count()) === 0)
+  ok('퇴근 뒤 관리자 근무 이력: 실지급·명세서', (await hist.locator('[data-net]').count()) === 1 && (await hist.locator('a[href*="/print/payslip/"]').count()) === 1 && (await hist.locator('[data-live], [data-live-over]').count()) === 0)
   await rest(`attendance?id=eq.${att0.id}`, 'PATCH', { clock_out: null })
 
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))

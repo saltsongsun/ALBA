@@ -67,7 +67,7 @@ const hm = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16)
     ok("끝난 근무: '종료 넣기 →' (근무 중 표시 없음)", (await over.count()) === 1 && one(await over.textContent()) === '종료 넣기 →' && (await a.locator('[data-work-history] [data-live]').count()) === 0)
     ok("줄 아래: '00:05 끝 · 종료 안 누름'", one(await a.locator('[data-work-history] li').first().textContent()).includes('00:05 끝 · 종료 안 누름'))
     ok('누르는 곳: 그 공고 출퇴근 탭의 이 사람 줄', (await over.getAttribute('href')) === `/admin/jobs/${JO}?tab=att&date=${today}&fix=${WX}#att-${WX}`)
-    ok('360px 옆으로 밀림 없음', await noSide(a))
+    ok('360px 옆으로 밀림 없음 (화면 · 근무 이력 목록 안)', (await noSide(a)) && (await a.locator('[data-work-history]').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)))
     if (SHOTS) {
       await a.locator('[data-work-history]').scrollIntoViewIfNeeded()
       await a.screenshot({ path: `${SHOTS}/worker-over.png` })

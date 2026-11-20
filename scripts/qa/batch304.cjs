@@ -72,7 +72,12 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok(`지난 정산일: '정산일 ${md(kday(-1))} 지남 · 💬' (빨강 · 이 회사 안내 기준)`, s1.kind === 'over' && s1.text === `정산일 ${md(kday(-1))} 지남 · 💬`, JSON.stringify(s1))
   ok('둘째회사 행사는 목록에 없음', (await row(a, J4).count()) === 0 && !one(await a.locator('[data-work-history]').textContent()).includes('둘째회사'))
   const live = row(a, J).locator('[data-live]')
-  ok('오늘 근무 중: 숨 쉬는 초록 점 + 근무 중', (await live.count()) === 1 && (await live.locator('.animate-ping').count()) === 1 && one(await live.textContent()) === '근무 중')
+  // (정기 개선 2026-11-20 21:35: 끝날 시각(18:00)이 지났는데 종료를 안 눌렀으면 '근무 중' 대신 '종료 넣기 →' — batch329)
+  const pastEnd = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16) >= '18:00'
+  if (pastEnd) {
+    const over = row(a, J).locator('[data-live-over]')
+    ok("오늘 근무 · 18:00 지남: 숨 쉬는 주황 점 + '종료 넣기 →'", (await over.count()) === 1 && (await over.locator('.animate-ping').count()) === 1 && one(await over.textContent()) === '종료 넣기 →' && (await live.count()) === 0)
+  } else ok('오늘 근무 중: 숨 쉬는 초록 점 + 근무 중', (await live.count()) === 1 && (await live.locator('.animate-ping').count()) === 1 && one(await live.textContent()) === '근무 중')
   ok('한 줄 (360px · 옆으로 안 밀림)', (await row(a, J2).locator('[data-pay-state]').evaluate((el) => el.getBoundingClientRect().height < 20)) && (await noSide(a)))
   if (SHOTS) await a.locator('[data-work-history]').evaluate((el) => el.scrollIntoView({ block: 'center' })).then(() => a.waitForTimeout(400)).then(() => a.locator('[data-work-history]').screenshot({ path: `${SHOTS}/worker-history-pay.png` })).catch(() => {})
 

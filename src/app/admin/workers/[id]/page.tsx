@@ -440,7 +440,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                   // 끝날 시각이 지났는데 종료를 안 누름: 출퇴근 탭의 이 사람 줄로 바로 (끝난 시각 넣기)
                   <Link
                     href={`/admin/jobs/${job.id}?tab=att&date=${today}&fix=${u.id}#att-${u.id}`}
-                    className="tap flex shrink-0 animate-pop items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1.5 text-sm font-bold text-amber-800"
+                    className="flex shrink-0 animate-pop items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-2 text-sm font-bold text-amber-800"
                     data-live-over
                   >
                     <span className="relative flex size-2">
