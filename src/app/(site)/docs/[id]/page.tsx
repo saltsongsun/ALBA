@@ -9,6 +9,7 @@ import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
 import { buildDocVars, renderTemplate, type DocPerson } from '@/lib/docs'
 import { phoneFmt } from '@/lib/format'
+import { kstDateTime } from '@/lib/time'
 import { canManageCompany, requireUser } from '@/lib/session'
 import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
@@ -141,6 +142,15 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
             </span>
           )}
           {jobTitle && <span className="min-w-0 truncate">{jobTitle}</span>}
+        </p>
+      )}
+      {/* 근무자: 서명한 서류는 맨 위에 언제 서명했는지 한 줄 (맨 아래 작은 글씨까지 내리지 않아도 바로 확인) — 정기 개선 2026-11-21 07:35 */}
+      {mine && doc.status === 'signed' && doc.signed_at && (
+        <p className="no-print flex items-center gap-1.5 text-sm font-semibold text-emerald-700" data-doc-signed>
+          <span aria-hidden className="grid size-5 shrink-0 animate-pop place-items-center rounded-full bg-emerald-100 text-xs">
+            ✓
+          </span>
+          {kstDateTime(doc.signed_at)}에 서명했어요
         </p>
       )}
       {/* 서명할 서류가 여러 건이면 몇 번째인지 */}

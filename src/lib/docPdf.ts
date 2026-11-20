@@ -237,9 +237,10 @@ export async function docsToPdf(docs: PdfDoc[], meta: { title: string }): Promis
       w.ensure(40)
       w.page.drawLine({ start: { x: MX, y: w.y }, end: { x: A4.w - MX, y: w.y }, thickness: 0.5, color: rgb(0.88, 0.89, 0.91) })
       w.y -= 8
-      const who = doc.parties === 'service' ? '수급인' : '근로자'
+      // 조사: 수급인'이' · 근로자'가' (정기 개선 2026-11-21 07:35 — '근로자이'로 나오던 것)
+      const who = doc.parties === 'service' ? '수급인이' : '근로자가'
       w.text(
-        `전자서명 일시 ${kstDateTime(doc.signedAt)} · 문서번호 ${doc.id.slice(0, 8).toUpperCase()}${doc.signedIp ? ` · 접속 IP ${doc.signedIp}` : ''} · 이 문서는 ${who}이 앱에서 직접 확인하고 서명한 전자문서입니다.`,
+        `전자서명 일시 ${kstDateTime(doc.signedAt)} · 문서번호 ${doc.id.slice(0, 8).toUpperCase()}${doc.signedIp ? ` · 접속 IP ${doc.signedIp}` : ''} · 이 문서는 ${who} 앱에서 직접 확인하고 서명한 전자문서입니다.`,
         { size: 7.5, color: SUB, lh: 1.5 },
       )
     }

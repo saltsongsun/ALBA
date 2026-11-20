@@ -1571,7 +1571,8 @@ async function tellPaid(adminId: string, jobId: string, userIds: string[]) {
     title: SIGNAL.paid,
     text: (uid) => {
       const n = net.get(uid) ?? 0
-      return `${job.title} 급여${n > 0 ? ` ${n.toLocaleString()}원(세금 뗀 실지급액)` : ''}을 등록한 계좌로 보냈어요. '근무 내역'에서 명세서를 볼 수 있어요.`
+      // 조사: 금액이 있으면 '…실지급액)을', 없으면 '급여를' (정기 개선 2026-11-21 07:35 — '급여을'로 나오던 것)
+      return `${job.title} 급여${n > 0 ? ` ${n.toLocaleString()}원(세금 뗀 실지급액)을` : '를'} 등록한 계좌로 보냈어요. '근무 내역'에서 명세서를 볼 수 있어요.`
     },
     url: '/me/history',
     tag: `paid-${jobId}`,

@@ -166,7 +166,8 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
             </SubmitButton>
           </div>
           <input name="memo" maxLength={80} className="input" placeholder="덧붙일 말 (선택) · 예: 오후 중 순서대로 입금돼요" aria-label="덧붙일 말" />
-          {guess && <p className="hint">지급일 ‘{job.pay_day}’로 {fmtDate(guess.date)}을 골라 두었어요{guess.until ? ' (이날까지)' : ''}.</p>}
+          {/* 날짜 뒤 조사는 요일에 따라 을/를이 달라져서 '에 맞춰'로 (정기 개선 2026-11-21 07:35) */}
+          {guess && <p className="hint">지급일 ‘{job.pay_day}’ 기준으로 {fmtDate(guess.date)}에 맞춰 두었어요{guess.until ? ' (이날까지)' : ''}.</p>}
         </form>
       )}
       {payable.length > 0 && (

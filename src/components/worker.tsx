@@ -327,7 +327,7 @@ export function ClockPanel({
         // 서버에 닿지 못함: 화면이 오류로 바뀌지 않게 하고, 연결되면 자동으로 다시 누름
         setStep('')
         setOffline(true)
-        setResult({ error: `인터넷 연결이 약해 기록하지 못했어요. 연결되면 자동으로 다시 ${open ? '종료' : '시작'}을 눌러 드릴게요.` })
+        setResult({ error: `인터넷 연결이 약해 기록하지 못했어요. 연결되면 자동으로 다시 ${open ? '종료를' : '시작을'} 눌러 드릴게요.` })
         return
       }
       setOffline(false)

@@ -110,7 +110,7 @@ export default function DocSheet({
       {signedAt && (
         <p className="mt-10 border-t border-line pt-3 text-[11px] text-mute">
           전자서명 일시 {kstDateTime(signedAt)} · 문서번호 {docId.slice(0, 8).toUpperCase()}
-          {signedIp ? ` · 접속 IP ${signedIp}` : ''} · 이 문서는 {parties === 'service' ? '수급인' : '근로자'}이 앱에서 직접 확인하고 서명한 전자문서입니다.
+          {signedIp ? ` · 접속 IP ${signedIp}` : ''} · 이 문서는 {parties === 'service' ? '수급인이' : '근로자가'} 앱에서 직접 확인하고 서명한 전자문서입니다.
         </p>
       )}
     </article>
