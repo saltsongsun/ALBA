@@ -16,6 +16,7 @@ import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
 import { maskAccount, maskAddress, maskName, maskPhone, won } from '@/lib/format'
+import OpenOnHash from '@/components/OpenOnHash'
 import { calcDay, settle, workingToday } from '@/lib/pay'
 import { reliabilityFor } from '@/lib/reliability'
 import { requireAdmin } from '@/lib/session'
@@ -152,6 +153,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
     })
     .filter((x) => x !== null)
     .sort((a, b) => b.job.start_date.localeCompare(a.job.start_date))
+  // 아직 지급 전인 근무 (근무 이력의 '지급 전'·'정산 M/D'와 같은 기준 · 오늘 근무 중이라 계산 전인 것은 빼고) — 위 칩에 금액 한 번에
+  const unpaidNet = perJob.filter((p) => !p.paid && p.s.net > 0 && !(p.live > 0 && p.s.days === 0)).reduce((n, p) => n + p.s.net, 0)
   // 계좌 요청 기록은 이 회사에 지원한 사람만 (예전과 같게)
   const askedAt = related ? askedRaw : null
   const recentBankChange = u.bank_changed_at && Date.now() - new Date(u.bank_changed_at).getTime() < 14 * 86_400_000
@@ -160,6 +163,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
+      {/* '지급 전' 칩(#work-history)을 누르면 접힌 근무 이력을 펼침 */}
+      <OpenOnHash />
       <RosterOpenBar seconds={rosterLeft} />
       <Link href="/admin/workers" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 근무자 목록
@@ -194,6 +199,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                 </span>
               )}
               <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-emerald-700">근무 {rel.days}일</span>
+              {/* 지급 전 금액: 전화로 '돈 언제 들어와요?' 물을 때 바로 · 누르면 아래 근무 이력이 펼쳐짐 */}
+              {unpaidNet > 0 && (
+                <a href="#work-history" className="tap rounded-lg bg-amber-50 px-2 py-0.5 text-amber-700 tabular-nums" data-unpaid-chip>
+                  지급 전 {won(unpaidNet)}
+                </a>
+              )}
               <span className={`rounded-lg px-2 py-0.5 ${rel.late ? 'bg-amber-50 text-amber-700' : 'bg-bg text-sub'}`}>지각 {rel.late}회</span>
               <span className={`rounded-lg px-2 py-0.5 ${rel.noShow ? 'bg-rose-50 text-rose-600' : 'bg-bg text-sub'}`}>노쇼 {rel.noShow}회</span>
               {rel.dismissed > 0 && <span className="rounded-lg bg-rose-50 px-2 py-0.5 text-rose-600">귀가 조치 {rel.dismissed}회</span>}
@@ -380,9 +391,14 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       </Fold>
 
       <Fold
+        id="work-history"
         title="근무 이력"
         open={perJob.length > 0 && perJob.length <= 5}
-        summary={perJob.length ? `행사 ${perJob.length}개 · ${perJob.reduce((n, p) => n + p.s.days, 0)}일 · 실지급 ${won(perJob.reduce((n, p) => n + p.s.net, 0))}` : '근무 기록이 없습니다'}
+        summary={
+          perJob.length
+            ? `행사 ${perJob.length}개 · ${perJob.reduce((n, p) => n + p.s.days, 0)}일 · 실지급 ${won(perJob.reduce((n, p) => n + p.s.net, 0))}${unpaidNet > 0 ? ` · 지급 전 ${won(unpaidNet)}` : ''}`
+            : '근무 기록이 없습니다'
+        }
       >
         {perJob.length === 0 ? (
           <p className="text-center text-sm text-mute">근무 기록이 없습니다.</p>
