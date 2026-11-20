@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { XP_RULES, type XpState } from '@/lib/xp'
 
@@ -84,14 +85,20 @@ export default function LevelCard({ s }: { s: XpState }) {
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-bg" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="다음 레벨까지">
             <div className="h-full rounded-full bg-[linear-gradient(90deg,#fbbf24,#f59e0b)] transition-[width] duration-700" style={{ width: `${Math.max(pct, 4)}%` }} />
           </div>
-          <p className="mt-1.5 text-xs text-sub" data-xp-next>
-            {s.toNext > 0 ? (
-              <>
-                근무 <b className="text-ink tabular-nums">{s.shiftsToNext}번</b> 더 하면 Lv.{s.level + 1}
-              </>
-            ) : (
-              '최고 레벨이에요 👑'
-            )}
+          <p className="mt-1.5 flex items-center gap-2 text-xs text-sub">
+            <span className="min-w-0 truncate" data-xp-next>
+              {s.toNext > 0 ? (
+                <>
+                  근무 <b className="text-ink tabular-nums">{s.shiftsToNext}번</b> 더 하면 Lv.{s.level + 1}
+                </>
+              ) : (
+                '최고 레벨이에요 👑'
+              )}
+            </span>
+            {/* 놀이터(배지·퀴즈·운세) 바로 가기 — 사용자 요청 2026-11-20 '게임과 커뮤니티 기능' */}
+            <Link href="/community/play" className="ml-auto shrink-0 font-semibold text-amber-700" data-xp-play>
+              🏅 배지 보기 ›
+            </Link>
           </p>
         </div>
       </div>

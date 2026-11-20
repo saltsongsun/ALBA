@@ -66,6 +66,25 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
         )}
       </div>
 
+      {/* 놀이터 바로 가기: 오늘의 운세 · 퀴즈 · 배지 (사용자 요청 2026-11-20 '게임과 커뮤니티 기능') · 첫 화면(전체 탭)에서만 */}
+      {!c && !q && user.memberType !== 'vendor' && (
+        <Link
+          href="/community/play"
+          className="flex items-center gap-3 rounded-2xl bg-[linear-gradient(135deg,#eef2ff,#f5f3ff)] px-3.5 py-2.5 ring-1 ring-indigo-100 transition duration-150 active:scale-[0.99]"
+          data-play-entry
+        >
+          <span aria-hidden className="text-xl leading-none">
+            🎮
+          </span>
+          <span className="min-w-0 flex-1 truncate text-sm">
+            <b className="text-ink">놀이터</b> <span className="text-sub">· 오늘의 운세 · 퀴즈 · 배지</span>
+          </span>
+          <span aria-hidden className="shrink-0 text-mute">
+            ›
+          </span>
+        </Link>
+      )}
+
       {/* 검색: 제목·내용에서 (말머리는 그대로) */}
       {!reviewTab && (
         <form action="/community" role="search" className="relative" data-community-search>
