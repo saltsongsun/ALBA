@@ -130,7 +130,18 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   for (const u of unreadRows) unreadBy.set(u.company_id, (unreadBy.get(u.company_id) ?? 0) + 1)
   // 대화가 둘 이상이면 (회사 문의 여러 곳 · 단체방) 문의 탭은 대화 목록부터
   const many = companies.length + rooms.length >= 2
-  if (many && !jobId && !wantCo) return <ChatList userId={user.id} companies={companies.map((c) => ({ id: c.id, name: nameOf(c), support: support(c.id) }))} threads={threads} unreadBy={unreadBy} rooms={rooms} askInfo={askInfo} />
+  if (many && !jobId && !wantCo)
+    return (
+      <ChatList
+        userId={user.id}
+        companies={companies.map((c) => ({ id: c.id, name: nameOf(c), support: support(c.id) }))}
+        threads={threads}
+        unreadBy={unreadBy}
+        rooms={rooms}
+        askInfo={askInfo}
+        pro={isPro(user.memberType)}
+      />
+    )
   const [messages, settings] = companyId
     ? await Promise.all([
         // 최근 300개 (오래된 것부터 보여 줌)
@@ -218,7 +229,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
           </p>
           {/* 이 회사 공고 모음으로 (모집 중인 공고가 있을 때만) */}
           {coOpen > 0 && (
-            <Link href={`/?co=${companyId}`} className="tap shrink-0 text-sm font-semibold whitespace-nowrap text-brand-600" data-chat-co-jobs>
+            <Link href={`/?co=${companyId}`} className="tap shrink-0 animate-pop text-sm font-semibold whitespace-nowrap text-brand-600" data-chat-co-jobs>
               공고 {coOpen}개 →
             </Link>
           )}
@@ -278,9 +289,12 @@ async function ChatList({
   unreadBy,
   rooms,
   askInfo = false,
+  pro = false,
 }: {
   userId: string
   askInfo?: boolean
+  /** 전문가·외주 업체 (알바 공고를 보지 않음 → 회사 줄에 '모집 n' 없음) */
+  pro?: boolean
   companies: { id: string; name: string; support: boolean }[]
   threads: Thread[]
   unreadBy: Map<string, number>
@@ -293,12 +307,28 @@ async function ChatList({
   const names = new Map(
     others.length ? (((await db().from('users').select('id, name').in('id', others)).data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]) : [],
   )
+  // 회사 줄 '모집 n': 그 회사에 지금 모집 중인 알바 공고 수 (대화 위 '공고 n개 →'와 같은 기준 · 고객센터·전문가엔 없음)
+  const coIds = companies.filter((c) => !c.support).map((c) => c.id)
+  const openBy = new Map<string, number>()
+  if (coIds.length && !pro) {
+    const open = ((
+      await db()
+        .from('jobs')
+        .select('company_id')
+        .in('company_id', coIds)
+        .eq('audience', 'worker')
+        .eq('status', 'open')
+        .gte('end_date', kstDate())
+        .limit(2000)
+    ).data ?? []) as { company_id: string }[]
+    for (const j of open) openBy.set(j.company_id, (openBy.get(j.company_id) ?? 0) + 1)
+  }
   const lastCo = new Map<string, Thread>()
   for (const t of threads) {
     const prev = lastCo.get(t.company_id)
     if (!prev || t.created_at > prev.created_at) lastCo.set(t.company_id, t)
   }
-  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number; ended?: boolean; co?: string }
+  type Row = { key: string; href: string; kind: 'room' | 'company'; title: string; icon: 'room' | 'company' | 'support'; who: string; body: string | null; at: string | null; unread: number; ended?: boolean; co?: string; open?: number }
   // 여러 회사 일을 하면 단체방 줄에 어느 회사 방인지 (공고 이름만으로는 헷갈리지 않게 · 한 회사면 그대로)
   const coName = new Map(companies.map((c) => [c.id, c.name]))
   const roomCos = new Set(rooms.map((r) => r.company_id))
@@ -332,6 +362,7 @@ async function ChatList({
         body: m ? plainBody(m.body) : null,
         at: m?.created_at ?? null,
         unread: unreadBy.get(c.id) ?? 0,
+        open: openBy.get(c.id) ?? 0,
       }
     }),
   ].sort((a, b) => (b.at ?? '').localeCompare(a.at ?? ''))
@@ -369,6 +400,12 @@ async function ChatList({
           <span className="flex items-center gap-1.5">
             <b className="min-w-0 truncate">{r.title}</b>
             {r.kind === 'room' && <span className="badge shrink-0 bg-brand-50 text-brand-700">단체방</span>}
+            {/* 그 회사에 지금 모집 중인 공고가 있으면 '모집 n' (들어가면 대화 위 '공고 n개 →'로 바로) */}
+            {!!r.open && (
+              <span className="shrink-0 animate-pop text-xs font-semibold text-brand-600 tabular-nums" data-chat-co-open>
+                모집 {r.open}
+              </span>
+            )}
             {r.at && <span className="ml-auto shrink-0 pl-1 text-xs text-mute tabular-nums">{when(r.at)}</span>}
           </span>
           <span className="mt-0.5 flex items-center gap-2">
