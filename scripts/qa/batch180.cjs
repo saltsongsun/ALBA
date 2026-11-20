@@ -84,8 +84,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   // 기록이 아예 없으면 안내만
   await rest(`attendance?id=eq.${OLD}`, 'DELETE')
   await a.goto(`${D}/admin/reports`)
-  await a.getByText('이 달의 근무 기록이 없어요').first().waitFor({ timeout: 15000 }).catch(() => {})
-  ok("기록이 아예 없으면 '근무가 끝나면 여기에 모여요' (바로 가기 없음)", (await a.locator('[data-report-latest]').count()) === 0 && (await a.getByText('근무가 끝나면 여기에 모여요').count()) === 1)
+  // (정기 개선 2026-11-20 17:35: 근무 기록이 한 번도 없는 회사는 0원 칸 대신 '아직 끝난 근무가 없어요' 한 줄 안내 — batch327)
+  await a.locator('[data-report-first]').waitFor({ timeout: 15000 }).catch(() => {})
+  ok("기록이 아예 없으면 '아직 끝난 근무가 없어요' 안내 (다른 달 바로 가기 없음)", (await a.locator('[data-report-latest]').count()) === 0 && (await a.locator('[data-report-first]').count()) === 1 && (await a.getByText('근무가 끝나면 지급액과 신고 파일이 여기에 모여요').count()) === 1)
 
   // ── 3. 공고 탭 빈 화면
   const empty = (title) => a.locator('.card', { hasText: title }).first()

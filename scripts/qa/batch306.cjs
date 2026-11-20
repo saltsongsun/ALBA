@@ -70,7 +70,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const a2 = await mk(A2)
   await a2.goto(`${D}/admin/reports`, { waitUntil: 'networkidle' })
   await a2.locator('[data-audit-log] summary').click().catch(() => {})
-  ok('다른 회사 관리자: 연동 화면 링크 없음 · 우리 회사 근무자 정보 기록 안 보임', (await a2.locator('[data-audit-ledger-link]').count()) === 0 && !one(await a2.locator('[data-audit-log]').textContent()).includes('거래장부에 근무자'))
+  // (정기 개선 2026-11-20 17:35: 근무 기록·처리 기록이 하나도 없는 회사는 '개인정보 처리 기록' 칸 자체가 없음 — 그때도 우리 기록은 안 보여야 함)
+  const a2Log = (await a2.locator('[data-audit-log]').count()) ? one(await a2.locator('[data-audit-log]').textContent()) : ''
+  ok('다른 회사 관리자: 연동 화면 링크 없음 · 우리 회사 근무자 정보 기록 안 보임', (await a2.locator('[data-audit-ledger-link]').count()) === 0 && !a2Log.includes('거래장부에 근무자') && !one(await a2.locator('main').textContent()).includes('거래장부에 근무자'))
 
   // ── 3. 연동 기록 화면을 여는 동안: 실제 모양 (회사 설정 한 줄 → 연동 화면 · 응답만 1.5초 늦춤)
   await a.goto(`${D}/admin/settings`, { waitUntil: 'networkidle' })

@@ -92,7 +92,9 @@ const get = async (path, uid) => {
   await o.goto(`${D}/admin/reports?month=${today.slice(0, 7)}`, { waitUntil: 'networkidle' })
   const counts = await o.locator('[data-report-file]').evaluateAll((els) => els.map((e) => e.dataset.reportCount))
   const body = one(await o.locator('main').innerText().catch(() => ''))
-  ok('다른 회사 관리자 신고자료: 파일마다 0명 · 우리 근무자 이름 없음', counts.length === 4 && counts.every((n) => n === '0') && !body.includes('종료안누름') && !body.includes('근무중인사람'), JSON.stringify(counts))
+  // (정기 개선 2026-11-20 17:35: 근무 기록이 한 번도 없는 회사는 신고 파일 대신 '아직 끝난 근무가 없어요' 안내 — 그 경우도 우리 자료는 안 보여야 함)
+  const firstOnly = (await o.locator('[data-report-first]').count()) === 1
+  ok('다른 회사 관리자 신고자료: 파일마다 0명(또는 처음 안내) · 우리 근무자 이름 없음', (firstOnly ? counts.length === 0 : counts.length === 4 && counts.every((n) => n === '0')) && !body.includes('종료안누름') && !body.includes('근무중인사람'), JSON.stringify(counts) + (firstOnly ? ' 처음 안내' : ''))
   ok('다른 회사 관리자: 우리 단체방 대화 파일 못 받음 (403)', (await get(`/admin/chat/room/${J}/export`, A2)).status === 403)
   ok('다른 회사 관리자: 우리 근무자 문의 대화 파일 못 받음 (403)', (await get(`/admin/chat/${W}/export`, A2)).status === 403)
   const pdf = await get(`/admin/docs/pdf?job=${J}`, A2)

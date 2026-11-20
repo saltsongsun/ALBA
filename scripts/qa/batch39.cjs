@@ -104,7 +104,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
   await p.locator('input[name=name]').first().waitFor({ timeout: 8000 }).catch(() => {})
   ok("'업체 등록하러 가기' → 업체 탭, 등록 칸이 바로 열려 있음", new URL(p.url()).searchParams.get('tab') === 'list' && (await p.locator('input[name=name]').first().isVisible().catch(() => false)))
   const rep = await look('/admin/reports')
-  ok("정산·신고자료: '이 달의 근무 기록이 없어요' (해요체)", rep.text.includes('이 달의 근무 기록이 없어요') && !rep.text.includes('없습니다.'), rep.text.match(/이 달의[^\n]*/)?.[0] ?? '')
+  // (정기 개선 2026-11-20 17:35: 근무 기록이 한 번도 없는 회사는 '아직 끝난 근무가 없어요' 한 줄 안내 — batch327)
+  ok("정산·신고자료: 빈 화면 안내 해요체 ('이 달의 근무 기록이 없어요' 또는 '아직 끝난 근무가 없어요')", (rep.text.includes('이 달의 근무 기록이 없어요') || rep.text.includes('아직 끝난 근무가 없어요')) && !rep.text.includes('없습니다.'), rep.text.match(/(이 달의|아직 끝난)[^\n]*/)?.[0] ?? '')
   // 업체가 있는 회사(첫 회사)는 그대로 견적 양식
   const a1 = await ctx.browser().newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR' })
   await a1.addCookies([{ name: 'alba_session', value: cookie(A), url: D }, { name: 'alba_roster', value: roster(A), url: D }])
