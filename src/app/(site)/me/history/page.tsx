@@ -15,6 +15,7 @@ import { workerPaydays } from '@/lib/worker-payday'
 import PaydayLine from '@/components/PaydayLine'
 import { FIX_DAYS, parseFix, pendingFix } from '@/lib/signals'
 import { FixRequest } from '@/components/worker'
+import { CopyButton } from '@/components/ui'
 
 export const metadata: Metadata = { title: '지난 근무' }
 
@@ -354,16 +355,27 @@ export default async function HistoryPage(props: PageProps<'/me/history'>) {
           )}
           {[...months.entries()].map(([ym, list]) => (
             <section key={ym} id={`m-${ym}`} className="scroll-mt-20">
-              <div className="mb-3 flex items-baseline justify-between">
+              <div className="mb-3 flex items-center justify-between" data-month-head>
                 <h2 className="text-[17px] font-bold">
                   {Number(ym.slice(0, 4))}년 {Number(ym.slice(5))}월
                 </h2>
                 {(() => {
                   const net = list.reduce((n, it) => n + it.s.net, 0)
+                  // 이 달 근무 기록을 글로 복사 (가족·담당자에게 보내거나 받은 급여와 맞춰 볼 때) — 이 화면에 보이는 숫자 그대로
+                  const lines = list
+                    .filter((it) => !(it.live > 0 && it.s.days === 0))
+                    .map(
+                      ({ job, s, paid, first, last }) =>
+                        `· ${job.company?.company_name ? `${job.company.company_name} · ` : ''}${job.title}\n  ${fmtDateRange(first, last)} · ${s.days}일 · ${minutesText(s.paidMin)} · 실수령 ${won(s.net)} · ${paid ? '지급완료' : '지급 전'}`,
+                    )
+                  const text = [`${Number(ym.slice(0, 4))}년 ${Number(ym.slice(5))}월 근무 기록`, ...lines, `합계 실수령 ${won(net)}`].join('\n')
                   // 이 달이 오늘 근무뿐이면 '0원' 대신 '계산 전'
                   return (
-                    <span className="text-sm text-mute tabular-nums" data-month-net>
-                      {net === 0 && list.some((it) => it.live > 0) ? '계산 전' : won(net)}
+                    <span className="flex items-center gap-2">
+                      <span className="text-sm text-mute tabular-nums" data-month-net>
+                        {net === 0 && list.some((it) => it.live > 0) ? '계산 전' : won(net)}
+                      </span>
+                      {lines.length > 0 && <CopyButton text={text} label="복사" className="chip h-7 px-2.5 text-xs" />}
                     </span>
                   )
                 })()}
