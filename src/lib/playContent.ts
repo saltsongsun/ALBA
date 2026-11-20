@@ -24,24 +24,38 @@ export type PlayStats = {
   week: { shifts: number; onTime: number; talk: number }
 }
 
-export type Badge = { key: string; icon: string; name: string; goal: string; have: number; need: number }
+/** href: 아직 못 얻은 배지를 누르면 가는 곳 (그 배지를 얻는 화면) */
+export type Badge = { key: string; icon: string; name: string; goal: string; have: number; need: number; href: string }
 
 /** 배지: 이미 있는 기록으로 판단 (have ≥ need 이면 얻음) */
 export function badgesOf(s: PlayStats): Badge[] {
   return [
-    { key: 'first_shift', icon: '🐣', name: '첫 근무', goal: '근무 1번 마치기', have: s.shifts, need: 1 },
-    { key: 'shift10', icon: '💪', name: '근무 10번', goal: '근무 10번 마치기', have: s.shifts, need: 10 },
-    { key: 'ontime5', icon: '⏰', name: '칼출근', goal: '정시 출근 5번', have: s.onTime, need: 5 },
-    { key: 'selfout10', icon: '✅', name: '마무리 장인', goal: '종료 직접 누르기 10번', have: s.selfOut, need: 10 },
-    { key: 'two_co', icon: '🧭', name: '여기저기', goal: '두 회사에서 일하기', have: s.companies, need: 2 },
-    { key: 'sign5', icon: '✍️', name: '서명 달인', goal: '서류 서명 5건', have: s.signed, need: 5 },
-    { key: 'review1', icon: '⭐', name: '첫 후기', goal: '회사 후기 1개 남기기', have: s.reviews, need: 1 },
-    { key: 'post1', icon: '📝', name: '첫 글', goal: '커뮤니티에 글 1개 쓰기', have: s.posts, need: 1 },
-    { key: 'talk10', icon: '💬', name: '수다쟁이', goal: '댓글 10개 달기', have: s.comments, need: 10 },
-    { key: 'liked10', icon: '❤️', name: '인기쟁이', goal: '내 글에 좋아요 10개', have: s.likesGot, need: 10 },
-    { key: 'pal1', icon: '🤝', name: '첫 동료', goal: '동료 1명 맺기', have: s.coworkers, need: 1 },
-    { key: 'profile', icon: '🪪', name: '준비 완료', goal: '내 정보 다 채우기', have: s.profileDone ? 1 : 0, need: 1 },
+    { key: 'first_shift', icon: '🐣', name: '첫 근무', goal: '근무 1번 마치기', have: s.shifts, need: 1, href: '/' },
+    { key: 'shift10', icon: '💪', name: '근무 10번', goal: '근무 10번 마치기', have: s.shifts, need: 10, href: '/' },
+    { key: 'ontime5', icon: '⏰', name: '칼출근', goal: '정시 출근 5번', have: s.onTime, need: 5, href: '/me' },
+    { key: 'selfout10', icon: '✅', name: '마무리 장인', goal: '종료 직접 누르기 10번', have: s.selfOut, need: 10, href: '/me' },
+    { key: 'two_co', icon: '🧭', name: '여기저기', goal: '두 회사에서 일하기', have: s.companies, need: 2, href: '/' },
+    { key: 'sign5', icon: '✍️', name: '서명 달인', goal: '서류 서명 5건', have: s.signed, need: 5, href: '/me' },
+    { key: 'review1', icon: '⭐', name: '첫 후기', goal: '회사 후기 1개 남기기', have: s.reviews, need: 1, href: '/me/history' },
+    { key: 'post1', icon: '📝', name: '첫 글', goal: '커뮤니티에 글 1개 쓰기', have: s.posts, need: 1, href: '/community/new' },
+    { key: 'talk10', icon: '💬', name: '수다쟁이', goal: '댓글 10개 달기', have: s.comments, need: 10, href: '/community' },
+    { key: 'liked10', icon: '❤️', name: '인기쟁이', goal: '내 글에 좋아요 10개', have: s.likesGot, need: 10, href: '/community?c=mine' },
+    { key: 'pal1', icon: '🤝', name: '첫 동료', goal: '동료 1명 맺기', have: s.coworkers, need: 1, href: '/community/coworkers' },
+    { key: 'profile', icon: '🪪', name: '준비 완료', goal: '내 정보 다 채우기', have: s.profileDone ? 1 : 0, need: 1, href: '/me/profile' },
   ]
+}
+
+/**
+ * 다음 배지 (정기 개선 2026-11-21 01:35): 아직 못 얻은 것 중 가장 가까운 것 (채운 비율이 가장 큰 것 · 같으면 목록 순서).
+ * 하나도 시작 안 했으면 목록 맨 앞(첫 근무 등) · 다 얻었으면 null
+ */
+export function nextBadge(list: Badge[]): Badge | null {
+  let best: Badge | null = null
+  for (const b of list) {
+    if (b.have >= b.need) continue
+    if (!best || b.have / b.need > best.have / best.need) best = b
+  }
+  return best
 }
 
 export type Challenge = { key: string; label: string; have: number; need: number; href: string }

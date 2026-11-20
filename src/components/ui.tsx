@@ -151,7 +151,7 @@ export function CopyButton({
 }
 
 /** 휴대폰에서는 공유 시트(카카오톡 등)를 열고, PC에서는 링크를 복사 */
-export function ShareButton({ title, text, path, className = 'btn-soft' }: { title: string; text?: string; path: string; className?: string }) {
+export function ShareButton({ title, text, path, className = 'btn-soft', label = '공유하기' }: { title: string; text?: string; path: string; className?: string; label?: string }) {
   const [msg, setMsg] = useState('')
   return (
     <button
@@ -173,7 +173,7 @@ export function ShareButton({ title, text, path, className = 'btn-soft' }: { tit
         setTimeout(() => setMsg(''), 1800)
       }}
     >
-      {msg || '공유하기'}
+      {msg || label}
     </button>
   )
 }

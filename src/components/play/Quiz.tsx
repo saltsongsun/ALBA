@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { pickQuiz, type QuizItem } from '@/lib/playContent'
-import { haptic } from '@/components/ui'
+import { haptic, ShareButton } from '@/components/ui'
 
 const BEST = 'play-quiz-best'
 export const QUIZ_WEEK = 'play-quiz-week'
@@ -119,9 +119,21 @@ export default function Quiz({ week }: { week: string }) {
         <p className="mt-2 text-xs text-emerald-700" data-quiz-week-done>
           ✓ 이번 주 챌린지 &lsquo;퀴즈 한 판&rsquo; 완료
         </p>
-        <button type="button" onClick={start} className="btn-soft btn-sm mt-3" data-quiz-again>
-          다른 문제로 다시 풀기
-        </button>
+        {/* 다시 풀기 + 결과 자랑하기 (점수만 보냄 · 휴대폰은 공유 창, PC는 링크 복사) — 정기 개선 2026-11-21 01:35 */}
+        <div className="mt-3 flex justify-center gap-2">
+          <button type="button" onClick={start} className="btn-soft btn-sm" data-quiz-again>
+            다시 풀기
+          </button>
+          <span data-quiz-share className="contents">
+            <ShareButton
+              title="해피워크 놀이터"
+              text={`알바 상식 퀴즈 ${score}/${N}점! 너도 풀어 봐 🧠`}
+              path="/community/play#quiz"
+              className="btn-primary btn-sm"
+              label="결과 자랑하기"
+            />
+          </span>
+        </div>
       </div>
     )
   }

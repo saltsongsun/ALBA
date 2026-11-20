@@ -5,6 +5,7 @@ import Badges from '@/components/play/Badges'
 import Challenges from '@/components/play/Challenges'
 import Fortune from '@/components/play/Fortune'
 import Quiz from '@/components/play/Quiz'
+import { coworkersEnabled } from '@/lib/coworkers'
 import { playStats } from '@/lib/play'
 import { badgesOf, challengesOf, fortuneOf } from '@/lib/playContent'
 import { requireUser } from '@/lib/session'
@@ -24,8 +25,9 @@ export default async function PlayPage() {
   const today = kstDate()
   const ws = weekStart(today)
   const dayIdx = Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${ws}T00:00:00Z`)) / 864e5)
-  const stats = await playStats(user.id)
-  const badges = badgesOf(stats)
+  const [stats, pals] = await Promise.all([playStats(user.id), coworkersEnabled()])
+  // 동료 기능을 운영자가 꺼 두었으면 '첫 동료' 배지는 얻을 수 없으니 빼기
+  const badges = badgesOf(stats).filter((b) => pals || b.key !== 'pal1')
   const got = badges.filter((b) => b.have >= b.need).length
   return (
     <div className="space-y-4" data-play>

@@ -1,7 +1,8 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import type { Badge } from '@/lib/playContent'
+import { nextBadge, type Badge } from '@/lib/playContent'
 
 const SEEN = 'play-badges-seen'
 
@@ -25,6 +26,8 @@ export default function Badges({ items }: { items: Badge[] }) {
   }, [gotKeys])
   // 얻은 것 먼저 (같은 묶음 안에서는 원래 순서)
   const sorted = [...got, ...items.filter((b) => b.have < b.need)]
+  // 다음 배지: 가장 가까운 것 하나 + 하러 가기 (정기 개선 2026-11-21 01:35)
+  const nb = nextBadge(items)
   return (
     <section className="card" aria-label="배지" data-badges data-badges-got={got.length}>
       <div className="flex items-baseline justify-between gap-2">
@@ -33,17 +36,39 @@ export default function Badges({ items }: { items: Badge[] }) {
           <b className="text-ink tabular-nums">{got.length}</b>/{items.length}개 모음
         </p>
       </div>
+      {nb ? (
+        <Link
+          href={nb.href}
+          className="mt-2.5 flex items-center gap-2.5 rounded-xl bg-amber-50 px-3 py-2 text-sm transition duration-150 active:scale-[0.99]"
+          data-next-badge={nb.key}
+        >
+          <span aria-hidden className="text-lg leading-none">
+            {nb.icon}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-[11px] font-semibold text-amber-800">다음 배지</span>
+            <span className="block truncate">
+              <b className="text-ink">{nb.name}</b>
+              <span className="text-sub" data-next-badge-left>
+                {' '}
+                · {nb.have === 0 ? nb.goal : `${nb.need - nb.have}${unit(nb.key)} 더`}
+              </span>
+            </span>
+          </span>
+          <span className="shrink-0 text-xs font-bold text-amber-700">하러 가기 ›</span>
+        </Link>
+      ) : (
+        <p className="mt-2.5 animate-pop rounded-xl bg-amber-50 px-3 py-2 text-center text-sm font-bold text-amber-800" data-badges-all>
+          🎉 배지를 모두 모았어요!
+        </p>
+      )}
       <ul className="mt-3 grid grid-cols-3 gap-2">
         {sorted.map((b) => {
           const ok = b.have >= b.need
           const isNew = fresh.has(b.key)
           return (
-            <li
-              key={b.key}
-              data-badge={b.key}
-              data-badge-got={ok ? '1' : '0'}
-              className={`relative flex min-w-0 flex-col items-center rounded-2xl px-1.5 pt-2.5 pb-2 text-center ${ok ? 'bg-amber-50/70' : 'bg-bg/70'} ${isNew ? 'animate-pop ring-2 ring-amber-300' : ''}`}
-            >
+            <li key={b.key} data-badge={b.key} data-badge-got={ok ? '1' : '0'} className="min-w-0">
+              <Cell ok={ok} href={b.href} className={`relative flex h-full min-w-0 flex-col items-center rounded-2xl px-1.5 pt-2.5 pb-2 text-center ${ok ? 'bg-amber-50/70' : 'bg-bg/70'} ${isNew ? 'animate-pop ring-2 ring-amber-300' : ''}`}>
               {isNew && (
                 <span className="absolute -top-1.5 right-1 rounded-full bg-amber-400 px-1.5 py-px text-[10px] font-extrabold text-white" data-badge-new>
                   새로!
@@ -64,10 +89,26 @@ export default function Badges({ items }: { items: Badge[] }) {
                   </span>
                 </span>
               )}
+              </Cell>
             </li>
           )
         })}
       </ul>
     </section>
+  )
+}
+
+/** 남은 양 단위 (다음 배지 줄: '1번 더' · '3건 더' …) */
+function unit(key: string) {
+  return key === 'sign5' ? '건' : key === 'two_co' ? '곳' : key === 'talk10' || key === 'post1' || key === 'review1' || key === 'liked10' ? '개' : key === 'pal1' ? '명' : '번'
+}
+
+/** 배지 칸: 얻은 것은 그냥 칸 · 못 얻은 것은 눌러서 그 배지를 얻는 화면으로 (누름 반응) */
+function Cell({ ok, href, className, children }: { ok: boolean; href: string; className: string; children: React.ReactNode }) {
+  if (ok) return <div className={className}>{children}</div>
+  return (
+    <Link href={href} className={`${className} transition duration-150 active:scale-95`} data-badge-go>
+      {children}
+    </Link>
   )
 }

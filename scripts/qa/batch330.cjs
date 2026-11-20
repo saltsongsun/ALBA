@@ -140,12 +140,13 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   ok(`다시 와도: 최고 ${right}/5 · 챌린지 4/4`, one(await p.locator('[data-quiz-best]').innerText().catch(() => '')) === `${right}/5` && (await p.locator('[data-challenges]').getAttribute('data-done')) === '4')
   ok('점수·챌린지는 DB에 저장 안 함 (이 휴대폰에만)', (await rest(`users?id=eq.${P}`))[0]?.quiz_best === undefined)
 
-  // ── 5. 새로 얻은 배지: 동료를 서로 맺으면 '첫 동료'에 '새로!'
-  await rest('coworker_links', 'POST', { from_id: P, to_id: K, created_at: new Date().toISOString() })
-  await rest('coworker_links', 'POST', { from_id: K, to_id: P, created_at: new Date().toISOString() })
+  // ── 5. 새로 얻은 배지: 회사 후기를 남기면 '첫 후기'에 '새로!'
+  // (정기 개선 2026-11-21 01:35: 동료 기능이 꺼져 있으면 '첫 동료' 배지는 빠짐 — 가짜 DB는 기본 꺼짐이라 후기로 확인)
+  ok("동료 기능이 꺼져 있으면 '첫 동료' 배지 없음 (얻을 수 없으니)", (await p.locator('[data-badge="pal1"]').count()) === 0 && (await p.locator('[data-badge]').count()) === 11)
+  await rest('company_reviews', 'POST', { company_id: C1, job_id: J, author_id: P, rating: 5, body: '친절했어요', hidden_at: null, created_at: new Date().toISOString() })
   await go(p, '/community/play')
-  const pal = p.locator('[data-badge="pal1"]')
-  ok("서로 맺은 동료 → '첫 동료' 배지 + '새로!'", (await pal.getAttribute('data-badge-got')) === '1' && (await pal.locator('[data-badge-new]').count()) === 1 && (await p.locator('[data-badge-new]').count()) === 1)
+  const rv = p.locator('[data-badge="review1"]')
+  ok("후기를 남기면 '첫 후기' 배지 + '새로!'", (await rv.getAttribute('data-badge-got')) === '1' && (await rv.locator('[data-badge-new]').count()) === 1 && (await p.locator('[data-badge-new]').count()) === 1)
   if (SHOTS) await p.locator('[data-badges]').screenshot({ path: `${SHOTS}/play-badges.png` })
   await go(p, '/community/play')
   ok("한 번 본 뒤엔 '새로!' 없음", (await p.locator('[data-badge-new]').count()) === 0)

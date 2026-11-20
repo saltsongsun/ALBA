@@ -51,15 +51,18 @@ export default function Challenges({ items, week, daysLeft }: { items: Challenge
                   <span className={`block h-full rounded-full transition-[width] duration-300 ${ok ? 'bg-emerald-500' : 'bg-brand-500'}`} style={{ width: `${Math.max(pct, c.have > 0 ? 8 : 0)}%` }} />
                 </span>
               </span>
-              {ok ? (
-                <span key="ok" className="shrink-0 animate-pop rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700" data-challenge-ok>
-                  ✓ 완료
-                </span>
-              ) : (
-                <span className="shrink-0 text-xs font-semibold text-mute tabular-nums">
-                  {Math.min(c.have, c.need)}/{c.need} <span aria-hidden>›</span>
-                </span>
-              )}
+              {/* 오른쪽 칸 너비를 고정 → 끝낸 줄·남은 줄의 막대 끝이 한 줄로 맞음 (정기 개선 2026-11-21 01:35) */}
+              <span className="flex w-16 shrink-0 justify-end">
+                {ok ? (
+                  <span key="ok" className="animate-pop rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700" data-challenge-ok>
+                    ✓ 완료
+                  </span>
+                ) : (
+                  <span className="text-xs font-semibold text-mute tabular-nums">
+                    {Math.min(c.have, c.need)}/{c.need} <span aria-hidden>›</span>
+                  </span>
+                )}
+              </span>
             </>
           )
           return (
