@@ -77,6 +77,9 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
   const openAll = groups.size <= 1 || !!(f.q || f.job)
   const total = (f.status ? base.filter((d) => d.status === f.status) : base.filter((d) => d.status !== 'void')).length
 
+  // 서류를 한 번도 받은 적 없는 회사 (새 회사): 빈 찾기 칸·고르기·0개 칩 대신 다음에 할 일 하나만
+  if (all.length === 0 && !filtered) return <FirstDocs companyId={companyId} />
+
   return (
     <>
       <form className="space-y-2" role="search" data-docs-search>
@@ -231,6 +234,48 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
         </>
       )}
     </>
+  )
+}
+
+/**
+ * 아직 받은 서류가 하나도 없는 회사: 어떻게 모이는지 한 줄 + 다음에 할 일 하나
+ * · 공고가 없으면 '첫 공고 올리기' · 있으면 서식 확인 (준비된 서식 수 · 없으면 기본 서식 불러오기)
+ */
+async function FirstDocs({ companyId }: { companyId: string }) {
+  const [jobs, tpls] = await Promise.all([
+    db().from('jobs').select('id', { count: 'exact', head: true }).eq('company_id', companyId).then((r) => r.count ?? 0, () => 0),
+    db()
+      .from('doc_templates')
+      .select('id, active')
+      .eq('company_id', companyId)
+      .then((r) => ((r.data ?? []) as { id: string; active: boolean | null }[]).filter((t) => t.active !== false).length, () => 0),
+  ])
+  return (
+    <section className="card flex flex-col items-center gap-3 py-8 text-center" data-docs-first>
+      <span aria-hidden className="animate-float text-4xl">
+        📄
+      </span>
+      <div className="space-y-1">
+        <p className="font-semibold text-sub">아직 받은 서류가 없어요</p>
+        <p className="text-sm text-balance text-mute">확정된 근무자가 앱에서 서명하면 여기에 모여요</p>
+      </div>
+      {jobs === 0 ? (
+        <Link href="/admin/jobs/new" className="btn-primary btn-sm animate-pop" data-docs-first-job>
+          + 첫 공고 올리기
+        </Link>
+      ) : null}
+      {tpls > 0 ? (
+        <Link href="/admin/docs?tab=tpl" className="tap text-sm font-semibold text-brand-600" data-docs-first-tpl>
+          서식 {tpls}개 준비돼 있어요 · 보기 →
+        </Link>
+      ) : (
+        <form action={restoreDefaultTemplates} data-docs-first-restore>
+          <SubmitButton className="btn-gray btn-sm">
+            기본 서식 불러오기
+          </SubmitButton>
+        </form>
+      )}
+    </section>
   )
 }
 

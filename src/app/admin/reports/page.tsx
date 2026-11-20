@@ -83,10 +83,10 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
           .order('work_date', { ascending: false })
           .limit(1)
           .then(
-            (r) => ((r.data ?? []) as { work_date: string }[]).map((a) => a.work_date).sort().pop()?.slice(0, 7) ?? null,
-            () => null,
+            (r) => (r.error ? undefined : ((r.data ?? []) as { work_date: string }[]).map((a) => a.work_date).sort().pop()?.slice(0, 7) ?? null),
+            () => undefined,
           )
-      : null
+      : undefined
   const total = rows.reduce(
     (t, r) => ({
       gross: t.gross + r.gross,
@@ -114,12 +114,29 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
   const fixHref = fix ? `/admin/jobs/${fix.jobId}?tab=att&date=${fix.date}&fix=${fix.user.id}#att-${fix.user.id}` : null
   const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
   const isThisMonth = month === thisMonth
+  // 근무 기록이 한 번도 없는 회사 (새 회사): 0원·0명 칸과 빈 신고 파일 대신 어떻게 모이는지 한 줄 + 공고로 (못 읽었으면 그대로)
+  const never = rows.length === 0 && latestMonth === null
 
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
       <h1 className="text-2xl font-extrabold">정산 · 신고자료</h1>
 
+      {never ? (
+        <section className="card flex flex-col items-center gap-3 py-8 text-center" data-report-first>
+          <span aria-hidden className="animate-float text-4xl">
+            🧾
+          </span>
+          <div className="space-y-1">
+            <p className="font-semibold text-sub">아직 끝난 근무가 없어요</p>
+            <p className="text-sm text-balance text-mute">근무가 끝나면 지급액과 신고 파일이 여기에 모여요</p>
+          </div>
+          <Link href="/admin/jobs" className="btn-gray btn-sm" data-report-first-jobs>
+            공고 보기 →
+          </Link>
+        </section>
+      ) : (
+      <>
       {/* 달 고르기: 양쪽 화살표 칸 · 가운데 '2026년 11월' (주간 화면과 같은 모양 · 영어 달 이름 없음) */}
       <nav className="flex items-center gap-1.5 rounded-2xl bg-white p-1.5 ring-1 ring-line" aria-label="달 고르기" data-month-nav>
         <Link href={`/admin/reports?month=${shiftMonth(month, -1)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="지난 달" data-month-prev>
@@ -285,7 +302,11 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         )}
       </section>
 
-      {/* 개인정보 처리 기록: 접어 두기 (필요할 때 펼쳐 보기) */}
+      </>
+      )}
+
+      {/* 개인정보 처리 기록: 접어 두기 (필요할 때 펼쳐 보기) · 새 회사는 기록이 생기면 */}
+      {(!never || logs.length > 0 || ledgerOn) && (
       <details className="group" data-audit-log>
         <summary className="section-title cursor-pointer">
           개인정보 처리 기록 <span className="text-xs font-semibold text-mute">· 최근 {logs.length}건</span>
@@ -359,6 +380,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
           </Link>
         )}
       </details>
+      )}
     </div>
   )
 }
