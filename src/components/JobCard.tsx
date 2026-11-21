@@ -5,7 +5,7 @@ import { scheduleText } from '@/lib/docs'
 import { won } from '@/lib/format'
 import { headcountTbd, shows } from '@/lib/jobFields'
 import { estimateDay, workOver } from '@/lib/pay'
-import { fmtDateRange, kstDate } from '@/lib/time'
+import { fmtDateRange, kstAt, kstDate } from '@/lib/time'
 import type { Job } from '@/lib/types'
 
 export function wageBadge(job: Job): string {
@@ -66,6 +66,8 @@ export default function JobCard({
   const when = dday(job, kstDate())
   // 오늘이 마지막 날이고 근무 시간까지 끝났으면 '오늘 근무 종료' (지원 버튼이 없는 공고)
   const over = job.status === 'open' && job.end_date === kstDate() && workOver(job, job.end_date)
+  // 하루짜리 오늘 근무가 이미 시작했으면 '오늘 · 진행 중' (공고 화면 지원 칸 안내와 같은 기준 · 지원은 그대로 받음) — 정기 개선 2026-11-21 09:35
+  const startedNow = job.status === 'open' && !over && when === '오늘' && job.end_date === job.start_date && Date.now() >= kstAt(job.start_date, job.start_time).getTime()
   // 인원 미정 공고: 남은 자리·칸 대신 '인원 미정' 한마디
   const tbd = headcountTbd(job)
   const showCount = shows(job, 'headcount') && !tbd
@@ -81,7 +83,19 @@ export default function JobCard({
     >
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {job.audience === 'expert' && <span className="badge bg-violet-50 text-violet-700">🎛️ 전문가 의뢰</span>}
-        {when && <span className="badge bg-ink text-white">{when}</span>}
+        {when &&
+          (startedNow ? (
+            <span className="badge gap-1 bg-ink text-white" data-card-started>
+              {/* 지금 하고 있는 근무: 작은 초록 점 (움직임 줄이기면 깜빡이지 않음) */}
+              <span aria-hidden className="relative flex size-1.5">
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-300 opacity-75 motion-reduce:hidden" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-emerald-400" />
+              </span>
+              오늘 · 진행 중
+            </span>
+          ) : (
+            <span className="badge bg-ink text-white">{when}</span>
+          ))}
         {myStatus && APP_STATUS[myStatus] && (
           <span className={`badge ${APP_STATUS[myStatus].cls}`}>{APP_STATUS[myStatus].label}</span>
         )}

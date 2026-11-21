@@ -220,7 +220,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         </div>
         {/* 대화가 이어지는 중이면 설명 대신 누구와의 대화인지만 한 줄 (설명은 첫 문의 때만 · 화면을 덜 차지하게) */}
         <div className="mt-1 flex items-center gap-2">
-          <p className="min-w-0 flex-1 truncate text-sm text-sub" data-chat-intro>
+          {/* 첫 문의 설명은 휴대폰에서 끝이 잘리지 않게 두 줄까지 (대화 중 한 줄 이름은 그대로 한 줄) — 정기 개선 2026-11-21 09:35 */}
+          <p className={`min-w-0 flex-1 text-sm text-sub ${messages.length === 0 ? 'break-keep text-pretty' : 'truncate'}`} data-chat-intro>
             {messages.length === 0 ? (
               <>궁금한 점을 남기면 {support(companyId) ? SUPPORT_NAME : (settings?.company_name ?? '담당자')}에서 확인하고 답장해 드려요.</>
             ) : (
