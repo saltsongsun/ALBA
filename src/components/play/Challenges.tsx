@@ -4,6 +4,21 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import type { Challenge } from '@/lib/playContent'
 import { QUIZ_DONE_EVENT, QUIZ_WEEK } from './Quiz'
+import { haptic } from '@/components/ui'
+
+/** 이번 주 챌린지를 다 끝낸 축하(작은 폭죽)를 이 휴대폰에서 이미 본 주 — 한 주에 한 번만 */
+const PARTY = 'play-challenges-party'
+// 축하 점 8개 (가운데에서 바깥으로 · 색은 앱 색)
+const DOTS = [
+  { x: -70, y: -26, c: '#10b981' },
+  { x: 70, y: -26, c: '#3b82f6' },
+  { x: -46, y: 22, c: '#f59e0b' },
+  { x: 46, y: 22, c: '#ec4899' },
+  { x: -96, y: 4, c: '#3b82f6' },
+  { x: 96, y: 4, c: '#10b981' },
+  { x: -20, y: -34, c: '#ec4899' },
+  { x: 20, y: -34, c: '#f59e0b' },
+]
 
 /**
  * 이번 주 챌린지 (놀이터): 기록으로 판단하는 것(근무·정시·글) + 이 휴대폰의 퀴즈 한 판.
@@ -23,20 +38,45 @@ export default function Challenges({ items, week, daysLeft }: { items: Challenge
   }, [week])
   const all: Challenge[] = [...items, { key: 'w_quiz', label: '알바 상식 퀴즈 한 판', have: quiz ? 1 : 0, need: 1, href: '#quiz' }]
   const doneN = all.filter((c) => c.have >= c.need).length
+  const allDone = doneN === all.length
+  // 다 끝낸 주에 처음 볼 때만 작은 폭죽 + 짧은 진동 (다시 열면 조용히 · 움직임 줄이기면 점 없이) — 정기 개선 2026-11-21 11:35
+  const [party, setParty] = useState(false)
+  useEffect(() => {
+    if (!allDone) return
+    try {
+      if (localStorage.getItem(PARTY) === week) return
+      localStorage.setItem(PARTY, week)
+    } catch {
+      return
+    }
+    haptic([12, 40, 18])
+    // 움직임 줄이기면 점을 아예 그리지 않음 (.burst는 화면 전체 CSS라 motion-reduce 클래스로는 못 숨김)
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    setParty(true)
+    const t = window.setTimeout(() => setParty(false), 1200)
+    return () => window.clearTimeout(t)
+  }, [allDone, week])
   return (
     <section className="card" aria-label="이번 주 챌린지" data-challenges data-done={doneN}>
       <div className="flex items-baseline justify-between gap-2">
         <h2 className="text-[15px] font-bold">이번 주 챌린지</h2>
         <p className="shrink-0 text-xs text-mute">
-          <b className={`tabular-nums ${doneN === all.length ? 'text-emerald-600' : 'text-ink'}`} data-challenges-count>
+          <b className={`tabular-nums ${allDone ? 'text-emerald-600' : 'text-ink'}`} data-challenges-count>
             {doneN}/{all.length}
           </b>{' '}
           · {daysLeft === 0 ? '오늘 밤 새로' : `${daysLeft}일 뒤 새로`}
         </p>
       </div>
-      {doneN === all.length && (
-        <p className="mt-2 animate-pop rounded-xl bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-700" data-challenges-all>
+      {allDone && (
+        <p className="relative mt-2 animate-pop rounded-xl bg-emerald-50 px-3 py-2 text-center text-sm font-bold text-emerald-700" data-challenges-all>
           🎉 이번 주 챌린지를 모두 끝냈어요!
+          {party && (
+            <span aria-hidden className="burst" data-challenges-party>
+              {DOTS.map((d, i) => (
+                <i key={i} style={{ '--x': `${d.x}px`, '--y': `${d.y}px`, background: d.c } as React.CSSProperties} />
+              ))}
+            </span>
+          )}
         </p>
       )}
       <ul className="mt-2 divide-y divide-line">

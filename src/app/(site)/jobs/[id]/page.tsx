@@ -144,7 +144,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           .maybeSingle()
           .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null; rrn_masked: string | null } | null)
       : null,
-    // 회사: 해피워크가 확인한 회사인지 + 지금 모집 중인 공고 수 (그 회사 공고 모음으로)
+    // 회사: 해피워크가 확인한 회사인지 + 이 공고 말고 지금 모집 중인 그 회사 공고 수 (그 회사 공고 모음으로)
+    // (이 공고 하나뿐인데 '공고 1개 →'로 같은 공고만 다시 보이지 않게 — 정기 개선 2026-11-21 11:35)
     Promise.all([
       db().from('companies').select('verified').eq('id', job.company_id).maybeSingle(),
       db()
@@ -153,6 +154,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         .eq('company_id', job.company_id)
         .eq('audience', 'worker')
         .eq('status', 'open')
+        .neq('id', job.id)
         .gte('end_date', kstDate()),
       // 근무자 후기 평균 별점 (가입한 회원에게만)
       // 운영자가 '공고에 회사 후기 보이기'를 끄면 안 읽음 (별점·최근 후기 숨김)
@@ -384,7 +386,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             ) : (
               coInfo.verified && <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">✓ 확인된 회사</span>
             )}
-            {coInfo.open > 0 && <span className="ml-auto shrink-0 text-xs text-brand-600">공고 {coInfo.open}개 →</span>}
+            {coInfo.open > 0 && (
+              <span className="ml-auto shrink-0 text-xs text-brand-600" data-company-more>
+                다른 공고 {coInfo.open}개 →
+              </span>
+            )}
           </Link>
         )}
         {/* 근무자 후기 별점: 누르면 그 회사 후기 모두 */}
