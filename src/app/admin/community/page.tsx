@@ -52,10 +52,9 @@ export default async function CommunityAdminPage(props: PageProps<'/admin/commun
                 <p className="mt-0.5 text-xs text-sub" data-feature-short>
                   {k === 'coworkers' ? '고른 동료에게만 내 지원 공고 보여 주기' : '공고에 회사 별점·최근 후기 보여 주기'}
                 </p>
-                <details className="group mt-0.5 text-xs text-mute" data-feature-more>
-                  <summary className="tap inline-flex cursor-pointer list-none items-center gap-0.5 font-semibold [&::-webkit-details-marker]:hidden">
-                    자세히 <span aria-hidden className="inline-block transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none">›</span>
-                  </summary>
+                <details className="mt-0.5 text-xs text-mute" data-feature-more>
+                  {/* 화살표는 앱 공통 접기 화살표 (돌아감 0.2초) */}
+                  <summary className="tap inline-flex cursor-pointer items-center font-semibold">자세히</summary>
                   <p className="mt-1 animate-[slide-down_0.25s_ease-out_both] text-sub">{desc}</p>
                 </details>
               </div>
