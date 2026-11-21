@@ -107,9 +107,9 @@ export function ConfirmSubmit({
   )
 }
 
-export function PrintButton({ label = '인쇄 / PDF 저장' }: { label?: string }) {
+export function PrintButton({ label = '인쇄 / PDF 저장', className = 'btn-primary' }: { label?: React.ReactNode; className?: string }) {
   return (
-    <button type="button" className="btn-primary" onClick={() => window.print()}>
+    <button type="button" className={className} onClick={() => window.print()}>
       {label}
     </button>
   )

@@ -9,7 +9,8 @@ import { getJob, getSettings } from '@/lib/data'
 import { db } from '@/lib/db'
 import { buildDocVars, renderTemplate, type DocPerson } from '@/lib/docs'
 import { phoneFmt } from '@/lib/format'
-import { kstDateTime } from '@/lib/time'
+import { fmtDate, kstDate, kstDateTime } from '@/lib/time'
+import { parseChanges, signalOf } from '@/lib/signals'
 import { canManageCompany, requireUser } from '@/lib/session'
 import type { CompanySnapshot, DocTemplate, SignedDoc } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
@@ -93,6 +94,25 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
   }
 
   const mine = doc.user_id === user.id
+  // 서명한 뒤에 이 공고의 '🔔 일정 변경' 알림을 그 근무자에게 보냈으면: 바뀌기 전 내용으로 서명한 서류 (근무자 · 담당자 모두 — 정기 개선 2026-11-22 06:35)
+  const changedAfter =
+    doc.status === 'signed' && doc.signed_at
+      ? await db()
+          .from('messages')
+          .select('created_at, body, thread_user_id, job_id')
+          .eq('company_id', doc.company_id)
+          .eq('job_id', doc.job_id)
+          .eq('thread_user_id', doc.user_id)
+          .eq('from_admin', true)
+          .order('created_at', { ascending: false })
+          .limit(100)
+          .then((r) =>
+            ((r.data ?? []) as { created_at: string; body: string; thread_user_id: string; job_id: string | null }[])
+              .filter((m) => m.thread_user_id === doc.user_id && m.job_id === doc.job_id && m.created_at > doc.signed_at! && signalOf(m.body) === 'change')
+              .reduce<{ created_at: string; body: string } | null>((a, m) => (!a || m.created_at > a.created_at ? m : a), null),
+          )
+      : null
+  const changedRows = changedAfter ? parseChanges(changedAfter.body).slice(0, 3) : []
   // 근무자 화면: 어느 회사 · 어느 공고 서류인지 한 줄 (여러 회사 서류가 모두 '근로계약서'여도 서명 전에 바로 알게)
   const jobTitle = mine ? ((await jobP)?.title ?? null) : null
   const companyName = company?.company_name || null
@@ -124,7 +144,19 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
                 PDF 받기
               </a>
             )}
-            <PrintButton />
+            {/* 근무자: 인쇄는 자주 쓰지 않으니 흰 버튼으로 조용히 (담당자 화면은 예전 그대로) — 정기 개선 2026-11-22 06:35 */}
+            {mine ? (
+              <PrintButton
+                className="btn-white btn-sm gap-1"
+                label={
+                  <>
+                    <Icon name="printer" /> PDF 저장
+                  </>
+                }
+              />
+            ) : (
+              <PrintButton />
+            )}
           </span>
         ) : (
           // 몇 번째인지는 바로 아래 진행 막대에 있어 여기서는 '서명 대기'만 (같은 숫자를 두 번 보이지 않게)
@@ -152,6 +184,42 @@ export default async function DocPage(props: PageProps<'/docs/[id]'>) {
           </span>
           {kstDateTime(doc.signed_at)}에 서명했어요
         </p>
+      )}
+      {/* 서명한 뒤에 일정이 바뀜: 이 서류는 바뀌기 전 내용 (근무자: 다시 서명 요청이 오면 새 서류에 · 담당자: 공고 서류 탭에서 재서명) */}
+      {changedAfter && (
+        <div className="no-print animate-slide-down space-y-1.5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200" data-doc-changed>
+          <p className="font-bold">
+            서명한 뒤에 일정이 바뀌었어요 <span className="font-normal text-amber-800">· {fmtDate(kstDate(changedAfter.created_at))}</span>
+          </p>
+          {changedRows.length > 0 && (
+            <ul className="space-y-0.5 text-xs" data-doc-changed-rows>
+              {changedRows.map((r, i) => (
+                <li key={r.label} className="flex min-w-0 gap-1.5">
+                  <span className="shrink-0 font-semibold">{r.label}</span>
+                  <span className="min-w-0 truncate">
+                    <s className="text-amber-700/70">{r.from}</s> →{' '}
+                    {/* 바뀐 값은 차례로 톡 (0.25초 · 움직임 줄이기면 바로) */}
+                    <b className="inline-block animate-[pop_0.25s_ease-out_both]" style={{ animationDelay: `${0.1 + i * 0.08}s` }}>
+                      {r.to}
+                    </b>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs break-keep">
+            {mine ? (
+              '이 서류는 바뀌기 전 내용이에요. 담당자가 다시 서명을 부탁하면 새 서류에 서명해 주세요.'
+            ) : (
+              <>
+                이 서류는 바뀌기 전 내용이에요.{' '}
+                <Link href={`/admin/jobs/${doc.job_id}?tab=docs#doc-stale`} className="font-semibold whitespace-nowrap underline" data-doc-changed-admin>
+                  공고 서류 탭에서 재서명 →
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
       )}
       {/* 서명할 서류가 여러 건이면 몇 번째인지 */}
       {queue.length > 1 && pos >= 0 && (
