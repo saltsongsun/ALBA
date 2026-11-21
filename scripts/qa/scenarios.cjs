@@ -153,7 +153,8 @@ const workerLite = { id: WK, name: '근무자', phone: '01033334444', birth_date
   await aw.getByRole('button', { name: /1명 지급 완료/ }).click() // 계좌가 없으면 '정리 안 된 …' 확인 문구
   ok('S8 지급 완료 + 알림 안내', await see(aw, '1명을 지급 완료로 바꾸고 알렸어요'))
   const paid = (await rest(MW, `messages?thread_user_id=eq.${WK}`)).find((m) => m.body.startsWith('💸 급여 지급'))
-  ok('S8 근무자에게 실지급액과 함께 💸 급여 지급', paid && /급여.*을 등록한 계좌로 보냈어요/.test(paid.body), paid && paid.body.split('\n')[1])
+  // 조사 (정기 개선 2026-11-21 07:35): 금액이 있으면 '…원(세금 뗀 실지급액)을', 이 시나리오처럼 몇 초짜리 근무(0원)면 '급여를' — '급여을'은 없음
+  ok('S8 근무자에게 실지급액과 함께 💸 급여 지급', paid && /급여(?: [\d,]+원\(세금 뗀 실지급액\)을|를) 등록한 계좌로 보냈어요/.test(paid.body) && !paid.body.includes('급여을'), paid && paid.body.split('\n')[1])
 
   // S7 전날 안내 (cron)
   // (S3에서 하루짜리 행사의 유일한 확정자가 퇴근해 '행사 종료'로 자동 전환됨 → 하루 늘리면서 다시 모집 중으로 — 관리자가 공고 수정에서 상태를 고르는 것과 같음)
