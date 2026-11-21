@@ -23,7 +23,7 @@ export default async function EditPostPage(props: PageProps<'/community/[id]/edi
       </Link>
       <h1 className="text-2xl font-extrabold">글 고치기</h1>
       <div className="card" data-edit-form>
-        <PostForm defaultCategory={post.category} post={{ id: post.id, title: post.title, body: post.body }} />
+        <PostForm defaultCategory={post.category} post={{ id: post.id, title: post.title, body: post.body }} hasPoll={post.poll} />
       </div>
     </div>
   )

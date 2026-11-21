@@ -3,7 +3,10 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { after } from 'next/server'
-import { AUTO_HIDE_REPORTS, canPost, ensureNickname, isCategory, nicknameError, workedJob } from '@/lib/community'
+import { AUTO_HIDE_REPORTS, canPost, canWrite, ensureNickname, isCategory, nicknameError, workedJob } from '@/lib/community'
+import { isReaction, POLL_LEN, POLL_MAX, POLL_MIN, type ReactionKey } from '@/lib/communityShared'
+import { checkinView, pollsFor, reactionsFor, noReactions, type PollView, type ReactionView } from '@/lib/community2'
+import { kstDate } from '@/lib/time'
 import { audit } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { sendPush, superAdminIds } from '@/lib/push'
@@ -53,6 +56,19 @@ function postBody(form: FormData): { body: string; typed: string; error?: string
   return { body, typed }
 }
 
+/**
+ * 투표 보기 (커뮤니티 2단계 · 사용자 요청 2026-11-21): '투표 넣기'를 켰을 때만 · 보기 2~4개 · 한 보기 1~30자 · 같은 보기 두 번은 안 됨.
+ * 켜지 않았으면 null (투표 없는 글)
+ */
+function pollOptions(form: FormData): { options: string[] | null; error?: string } {
+  if (form.get('poll_on') !== '1') return { options: null }
+  const opts = Array.from({ length: POLL_MAX }, (_, i) => text(form, `poll_${i}`).replace(/\s+/g, ' ')).filter(Boolean)
+  if (opts.length < POLL_MIN) return { options: null, error: `투표 보기를 ${POLL_MIN}개 이상 써 주세요.` }
+  if (opts.some((o) => o.length > POLL_LEN)) return { options: null, error: `투표 보기는 ${POLL_LEN}자까지 쓸 수 있어요.` }
+  if (new Set(opts.map(squash)).size !== opts.length) return { options: null, error: '같은 투표 보기가 두 번 있어요.' }
+  return { options: opts.map(maskPhones) }
+}
+
 /** 글쓰기 (한 시간에 5개까지) */
 export async function createPost(_: State, form: FormData): Promise<State> {
   const { user, error } = await writer('/community/new', form)
@@ -64,6 +80,8 @@ export async function createPost(_: State, form: FormData): Promise<State> {
   const { body, typed, error: bodyError } = postBody(form)
   if (bodyError) return { error: bodyError }
   if (tooManyLinks(title + typed)) return { error: '링크는 2개까지만 넣을 수 있어요.' }
+  const poll = pollOptions(form)
+  if (poll.error) return { error: poll.error }
   // 하루 안에 같은 제목이나 같은 내용으로 또 올리면 막음 (도배·광고 봇)
   const { data: mine } = await db().from('community_posts').select('title, body, created_at, author_id').eq('author_id', user.id).gte('created_at', new Date(Date.now() - 86_400_000).toISOString()).limit(30)
   const recentMine = ((mine ?? []) as { title: string; body: string; author_id: string }[]).filter((p) => p.author_id === user.id)
@@ -75,8 +93,17 @@ export async function createPost(_: State, form: FormData): Promise<State> {
     .insert({ author_id: user.id, category, title: maskPhones(title), body })
     .select('id')
     .single()
+  const postId = (data as { id: string }).id
+  // 투표 글: 보기를 함께 저장 (못 넣으면 글도 지우고 다시 쓰게 — 투표 없는 글이 말없이 남지 않게)
+  if (poll.options) {
+    const { error: pollError } = await db().from('community_polls').insert({ post_id: postId, options: poll.options })
+    if (pollError) {
+      await db().from('community_posts').delete().eq('id', postId).eq('author_id', user.id)
+      return { error: '투표를 만들지 못했어요. 잠시 뒤에 다시 올려 주세요.' }
+    }
+  }
   revalidatePath('/community')
-  redirect(`/community/${(data as { id: string }).id}?m=${encodeURIComponent('글을 올렸어요! 🎉')}`)
+  redirect(`/community/${postId}?m=${encodeURIComponent(poll.options ? '투표 글을 올렸어요! 📊' : '글을 올렸어요! 🎉')}`)
 }
 
 /** 내 글 고치기 (가려진 글은 안 됨, 한 시간에 20번까지) */
@@ -243,4 +270,74 @@ export async function moderate(target: 'post' | 'comment' | 'review', targetId: 
   await db().from('community_reports').update({ resolved_at: new Date().toISOString(), resolved_by: user.id }).eq('target_type', target).eq('target_id', targetId).is('resolved_at', null)
   await audit(user.id, `community.${action}`, null, `${target} ${targetId}`)
   revalidatePath('/admin/community')
+}
+
+/** 올라가 있고 가려지지 않은 글인지 (투표·반응 전에 확인) */
+async function openPost(postId: string): Promise<boolean> {
+  if (!isUuid(postId)) return false
+  const { data } = await db().from('community_posts').select('id, hidden_at').eq('id', postId).maybeSingle()
+  const p = data as { id: string; hidden_at: string | null } | null
+  return !!p && !p.hidden_at
+}
+
+/**
+ * 투표하기 · 다른 보기로 바꾸기 · 같은 보기를 다시 누르면 취소 (커뮤니티 2단계 · 사용자 요청 2026-11-21).
+ * 한 사람 한 표 · 한 시간에 60번까지 · 결과(보기마다 표 수)를 돌려줌
+ */
+export async function votePoll(postId: string, choice: number): Promise<PollView | { error: string }> {
+  const user = await requireUser(`/community/${postId}`)
+  if (!canPost(user)) return { error: '읽기만 할 수 있는 계정이에요.' }
+  if (!(await openPost(postId))) return { error: '투표할 수 없는 글이에요.' }
+  const poll = (await pollsFor([postId], user.id)).get(postId)
+  if (!poll || !Number.isInteger(choice) || choice < 0 || choice >= poll.options.length) return { error: '투표할 수 없는 보기예요.' }
+  if (await overLimit(`community-vote:${user.id}`, 60, 3600)) return { error: '잠시 뒤에 다시 눌러 주세요.' }
+  if (poll.mine === choice) must(await db().from('community_poll_votes').delete().eq('post_id', postId).eq('user_id', user.id))
+  else if (poll.mine != null) must(await db().from('community_poll_votes').update({ choice, created_at: new Date().toISOString() }).eq('post_id', postId).eq('user_id', user.id))
+  else must(await db().from('community_poll_votes').insert({ post_id: postId, user_id: user.id, choice }))
+  return (await pollsFor([postId], user.id)).get(postId) ?? poll
+}
+
+/** 이모지 반응 누르기·취소 (커뮤니티 2단계) · 한 시간에 120번까지 */
+export async function toggleReaction(postId: string, key: ReactionKey): Promise<ReactionView | { error: string }> {
+  const user = await requireUser(`/community/${postId}`)
+  if (!canPost(user)) return { error: '읽기만 할 수 있는 계정이에요.' }
+  if (!isReaction(key) || !(await openPost(postId))) return { error: '반응을 남길 수 없는 글이에요.' }
+  if (await overLimit(`community-react:${user.id}`, 120, 3600)) return { error: '잠시 뒤에 다시 눌러 주세요.' }
+  const { data: had } = await db().from('community_reactions').select('post_id').eq('post_id', postId).eq('user_id', user.id).eq('emoji', key).maybeSingle()
+  if (had) must(await db().from('community_reactions').delete().eq('post_id', postId).eq('user_id', user.id).eq('emoji', key))
+  else must(await db().from('community_reactions').insert({ post_id: postId, user_id: user.id, emoji: key }))
+  return (await reactionsFor([postId], user.id)).get(postId) ?? noReactions()
+}
+
+/** 오늘 출석 체크 (놀이터 · 근무자·전문가만 · 하루 한 번) — 연속 기록을 다시 계산해 돌려줌 */
+export async function checkIn(): Promise<Awaited<ReturnType<typeof checkinView>> | { error: string }> {
+  const user = await requireUser('/community/play')
+  if (!canWrite(user)) return { error: '근무자 계정만 출석 체크를 할 수 있어요.' }
+  if (await overLimit(`community-checkin:${user.id}`, 10, 3600)) return { error: '잠시 뒤에 다시 눌러 주세요.' }
+  const day = kstDate()
+  const { data: had } = await db().from('community_checkins').select('day').eq('user_id', user.id).eq('day', day).maybeSingle()
+  if (!had) {
+    const { error } = await db().from('community_checkins').insert({ user_id: user.id, day })
+    // 두 번 눌러 이미 들어간 경우(같은 날 두 줄은 DB가 막음)는 그대로 성공으로
+    if (error && error.code !== '23505') return { error: '출석을 저장하지 못했어요. 잠시 뒤에 다시 눌러 주세요.' }
+  }
+  revalidatePath('/community/play')
+  revalidatePath('/community')
+  return checkinView(user.id)
+}
+
+/** 주간 랭킹 참여하기 · 그만하기 (원하는 사람만 · 그만하면 이름이 바로 빠짐) */
+export async function setRanking(join: boolean) {
+  const user = await requireUser('/community/play')
+  if (!canWrite(user)) return
+  if (await overLimit(`community-rank:${user.id}`, 20, 3600)) return
+  if (join) {
+    const { data: had } = await db().from('community_rank_members').select('user_id').eq('user_id', user.id).maybeSingle()
+    if (!had) {
+      await ensureNickname(user.id)
+      await db().from('community_rank_members').insert({ user_id: user.id })
+    }
+  } else await db().from('community_rank_members').delete().eq('user_id', user.id)
+  revalidatePath('/community/play')
+  redirect(`/community/play?m=${encodeURIComponent(join ? '랭킹에 참여했어요! 🏆' : '랭킹 참여를 그만했어요.')}#rank`)
 }

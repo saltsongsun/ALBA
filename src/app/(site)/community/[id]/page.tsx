@@ -13,6 +13,8 @@ import { isUuid } from '@/lib/validate'
 import { linkedAmong } from '@/lib/coworkers'
 import { splitPostBody, stickerOf } from '@/lib/stickers'
 import Sticker from '@/components/Sticker'
+import { PollCard, ReactionBar } from '@/components/community2'
+import { noReactions, pollsFor, reactionsFor } from '@/lib/community2'
 
 export const metadata: Metadata = { title: '커뮤니티 글' }
 
@@ -45,10 +47,14 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
   const mine = post.author_id === user.id
   const writer = canWrite(user) // 동료 표시 등 근무자끼리 기능
   const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
-  const [related, pals] = await Promise.all([
+  const [related, pals, polls, reacts] = await Promise.all([
     post.hidden_at ? [] : relatedPosts(post, user.id),
     writer ? linkedAmong(user.id, [post.author_id, ...comments.map((c) => c.author_id)]) : new Set<string>(),
+    // 커뮤니티 2단계: 투표 · 이모지 반응
+    post.poll ? pollsFor([post.id], user.id) : new Map(),
+    reactionsFor([post.id], user.id),
   ])
+  const poll = polls.get(post.id)
   const PalBadge = ({ id }: { id: string }) =>
     pals.has(id) ? (
       <span className="rounded-full bg-brand-50 px-1.5 text-[10px] font-bold text-brand-700" data-pal-badge>
@@ -94,6 +100,9 @@ export default async function PostPage(props: PageProps<'/community/[id]'>) {
             )
           })()}
         </DoubleTapLike>
+        {poll && <PollCard postId={post.id} poll={poll} canVote={poster && !post.hidden_at} isAuthor={mine} />}
+        {/* 이모지 반응 (웃겨요·대단해요·놀라워요·슬퍼요·힘내요) */}
+        {!post.hidden_at && <ReactionBar postId={post.id} view={reacts.get(post.id) ?? noReactions()} enabled={poster} />}
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
           <LikeButton postId={post.id} liked={post.liked} likes={post.likes} disabled={!poster} />
           <div className="flex items-center gap-3">

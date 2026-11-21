@@ -1,7 +1,8 @@
 /**
  * 놀이터(커뮤니티 > 놀이터)에 쓰는 내용: 배지 · 이번 주 챌린지 · 알바 상식 퀴즈 · 오늘의 운세
  * (사용자 요청 2026-11-20 "게임과 커뮤니티 기능을 많이 추가해줘 구인구직자들이 즐길 수 있도록").
- * 모두 이미 있는 기록으로 계산하거나 화면 안에서만 쓰는 재미용 — DB를 바꾸지 않고, 급여·확정에는 쓰지 않음.
+ * 모두 이미 있는 기록으로 계산하거나 화면 안에서만 쓰는 재미용 — 급여·확정에는 쓰지 않음.
+ * (커뮤니티 2단계부터 출석 체크만 따로 저장: lib/community2)
  * 이 파일은 화면(브라우저)에서도 씀 → 서버 전용 코드 없음
  */
 
@@ -20,6 +21,8 @@ export type PlayStats = {
   /** 서로 맺은 동료 수 */
   coworkers: number
   profileDone: boolean
+  /** 출석 체크 가장 길게 이어진 날 수 (커뮤니티 2단계) */
+  streakBest: number
   /** 이번 주(월~일) 기록 */
   week: { shifts: number; onTime: number; talk: number }
 }
@@ -42,6 +45,7 @@ export function badgesOf(s: PlayStats): Badge[] {
     { key: 'liked10', icon: '❤️', name: '인기쟁이', goal: '내 글에 좋아요 10개', have: s.likesGot, need: 10, href: '/community?c=mine' },
     { key: 'pal1', icon: '🤝', name: '첫 동료', goal: '동료 1명 맺기', have: s.coworkers, need: 1, href: '/community/coworkers' },
     { key: 'profile', icon: '🪪', name: '준비 완료', goal: '내 정보 다 채우기', have: s.profileDone ? 1 : 0, need: 1, href: '/me/profile' },
+    { key: 'streak7', icon: '🔥', name: '꾸준이', goal: '7일 이어서 출석', have: Math.min(s.streakBest, 7), need: 7, href: '/community/play#checkin' },
   ]
 }
 

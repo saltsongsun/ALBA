@@ -24,13 +24,18 @@ const CATS = [
   { id: 'free', label: '자유', icon: 'chat' },
   { id: 'tip', label: '꿀팁', icon: 'bulb' },
   { id: 'question', label: '질문', icon: 'help' },
+  { id: 'story', label: '현장 썰', icon: 'sparkle' },
+  { id: 'together', label: '같이 가요', icon: 'route' },
 ] as const
 
 /** 글쓰기 */
 const DRAFT_KEY = 'community-draft'
 
-export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCategory: string; defaultTitle?: string; post?: { id: string; title: string; body: string } }) {
+export function PostForm({ defaultCategory, defaultTitle, post, hasPoll }: { defaultCategory: string; defaultTitle?: string; post?: { id: string; title: string; body: string }; hasPoll?: boolean }) {
   const [state, action] = useActionState(post ? updatePost.bind(null, post.id) : createPost, null)
+  // 고른 말머리 ('같이 가요'면 안전 안내) · 투표 보기 (커뮤니티 2단계 · 새 글에서만)
+  const [cat, setCat] = useState(defaultCategory)
+  const [poll, setPoll] = useState<string[] | null>(null)
   // 고칠 때: 저장된 내용에서 맨 끝 이모티콘 줄을 떼어 '넣은 이모티콘'으로
   const initial = splitPostBody(post?.body ?? '')
   const [body, setBody] = useState(initial.text)
@@ -42,14 +47,18 @@ export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCateg
   useEffect(() => {
     if (post) return
     try {
-      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { title?: string; body?: string; category?: string; sticker?: string } | null
+      const d = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as { title?: string; body?: string; category?: string; sticker?: string; poll?: string[] } | null
       const f = formRef.current
       if (!d || !f || (!d.title && !d.body)) return
       ;(f.elements.namedItem('title') as HTMLInputElement).value = d.title ?? ''
       setBody(d.body ?? '')
       if (d.sticker && sendable(d.sticker)) setSticker(d.sticker)
-      const cat = f.querySelector<HTMLInputElement>(`input[name=category][value="${d.category}"]`)
-      if (cat) cat.checked = true
+      const radio = f.querySelector<HTMLInputElement>(`input[name=category][value="${d.category}"]`)
+      if (radio) {
+        radio.checked = true
+        setCat(radio.value)
+      }
+      if (Array.isArray(d.poll) && d.poll.length >= 2) setPoll(d.poll.slice(0, 4).map((x) => String(x).slice(0, 30)))
       setRestored(true)
     } catch {}
   }, [post])
@@ -59,7 +68,8 @@ export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCateg
     if (!f) return
     const fd = new FormData(f)
     try {
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: fd.get('title'), body: fd.get('body'), category: fd.get('category'), sticker: fd.get('sticker') || undefined }))
+      const opts = fd.get('poll_on') === '1' ? [0, 1, 2, 3].map((i) => fd.get(`poll_${i}`)).filter((v) => v != null) : undefined
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ title: fd.get('title'), body: fd.get('body'), category: fd.get('category'), sticker: fd.get('sticker') || undefined, poll: opts }))
     } catch {}
   }
   return (
@@ -87,6 +97,7 @@ export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCateg
               ;(formRef.current?.elements.namedItem('title') as HTMLInputElement).value = ''
               setBody('')
               setSticker(null)
+              setPoll(null)
               setRestored(false)
             }}
           >
@@ -95,18 +106,24 @@ export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCateg
         </p>
       )}
       <Honeypot />
-      <fieldset>
+      <fieldset onChange={(e) => setCat((e.target as EventTarget as HTMLInputElement).value)}>
         <legend className="label">말머리</legend>
-        <div className="flex gap-2">
+        {/* 다섯 가지: 360px에서도 한 칸이 좁아지지 않게 세 칸씩 두 줄 */}
+        <div className="grid grid-cols-3 gap-2" data-post-cats>
           {CATS.map((c) => (
-            <label key={c.id} className="flex-1">
+            <label key={c.id} className="min-w-0">
               <input type="radio" name="category" value={c.id} defaultChecked={c.id === defaultCategory} className="peer sr-only" />
-              <span className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white py-2.5 text-sm font-bold text-sub ring-1 ring-line transition peer-checked:animate-pop peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600 active:scale-95">
+              <span className="flex cursor-pointer items-center justify-center gap-1.5 rounded-xl bg-white px-1 py-2.5 text-sm font-bold whitespace-nowrap text-sub ring-1 ring-line transition peer-checked:animate-pop peer-checked:bg-brand-600 peer-checked:text-white peer-checked:ring-brand-600 active:scale-95">
                 <Icon name={c.icon} /> {c.label}
               </span>
             </label>
           ))}
         </div>
+        {cat === 'together' && (
+          <p className="mt-2 animate-slide-down rounded-xl bg-amber-50 px-3 py-2 text-xs break-keep text-amber-900" data-together-note>
+            🚶 같은 행사 가는 사람끼리 모여요. 전화번호는 자동으로 가려지고, 만날 곳은 사람이 많은 곳으로 정해 주세요.
+          </p>
+        )}
       </fieldset>
       <div>
         <label className="label" htmlFor="post-title">
@@ -165,6 +182,71 @@ export function PostForm({ defaultCategory, defaultTitle, post }: { defaultCateg
           />
         )}
       </div>
+      {/* 투표 넣기 (커뮤니티 2단계 · 새 글에서만 · 보기 2~4개). 고칠 때는 투표를 바꿀 수 없음 */}
+      {post ? (
+        hasPoll && (
+          <p className="rounded-xl bg-bg px-3 py-2 text-xs text-sub" data-poll-locked>
+            📊 투표는 올린 뒤에는 고칠 수 없어요.
+          </p>
+        )
+      ) : poll ? (
+        <div className="animate-slide-down space-y-2 rounded-2xl bg-bg p-3" data-poll-editor>
+          <input type="hidden" name="poll_on" value="1" />
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-bold">📊 투표 보기</p>
+            <button
+              type="button"
+              className="tap text-xs font-semibold text-mute"
+              onClick={() => {
+                setPoll(null)
+                setTimeout(save, 0)
+              }}
+              data-poll-remove
+            >
+              투표 빼기
+            </button>
+          </div>
+          {poll.map((v, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                name={`poll_${i}`}
+                value={v}
+                maxLength={30}
+                required={i < 2}
+                onChange={(e) => setPoll((p) => p && p.map((x, j) => (j === i ? e.target.value : x)))}
+                placeholder={i === 0 ? '예: 정장' : i === 1 ? '예: 편한 옷' : `보기 ${i + 1}`}
+                aria-label={`투표 보기 ${i + 1}`}
+                className="input min-w-0 flex-1 bg-white"
+                data-poll-input
+              />
+              {i >= 2 && (
+                <button
+                  type="button"
+                  aria-label={`보기 ${i + 1} 빼기`}
+                  className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-mute ring-1 ring-line active:scale-95"
+                  onClick={() => {
+                    setPoll((p) => p && p.filter((_, j) => j !== i))
+                    setTimeout(save, 0)
+                  }}
+                >
+                  <Icon name="close" />
+                </button>
+              )}
+            </div>
+          ))}
+          {poll.length < 4 && (
+            <button type="button" className="chip h-9 px-3 text-xs" onClick={() => setPoll((p) => p && [...p, ''])} data-poll-add>
+              + 보기 더하기
+            </button>
+          )}
+          <p className="text-xs text-mute">한 사람 한 표 · 투표한 뒤에 결과가 보여요</p>
+        </div>
+      ) : (
+        <button type="button" className="chip h-10 gap-1.5 px-3.5 text-sm" onClick={() => setPoll(['', ''])} data-poll-toggle>
+          <span aria-hidden>📊</span>
+          투표 넣기
+        </button>
+      )}
       <FormMessage state={state} />
       <SubmitButton className="btn-primary w-full py-3.5 text-base" pendingText={post ? '고치는 중…' : '올리는 중…'}>
         {post ? '고친 내용 저장' : '올리기'}
