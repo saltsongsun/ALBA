@@ -330,6 +330,24 @@ export default async function MePage(props: PageProps<'/me'>) {
   const appStatus = new Map(apps.map((a) => [a.job_id, a.status]))
   const docOpen = (jobId: string) => canOpenJobDocs(appStatus.get(jobId))
   const pendingDocs = docs.filter((d) => d.status === 'pending' && docOpen(d.job_id))
+  // 서명한 서류 중 서명한 뒤에 그 공고의 '🔔 일정 변경'을 받은 것: '일정 바뀜' (내 문의함 알림만 · 정기 개선 2026-11-22 08:35)
+  const signedJobIds = [...new Set(docs.filter((d) => d.status === 'signed' && d.signed_at).map((d) => d.job_id))]
+  const lastChange = new Map<string, string>()
+  if (signedJobIds.length) {
+    const { data: ch } = await db()
+      .from('messages')
+      .select('created_at, body, job_id, thread_user_id')
+      .eq('thread_user_id', user.id)
+      .eq('from_admin', true)
+      .in('job_id', signedJobIds.slice(0, 100))
+      .order('created_at', { ascending: false })
+      .limit(500)
+    for (const m of (ch ?? []) as { created_at: string; body: string; job_id: string | null; thread_user_id: string }[]) {
+      if (m.thread_user_id !== user.id || !m.job_id || signalOf(m.body) !== 'change') continue
+      if (m.created_at > (lastChange.get(m.job_id) ?? '')) lastChange.set(m.job_id, m.created_at)
+    }
+  }
+  const docChanged = (d: { job_id: string; signed_at: string | null }) => !!d.signed_at && (lastChange.get(d.job_id) ?? '') > d.signed_at
   // 오늘 근무인데 현장 담당 번호가 없는 공고: 그 회사의 문의 연락처로 (근무 날 연락할 곳이 없지 않게 · 회사 설정의 문의 담당자)
   const noMgr = [...new Set(todayApps.filter((a) => !a.job.manager_phone).map((a) => a.job.company_id))]
   const coContact = new Map<string, { name: string | null; phone: string }>(
@@ -504,7 +522,8 @@ export default async function MePage(props: PageProps<'/me'>) {
                 </div>
                 {lapsed ? (
                   <span className="badge shrink-0 bg-bg text-mute">미확정</span>
-                ) : (
+                ) : waitingFirst && i === 0 ? null : (
+                  // 위에 진행 단계(지원 ✓ → 확정 …)가 보이는 첫 카드는 배지를 빼서 같은 말을 두 번 보이지 않게 (정기 개선 2026-11-22 08:35)
                   <span className={`badge shrink-0 ${APP_STATUS.applied.cls}`}>지원완료</span>
                 )}
               </Link>
@@ -1376,7 +1395,14 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <span className="block truncate text-xs text-mute">{docJobLine(d.job_id)}</span>
                   </span>
                   {docOpen(d.job_id) ? (
-                    <span className="shrink-0 whitespace-nowrap text-mute">보기 →</span>
+                    docChanged(d) ? (
+                      // 서명 뒤 일정이 바뀐 서류: 열면 위에 바뀐 내용이 보임
+                      <span className="shrink-0 text-xs font-semibold whitespace-nowrap text-amber-700" data-my-doc-changed>
+                        일정 바뀜 →
+                      </span>
+                    ) : (
+                      <span className="shrink-0 whitespace-nowrap text-mute">보기 →</span>
+                    )
                   ) : (
                     <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-mute">🔒 관리자 문의</span>
                   )}
