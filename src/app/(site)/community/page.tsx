@@ -82,8 +82,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
           <span aria-hidden className="text-xl leading-none">
             🎮
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm">
-            <b className="text-ink">놀이터</b> <span className="text-sub">· 출석 · 운세 · 퀴즈 · 랭킹</span>
+          <span className="min-w-0 flex-1 truncate text-sm" data-play-entry-text>
+            {/* 출석 칩이 붙으면 '출석'은 칩이 말해 주니 빼고 짧게 (360px에서 '…'로 잘리지 않게 — 정기 개선 2026-11-21 20:35) */}
+            <b className="text-ink">놀이터</b> <span className="text-sub">{streak ? '· 퀴즈 · 랭킹' : '· 출석 · 운세 · 퀴즈 · 랭킹'}</span>
           </span>
           {streak &&
             (streak.today ? (

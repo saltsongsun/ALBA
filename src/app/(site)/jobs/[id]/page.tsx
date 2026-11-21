@@ -368,7 +368,14 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           ) : (
             <span className="badge bg-gray-100 text-mute">마감</span>
           )}
-          {app && APP_STATUS[app.status] && <span className={`badge ${APP_STATUS[app.status].cls}`}>{APP_STATUS[app.status].label}</span>}
+          {/* 행사가 끝났는데 확정되지 않은 지원은 '지원완료' 대신 '미확정' (아래 결과 칸 · 내 근무 화면과 같은 말 — 정기 개선 2026-11-21 20:35) */}
+          {app && lapsed ? (
+            <span className="badge bg-bg text-mute" data-app-badge="lapsed">
+              미확정
+            </span>
+          ) : (
+            app && APP_STATUS[app.status] && <span className={`badge ${APP_STATUS[app.status].cls}`} data-app-badge={app.status}>{APP_STATUS[app.status].label}</span>
+          )}
           {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
         </div>
         <h1 className="text-[22px] leading-snug font-extrabold">{job.title}</h1>
