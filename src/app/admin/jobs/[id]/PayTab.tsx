@@ -27,6 +27,7 @@ import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
 import LedgerPanel from '../../LedgerPanel'
 import { isLedgerCompany, ledgerStatus } from '@/lib/ledger'
+import { SwipeHint } from '@/components/SwipeHint'
 
 export default async function PayTab({ job, atts, users, origin, company = '' }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string }) {
   const userIds = [...new Set(atts.map((a) => a.user_id))]
@@ -324,10 +325,8 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
         </Empty>
       ) : (
         <>
-        {/* 휴대폰: 열이 많아 옆으로 밀어야 함 → 이름 칸은 고정, 밀 수 있다는 안내 */}
-        <p className="-mb-1 text-xs text-mute sm:hidden" data-swipe-hint>
-          이름은 그대로 두고 옆으로 밀면 공제·계좌·지급이 보여요 →
-        </p>
+        {/* 휴대폰: 열이 많아 옆으로 밀어야 함 → 이름 칸은 고정, 밀 수 있다는 안내 (표가 넘칠 때만 · 한 번 밀면 접힘 — 정기 개선 2026-11-22 02:35) */}
+        <SwipeHint className="sm:hidden">이름은 그대로 두고 옆으로 밀면 공제·계좌·지급이 보여요</SwipeHint>
         <div className="card overflow-hidden p-0">
         <div className="fade-r overflow-x-auto" data-pay-table>
           <table className="table table-pin text-[13px]">

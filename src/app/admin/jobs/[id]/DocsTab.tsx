@@ -8,6 +8,7 @@ import HashFlash from '@/components/HashFlash'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { kstDateTime } from '@/lib/time'
 import { nudgeAgo } from '@/lib/nudge'
+import { parseChanges } from '@/lib/signals'
 import type { Job, SignedDoc } from '@/lib/types'
 import type { AppRow, WorkerLite } from './page'
 import { contractNameOf } from '@/lib/members'
@@ -27,6 +28,7 @@ export default function DocsTab({
   lastNudge = null,
   company = '',
   missing = [],
+  changes = new Map(),
 }: {
   job: Job
   approved: AppRow[]
@@ -40,6 +42,8 @@ export default function DocsTab({
   company?: string
   /** 계약서에 들어갈 회사 정보 중 빈 것 (회사 설정 순서 · 종이·앱 계약서만) */
   missing?: readonly { key: string; label: string }[]
+  /** 근무자마다 이 공고로 마지막에 보낸 '🔔 일정 변경' 알림 (우리 회사 문의함) */
+  changes?: Map<string, { at: string; body: string }>
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -51,6 +55,15 @@ export default function DocsTab({
   const unsigned = [...new Set(live.filter((d) => d.status === 'pending').map((d) => d.user_id))]
   // 마지막 '서명 요청' 알림 때 (방금 · n분 전 · 오늘 14:02) — 30분 안이면 다시 보낼 때 한 번 더 확인
   const ago = nudgeAgo(lastNudge)
+  // 서명한 뒤에 '🔔 일정 변경'을 받은 사람의 서류: 바뀌기 전 내용으로 서명됨 → 재서명할지 확인 (정기 개선 2026-11-22 02:35 · 자동으로 무효 처리하지 않음)
+  const staleOf = (d: DocLite) => {
+    const c = d.status === 'signed' && d.signed_at ? changes.get(d.user_id) : undefined
+    return c && c.at > d.signed_at! ? c : null
+  }
+  const stale = live.filter((d) => staleOf(d))
+  const lastStale = stale.map((d) => staleOf(d)!).reduce<{ at: string; body: string } | null>((a, c) => (!a || c.at > a.at ? c : a), null)
+  const staleRows = lastStale ? parseChanges(lastStale.body).slice(0, 2) : []
+  const staleNames = [...new Set(stale.map((d) => users.get(d.user_id)?.name).filter(Boolean))] as string[]
 
   // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고: 사람마다 받았는지 기록
   const outside = job.contract_method !== 'app'
@@ -239,6 +252,26 @@ export default function DocsTab({
           </div>
         </div>
       )}
+      {stale.length > 0 && (
+        <div className="animate-slide-down space-y-1 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200" data-doc-stale={stale.length}>
+          <p className="font-bold">서명한 뒤 일정이 바뀐 서류 {stale.length}건</p>
+          {staleRows.length > 0 && (
+            <ul className="space-y-0.5 text-xs" data-doc-stale-changes>
+              {staleRows.map((r) => (
+                <li key={r.label} className="flex min-w-0 gap-1.5">
+                  <span className="shrink-0 font-semibold">{r.label}</span>
+                  <span className="min-w-0 truncate">
+                    <s className="text-amber-700/70">{r.from}</s> → <b>{r.to}</b>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-xs break-keep">
+            <span className="font-semibold">{staleNames.slice(0, 3).join(', ')}{staleNames.length > 3 ? ` 외 ${staleNames.length - 3}명` : ''}</span> · 서류에 들어간 내용이 바뀌었으면 표에서 &lsquo;재서명&rsquo;을 눌러 주세요.
+          </p>
+        </div>
+      )}
       {cols.length === 0 ? (
         <Empty icon="📄" title="서명받을 서류가 없어요">
           <Link href={`/admin/jobs/${job.id}/edit#docs`} className="font-semibold text-brand-600" data-empty-next="docs">
@@ -276,9 +309,14 @@ export default function DocsTab({
                               서명 대기
                             </Link>
                           )}
+                          {d.status === 'signed' && staleOf(d) && (
+                            <span className="badge bg-amber-50 text-amber-700" title="서명한 뒤 일정 변경 알림을 보냈어요" data-doc-stale-cell>
+                              일정 바뀜
+                            </span>
+                          )}
                           {d.status === 'signed' ? (
                             <form action={rerequestDoc.bind(null, d.id)}>
-                              <ConfirmSubmit className="text-xs font-semibold text-sub underline" confirmText="재서명 요청?">
+                              <ConfirmSubmit className={`text-xs font-semibold underline ${staleOf(d) ? 'text-amber-700' : 'text-sub'}`} confirmText="재서명 요청?">
                                 재서명
                               </ConfirmSubmit>
                             </form>
@@ -315,10 +353,13 @@ export default function DocsTab({
           </ul>
         </details>
       )}
-      <p className="text-xs text-mute">
-        서명된 서류는 서명 당시 내용으로 보관됩니다. 공고 조건이 바뀌었다면 &lsquo;재서명&rsquo;으로 이전 서류를 무효 처리하고 새로 서명을 받으세요.
-        근로계약서는 근로관계 종료 후 3년간 보존해야 합니다.
-      </p>
+      {/* 보관 안내: 한 줄로 · 자세한 건 접어 둠 (정기 개선 2026-11-22 02:35 · 예전 세 문장을 쉬운 말로) */}
+      <details className="text-xs text-mute" data-docs-note>
+        <summary className="tap cursor-pointer font-semibold">서명한 서류는 그때 내용 그대로 보관돼요</summary>
+        <p className="mt-1 animate-[slide-down_0.25s_ease-out_both] break-keep">
+          공고 조건이 바뀌었다면 &lsquo;재서명&rsquo;으로 이전 서류를 무효로 하고 새로 서명을 받아요. 근로계약서는 근로관계가 끝난 뒤 3년 동안 보관해야 해요.
+        </p>
+      </details>
     </div>
   )
 }

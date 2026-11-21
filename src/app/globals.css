@@ -114,6 +114,12 @@
     transform: translateY(-6px);
   }
 }
+/* 넓은 표 위 '옆으로 밀면' 안내의 화살표: 오른쪽으로 살짝 밀렸다 돌아옴 (components/SwipeHint.tsx) */
+@keyframes nudge-x {
+  50% {
+    transform: translateX(4px);
+  }
+}
 /* 병아리를 누르면 톡 뛰어오름 (0.3초) */
 @keyframes hop {
   40% {

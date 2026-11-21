@@ -1,4 +1,5 @@
 import { db } from './db'
+import { signalOf } from './signals'
 import { kstDate, kstDateTime, kstTime } from './time'
 
 /**
@@ -36,6 +37,28 @@ export async function lastNudge(
   const by = new Map<string, boolean>()
   for (const m of rows) if (m.body === last.body && Math.abs(Date.parse(m.created_at) - t) < 60_000) by.set(m.thread_user_id, (by.get(m.thread_user_id) ?? false) || !!m.read_at)
   return { at: last.created_at, body: last.body.split('\n').slice(1).join('\n').trim(), to: [...by].map(([uid, read]) => ({ uid, read })) }
+}
+
+/**
+ * 이 공고에서 근무자마다 마지막으로 보낸 '🔔 일정 변경' 알림 (시각 · 글) — 우리 회사 문의함에서만.
+ * 서류 탭: 이 알림보다 먼저 서명한 서류는 바뀌기 전 내용이라 재서명이 필요할 수 있음 (정기 개선 2026-11-22 02:35)
+ */
+export async function lastChangesByWorker(companyId: string, jobId: string): Promise<Map<string, { at: string; body: string }>> {
+  const { data } = await db()
+    .from('messages')
+    .select('created_at, body, thread_user_id')
+    .eq('company_id', companyId)
+    .eq('job_id', jobId)
+    .eq('from_admin', true)
+    .order('created_at', { ascending: false })
+    .limit(500)
+  const out = new Map<string, { at: string; body: string }>()
+  for (const m of (data ?? []) as { created_at: string; body: string; thread_user_id: string }[]) {
+    if (signalOf(m.body) !== 'change') continue
+    const prev = out.get(m.thread_user_id)
+    if (!prev || m.created_at > prev.at) out.set(m.thread_user_id, { at: m.created_at, body: m.body })
+  }
+  return out
 }
 
 /** 마지막 알림 때: '방금' · 'n분 전' · '오늘 14:02' · '11/13(금) 14:02' + 30분 안이면 recent (다시 보낼 때 한 번 더 확인) */

@@ -10,6 +10,7 @@ import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import ReportDownloads from '@/components/ReportDownloads'
 import { isLedgerCompany } from '@/lib/ledger'
+import { SwipeHint } from '@/components/SwipeHint'
 
 export const metadata: Metadata = { title: '정산 · 신고자료' }
 
@@ -247,6 +248,9 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
             )}
           </Empty>
         ) : (
+          <>
+          {/* 휴대폰: 세금·보험 열은 옆으로 밀어야 보임 → 안내 (표가 넘칠 때만 · 한 번 밀면 접힘 — 정기 개선 2026-11-22 02:35) */}
+          <SwipeHint className="mb-1.5 sm:hidden">성명은 그대로 두고 옆으로 밀면 세금·실지급액이 보여요</SwipeHint>
           <div className="card overflow-hidden p-0">
           <div className="fade-r overflow-x-auto" data-report-table>
             {/* 옆으로 밀어도 성명 칸은 왼쪽에 남게 */}
@@ -299,6 +303,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
             </table>
           </div>
           </div>
+          </>
         )}
       </section>
 

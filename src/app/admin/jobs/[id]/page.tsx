@@ -26,7 +26,7 @@ import { requireAdmin, siteOrigin } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, kstDate, kstDateTime, kstTime } from '@/lib/time'
 import { jobPhase } from '@/lib/jobPhase'
 import { isComing, SIGN_NUDGE, SIGNAL } from '@/lib/signals'
-import { lastNudge, lastNudgeAt, nudgeAgo } from '@/lib/nudge'
+import { lastChangesByWorker, lastNudge, lastNudgeAt, nudgeAgo } from '@/lib/nudge'
 import { phoneFmt } from '@/lib/format'
 import type { Application, Attendance, Job, SignedDoc, MemberType } from '@/lib/types'
 import { isDate, isUuid } from '@/lib/validate'
@@ -163,13 +163,15 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
   // 서류 탭: 이 공고에 마지막으로 보낸 '서명 요청' 앱 알림 (금방 또 보내 같은 알림이 겹치지 않게) · 우리 회사 문의함에서만
   // 서류 탭: 계약서에 들어갈 회사 정보(사업자번호·주소·직인·연락처) 중 빈 것 — 서명 전에 채우게 (서명된 서류는 그때 정보 그대로)
-  const docsP: Promise<[Awaited<ReturnType<typeof lastNudgeAt>> | null, readonly { key: string; label: string }[]]> =
+  // 서류 탭: 근무자마다 마지막 '🔔 일정 변경' 알림 — 그보다 먼저 서명한 서류는 바뀌기 전 내용 (재서명 확인 · 서명한 서류가 있을 때만)
+  const docsP: Promise<[Awaited<ReturnType<typeof lastNudgeAt>> | null, readonly { key: string; label: string }[], Map<string, { at: string; body: string }>]> =
     tab === 'docs'
       ? Promise.all([
           pendingDocs > 0 ? lastNudgeAt(admin.companyId, job.id, SIGN_NUDGE) : null,
           job.contract_method === 'external' ? [] : hasSeal(admin.companyId).then((seal) => missingSetup(settings, seal), () => []),
+          docs.some((d) => d.status === 'signed') ? lastChangesByWorker(admin.companyId, job.id).catch(() => new Map<string, { at: string; body: string }>()) : new Map<string, { at: string; body: string }>(),
         ])
-      : Promise.resolve([null, []])
+      : Promise.resolve([null, [], new Map<string, { at: string; body: string }>()])
   // 확정자 공지 칸: 마지막으로 보낸 공지 (같은 공지를 또 보내지 않게 · 고쳐서 다시 보낼 때 불러오기) — 공지 칸이 보일 때만
   const showAnnounce = approved.length > 0 && !['done', 'cancelled'].includes(job.status)
   // 그 공지를 지금 확정자 중 몇 명이 읽었는지 · 안 읽은 사람 (문자로 한 번 더 보낼 수 있게)
@@ -237,7 +239,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           )
       : Promise.resolve(new Set<string>())
   // 위에서 출발시킨 조회를 한 번에 기다림 (예전에는 하나씩 차례로 기다려 화면이 늦게 떴음)
-  const [{ vstats, mviewers, viewerNames }, extraUsers, jobReviews, [lastSignNudge, docsMissing], notice, weeklyAtts, remindRead, coming] = await Promise.all([
+  const [{ vstats, mviewers, viewerNames }, extraUsers, jobReviews, [lastSignNudge, docsMissing, docChanges], notice, weeklyAtts, remindRead, coming] = await Promise.all([
     viewP,
     extraUsersP,
     reviewsP,
@@ -559,7 +561,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       )}
       {tab === 'att' && <AttTab company={admin.companyName} job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
       {tab === 'pay' && <PayTab company={admin.companyName} job={job} atts={atts} users={users} origin={origin} />}
-      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} missing={docsMissing} />}
+      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} missing={docsMissing} changes={docChanges} />}
     </div>
   )
 }
