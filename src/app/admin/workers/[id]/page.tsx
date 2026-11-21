@@ -172,6 +172,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const recentBankChange = u.bank_changed_at && Date.now() - new Date(u.bank_changed_at).getTime() < 14 * 86_400_000
 
   const assignable = openJobs.filter((j) => !apps.some((a) => a.job_id === j.id && a.status === 'approved'))
+  // 우리 회사 서류 중 서명 대기 (위 칩 · 아래 서류 칸 요약이 같은 수)
+  const pendingDocs = docs.filter((d) => d.status === 'pending').length
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
@@ -215,6 +217,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               {unpaidNet > 0 && (
                 <a href="#work-history" className="tap rounded-lg bg-amber-50 px-2 py-0.5 text-amber-700 tabular-nums" data-unpaid-chip>
                   지급 전 {won(unpaidNet)}
+                </a>
+              )}
+              {/* 우리 회사 서류 중 아직 서명 안 한 것: 현장에서 '서명했어요?'를 바로 · 누르면 아래 서류 칸이 펼쳐짐 — 정기 개선 2026-11-21 13:35 */}
+              {pendingDocs > 0 && (
+                <a href="#worker-docs" className="tap rounded-lg bg-amber-50 px-2 py-0.5 text-amber-700 tabular-nums" data-sign-chip>
+                  서명 대기 {pendingDocs}건
                 </a>
               )}
               <span className={`rounded-lg px-2 py-0.5 ${rel.late ? 'bg-amber-50 text-amber-700' : 'bg-bg text-sub'}`}>지각 {rel.late}회</span>
@@ -519,9 +527,10 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
           ))}
         </Fold>
         <Fold
+          id="worker-docs"
           title="서류"
           className="divide-y divide-line"
-          summary={docs.length ? `서명 ${docs.filter((d) => d.status === 'signed').length}건 · 대기 ${docs.filter((d) => d.status === 'pending').length}건` : '없음'}
+          summary={docs.length ? `서명 ${docs.filter((d) => d.status === 'signed').length}건 · 대기 ${pendingDocs}건` : '없음'}
         >
           {docs.length === 0 && <p className="py-3 text-sm text-mute">없음</p>}
           {docs.map((d) => (
