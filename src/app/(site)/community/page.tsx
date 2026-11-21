@@ -9,6 +9,9 @@ import { ago, canPost, canWrite, CATEGORIES, categoryOf, hotPosts, isCategory, l
 import { requireUser } from '@/lib/session'
 import { coworkersEnabled, linkedAmong } from '@/lib/coworkers'
 import { PACKS, splitPostBody } from '@/lib/stickers'
+import { reactionOf, streakOf } from '@/lib/communityShared'
+import { myCheckinDays } from '@/lib/community2'
+import { kstDate } from '@/lib/time'
 
 /** 이모티콘 아이디 → 작은 그림 */
 const PACK_THUMB = new Map(PACKS.flatMap((p) => p.items.map((it) => [it.id, it.thumb] as const)))
@@ -43,6 +46,8 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   const poster = canPost(user) // 글·댓글·좋아요 (관리자도)
   // 나에게 지원 공고를 보여 주는 사람이 쓴 글에는 '🤝 동료' (상대가 고른 경우만)
   const [pals, palsOn] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), coworkersEnabled()]) : [new Set<string>(), false]
+  // 놀이터 줄의 출석 상태 (커뮤니티 2단계): 오늘 출석 전이면 '출석 전', 했으면 '🔥 n일째' — 첫 화면에서만
+  const streak = !c && !q && writer ? streakOf(await myCheckinDays(user.id), kstDate()) : null
   const tabs: { id: string; label: string; icon: IconName | '' }[] = [
     { id: '', label: '전체', icon: '' },
     { id: 'hot', label: '인기', icon: 'flame' },
@@ -78,8 +83,18 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
             🎮
           </span>
           <span className="min-w-0 flex-1 truncate text-sm">
-            <b className="text-ink">놀이터</b> <span className="text-sub">· 오늘의 운세 · 퀴즈 · 배지</span>
+            <b className="text-ink">놀이터</b> <span className="text-sub">· 출석 · 운세 · 퀴즈 · 랭킹</span>
           </span>
+          {streak &&
+            (streak.today ? (
+              <span className="shrink-0 rounded-full bg-orange-50 px-2 py-0.5 text-xs font-bold text-orange-600 tabular-nums" data-play-streak={streak.current}>
+                🔥 {streak.current}일째
+              </span>
+            ) : (
+              <span className="shrink-0 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-brand-700 ring-1 ring-brand-200" data-play-checkin-todo>
+                출석 전
+              </span>
+            ))}
           {/* 오늘의 운세를 아직 안 열었으면 작은 점 (정기 개선 2026-11-21 03:35) */}
           <PlayDot />
           <span aria-hidden className="shrink-0 text-mute">
@@ -264,6 +279,11 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                     <span className="rounded-full bg-brand-50 px-2 py-0.5 text-brand-700">
                       <Icon name={cat.icon} /> {cat.label}
                     </span>
+                    {p.poll && (
+                      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-amber-700" data-post-poll>
+                        📊 투표
+                      </span>
+                    )}
                     {hot && i < 3 && <span className="rounded-full bg-rose-50 px-2 py-0.5 text-rose-600">🔥 {i + 1}위</span>}
                     {p.author_id === user.id && <span className="text-mute">내 글</span>}
                   </div>
@@ -288,6 +308,12 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
                       · {ago(p.created_at)}
                     </span>
                     <span className="ml-auto flex shrink-0 gap-2.5 tabular-nums">
+                      {/* 이모지 반응: 가장 많은 것 하나 + 모든 반응 수 (커뮤니티 2단계) */}
+                      {p.react.total > 0 && p.react.top && (
+                        <span data-post-react>
+                          <span aria-label={reactionOf(p.react.top).label}>{reactionOf(p.react.top).emoji}</span> {p.react.total}
+                        </span>
+                      )}
                       <span className={p.liked ? 'text-rose-500' : ''}>♥ {p.likes}</span>
                       <span>💬 {p.comments}</span>
                     </span>

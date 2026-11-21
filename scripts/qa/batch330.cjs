@@ -142,7 +142,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 5. 새로 얻은 배지: 회사 후기를 남기면 '첫 후기'에 '새로!'
   // (정기 개선 2026-11-21 01:35: 동료 기능이 꺼져 있으면 '첫 동료' 배지는 빠짐 — 가짜 DB는 기본 꺼짐이라 후기로 확인)
-  ok("동료 기능이 꺼져 있으면 '첫 동료' 배지 없음 (얻을 수 없으니)", (await p.locator('[data-badge="pal1"]').count()) === 0 && (await p.locator('[data-badge]').count()) === 11)
+  ok("동료 기능이 꺼져 있으면 '첫 동료' 배지 없음 (얻을 수 없으니)", (await p.locator('[data-badge="pal1"]').count()) === 0 && (await p.locator('[data-badge]').count()) === 12)
   await rest('company_reviews', 'POST', { company_id: C1, job_id: J, author_id: P, rating: 5, body: '친절했어요', hidden_at: null, created_at: new Date().toISOString() })
   await go(p, '/community/play')
   const rv = p.locator('[data-badge="review1"]')

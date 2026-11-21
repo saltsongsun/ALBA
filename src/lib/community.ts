@@ -13,6 +13,9 @@ export const CATEGORIES = [
   { id: 'free', label: '자유', icon: 'chat' },
   { id: 'tip', label: '꿀팁', icon: 'bulb' },
   { id: 'question', label: '질문', icon: 'help' },
+  // 커뮤니티 2단계 (사용자 요청 2026-11-21): 현장에서 있었던 이야기 · 같은 행사 가는 사람끼리
+  { id: 'story', label: '현장 썰', icon: 'sparkle' },
+  { id: 'together', label: '같이 가요', icon: 'route' },
 ] as const
 export type Category = (typeof CATEGORIES)[number]['id']
 export const isCategory = (v: unknown): v is Category => CATEGORIES.some((c) => c.id === v)
@@ -76,7 +79,7 @@ export async function nicknames(ids: string[]): Promise<Map<string, string>> {
   )
 }
 
-export type PostCard = PostRow & { nick: string; likes: number; comments: number; liked: boolean }
+export type PostCard = PostRow & { nick: string; likes: number; comments: number; liked: boolean; poll: boolean; react: { top: string | null; total: number } }
 
 /** 글 목록 (가려진 글 빼고 최근 순) */
 /** 인기 점수: 좋아요·댓글이 많을수록, 최근일수록 높음 (2주 지나면 빠짐) */
@@ -124,18 +127,27 @@ export async function relatedPosts(post: Pick<PostRow, 'id' | 'category'>, viewe
 async function decorate(posts: PostRow[], viewerId: string): Promise<PostCard[]> {
   if (!posts.length) return []
   const ids = posts.map((p) => p.id)
-  const [likes, comments, nick] = await Promise.all([
+  const [likes, comments, nick, polls, reacts] = await Promise.all([
     db().from('community_likes').select('post_id, user_id').in('post_id', ids).then((r) => must(r) as { post_id: string; user_id: string }[]),
     db().from('community_comments').select('post_id, hidden_at').in('post_id', ids).then((r) => must(r) as { post_id: string; hidden_at: string | null }[]),
     nicknames(posts.map((p) => p.author_id)),
+    // 커뮤니티 2단계: 투표 글 표시 · 가장 많은 이모지 반응 (못 읽으면 없음으로)
+    import('./community2').then((m) => m.pollsFor(ids, viewerId)),
+    import('./community2').then((m) => m.reactionsFor(ids, viewerId)),
   ])
-  return posts.map((p) => ({
-    ...p,
-    nick: nick.get(p.author_id) ?? '병아리',
-    likes: likes.filter((l) => l.post_id === p.id).length,
-    liked: likes.some((l) => l.post_id === p.id && l.user_id === viewerId),
-    comments: comments.filter((c) => c.post_id === p.id && !c.hidden_at).length,
-  }))
+  return posts.map((p) => {
+    const r = reacts.get(p.id)
+    const top = r ? (Object.entries(r.counts) as [string, number][]).filter(([, n]) => n > 0).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null : null
+    return {
+      ...p,
+      nick: nick.get(p.author_id) ?? '병아리',
+      likes: likes.filter((l) => l.post_id === p.id).length,
+      liked: likes.some((l) => l.post_id === p.id && l.user_id === viewerId),
+      comments: comments.filter((c) => c.post_id === p.id && !c.hidden_at).length,
+      poll: polls.has(p.id),
+      react: { top, total: r?.total ?? 0 },
+    }
+  })
 }
 
 /** 글 하나 + 댓글 (가려진 글은 글쓴이·최고 관리자만) */

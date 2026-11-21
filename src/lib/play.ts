@@ -4,6 +4,8 @@ import { kstAt, kstDate } from './time'
 import { weekStart } from './weekly'
 import { shiftFacts } from './xp'
 import type { PlayStats } from './playContent'
+import { myCheckinDays } from './community2'
+import { streakOf } from './communityShared'
 
 /**
  * 놀이터 기록 (배지·이번 주 챌린지): 내 기록만 읽어서 셈 — 저장하지 않음 · 다른 사람 기록은 읽지 않음.
@@ -13,7 +15,7 @@ export async function playStats(userId: string): Promise<PlayStats> {
   const today = kstDate()
   const ws = weekStart(today)
   const wsIso = kstAt(ws, '00:00').toISOString()
-  const [atts, signed, reviews, posts, comments, linksOut, linksIn, me] = await Promise.all([
+  const [atts, signed, reviews, posts, comments, linksOut, linksIn, me, checkins] = await Promise.all([
     db()
       .from('attendance')
       .select('job_id, company_id, work_date, clock_in, clock_out, note, source, sched_start')
@@ -55,6 +57,7 @@ export async function playStats(userId: string): Promise<PlayStats> {
       .eq('id', userId)
       .maybeSingle()
       .then((r) => r.data as { photo_at: string | null; bank_account_enc: string | null; emergency_phone: string | null; address: string | null; careers: unknown } | null),
+    myCheckinDays(userId),
   ])
   // 예정 시작 시각 (정시 출근 판단): 공고 시작 시각 · 바뀐 근무 시간이 있으면 그것
   const jobIds = [...new Set(atts.map((a) => a.job_id))]
@@ -88,6 +91,7 @@ export async function playStats(userId: string): Promise<PlayStats> {
     comments: comments.length,
     likesGot,
     coworkers: linksOut.filter((l) => inSet.has(l.to_id)).length,
+    streakBest: streakOf(checkins, today).best,
     profileDone: !!(me?.photo_at && me.bank_account_enc && me.emergency_phone && me.address && Array.isArray(me.careers) && me.careers.length > 0),
     week: {
       shifts: thisWeek.length,
