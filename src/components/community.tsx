@@ -31,11 +31,26 @@ const CATS = [
 /** 글쓰기 */
 const DRAFT_KEY = 'community-draft'
 
-export function PostForm({ defaultCategory, defaultTitle, post, hasPoll }: { defaultCategory: string; defaultTitle?: string; post?: { id: string; title: string; body: string }; hasPoll?: boolean }) {
+export function PostForm({
+  defaultCategory,
+  defaultTitle,
+  post,
+  hasPoll,
+  myWork = [],
+}: {
+  defaultCategory: string
+  defaultTitle?: string
+  post?: { id: string; title: string; body: string }
+  hasPoll?: boolean
+  /** '같이 가요'에서 눌러 제목을 채울 내 확정 근무 (가까운 날 순) */
+  myWork?: { key: string; label: string; title: string }[]
+}) {
   const [state, action] = useActionState(post ? updatePost.bind(null, post.id) : createPost, null)
   // 고른 말머리 ('같이 가요'면 안전 안내) · 투표 보기 (커뮤니티 2단계 · 새 글에서만)
   const [cat, setCat] = useState(defaultCategory)
   const [poll, setPoll] = useState<string[] | null>(null)
+  // 내 근무 칩으로 채운 제목 (누른 칩 ✓ · 톡)
+  const [picked, setPicked] = useState<string | null>(null)
   // 고칠 때: 저장된 내용에서 맨 끝 이모티콘 줄을 떼어 '넣은 이모티콘'으로
   const initial = splitPostBody(post?.body ?? '')
   const [body, setBody] = useState(initial.text)
@@ -123,6 +138,40 @@ export function PostForm({ defaultCategory, defaultTitle, post, hasPoll }: { def
           <p className="mt-2 animate-slide-down rounded-xl bg-amber-50 px-3 py-2 text-xs break-keep text-amber-900" data-together-note>
             🚶 같은 행사 가는 사람끼리 모여요. 전화번호는 자동으로 가려지고, 만날 곳은 사람이 많은 곳으로 정해 주세요.
           </p>
+        )}
+        {/* 같이 가요 · 새 글: 내 확정 근무를 누르면 제목이 '날짜 행사 같이 가요'로 (정기 개선 2026-11-22 00:35) */}
+        {cat === 'together' && !post && myWork.length > 0 && (
+          <div className="mt-2 space-y-1.5" data-together-work>
+            <p className="text-xs font-semibold text-sub">내 근무에서 고르기</p>
+            <div className="flex flex-wrap gap-1.5">
+              {myWork.map((w) => {
+                const on = picked === w.key
+                return (
+                  <button
+                    key={w.key}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => {
+                      const input = formRef.current?.elements.namedItem('title') as HTMLInputElement | null
+                      if (input) input.value = w.title
+                      setPicked(w.key)
+                      haptic(8)
+                      setTimeout(save, 0)
+                    }}
+                    className={`chip h-8 max-w-full gap-1 px-3 text-xs transition duration-150 active:scale-95 ${on ? 'bg-brand-50 font-bold text-brand-700 ring-brand-300' : ''}`}
+                    data-together-chip={w.key}
+                  >
+                    {on && (
+                      <span aria-hidden className="inline-block animate-[pop_0.25s_ease-out_both]">
+                        ✓
+                      </span>
+                    )}
+                    <span className="truncate">{w.label}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         )}
       </fieldset>
       <div>

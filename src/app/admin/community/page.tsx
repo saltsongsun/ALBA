@@ -48,7 +48,16 @@ export default async function CommunityAdminPage(props: PageProps<'/admin/commun
                   {FEATURES[k].label}{' '}
                   <span className={`badge ml-1 ${on ? 'bg-emerald-50 text-emerald-700' : 'bg-bg text-sub'}`}>{on ? '켜짐' : '꺼짐'}</span>
                 </p>
-                <p className="mt-0.5 text-xs text-sub">{desc}</p>
+                {/* 한 줄로 짧게 · 자세한 설명은 접어 둠 (정기 개선 2026-11-22 00:35 · '설명은 짧게 하거나 접어 두기') */}
+                <p className="mt-0.5 text-xs text-sub" data-feature-short>
+                  {k === 'coworkers' ? '고른 동료에게만 내 지원 공고 보여 주기' : '공고에 회사 별점·최근 후기 보여 주기'}
+                </p>
+                <details className="group mt-0.5 text-xs text-mute" data-feature-more>
+                  <summary className="tap inline-flex cursor-pointer list-none items-center gap-0.5 font-semibold [&::-webkit-details-marker]:hidden">
+                    자세히 <span aria-hidden className="inline-block transition-transform duration-200 group-open:rotate-90 motion-reduce:transition-none">›</span>
+                  </summary>
+                  <p className="mt-1 animate-[slide-down_0.25s_ease-out_both] text-sub">{desc}</p>
+                </details>
               </div>
               <form action={setFeature.bind(null, k, !on)} className="shrink-0">
                 {on ? (
