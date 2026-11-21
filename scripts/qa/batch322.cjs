@@ -75,7 +75,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const row = k.locator('[data-today-empty="waiting"]')
   if ((await row.count()) === 1) {
     const rt = one(await row.textContent())
-    ok("아래 줄: '오늘 HH:MM 시작 · 확정되면 바로 알려 드려요'", /^오늘 \d{2}:\d{2} 시작 ?확정되면 바로 알려 드려요$/.test(rt), rt)
+    // (정기 개선 2026-11-21 15:35: 이미 시작했으면 'HH:MM에 시작했어요' · 줄 끝 '›')
+    ok("아래 줄: '오늘 HH:MM 시작(했어요) · 확정되면 바로 알려 드려요'", /^오늘 \d{2}:\d{2}( 시작|에 시작했어요) ?확정되면 바로 알려 드려요 ?›?$/.test(rt), rt)
     ok("'확정 전이에요'는 화면에 한 번만 (위 확정 대기 칸)", (one(await k.locator('main').textContent()).match(/확정 전이에요/g) ?? []).length === 1)
     ok('360px 옆으로 밀림 없음 (내 근무)', await noSide(k))
     if (SHOTS) {

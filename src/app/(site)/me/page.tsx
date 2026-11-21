@@ -455,10 +455,12 @@ export default async function MePage(props: PageProps<'/me'>) {
   // 오늘 하는 근무에 지원하고 확정을 기다리는 중: '오늘 예정된 근무가 없어요'라고 하면 안 가도 되는 줄 알 수 있어서 그대로 말함
   const waitToday = waitingLive.some((a) => workDays(a).includes(today))
   // 오늘 확정을 기다리는 근무의 시작 시각 (가장 이른 것) — 위 확정 대기 칸이 이미 '아직 확정 전'이라고 하니 아래 줄은 시각만 (같은 말 두 번 하지 않게)
-  const waitTodayStart = waitingLive
+  const waitTodayApp = waitingLive
     .filter((a) => workDays(a).includes(today))
-    .map((a) => a.job.start_time.slice(0, 5))
-    .sort()[0]
+    .sort((x, y) => x.job.start_time.localeCompare(y.job.start_time))[0]
+  const waitTodayStart = waitTodayApp?.job.start_time.slice(0, 5)
+  // 그 근무가 이미 시작했으면 '시작했어요' (위 칸의 '시작했는데 아직 확정 전이에요'와 같은 때) — 정기 개선 2026-11-21 15:35
+  const waitTodayStarted = !!waitTodayApp && Date.now() >= kstAt(today, waitTodayApp.job.start_time).getTime()
   // 이번 주 칸: 확정이 없는 날에 지원하고 기다리는 근무가 있으면 점선 (같은 날 또 지원하기 전에 한눈에 · 누르면 그 대기 카드로)
   const weekWait = week.map((d, i) => (weekWork[i].length ? [] : waitingLive.filter((a) => workDays(a).includes(d))))
   const weekWaitCount = weekWait.filter((w) => w.length > 0).length
@@ -862,18 +864,29 @@ export default async function MePage(props: PageProps<'/me'>) {
             </div>
           ) : waitingFirst && waitToday ? (
             // 오늘 근무가 확정 대기: 위 확정 대기 칸을 가리키는 한 줄 (다른 알바 보기를 권하지 않음 — 같은 날 겹쳐 지원하지 않게)
-            <div className="card flex items-center gap-3 py-3.5 text-sm" data-today-empty="waiting">
+            // 누르면 그 공고 화면 (누름 반응 · 정기 개선 2026-11-21 15:35)
+            <Link
+              href={`/jobs/${waitTodayApp!.job_id}`}
+              className="card-link flex items-center gap-3 py-3.5 text-sm"
+              data-today-empty="waiting"
+              data-today-wait-started={waitTodayStarted ? '' : undefined}
+              transitionTypes={['nav-forward']}
+            >
               <span className="relative flex size-2.5 shrink-0" aria-hidden>
                 <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-60 motion-reduce:hidden" />
                 <span className="relative inline-flex size-2.5 rounded-full bg-amber-500" />
               </span>
               <span className="min-w-0 flex-1">
                 <b className="block font-semibold text-ink tabular-nums" data-today-wait-start>
-                  오늘 {waitTodayStart} 시작
+                  오늘 {waitTodayStart}
+                  {waitTodayStarted ? '에 시작했어요' : ' 시작'}
                 </b>
                 <span className="block text-xs text-mute">확정되면 바로 알려 드려요</span>
               </span>
-            </div>
+              <span aria-hidden className="shrink-0 text-mute">
+                ›
+              </span>
+            </Link>
           ) : waitingFirst ? (
             // 확정을 기다리는 지원이 위에 있으면 한 줄로만 (큰 빈 화면 안내가 그 칸을 아래로 밀지 않게)
             <Link href={pro ? '/pro' : '/'} className="card-link flex items-center justify-between gap-3 py-3.5 text-sm" data-today-empty="compact">
