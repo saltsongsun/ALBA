@@ -61,11 +61,11 @@ export function PollCard({ postId, poll: p0, canVote, isAuthor }: { postId: stri
                 }`}
                 data-poll-option={i}
               >
-                {/* 결과 막대: 고른 뒤에만 · 0.3초에 걸쳐 채워짐 (움직임 줄이기면 바로) */}
+                {/* 결과 막대: 고른 뒤에만 · 처음 보일 때 왼쪽에서 0.3초에 걸쳐 자라나고, 바뀌면 너비가 따라감 (움직임 줄이기면 바로) */}
                 {showResults && (
                   <span
                     aria-hidden
-                    className={`absolute inset-y-0 left-0 transition-[width] duration-300 ease-out ${mine ? 'bg-brand-100' : n === top && n > 0 ? 'bg-amber-100' : 'bg-slate-100'}`}
+                    className={`absolute inset-y-0 left-0 origin-left animate-[grow_0.3s_ease-out_both] transition-[width] duration-300 ease-out ${mine ? 'bg-brand-100' : n === top && n > 0 ? 'bg-amber-100' : 'bg-slate-100'}`}
                     style={{ width: `${pct}%` }}
                     data-poll-bar
                   />
@@ -79,7 +79,7 @@ export function PollCard({ postId, poll: p0, canVote, isAuthor }: { postId: stri
                   {o}
                 </span>
                 {showResults && (
-                  <span className="relative shrink-0 text-xs font-semibold text-sub tabular-nums" data-poll-count>
+                  <span className="relative shrink-0 animate-[pop_0.25s_ease-out_both] text-xs font-semibold text-sub tabular-nums" data-poll-count>
                     {pct}% · {n}표
                   </span>
                 )}

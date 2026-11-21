@@ -709,6 +709,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 {!ended && (
                   <CalendarLink href={`/me/calendar/${app.id}`} />
                 )}
+                {/* 같은 행사에 가는 사람끼리 (커뮤니티 '같이 가요' · 날짜·행사 이름을 채운 글쓰기 — 정기 개선 2026-11-21 22:35) */}
+                {!ended && !expert && !liveAtt && (
+                  <Link
+                    href={`/community/new?c=together&t=${encodeURIComponent(`${fmtDate(job.start_date >= kstDate() ? job.start_date : kstDate())} ${job.event_name || job.title} 같이 가요`.slice(0, 40))}`}
+                    className="chip h-8 gap-1 px-3 text-xs"
+                    data-together-link
+                  >
+                    <span aria-hidden>🚶</span> 같이 갈 사람 찾기
+                  </Link>
+                )}
               </div>
             )}
             {/* 지원·확정했는데 받을 계좌가 없으면: 계좌번호 칸으로 바로 (확정 뒤 급여가 늦어지지 않게) */}
