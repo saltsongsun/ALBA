@@ -7,6 +7,7 @@ import Icon from '@/components/Icon'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { companyDocs, DOC_KIND_LABEL, DOC_LIMIT, filterQuery, parseDocFilter, type DocFilter, type DocRow } from '@/lib/docList'
+import { lastChangesForJobs } from '@/lib/nudge'
 import { requireAdmin } from '@/lib/session'
 import { fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { DocTemplate } from '@/lib/types'
@@ -60,6 +61,10 @@ export default async function DocsPage(props: PageProps<'/admin/docs'>) {
 /** 서명 받은 서류: 공고별로 묶고, 하나씩 또는 거른 것 전체를 PDF로 */
 async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
   const { rows, base, all } = await companyDocs(companyId, f)
+  // 서명한 뒤에 그 공고의 '🔔 일정 변경' 알림을 받은 근무자의 서류 → '일정 바뀜' (그 공고 서류 탭에서 재서명 판단 · 정기 개선 2026-11-22 04:35)
+  const signedJobs = [...new Set(rows.filter((d) => d.status === 'signed' && d.job_id).map((d) => d.job_id!))]
+  const changes = signedJobs.length ? await lastChangesForJobs(companyId, signedJobs).catch(() => new Map<string, string>()) : new Map<string, string>()
+  const stale = (d: DocRow) => d.status === 'signed' && !!d.signed_at && !!d.job_id && (changes.get(`${d.job_id}:${d.user_id}`) ?? '') > d.signed_at
   const count = (s: DocRow['status']) => base.filter((d) => d.status === s).length
   const chips: { label: string; status: DocFilter['status']; n: number }[] = [
     { label: '전체', status: null, n: base.filter((d) => d.status !== 'void').length },
@@ -173,10 +178,18 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                         {(() => {
                           const signed = list.filter((d) => d.status === 'signed').length
                           const waiting = list.filter((d) => d.status === 'pending').length
+                          const changed = list.filter(stale).length
                           return (
                             <>
-                              {signed > 0 && <span className="text-emerald-700"> · 서명 {signed}</span>}
-                              {waiting > 0 && <span className="font-semibold text-amber-700"> · 대기 {waiting}</span>}
+                              {/* 좁은 화면에서 줄이 바뀌어도 '일정 바뀜 1'처럼 한 덩어리는 끊기지 않게 */}
+                              {signed > 0 && <span className="whitespace-nowrap text-emerald-700"> · 서명 {signed}</span>}
+                              {waiting > 0 && <span className="font-semibold whitespace-nowrap text-amber-700"> · 대기 {waiting}</span>}
+                              {changed > 0 && (
+                                <span className="font-semibold whitespace-nowrap text-amber-700" data-docs-job-stale={changed}>
+                                  {' '}
+                                  · 일정 바뀜 {changed}
+                                </span>
+                              )}
                             </>
                           )
                         })()}
@@ -197,7 +210,8 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                       )
                     )}
                   </summary>
-                  <ul className="divide-y divide-line">
+                  {/* 펼치면 서류 줄이 0.2초 내려오며 나타남 (움직임 줄이기면 바로) */}
+                  <ul className="animate-[slide-down_0.2s_ease-out_both] divide-y divide-line" data-docs-job-list>
                     {list.map((d) => (
                       <li key={d.id} className="flex items-center gap-2 px-4 py-3" data-doc-row={d.id}>
                         <div className="min-w-0 flex-1">
@@ -207,7 +221,14 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                           </p>
                           <p className="text-xs">
                             {d.status === 'signed' ? (
-                              <span className="text-emerald-700">✓ 서명 {d.signed_at ? kstDateTime(d.signed_at) : ''}</span>
+                              <>
+                                <span className="text-emerald-700">✓ 서명 {d.signed_at ? kstDateTime(d.signed_at) : ''}</span>
+                                {stale(d) && (
+                                  <Link href={`/admin/jobs/${d.job_id}?tab=docs#doc-stale`} className="ml-1.5 font-semibold whitespace-nowrap text-amber-700 underline" data-doc-row-stale>
+                                    일정 바뀜 ›
+                                  </Link>
+                                )}
+                              </>
                             ) : d.status === 'pending' ? (
                               <span className="font-semibold text-amber-700">서명 대기 · 요청 {fmtDate(kstDate(d.created_at))}</span>
                             ) : (

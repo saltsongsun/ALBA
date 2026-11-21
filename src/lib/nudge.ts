@@ -61,6 +61,30 @@ export async function lastChangesByWorker(companyId: string, jobId: string): Pro
   return out
 }
 
+/**
+ * 여러 공고에서 (공고 · 근무자)마다 마지막 '🔔 일정 변경' 알림 시각 — 우리 회사 문의함에서만 (서류 메뉴의 '일정 바뀜' 표시)
+ * 열쇠: `${jobId}:${userId}` · 공고 100개씩 나눠 읽음 (정기 개선 2026-11-22 04:35)
+ */
+export async function lastChangesForJobs(companyId: string, jobIds: string[]): Promise<Map<string, string>> {
+  const out = new Map<string, string>()
+  for (let i = 0; i < jobIds.length; i += 100) {
+    const { data } = await db()
+      .from('messages')
+      .select('created_at, body, thread_user_id, job_id')
+      .eq('company_id', companyId)
+      .in('job_id', jobIds.slice(i, i + 100))
+      .eq('from_admin', true)
+      .order('created_at', { ascending: false })
+      .limit(1000)
+    for (const m of (data ?? []) as { created_at: string; body: string; thread_user_id: string; job_id: string | null }[]) {
+      if (!m.job_id || signalOf(m.body) !== 'change') continue
+      const k = `${m.job_id}:${m.thread_user_id}`
+      if (m.created_at > (out.get(k) ?? '')) out.set(k, m.created_at)
+    }
+  }
+  return out
+}
+
 /** 마지막 알림 때: '방금' · 'n분 전' · '오늘 14:02' · '11/13(금) 14:02' + 30분 안이면 recent (다시 보낼 때 한 번 더 확인) */
 export function nudgeAgo(iso: string | null | undefined): { when: string; recent: boolean; confirm: (n: number) => string } | null {
   if (!iso) return null

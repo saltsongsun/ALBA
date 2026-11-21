@@ -253,7 +253,9 @@ export default function DocsTab({
         </div>
       )}
       {stale.length > 0 && (
-        <div className="animate-slide-down space-y-1 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200" data-doc-stale={stale.length}>
+        <div id="doc-stale" className="animate-slide-down scroll-mt-24 space-y-1 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200" data-doc-stale={stale.length}>
+          {/* 서류 메뉴 '일정 바뀜 ›'으로 왔으면 이 칸으로 옮겨 번쩍 */}
+          <HashFlash id="doc-stale" />
           <p className="font-bold">서명한 뒤 일정이 바뀐 서류 {stale.length}건</p>
           {staleRows.length > 0 && (
             <ul className="space-y-0.5 text-xs" data-doc-stale-changes>
