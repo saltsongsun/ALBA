@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { removeCompanyAdmin, setCompanyActive, setCompanyVerified, switchCompany } from '@/app/actions/company'
 import { AddAdminForm, CreateCompanyForm } from '@/components/company'
 import { phoneFmt } from '@/lib/format'
+import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import { ConfirmSubmit } from '@/components/ui'
 import { platformCompanyId } from '@/lib/data'
@@ -73,7 +74,9 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
     worked: new Set(monthAtt.filter((a) => a.company_id === id && a.clock_in && a.work_date >= monthStart && a.work_date <= today).map((a) => a.user_id)).size,
     rating: ratings[id] ?? null,
   })
-  companies.sort((a, b) => a.created_at.localeCompare(b.created_at))
+  // 확인을 기다리는 회사를 맨 위로 (오래 기다린 순) → 쓰는 회사 → 사용 중지 — 새로 가입한 회사가 맨 아래에 묻히지 않게 (정기 개선 2026-11-21 17:35)
+  const rank = (c: (typeof companies)[number]) => (c.active && c.verified === false ? 0 : c.active ? 1 : 2)
+  companies.sort((a, b) => rank(a) - rank(b) || a.created_at.localeCompare(b.created_at))
   // 직접 가입해 확인을 기다리는 회사 (확인 전에는 해피워크 전체 회원 명단을 못 봄)
   const waiting = companies.filter((c) => c.active && c.verified === false)
   return (
@@ -87,16 +90,28 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
       </div>
 
       {waiting.length > 0 && (
-        <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          🏢 직접 가입해 <b>확인을 기다리는 회사 {waiting.length}곳</b>이 있어요. 담당자에게 연락해 실제 회사인지 확인한 뒤 &lsquo;확인 완료&rsquo;를 눌러 주세요. 확인 전에도 공고·지원자 관리는 쓸 수 있고, 전체 회원 명단만 확인 뒤에 열려요.
-        </p>
+        <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900" data-companies-waiting={waiting.length}>
+          <p>
+            🏢 직접 가입해 <b>확인을 기다리는 회사 {waiting.length}곳</b>이 있어요. 담당자에게 연락해 실제 회사인지 확인한 뒤 &lsquo;확인 완료&rsquo;를 눌러 주세요. 확인 전에도 공고·지원자 관리는 쓸 수 있고, 전체 회원 명단만 확인 뒤에 열려요.
+          </p>
+          {/* 확인할 회사(맨 위)로 바로 · 그 카드 테두리가 한 번 반짝 */}
+          <a href={`#company-${waiting[0].id}`} className="tap mt-1.5 inline-block font-bold text-amber-800 underline underline-offset-2" data-companies-waiting-go>
+            확인할 회사 보기 ↓
+          </a>
+        </div>
       )}
       <div className="space-y-3">
         {companies.map((c) => {
           const list = members.filter((m) => m.company_id === c.id)
           const st = stats(c.id)
           return (
-            <section key={c.id} className={`card space-y-3 ${c.active ? '' : 'opacity-60'}`}>
+            <section
+              key={c.id}
+              id={`company-${c.id}`}
+              className={`card scroll-mt-24 space-y-3 ${c.active ? '' : 'opacity-60'}`}
+              data-target-flash
+              data-company-card={c.verified === false && c.active ? 'waiting' : c.active ? 'active' : 'off'}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
                   <h2 className="text-lg font-bold">
@@ -107,9 +122,15 @@ export default async function CompaniesPage(props: PageProps<'/admin/companies'>
                   </h2>
                   <p className="text-sm text-sub">{[c.ceo_name && `대표 ${c.ceo_name}`, c.business_no].filter(Boolean).join(' · ') || '회사 정보는 회사 설정에서'}</p>
                   {c.verified === false && (c.contact_name || c.contact_phone) && (
-                    <p className="text-sm text-sub">
-                      담당 {c.contact_name ?? ''} {c.contact_phone ? phoneFmt(c.contact_phone) : ''} · 가입 {c.created_at.slice(0, 10)}
-                    </p>
+                    <>
+                      <p className="text-sm text-sub">{[c.contact_name && `담당 ${c.contact_name}`, `가입 ${c.created_at.slice(0, 10)}`].filter(Boolean).join(' · ')}</p>
+                      {/* 확인하려면 전화가 먼저 — 번호 옆에 바로 전화·문자 */}
+                      {c.contact_phone && (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm" data-company-contact>
+                          <ContactButtons phone={c.contact_phone} name={c.contact_name ?? undefined} />
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
                 <div className="flex shrink-0 gap-1.5">
