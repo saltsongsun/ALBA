@@ -19,7 +19,7 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, ASK_PAYLATE, invoiceTag, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, ASK_PAYLATE, invoiceTag, isNoEndAsk, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
 import { markInvoice, markVendorPaid } from '@/app/actions/vendor'
 import { agreedShiftFor } from '@/lib/shift'
 import { won } from '@/lib/format'
@@ -42,6 +42,8 @@ function repliesFor(last: ChatMessage | undefined): string[] {
   if (head.startsWith('⚠️ 근무시간')) return ['알겠어요. 원래 시간에 마쳐 주세요.', '괜찮아요. 일정은 따로 상의해요.']
   if (head.startsWith('🕒 근무 종료 늦게 입력')) return ['확인했어요. 다음엔 근무 종료를 꼭 눌러 주세요.']
   if (head.startsWith(ASK_MISSED.slice(0, 20))) return ['출근 기록을 넣었어요. 확인해 주세요.', '몇 시에 도착했는지 알려 주세요.']
+  // 명세서·확인서에서 '근무 종료 기록이 빠진 날이 있어요' (정기 개선 2026-11-22 23:35)
+  if (isNoEndAsk(head)) return ['종료 기록을 넣었어요. 명세서를 다시 확인해 주세요.', '그날 몇 시에 끝났는지 알려 주세요.']
   // 외주 업체 '대금 지급일이 지났어요' (지급일 지난 대금 물어보기)
   if (head.startsWith(ASK_PAYDUE)) return ['확인해 보고 오늘 안에 알려 드릴게요.', '늦어서 죄송해요. 이번 주 안에 지급할게요.']
   // '지원했는데 확정 여부가 궁금해요' (곧 시작인데 아직 확정 전인 지원자)
@@ -197,6 +199,7 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   const confirmAsk = latest((m) => m.body.startsWith(ASK_CONFIRM.slice(0, 12)))
   const invoiceAsk = latest((m) => m.body.startsWith(ASK_INVOICE))
   const paydueAsk = latest((m) => m.body.startsWith(ASK_PAYDUE))
+  const noEndAsk = latest((m) => isNoEndAsk(m.body))
   // 오늘 지각 알림 중 아직 아무 답도 안 한 것 (답장을 보내면 버튼이 사라짐)
   const lateAsk = latest((m) => m.body.startsWith(SIGNAL.late) && kstDate(m.created_at) === today)
   const lateOpen = lateAsk && !messages.some((m) => m.from_admin && m.created_at > lateAsk.created_at) ? lateAsk : undefined
@@ -294,6 +297,23 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     }
   }
 
+  // '근무 종료 기록이 빠진 날이 있어요' (그 공고에서 보낸 글) → 이 회사 공고면 아직 종료가 없는 가장 이른 지난 날의 출퇴근으로 바로 (다 넣었으면 '✓ 다 들어갔어요')
+  let noEnd: { jobId: string; date: string | null; left: number } | null = null
+  if (noEndAsk?.job?.id) {
+    const jid = noEndAsk.job.id
+    const [{ data: nj }, { data: na }] = await Promise.all([
+      db().from('jobs').select('id, company_id').eq('id', jid).maybeSingle(),
+      db().from('attendance').select('job_id, user_id, work_date, clock_in, clock_out, adj_out').eq('job_id', jid).eq('user_id', userId),
+    ])
+    if (nj && (nj as { company_id: string }).company_id === admin.companyId) {
+      const open = ((na ?? []) as { job_id: string; user_id: string; work_date: string; clock_in: string | null; clock_out: string | null; adj_out: string | null }[])
+        .filter((a) => a.job_id === jid && a.user_id === userId && !a.clock_out && !a.adj_out && a.work_date < today)
+        .map((a) => a.work_date)
+        .sort()
+      noEnd = { jobId: jid, date: open[0] ?? null, left: open.length }
+    }
+  }
+
   // 말풍선 아래 처리 버튼 (메시지 id → 버튼)
   const chip = 'h-9 px-3.5 text-[13px]'
   const resolve: Record<number, React.ReactNode> = {}
@@ -309,6 +329,18 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           다른 시각 →
         </Link>
       </div>
+    )
+  if (noEndAsk && noEnd)
+    resolve[noEndAsk.id] = noEnd.date ? (
+      <div className="mt-1.5 flex animate-pop flex-wrap gap-1.5" data-noend-resolve>
+        <Link href={`/admin/jobs/${noEnd.jobId}?tab=att&date=${noEnd.date}&fix=${worker.id}#att-${worker.id}`} className={`chip-primary ${chip}`} data-noend-resolve-link>
+          {fmtDate(noEnd.date)} 종료 넣기{noEnd.left > 1 ? ` (${noEnd.left}일)` : ''} →
+        </Link>
+      </div>
+    ) : (
+      <p className="mt-1.5 animate-pop text-xs font-semibold text-emerald-700" data-noend-resolved>
+        ✓ 종료 기록이 다 들어갔어요
+      </p>
     )
   if (confirmAsk && waitingApp)
     resolve[confirmAsk.id] = (
