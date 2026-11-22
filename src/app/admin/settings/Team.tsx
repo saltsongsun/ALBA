@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { decideJoin, removeTeamAdmin, renewJoinCode } from '@/app/actions/team'
 import { ConfirmSubmit, CopyButton, ShareButton } from '@/components/ui'
 import Icon from '@/components/Icon'
@@ -18,7 +19,7 @@ const JOINED_DAYS = 3
  */
 export default async function Team({ admin }: { admin: AdminUser }) {
   const owner = admin.isSuper || admin.companies.find((c) => c.id === admin.companyId)?.role === 'owner'
-  const [members, reqs, code] = await Promise.all([
+  const [members, reqs, code, myWaiting] = await Promise.all([
     db()
       .from('company_members')
       .select('user_id, role, created_at')
@@ -34,6 +35,14 @@ export default async function Team({ admin }: { admin: AdminUser }) {
           .then((r) => (r.data ?? []) as { user_id: string; created_at: string }[])
       : [],
     owner ? joinCodeOf(admin.companyId) : null,
+    // 내가 다른 회사에 낸 관리자 가입 신청 중 아직 승인 안 된 것 (내 신청만 셈 · 최고 관리자는 회사 관리 화면을 씀)
+    admin.isSuper
+      ? 0
+      : db()
+          .from('company_join_requests')
+          .select('company_id', { count: 'exact', head: true })
+          .eq('user_id', admin.id)
+          .then((r) => (r.error ? 0 : (r.count ?? 0)), () => 0),
   ])
   const ids = [...members.map((m) => m.user_id), ...reqs.map((r) => r.user_id)]
   const people = new Map(
@@ -175,6 +184,27 @@ export default async function Team({ admin }: { admin: AdminUser }) {
           )
         })}
       </ul>
+
+      {/* 다른 회사도 맡는 관리자: 이 계정 그대로 다른 회사에 합류하거나 회사를 하나 더 (주소를 몰라 새 계정을 만들지 않게 · 정기 개선 2026-11-23 06:35) */}
+      {!admin.isSuper && (
+        <div className="space-y-2 border-t border-line pt-3" data-team-more>
+          <p className="text-sm text-mute">다른 회사도 맡나요? 이 계정 그대로 써요.</p>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/start?tab=join" className="btn-gray btn-sm transition active:scale-95" data-team-join>
+              코드로 합류
+            </Link>
+            <Link href="/start" className="btn-gray btn-sm transition active:scale-95" data-team-new>
+              새 회사 등록
+            </Link>
+          </div>
+          {myWaiting > 0 && (
+            <Link href="/start/wait" className="tap flex items-center justify-between gap-2 text-sm font-semibold text-amber-700" data-team-wait>
+              <span>합류 승인을 기다리는 회사 {myWaiting}곳</span>
+              <span aria-hidden>›</span>
+            </Link>
+          )}
+        </div>
+      )}
     </section>
   )
 }

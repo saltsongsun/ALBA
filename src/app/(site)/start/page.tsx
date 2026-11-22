@@ -24,8 +24,9 @@ export default async function StartPage(props: PageProps<'/start'>) {
   const code = typeof sp.code === 'string' ? sp.code.toUpperCase().replace(/[^A-Z0-9-]/g, '').slice(0, 9) : ''
   const join = sp.tab === 'join' || !!code
   const signedIn = user?.role === 'admin'
+  // 흰 바탕은 아래 따로 둔 막대가 옮겨 다녀서, 글자만 색이 바뀜 (정기 개선 2026-11-23 06:35)
   const tab = (on: boolean) =>
-    `flex-1 rounded-xl py-2.5 text-center text-sm font-bold transition active:scale-[0.98] ${on ? 'bg-white text-ink shadow-sm' : 'text-mute'}`
+    `relative z-10 flex-1 rounded-xl py-2.5 text-center text-sm font-bold transition-colors duration-200 active:scale-[0.98] ${on ? 'text-ink' : 'text-mute'}`
 
   return (
     <div className="space-y-5 pt-4">
@@ -33,7 +34,13 @@ export default async function StartPage(props: PageProps<'/start'>) {
         <h1 className="text-2xl font-extrabold">회사로 시작하기</h1>
         <p className="mt-1 text-sub">행사 인력을 뽑는 회사와 직원을 위한 화면이에요.</p>
       </div>
-      <nav className="flex gap-1 rounded-2xl bg-line/60 p-1" aria-label="가입 방법">
+      {/* 두 칸 고르기: 흰 막대가 고른 칸으로 미끄러져 감 (0.2초 · 움직임 줄이기면 바로) */}
+      <nav className="relative flex gap-1 rounded-2xl bg-line/60 p-1" aria-label="가입 방법">
+        <span
+          aria-hidden
+          className={`absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-xl bg-white shadow-sm transition-transform duration-200 ease-[var(--ease-spring)] ${join ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
+          data-start-pill
+        />
         <Link href="/start" className={tab(!join)} aria-current={!join ? 'page' : undefined}>
           새 회사 등록
         </Link>
@@ -42,6 +49,8 @@ export default async function StartPage(props: PageProps<'/start'>) {
         </Link>
       </nav>
 
+      {/* 칸을 바꾸면 아래 내용이 살짝 올라옴 (0.25초 · 움직임 줄이기면 바로) */}
+      <div key={join ? 'join' : 'new'} className="animate-[rise_0.25s_var(--ease-spring)_both] space-y-5" data-start-body>
       {join ? (
         <>
           <ol className="card space-y-2 text-sm">
@@ -73,7 +82,18 @@ export default async function StartPage(props: PageProps<'/start'>) {
               지금은 근무자 계정으로 로그인돼 있어요. 회사 담당자 휴대폰 번호로 따로 가입하려면 먼저 로그아웃해 주세요.
             </p>
           ) : (
-            <CompanySignupForm signedIn={signedIn} />
+            <>
+              {/* 이미 관리자로 로그인: 새 계정이 아니라 이 계정에 회사를 하나 더 (합류 칸의 '○○님 계정으로 신청해요'와 같은 말투) */}
+              {signedIn && user && (
+                <p className="text-sm text-sub" data-start-signed>
+                  <span className="block">
+                    <b className="text-ink">{user.name}</b>님 계정에 회사를 하나 더 만들어요.
+                  </span>
+                  <span className="block">회사 고르기로 바꿔 가며 써요.</span>
+                </p>
+              )}
+              <CompanySignupForm signedIn={signedIn} />
+            </>
           )}
           <p className="hint" data-start-note>
             가입하면 바로 공고를 올리고 지원자를 받아요. 전체 회원 명단은 회사 확인 뒤에 열려요.
@@ -86,6 +106,7 @@ export default async function StartPage(props: PageProps<'/start'>) {
           </p>
         </>
       )}
+      </div>
     </div>
   )
 }
