@@ -179,7 +179,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
       <Flash m={sp.m} />
       {/* '지급 전' 칩(#work-history)을 누르면 접힌 근무 이력을 펼침 */}
       <OpenOnHash />
-      <RosterOpenBar seconds={rosterLeft} />
+      <RosterOpenBar seconds={rosterLeft} total={ROSTER_MINUTES * 60} />
       <Link href="/admin/workers" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
         ← 근무자 목록
       </Link>

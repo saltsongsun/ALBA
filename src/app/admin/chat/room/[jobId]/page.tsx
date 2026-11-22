@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Icon from '@/components/Icon'
 import { notFound } from 'next/navigation'
 import { joinRoom, leaveRoom, sendRoom } from '@/app/actions/room'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -63,8 +64,8 @@ export default async function AdminRoomPage(props: PageProps<'/admin/chat/room/[
               </ConfirmSubmit>
             </form>
           )}
-          <a href={`/admin/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs">
-            ⬇️ 대화 저장
+          <a href={`/admin/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs" data-chat-export>
+            <Icon name="download" className="text-mute" /> 대화 저장
           </a>
         </span>
       </div>

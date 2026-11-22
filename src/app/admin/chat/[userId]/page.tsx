@@ -413,8 +413,8 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
           ← 문의 목록
         </Link>
         {messages.length > 0 && (
-          <a href={`/admin/chat/${worker.id}/export`} download className="chip h-8 px-3 text-xs">
-            ⬇️ 대화 저장
+          <a href={`/admin/chat/${worker.id}/export`} download className="chip h-8 px-3 text-xs" data-chat-export>
+            <Icon name="download" className="text-mute" /> 대화 저장
           </a>
         )}
       </div>

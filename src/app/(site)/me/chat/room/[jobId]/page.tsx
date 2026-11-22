@@ -62,8 +62,8 @@ export default async function WorkerRoomPage(props: PageProps<'/me/chat/room/[jo
         <Link href="/me/chat" className="tap text-sm font-semibold text-sub" transitionTypes={['nav-back']}>
           ← 문의
         </Link>
-        <a href={`/me/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs">
-          ⬇️ 대화 저장
+        <a href={`/me/chat/room/${job.id}/export`} download className="chip h-8 px-3 text-xs" data-chat-export>
+          <Icon name="download" className="text-mute" /> 대화 저장
         </a>
       </div>
       <div className="space-y-1.5">

@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { useActionState, useEffect, useRef, useState } from 'react'
 import { lockRoster, unlockRoster } from '@/app/actions/roster'
 import { FormMessage, SubmitButton } from './ui'
+import Icon from './Icon'
 import PinDots from './PinDots'
 
 /** 근무자 명단 잠금 화면: 관리자 본인 로그인 비밀번호를 한 번 더 (10분 동안 열림) */
@@ -44,8 +45,9 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
   return (
     <div className="mx-auto max-w-sm pt-6" data-roster-lock>
       <div className="card animate-pop space-y-4 text-center">
-        <span aria-hidden className="mx-auto grid size-14 place-items-center rounded-full bg-brand-50 text-2xl">
-          🔒
+        {/* 잠금 그림: 이모지 대신 선 아이콘 (휴대폰마다 모양이 다르지 않게 · 정기 개선 2026-11-22 14:35) */}
+        <span aria-hidden className="mx-auto grid size-14 place-items-center rounded-full bg-brand-50 text-2xl text-brand-600" data-roster-lock-icon>
+          <Icon name="lock" />
         </span>
         <div>
           <h1 className="text-xl font-extrabold">근무자 명단 잠금</h1>
@@ -94,8 +96,9 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
   )
 }
 
-/** 명단이 열려 있는 동안: 남은 시간 + 바로 잠그기 */
-export function RosterOpenBar({ seconds }: { seconds: number }) {
+/** 명단이 열려 있는 동안: 남은 시간 + 바로 잠그기
+ * 아래 가는 줄 = 남은 시간 (열 때 가득 → 잠길 때 0 · 30초마다 0.3초에 걸쳐 줄어듦 · 움직임 줄이기면 바로) — 정기 개선 2026-11-22 14:35 */
+export function RosterOpenBar({ seconds, total = 600 }: { seconds: number; total?: number }) {
   const router = useRouter()
   // 열어 둔 채로 두면 남은 시간이 그대로 멈춰 있고, 시간이 지나도 명단이 계속 보이던 것
   // → 30초마다 줄어들고, 0이 되면 화면을 새로 받아 잠금 화면으로 (잠금 자체는 서버가 그대로 확인)
@@ -115,12 +118,18 @@ export function RosterOpenBar({ seconds }: { seconds: number }) {
     }
   }, [seconds, router])
   const min = Math.max(1, Math.ceil(left / 60))
+  const share = Math.max(0, Math.min(1, left / Math.max(1, total)))
   return (
-    <form action={lockRoster} className="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 px-3.5 py-2 text-sm" data-roster-open data-roster-left={Math.max(0, left)}>
-      <span className="truncate font-semibold text-emerald-800">🔓 명단 열림 · {left <= 0 ? '곧 잠겨요' : `${min}분 뒤 잠김`}</span>
+    <form action={lockRoster} className="relative flex items-center justify-between gap-2 overflow-hidden rounded-xl bg-emerald-50 px-3.5 py-2 text-sm" data-roster-open data-roster-left={Math.max(0, left)}>
+      <span className="truncate font-semibold text-emerald-800">
+        <Icon name="unlock" className="text-emerald-600" /> 명단 열림 · {left <= 0 ? '곧 잠겨요' : `${min}분 뒤 잠김`}
+      </span>
       <button type="submit" className="shrink-0 rounded-lg px-2 py-1 font-bold text-emerald-700 transition hover:bg-emerald-100 active:scale-95">
         지금 잠그기
       </button>
+      <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-emerald-100">
+        <span className="block h-full rounded-r-full bg-emerald-500/70 transition-[width] duration-300 ease-out" style={{ width: `${(share * 100).toFixed(1)}%` }} data-roster-time-bar />
+      </span>
     </form>
   )
 }

@@ -213,8 +213,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <div className="flex items-center justify-between gap-2">
           <h1 className="text-2xl font-extrabold">문의</h1>
           {companyId && messages.length > 0 && (
-            <a href={`/me/chat/export?co=${companyId}`} download className="chip h-8 px-3 text-xs">
-              ⬇️ 대화 저장
+            <a href={`/me/chat/export?co=${companyId}`} download className="chip h-8 px-3 text-xs" data-chat-export>
+              <Icon name="download" className="text-mute" /> 대화 저장
             </a>
           )}
         </div>

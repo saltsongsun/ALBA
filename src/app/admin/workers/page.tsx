@@ -247,7 +247,7 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
   return (
     <div className="space-y-4">
       <Flash m={sp.m} />
-      <RosterOpenBar seconds={rosterLeft} />
+      <RosterOpenBar seconds={rosterLeft} total={ROSTER_MINUTES * 60} />
       <RosterTabs view="workers" admins={members.length} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-start">
@@ -459,7 +459,7 @@ async function AdminRoster({
   return (
     <div className="space-y-4">
       <Flash m={m} />
-      <RosterOpenBar seconds={seconds} />
+      <RosterOpenBar seconds={seconds} total={ROSTER_MINUTES * 60} />
       <RosterTabs view="admins" admins={members.length} />
       <div>
         <h1 className="text-2xl font-extrabold">관리자 {members.length}명</h1>
