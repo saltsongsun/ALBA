@@ -3,6 +3,7 @@
 import { useActionState, useRef, useState } from 'react'
 import { changeShift } from '@/app/actions/admin'
 import { FormMessage, keepInputs, SubmitButton } from './ui'
+import Icon from './Icon'
 
 const toMin = (t: string) => {
   const [h, m] = t.split(':').map(Number)
@@ -45,7 +46,9 @@ export default function ShiftChange({
 
   return (
     <details id="shift" open={open} className="card scroll-mt-24 p-4">
-      <summary className="tap cursor-pointer font-bold">🕒 근무시간 변경 · 퇴근 연장</summary>
+      <summary className="tap cursor-pointer font-bold">
+        <Icon name="clock" className="text-brand-600" /> 근무시간 변경 · 퇴근 연장
+      </summary>
       <form action={action} onReset={keepInputs} className="mt-3 space-y-4">
         <div className="grid grid-cols-2 gap-2">
           {(

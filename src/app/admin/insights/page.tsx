@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Fragment } from 'react'
 import { notFound } from 'next/navigation'
 import Empty from '@/components/Empty'
 import { allPages, db } from '@/lib/db'
@@ -37,6 +38,10 @@ const ORDER: Record<Dim, string[]> = {
   gender: ['남자', '여자', '모름'],
   age: [...AGE_BANDS, '모름'],
 }
+
+/** 요일 이름 (Date.getUTCDay 순서) · 화면에는 월요일부터 — 접속 요일·시간 (사용자 요청 2026-11-22) */
+const WEEK = ['일', '월', '화', '수', '목', '금', '토']
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0]
 
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 1000) / 10 : 0)
 const secText = (ms: number) => (ms >= 60_000 ? `${Math.floor(ms / 60_000)}분 ${Math.round((ms % 60_000) / 1000)}초` : `${Math.round(ms / 1000)}초`)
@@ -87,6 +92,36 @@ export default async function InsightsPage(props: { searchParams: Promise<Record
       g.leaves++
     }
   }
+
+  // 접속 요일·시간 (사용자 요청 2026-11-22): 방문(탭)마다 처음 들어온 때를 한국 시간으로 — 요일별 · 시간대별 · 요일×3시간 · 그룹별 많이 오는 때
+  const firstView = new Map<string, Ev>()
+  for (const v of views) {
+    const prev = firstView.get(v.session)
+    if (!prev || v.at < prev.at) firstView.set(v.session, v) // 그 방문에서 가장 이른 화면 (읽는 순서와 상관없이)
+  }
+  const byDay: number[] = Array(7).fill(0)
+  const byHour: number[] = Array(24).fill(0)
+  const dayHour: number[][] = Array.from({ length: 7 }, () => Array(8).fill(0))
+  const segWhen = new Map<string, { day: number[]; hour: number[] }>()
+  for (const v of firstView.values()) {
+    const k = new Date(Date.parse(v.at) + 9 * 3_600_000)
+    const d = k.getUTCDay()
+    const h = k.getUTCHours()
+    byDay[d]++
+    byHour[h]++
+    dayHour[d][Math.floor(h / 3)]++
+    const w = segWhen.get(segOf(dim, v)) ?? { day: Array(7).fill(0), hour: Array(24).fill(0) }
+    w.day[d]++
+    w.hour[h]++
+    segWhen.set(segOf(dim, v), w)
+  }
+  const visits = firstView.size
+  const peakOf = (a: number[]) => a.reduce((best, x, i) => (x > a[best] ? i : best), 0)
+  const peakDay = peakOf(byDay)
+  const peakHour = peakOf(byHour)
+  const maxDay = Math.max(...byDay, 1)
+  const maxHour = Math.max(...byHour, 1)
+  const maxCell = Math.max(...dayHour.flat(), 1)
 
   // 화면별: 그룹마다 그 화면이 차지하는 비율 · 평균 머문 시간
   const screenTotals = new Map<string, number>()
@@ -283,6 +318,100 @@ export default async function InsightsPage(props: { searchParams: Promise<Record
                 </div>
               )
             })}
+          </section>
+
+          {/* 1-1. 접속 요일·시간 (사용자 요청 2026-11-22): 방문이 처음 시작된 때 · 한국 시간 · 가장 많은 칸만 진하게 */}
+          <section className="card space-y-3 p-4" data-insight-when>
+            <div className="flex items-baseline justify-between gap-2">
+              <h2 className="font-bold">접속 요일·시간</h2>
+              <p className="shrink-0 text-xs text-mute tabular-nums">방문 {visits} · 한국 시간</p>
+            </div>
+            <p className="text-sm" data-insight-peak>
+              가장 많이 오는 때{' '}
+              <b className="text-brand-700">
+                {WEEK[peakDay]}요일 · {peakHour}시대
+              </b>
+              <span className="text-mute"> · 주말 {pct(byDay[0] + byDay[6], visits)}%</span>
+            </p>
+            <div data-insight-days>
+              <p className="mb-1 text-xs font-semibold text-sub">요일별</p>
+              <div className="grid grid-cols-7 gap-1.5">
+                {WEEK_ORDER.map((d) => (
+                  <div key={d} className="flex min-w-0 flex-col items-center gap-1" data-insight-day={WEEK[d]}>
+                    <span className="text-[11px] text-mute tabular-nums">{byDay[d]}</span>
+                    <div className="flex h-14 w-full items-end overflow-hidden rounded-md bg-bg">
+                      <div
+                        className={`w-full origin-bottom animate-[grow-up_0.3s_ease-out_both] rounded-md ${d === peakDay ? 'bg-brand-600' : 'bg-brand-300'}`}
+                        style={{ height: byDay[d] ? `${Math.max(6, (byDay[d] / maxDay) * 100)}%` : '0%' }}
+                      />
+                    </div>
+                    <span className={`text-xs ${d === peakDay ? 'font-bold text-ink' : d === 0 || d === 6 ? 'text-rose-500' : 'text-sub'}`}>{WEEK[d]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div data-insight-hours>
+              <p className="mb-1 text-xs font-semibold text-sub">시간대별</p>
+              <div className="flex h-14 items-end gap-px rounded-md bg-bg">
+                {byHour.map((n, h) => (
+                  <div
+                    key={h}
+                    title={`${h}시 ${n}`}
+                    data-insight-hour={h}
+                    className={`min-w-0 flex-1 origin-bottom animate-[grow-up_0.3s_ease-out_both] rounded-t-sm ${h === peakHour ? 'bg-brand-600' : 'bg-brand-300'}`}
+                    style={{ height: n ? `${Math.max(6, (n / maxHour) * 100)}%` : '0%' }}
+                  />
+                ))}
+              </div>
+              <div className="mt-1 flex justify-between text-[10px] text-mute tabular-nums">
+                <span>0시</span>
+                <span>6시</span>
+                <span>12시</span>
+                <span>18시</span>
+                <span>24시</span>
+              </div>
+            </div>
+            {/* 그룹마다 많이 오는 때 (지금 고른 기준: 역할·성별·나이대) */}
+            {segs.length > 1 && (
+              <ul className="space-y-1 border-t border-line pt-2.5 text-sm" data-insight-seg-when>
+                {segs.map((s) => {
+                  const w = segWhen.get(s)
+                  if (!w) return null
+                  return (
+                    <li key={s} className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-sub">{s}</span>
+                      <span className="shrink-0 font-semibold tabular-nums">
+                        {WEEK[peakOf(w.day)]}요일 · {peakOf(w.hour)}시대
+                      </span>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+            <details className="group" data-insight-grid>
+              <summary className="tap cursor-pointer text-sm font-semibold text-sub">요일 × 시간 자세히</summary>
+              <div className="mt-2 grid grid-cols-[1.5rem_repeat(8,minmax(0,1fr))] gap-1 text-center text-[10px] text-mute tabular-nums group-open:animate-[slide-down_0.22s_ease-out_both]">
+                <span />
+                {[0, 3, 6, 9, 12, 15, 18, 21].map((h) => (
+                  <span key={h}>{h}시</span>
+                ))}
+                {WEEK_ORDER.map((d) => (
+                  <Fragment key={d}>
+                    <span className={`self-center text-xs ${d === 0 || d === 6 ? 'text-rose-500' : 'text-sub'}`}>{WEEK[d]}</span>
+                    {dayHour[d].map((n, i) => (
+                      <span
+                        key={i}
+                        title={`${WEEK[d]} ${i * 3}~${i * 3 + 3}시 ${n}`}
+                        className={`grid h-7 place-items-center rounded-md ${!n ? 'bg-bg' : n / maxCell > 0.5 ? 'font-bold text-white' : 'text-brand-900'}`}
+                        style={n ? { backgroundColor: `color-mix(in oklab, var(--color-brand-600) ${Math.round(18 + 82 * (n / maxCell))}%, transparent)` } : undefined}
+                      >
+                        {n || ''}
+                      </span>
+                    ))}
+                  </Fragment>
+                ))}
+              </div>
+            </details>
           </section>
 
           {/* 2. 화면별 비교 */}

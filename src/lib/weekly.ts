@@ -236,6 +236,18 @@ async function loadWeekData(companyId: string, from: string, to: string, userIds
       if (ids) q = q.in('user_id', ids)
       return q.order('id').range(a, b)
     })
+  // 사람이 정해져 있으면(내 근무·확정 대기·정산 탭 등 대부분의 화면) 그 사람들의 이 회사 확정 지원도 함께 출발 (기다림 한 번 줄임 · 속도 개선 2026-11-22).
+  // 끝까지 나눠 받고, 기간에 걸친 공고의 것만 아래에서 고름 — 예전(공고를 먼저 읽고 그 공고의 확정만 읽기)과 같은 결과
+  const byUserApps = userIds
+    ? Promise.all(
+        groups.map((g) =>
+          allPages<Omit<WeekApp, 'job'>>((a, b) =>
+            db().from('applications').select('id, user_id, job_id, available_dates, status').eq('company_id', companyId).eq('status', 'approved').in('user_id', g!).order('id').range(a, b),
+          ),
+        ),
+      ).then((r) => r.flat())
+    : null
+  byUserApps?.catch(() => {})
   // 못 읽으면 예전처럼 빈 것으로 (화면을 막지 않음)
   const [jobRows, attRows] = await Promise.all([
     allPages<WeekJob>((a, b) => db().from('jobs').select(JOB_COLS).eq('company_id', companyId).lte('start_date', we).gte('end_date', ws).order('id').range(a, b)).catch(
@@ -244,8 +256,14 @@ async function loadWeekData(companyId: string, from: string, to: string, userIds
     Promise.all(groups.map((g) => attsOf(g))).then((r) => r.flat(), () => [] as WeekAtt[]),
   ])
   const winJobs = new Map(jobRows.filter((j) => j.company_id === companyId && j.start_date <= we && j.end_date >= ws).map((j) => [j.id, j]))
-  const appRows = winJobs.size
-    ? await Promise.all(
+  const appRows = !winJobs.size
+    ? []
+    : byUserApps
+      ? await byUserApps.then(
+          (r) => r.filter((a) => winJobs.has(a.job_id)).map((a): WeekApp => ({ ...a, job: winJobs.get(a.job_id) ?? null })),
+          () => [] as WeekApp[],
+        )
+      : await Promise.all(
         by100([...winJobs.keys()]).flatMap((jids) =>
           groups.map((g) =>
             allPages<Omit<WeekApp, 'job'>>((a, b) => {
@@ -259,7 +277,6 @@ async function loadWeekData(companyId: string, from: string, to: string, userIds
         (r) => r.flat().map((a): WeekApp => ({ ...a, job: winJobs.get(a.job_id) ?? null })),
         () => [] as WeekApp[],
       )
-    : []
   const apps = appRows.filter(
     (a) => a.status === 'approved' && !!a.job && a.job.company_id === companyId && a.job.start_date <= we && a.job.end_date >= ws && (!userIds || userIds.includes(a.user_id)),
   )

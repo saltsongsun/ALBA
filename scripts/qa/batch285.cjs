@@ -53,7 +53,8 @@ const one = (s) => (s ?? '').replace(/\s+/g, ' ').trim()
   const a = await mk(A)
   await a.goto(`${D}/admin/jobs/${J}?tab=att`, { waitUntil: 'networkidle' })
   const badge = a.locator('[data-att-unsigned]').first()
-  ok("출퇴근 탭: 근무자 줄에 '✍️ 서명 안 함' → 서류 탭 서명 안 한 사람", one(await badge.textContent().catch(() => '')) === '✍️ 서명 안 함' && (await badge.getAttribute('href').catch(() => '')) === `/admin/jobs/${J}?tab=docs#unsigned`)
+  // 정기 개선 2026-11-22 20:35: ✍️ → 선 아이콘(연필) — 글자는 '서명 안 함' + svg 하나
+  ok("출퇴근 탭: 근무자 줄에 '서명 안 함'(연필 아이콘) → 서류 탭 서명 안 한 사람", one(await badge.textContent().catch(() => '')) === '서명 안 함' && (await badge.locator('svg').count()) === 1 && (await badge.getAttribute('href').catch(() => '')) === `/admin/jobs/${J}?tab=docs#unsigned`)
   ok('360px 옆으로 안 밀림 (출퇴근 탭)', await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   if (SHOTS) {
     await badge.scrollIntoViewIfNeeded().catch(() => {})

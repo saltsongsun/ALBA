@@ -35,6 +35,9 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   const mine = c === 'mine'
   const hot = c === 'hot'
   const q = typeof sp.q === 'string' ? sp.q.trim().slice(0, 40) : ''
+  // 놀이터 줄의 출석 기록은 글 목록과 함께 출발 (글을 다 읽은 뒤 따로 기다리지 않게 · 속도 개선 2026-11-22)
+  const checkinP = !c && !q && canWrite(user) ? myCheckinDays(user.id) : null
+  checkinP?.catch(() => {})
   const [posts, reviews] = await Promise.all([
     reviewTab ? [] : hot && !q ? hotPosts(user.id) : listPosts({ category, viewerId: user.id, q, mine }),
     reviewTab ? recentReviews(30) : [],
@@ -47,7 +50,7 @@ export default async function CommunityPage(props: PageProps<'/community'>) {
   // 나에게 지원 공고를 보여 주는 사람이 쓴 글에는 '🤝 동료' (상대가 고른 경우만)
   const [pals, palsOn] = writer ? await Promise.all([linkedAmong(user.id, posts.map((p) => p.author_id)), coworkersEnabled()]) : [new Set<string>(), false]
   // 놀이터 줄의 출석 상태 (커뮤니티 2단계): 오늘 출석 전이면 '출석 전', 했으면 '🔥 n일째' — 첫 화면에서만
-  const streak = !c && !q && writer ? streakOf(await myCheckinDays(user.id), kstDate()) : null
+  const streak = checkinP ? streakOf(await checkinP, kstDate()) : null
   const tabs: { id: string; label: string; icon: IconName | '' }[] = [
     { id: '', label: '전체', icon: '' },
     { id: 'hot', label: '인기', icon: 'flame' },

@@ -112,6 +112,21 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const related = [...new Set([...threads.map((t) => t.company_id), ...apps.map((a) => a.company_id), ...(partnerCo ? [partnerCo] : [])])]
   const companyId = job?.company_id ?? (wantCo && related.includes(wantCo) ? wantCo : null) ?? threads[0]?.company_id ?? related[0] ?? platformId
   const ids = [...new Set([...related, ...(companyId ? [companyId] : [])])]
+  // 목록 화면 회사 줄의 '모집 n'(모집 중 알바 공고 수): 회사·단체방 읽기와 함께 미리 출발 (속도 개선 2026-11-22) · 고객센터·전문가는 없음
+  const openIds = !jobId && !wantCo && !isPro(user.memberType) ? ids.filter((id) => !(id === platformId && !apps.some((a) => a.company_id === id))) : []
+  const openRowsP: Promise<{ company_id: string }[]> = openIds.length
+    ? Promise.resolve(
+        db()
+          .from('jobs')
+          .select('company_id')
+          .in('company_id', openIds)
+          .eq('audience', 'worker')
+          .eq('status', 'open')
+          .gte('end_date', kstDate())
+          .limit(2000)
+          .then((r) => (r.data ?? []) as { company_id: string }[]),
+      ).catch(() => [])
+    : Promise.resolve([])
   const [{ data: companyRows }, rooms] = await Promise.all([
     ids.length ? db().from('companies').select('id, company_name').in('id', ids) : Promise.resolve({ data: [] }),
     // 같은 근무 단체방 (확정된 공고)
@@ -140,6 +155,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         rooms={rooms}
         askInfo={askInfo}
         pro={isPro(user.memberType)}
+        openRows={openRowsP}
       />
     )
   const [messages, settings] = companyId
@@ -291,7 +307,10 @@ async function ChatList({
   rooms,
   askInfo = false,
   pro = false,
+  openRows,
 }: {
+  /** 회사별 모집 중 알바 공고 (화면 처음에 출발한 것) */
+  openRows: Promise<{ company_id: string }[]>
   userId: string
   askInfo?: boolean
   /** 전문가·외주 업체 (알바 공고를 보지 않음 → 회사 줄에 '모집 n' 없음) */
@@ -305,25 +324,16 @@ async function ChatList({
   const lastRoom = new Map<string, RoomLast>(rooms.filter((r) => r.last).map((r) => [r.id, r.last!]))
   // 단체방 마지막 말을 쓴 다른 근무자 이름 (단체방 안에서도 이름으로 보임)
   const others = [...new Set([...lastRoom.values()].filter((m) => !m.from_admin && m.sender_id && m.sender_id !== userId).map((m) => m.sender_id!))]
-  const names = new Map(
-    others.length ? (((await db().from('users').select('id, name').in('id', others)).data ?? []) as { id: string; name: string }[]).map((u) => [u.id, u.name]) : [],
-  )
   // 회사 줄 '모집 n': 그 회사에 지금 모집 중인 알바 공고 수 (대화 위 '공고 n개 →'와 같은 기준 · 고객센터·전문가엔 없음)
+  //   공고 수는 화면 처음에 출발한 것을 받음 (차례로 기다리지 않게 · 속도 개선 2026-11-22)
   const coIds = companies.filter((c) => !c.support).map((c) => c.id)
+  const [nameRows, open] = await Promise.all([
+    others.length ? db().from('users').select('id, name').in('id', others).then((r) => (r.data ?? []) as { id: string; name: string }[]) : Promise.resolve([] as { id: string; name: string }[]),
+    coIds.length && !pro ? openRows.then((r) => r.filter((j) => coIds.includes(j.company_id))) : Promise.resolve([] as { company_id: string }[]),
+  ])
+  const names = new Map(nameRows.map((u) => [u.id, u.name]))
   const openBy = new Map<string, number>()
-  if (coIds.length && !pro) {
-    const open = ((
-      await db()
-        .from('jobs')
-        .select('company_id')
-        .in('company_id', coIds)
-        .eq('audience', 'worker')
-        .eq('status', 'open')
-        .gte('end_date', kstDate())
-        .limit(2000)
-    ).data ?? []) as { company_id: string }[]
-    for (const j of open) openBy.set(j.company_id, (openBy.get(j.company_id) ?? 0) + 1)
-  }
+  for (const j of open) openBy.set(j.company_id, (openBy.get(j.company_id) ?? 0) + 1)
   const lastCo = new Map<string, Thread>()
   for (const t of threads) {
     const prev = lastCo.get(t.company_id)

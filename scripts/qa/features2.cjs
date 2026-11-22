@@ -47,7 +47,7 @@ const errs = []
   ok('저장', await see(ad, '저장했습니다', 15000))
   ok('앱에서 기다리던 계약서 서명 요청은 거둠', (await rest(MD, `signed_docs?job_id=eq.${J}&status=eq.pending&kind=eq.contract`)).length === 0)
   await ad.goto(`${D}/admin/jobs/${J}?tab=att`)
-  ok('출퇴근 탭: 계약서 미수령 표시', await see(ad, '📝 계약서 미수령'))
+  ok('출퇴근 탭: 계약서 미수령 표시', await see(ad, '계약서 미수령')) // 정기 개선 2026-11-22 20:35: 📝 → 선 아이콘
   const wd = await page(D, WK)
   await wd.goto(`${D}/me`)
   ok('근무자: 근로계약서는 종이로 작성해요 안내', await see(wd, '근로계약서는 종이로 작성해요.'))

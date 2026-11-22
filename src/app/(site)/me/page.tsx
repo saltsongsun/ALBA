@@ -159,6 +159,9 @@ export default async function MePage(props: PageProps<'/me'>) {
       .limit(30)
       .then((r) => (must(r) as ShiftChange[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
   ])
+  // 근무 내역 정산(주휴 포함)은 출퇴근 기록만 있으면 되니 지금 바로 출발 (아래 다른 조회를 기다린 뒤 따로 기다리지 않게 · 속도 개선 2026-11-22)
+  const attsPayP = withWeeklyPay(atts)
+  attsPayP.catch(() => {})
   const notices = adminJobMsgs.filter((m) => m.body.startsWith('📢 공지') || signalOf(m.body) === 'change')
   // 오늘 보낸 기록 정정 요청 중 담당자가 아직 답하지 않은 것 (공고별)
   const fixSent = (jobId: string) => {
@@ -401,7 +404,7 @@ export default async function MePage(props: PageProps<'/me'>) {
     .filter((x) => x !== null)
 
   // 근무 내역: 공고별 정산 (주휴수당 포함 · 회사가 정산할 금액과 같게)
-  const [attsPay, pd] = await Promise.all([withWeeklyPay(atts), paydaysP])
+  const [attsPay, pd] = await Promise.all([attsPayP, paydaysP])
   const history = [...new Set(atts.map((a) => a.job_id))]
     .map((jobId) => {
       const job = jobsById.get(jobId)

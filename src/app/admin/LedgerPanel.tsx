@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { syncLedgerNow } from '@/app/actions/ledger'
 import { SubmitButton } from '@/components/ui'
-import { isLedgerCompany, ledgerStatus, type LedgerStatus } from '@/lib/ledger'
+import { type LedgerStatus } from '@/lib/ledger'
 import { kstDate, kstDateTime, kstTime } from '@/lib/time'
 import CopyCode from '@/components/CopyCode'
 
@@ -114,9 +114,9 @@ export default function LedgerPanel({
  * 관리자 홈 한 줄: 오늘 아침 대금 시트 연동 결과 (무엇이 바뀌었는지는 누르면 기록 화면)
  * 장부 회사 · 연결된 뒤에만 · 오늘 연동이 없고 아침 8시가 지났으면 '연동 기록이 없어요'
  */
-export async function LedgerToday({ companyId }: { companyId: string }) {
-  if (!(await isLedgerCompany(companyId).catch(() => false))) return null
-  const status = await ledgerStatus(companyId).catch(() => null)
+export async function LedgerToday({ status: statusP }: { status: Promise<LedgerStatus | null> }) {
+  // 화면 맨 처음에 출발한 것을 받아 기다림 없이 (예전: 화면을 다 그린 뒤 회사 확인 → 기록 읽기를 차례로 기다렸음 · 속도 개선 2026-11-22)
+  const status = await statusP
   if (!status?.configured) return null
   const today = kstDate()
   const last = status.last && kstDate(new Date(status.last.at)) === today ? status.last : null

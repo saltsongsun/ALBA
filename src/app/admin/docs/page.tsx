@@ -7,7 +7,6 @@ import Icon from '@/components/Icon'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
 import { companyDocs, DOC_KIND_LABEL, DOC_LIMIT, filterQuery, parseDocFilter, type DocFilter, type DocRow } from '@/lib/docList'
-import { lastChangesForJobs } from '@/lib/nudge'
 import { requireAdmin } from '@/lib/session'
 import { fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
 import type { DocTemplate } from '@/lib/types'
@@ -60,10 +59,9 @@ export default async function DocsPage(props: PageProps<'/admin/docs'>) {
 
 /** 서명 받은 서류: 공고별로 묶고, 하나씩 또는 거른 것 전체를 PDF로 */
 async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
-  const { rows, base, all } = await companyDocs(companyId, f)
   // 서명한 뒤에 그 공고의 '🔔 일정 변경' 알림을 받은 근무자의 서류 → '일정 바뀜' (그 공고 서류 탭에서 재서명 판단 · 정기 개선 2026-11-22 04:35)
-  const signedJobs = [...new Set(rows.filter((d) => d.status === 'signed' && d.job_id).map((d) => d.job_id!))]
-  const changes = signedJobs.length ? await lastChangesForJobs(companyId, signedJobs).catch(() => new Map<string, string>()) : new Map<string, string>()
+  //   알림 시각은 서류 목록 안에서 이름·공고와 함께 읽음 (차례로 기다리지 않게 · 속도 개선 2026-11-22)
+  const { rows, base, all, changes } = await companyDocs(companyId, f, { changes: true })
   const stale = (d: DocRow) => d.status === 'signed' && !!d.signed_at && !!d.job_id && (changes.get(`${d.job_id}:${d.user_id}`) ?? '') > d.signed_at
   const count = (s: DocRow['status']) => base.filter((d) => d.status === s).length
   const chips: { label: string; status: DocFilter['status']; n: number }[] = [

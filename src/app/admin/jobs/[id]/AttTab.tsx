@@ -456,7 +456,8 @@ export default async function AttTab({
       {dayAtts.length > 0 && (
         <details className="card p-0" data-bulk-adjust>
           <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-bold">
-            <Icon name="clock" className="text-brand-600" /> 여러 명 시간 한 번에 고치기
+            {/* 위 '근무시간 변경'(시계)과 구분: 기록 고치기는 연필 — 정기 개선 2026-11-22 20:35 */}
+            <Icon name="pen" className="text-brand-600" /> 여러 명 시간 한 번에 고치기
           </summary>
           <div className="border-t border-line px-4 py-3.5">
             <BulkAdjust
@@ -652,12 +653,12 @@ export default async function AttTab({
                         </span>}
                       {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
                         <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge mt-1 bg-rose-50 text-rose-600">
-                          📝 계약서 미수령
+                          <Icon name="file" /> 계약서 미수령
                         </Link>
                       )}
                       {unsigned.has(uid) && (
-                        <Link href={`/admin/jobs/${job.id}?tab=docs#unsigned`} className="badge mt-1 bg-rose-50 text-rose-600" data-att-unsigned>
-                          ✍️ 서명 안 함
+                        <Link href={`/admin/jobs/${job.id}?tab=docs#unsigned`} className="badge mt-1 bg-rose-50 text-rose-600 transition active:scale-95" data-att-unsigned>
+                          <Icon name="pen" /> 서명 안 함
                         </Link>
                       )}
                     </div>
@@ -689,7 +690,7 @@ export default async function AttTab({
                     return (
                       <div className="mt-2.5 flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
                         <span className="min-w-0 flex-1">
-                          🕒 {scope}
+                          <Icon name="clock" /> {scope}
                           <b>{to}</b> 변경 · 근무자 동의 기다리는 중
                         </span>
                         <form action={answerShiftByAdmin.bind(null, c.id)}>
@@ -716,7 +717,7 @@ export default async function AttTab({
                   )}
                   {late && !ask && (
                     <p className="mt-2.5 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                      🕒 {late.at}에 알림 · 약 {minutesText(late.minutes)} 늦음, <b>{late.eta} 도착 예정</b>
+                      <Icon name="clock" /> {late.at}에 알림 · 약 {minutesText(late.minutes)} 늦음, <b>{late.eta} 도착 예정</b>
                       {late.reason && <span className="text-amber-800"> · {late.reason}</span>}
                     </p>
                   )}
@@ -775,7 +776,7 @@ export default async function AttTab({
                       return (
                         <div className="mt-2.5 space-y-2 rounded-xl bg-violet-50 px-3 py-2.5 text-sm text-violet-900 ring-1 ring-violet-200">
                           <p>
-                            ✏️ {f.at} 정정 요청 · <b>실제 {f.field === 'in' ? '출근' : '종료'} {f.time}</b>
+                            <Icon name="pen" /> {f.at} 정정 요청 · <b>실제 {f.field === 'in' ? '출근' : '종료'} {f.time}</b>
                             <span className="text-violet-700">
                               {' '}
                               (지금 {kstTime(f.field === 'in' ? (a.adj_in ?? a.clock_in) : (a.adj_out ?? a.clock_out)!)})
@@ -857,7 +858,9 @@ export default async function AttTab({
                   {/* 불성실 근무자 귀가 조치: 지금 시각으로 종료하고 사유를 남겨 알림 (일한 시간 급여는 지급) */}
                   {a && !a.clock_out && (
                     <details className="mt-3 border-t border-line pt-2.5">
-                      <summary className="tap cursor-pointer text-sm font-semibold text-rose-600">🏠 귀가 조치 (불성실 근무)</summary>
+                      <summary className="tap cursor-pointer text-sm font-semibold text-rose-600" data-att-dismiss>
+                        <Icon name="home" /> 귀가 조치 (불성실 근무)
+                      </summary>
                       <form action={dismissWorker.bind(null, a.id)} className="mt-2 space-y-2.5">
                         <div className="flex flex-wrap gap-1.5">
                           {DISMISS_REASONS.map((r, i) => (
@@ -1002,12 +1005,12 @@ export default async function AttTab({
                         )}
                         {job.contract_method !== 'app' && appOf.get(uid) && !appOf.get(uid)!.contract_received_at && (
                           <Link href={`/admin/jobs/${job.id}?tab=docs`} className="badge bg-rose-50 text-rose-600">
-                            📝 계약서 미수령
+                            <Icon name="file" /> 계약서 미수령
                           </Link>
                         )}
                         {unsigned.has(uid) && (
-                          <Link href={`/admin/jobs/${job.id}?tab=docs#unsigned`} className="badge bg-rose-50 text-rose-600" data-att-unsigned>
-                            ✍️ 서명 안 함
+                          <Link href={`/admin/jobs/${job.id}?tab=docs#unsigned`} className="badge bg-rose-50 text-rose-600 transition active:scale-95" data-att-unsigned>
+                            <Icon name="pen" /> 서명 안 함
                           </Link>
                         )}
                       </div>

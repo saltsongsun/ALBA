@@ -8,7 +8,8 @@ let client: SupabaseClient | null = null
 export function db(): SupabaseClient {
   if (!client) {
     const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY
+    // 새 비밀 키(sb_secret_…)가 있으면 그것을 먼저 (예전 service_role 키는 2026년 말까지만 동작 · 새 키는 따로 바꾸고 끌 수 있음 — 보안 강화 2026-11-22)
+    const key = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY
     if (!url || !key) {
       throw new Error('SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY 환경변수가 설정되지 않았습니다.')
     }

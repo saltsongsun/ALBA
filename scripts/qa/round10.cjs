@@ -95,7 +95,7 @@ const errs = []
   ok('오늘 카드: 복장·준비물', (await see(ww, '검정 바지')) && (await see(ww, '신분증')))
   const aw = await pg(W_, A)
   await aw.goto(`${W_}/admin/jobs/${J}?tab=att`)
-  await aw.getByText('🏠 귀가 조치 (불성실 근무)').click()
+  await aw.getByText('귀가 조치 (불성실 근무)').click() // 정기 개선 2026-11-22 20:35: 🏠 → 선 아이콘
   await aw.locator('label', { hasText: '음주' }).click()
   await aw.locator('input[name=memo]').fill('근무 중 음주 확인')
   await aw.getByRole('button', { name: '귀가 조치', exact: true }).click()

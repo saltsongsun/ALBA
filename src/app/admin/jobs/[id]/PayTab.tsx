@@ -26,7 +26,7 @@ import type { WorkerLite } from './page'
 import TransferCopy from '@/components/TransferCopy'
 import LiveNumber from '@/components/LiveNumber'
 import LedgerPanel from '../../LedgerPanel'
-import { isLedgerCompany, ledgerStatus } from '@/lib/ledger'
+import { ledgerStatusIfOn } from '@/lib/ledger'
 import { SwipeHint } from '@/components/SwipeHint'
 
 export default async function PayTab({ job, atts, users, origin, company = '' }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string }) {
@@ -86,7 +86,7 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
           )
       : Promise.resolve(new Set<string>()),
     // 대금 시트(거래장부) 연동: 장부 회사의 관리자 화면에만 · 이 공고에서 장부에 올린 사람 / 장부 입금확인으로 지급 완료가 된 사람
-    isLedgerCompany(job.company_id).then((on) => (on ? ledgerStatus(job.company_id, job.id) : null), () => null),
+    ledgerStatusIfOn(job.company_id, job.id), // 회사 확인·기록 읽기를 함께 (속도 개선 2026-11-22)
   ])
   const wk = (a: Attendance) => ({ ...a, weekly_pay: weekly.get(a.id) ?? 0 })
   const rows = userIds
@@ -389,8 +389,8 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
                       {(() => {
                         const days = [...new Set(atts.filter((a) => a.user_id === r.uid).map((a) => a.work_date))].sort()
                         return days.map((d) => (
-                          <Link key={d} href={`/admin/jobs/${job.id}?tab=att&date=${d}&fix=${r.uid}&from=pay#att-${r.uid}`} className="text-brand-600">
-                            ✏️ {days.length > 1 ? fmtDate(d) : '시간 수정'}
+                          <Link key={d} href={`/admin/jobs/${job.id}?tab=att&date=${d}&fix=${r.uid}&from=pay#att-${r.uid}`} className="inline-flex items-center gap-0.5 text-brand-600 transition active:scale-95">
+                            <Icon name="pen" /> {days.length > 1 ? fmtDate(d) : '시간 수정'}
                           </Link>
                         ))
                       })()}

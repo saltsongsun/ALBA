@@ -9,7 +9,7 @@ import ThemeToggle from '@/components/ThemeToggle'
 import Icon from '@/components/Icon'
 import { isUuid } from '@/lib/validate'
 import { LedgerLink } from '../LedgerPanel'
-import { isLedgerCompany, ledgerStatus } from '@/lib/ledger'
+import { ledgerStatusIfOn } from '@/lib/ledger'
 
 export const metadata: Metadata = { title: '회사 설정' }
 
@@ -29,7 +29,7 @@ export default async function SettingsPage(props: PageProps<'/admin/settings'>) 
         () => 1,
       ),
     // 대금 시트(거래장부) 연동: 장부 회사의 관리자만
-    isLedgerCompany(admin.companyId).then((on) => (on ? ledgerStatus(admin.companyId) : null), () => null),
+    ledgerStatusIfOn(admin.companyId), // 회사 확인·기록 읽기를 함께 (속도 개선 2026-11-22)
   ])
   return (
     <div className="mx-auto max-w-3xl space-y-4">

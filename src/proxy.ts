@@ -10,6 +10,10 @@ import { NextResponse, type NextRequest } from 'next/server'
 const AI_BOTS =
   /GPTBot|ChatGPT-User|OAI-SearchBot|ClaudeBot|Claude-User|Claude-SearchBot|Claude-Web|anthropic-ai|CCBot|PerplexityBot|Perplexity-User|Bytespider|Amazonbot|cohere-ai|cohere-training|Diffbot|meta-externalagent|meta-externalfetcher|ImagesiftBot|Omgilibot|omgili|YouBot|Timpibot|AI2Bot|Ai2Bot|DuckAssistBot|MistralAI|iaskspider|Kangaroo Bot|PanguBot|img2dataset|FriendlyCrawler|Webzio-Extended|Google-CloudVertexBot|GoogleOther|Applebot-Extended|PetalBot|SemrushBot-OCOB|Scrapy|Crawl4AI|FirecrawlAgent|Jina|Manus|Devin/i
 const SCRIPTS = /python-requests|python-urllib|python-httpx|aiohttp|Go-http-client|^curl\/|Wget|libwww-perl|okhttp|HTTrack|^Java\/|node-fetch|axios\/|PostmanRuntime|httpie/i
+// 사람이 쓰지 않는 자동 브라우저(헤드리스·자동화 도구가 스스로 밝힌 것) — AI 에이전트가 브라우저를 돌려 로그인·자료 수집을 시도하는 것 대비.
+// 운영 배포에서만 (자체 검사 도구는 그대로 돌게) · 공개 화면(공고·로그인 화면 보기)은 그대로 — 보안 강화 2026-11-22
+const HEADLESS = /HeadlessChrome|PhantomJS|Puppeteer|Playwright|Selenium|WebDriver|Cypress|Nightmare/i
+const LIVE = process.env.VERCEL_ENV === 'production'
 // 로그인 뒤 화면·개인정보가 오가는 주소 (예약 작업 /api/cron은 Vercel이 부름)
 const PRIVATE = /^\/(admin|ops|me|docs|print|photo|pro|quote|api\/(?!cron\/))/
 
@@ -43,6 +47,8 @@ export function proxy(request: NextRequest) {
   if (path !== '/robots.txt' && AI_BOTS.test(ua)) return blocked('AI 수집 로봇의 접근은 허용되지 않아요.')
   const serverAction = request.method === 'POST' && request.headers.has('next-action')
   if (SCRIPTS.test(ua) && (PRIVATE.test(path) || serverAction)) return blocked('자동 접근은 허용되지 않아요.')
+  // 운영에서는 헤드리스 브라우저도 로그인·서버 함수·개인 화면에서 막음 (로그인 시도도 서버 함수라 함께 막힘)
+  if (LIVE && HEADLESS.test(ua) && (PRIVATE.test(path) || serverAction)) return blocked('자동 접근은 허용되지 않아요.')
 
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   const dev = process.env.NODE_ENV === 'development'

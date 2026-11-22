@@ -6,6 +6,7 @@ import type { PdfDoc } from './docPdf'
 import { phoneFmt } from './format'
 import type { CompanySnapshot, DocKind, DocTemplate, Job, Settings, SignedDoc } from './types'
 import { isUuid } from './validate'
+import { lastChangesForJobs } from './nudge'
 
 /**
  * 관리자 '서류' 메뉴: 이 회사에서 근무자에게 받은(받을) 서류를 모아 보고 거르기.
@@ -52,17 +53,26 @@ export type DocRow = Pick<SignedDoc, 'id' | 'job_id' | 'user_id' | 'kind' | 'tit
 export const DOC_LIMIT = 500
 
 /** 이 회사 서류 (최근 것부터) · 무효 서류는 '무효'를 고를 때만 */
-export async function companyDocs(companyId: string, f: DocFilter): Promise<{ rows: DocRow[]; base: DocRow[]; all: DocRow[] }> {
+export async function companyDocs(
+  companyId: string,
+  f: DocFilter,
+  /** changes: 서명한 뒤 '일정 변경' 알림 시각도 함께 (이름·공고 읽기와 같이 출발 · 속도 개선 2026-11-22) */
+  opts?: { changes?: boolean },
+): Promise<{ rows: DocRow[]; base: DocRow[]; all: DocRow[]; changes: Map<string, string> }> {
   let query = db().from('signed_docs').select('id, job_id, user_id, kind, title, status, signed_at, created_at, company_id').eq('company_id', companyId)
   if (f.job) query = query.eq('job_id', f.job)
   const { data } = await query.order('created_at', { ascending: false }).limit(3000)
   const docs = ((data ?? []) as (DocRow & { company_id: string })[]).filter((d) => d.company_id === companyId && (!f.job || d.job_id === f.job))
   const userIds = [...new Set(docs.map((d) => d.user_id))]
   const jobIds = [...new Set(docs.map((d) => d.job_id))]
+  // 서명한 서류의 공고: 그 공고의 '🔔 일정 변경' 알림 시각 (이 회사 것만 · 화면에서 '일정 바뀜' 표시)
+  const signedJobs = opts?.changes ? [...new Set(docs.filter((d) => d.status === 'signed' && d.job_id).map((d) => d.job_id))] : []
+  const changesP = signedJobs.length ? lastChangesForJobs(companyId, signedJobs).catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>())
   // 사람·공고가 많아도 이름이 빠지지 않게 100개씩 나눠 물음 (한 번에 수백 개면 주소가 너무 길어 거절됨)
-  const [{ data: users }, { data: jobs }] = await Promise.all([
+  const [{ data: users }, { data: jobs }, changes] = await Promise.all([
     byIds<{ id: string; name: string; phone: string }>(userIds, (ids) => db().from('users').select('id, name, phone').in('id', ids)),
     byIds<DocRow['job'] & { company_id: string }>(jobIds, (ids) => db().from('jobs').select('id, title, start_date, end_date, company_id').in('id', ids).eq('company_id', companyId)),
+    changesP,
   ])
   const userOf = new Map(((users ?? []) as { id: string; name: string; phone: string }[]).map((u) => [u.id, u]))
   const jobOf = new Map(((jobs ?? []) as (DocRow['job'] & { company_id: string })[]).filter((j) => j!.company_id === companyId).map((j) => [j!.id, j]))
@@ -82,7 +92,7 @@ export async function companyDocs(companyId: string, f: DocFilter): Promise<{ ro
         (digits.length >= 3 && (d.worker?.phone ?? '').replace(/\D/g, '').includes(digits))),
   )
   const rows = base.filter((d) => (f.status ? d.status === f.status : d.status !== 'void'))
-  return { rows: rows.slice(0, DOC_LIMIT), base, all }
+  return { rows: rows.slice(0, DOC_LIMIT), base, all, changes }
 }
 
 /**

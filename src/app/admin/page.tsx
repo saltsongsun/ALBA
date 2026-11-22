@@ -20,6 +20,7 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import FilingChecklist from '@/components/FilingChecklist'
 import { LedgerToday } from './LedgerPanel'
+import { ledgerStatusIfOn } from '@/lib/ledger'
 import { filingDues, prevMonthOf } from '@/lib/filing'
 import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
@@ -42,6 +43,9 @@ import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
 import { StarAvg, scoresByUser } from '@/components/Stars'
 import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
+
+/** 관리자로 승인된 뒤 며칠 동안 '새로 합류' 안내를 보일지 — 정기 개선 2026-11-22 20:35 */
+const JOINED_DAYS = 3
 
 const ICONS = {
   working: <path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z" />,
@@ -110,6 +114,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 화면 맨 아래 '알림 받는 정도'도 처음에 함께 출발 (그리는 도중에 따로 기다리지 않게)
   const pushLevelP = myPushLevel()
   pushLevelP.catch(() => {})
+  // 오늘 대금 시트 연동 한 줄: 처음에 함께 출발 (화면 끝에서 차례로 기다리지 않게 · 속도 개선 2026-11-22)
+  const ledgerTodayP = ledgerStatusIfOn(admin.companyId)
   const sp = await props.searchParams
   // 다른 조회와 상관없는 것(외주·시작하기·후기)은 먼저 출발 (한 번에 기다리는 횟수를 줄임)
   // 외주: 지급일 지남·곧 지급·지급했는데 세금계산서 없음·마감 지난 견적
@@ -176,6 +182,26 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (바로 그 회사로 바꿔 보기)
   // 여러 회사를 맡았으면: 다른 회사의 새 문의 + 확정을 기다리는 지원자 (회사를 바꿔 보지 않아도 알게)
   const othersP = admin.companies.length > 1 ? otherCompaniesTodo(admin.companies, admin.companyId, true).catch(() => []) : Promise.resolve([])
+  // 새로 합류한 회사 (사흘 안에 관리자로 승인된 곳 · 대표가 아닌 관리자 · 내 소속만): 지금 회사면 한 줄 환영, 다른 회사면 '다른 회사' 줄에 '새로 합류'
+  //   승인 알림을 누르면 예전 회사가 먼저 열릴 수 있어서 (첫 회사로 열림) — 정기 개선 2026-11-22 20:35
+  const joinedCut = Date.now() - JOINED_DAYS * 86_400_000
+  const joinedP: Promise<string[]> = admin.isSuper
+    ? Promise.resolve([])
+    : Promise.resolve(db()
+        .from('company_members')
+        .select('company_id, role, created_at')
+        .eq('user_id', admin.id)
+        .eq('role', 'admin')
+        .gte('created_at', new Date(joinedCut).toISOString())
+        .then(
+          (r) =>
+            r.error
+              ? []
+              : ((r.data ?? []) as { company_id: string; role: string; created_at: string }[])
+                  .filter((m) => m.role === 'admin' && Date.parse(m.created_at) >= joinedCut && admin.companies.some((c) => c.id === m.company_id))
+                  .map((m) => m.company_id),
+          () => [],
+        ))
   // (아래 다른 조회가 먼저 실패해도 '처리 안 된 실패'로 서버가 멈추지 않게)
   vendorP.catch(() => {})
   const today = kstDate()
@@ -554,7 +580,31 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // sub: 아래 작은 줄 (줄 글자가 잘려도 어떤 공고인지 보이게 공고 이름을 위로)
   type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string; sub?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
-  const [reviews, otherUnread, myShift] = await Promise.all([reviewsP, othersP, myShiftP])
+  const [reviews, otherTodo, myShift, joined] = await Promise.all([reviewsP, othersP, myShiftP, joinedP])
+  // 새로 합류한 다른 회사는 할 일이 없어도 '다른 회사' 줄에 (누르면 그 회사로) — 정기 개선 2026-11-22 20:35
+  const otherUnread = [
+    ...otherTodo.map((c) => ({ ...c, joined: joined.includes(c.id) })),
+    ...admin.companies
+      .filter((c) => c.id !== admin.companyId && joined.includes(c.id) && !otherTodo.some((o) => o.id === c.id))
+      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, joined: true })),
+  ]
+  // 지금 회사에 새로 합류했으면: 대표 관리자 이름 (관리자 목록에서 연락처를 보도록 · 못 읽으면 이름 없이)
+  const joinedHere = joined.includes(admin.companyId)
+  const ownerName = joinedHere
+    ? await Promise.resolve(db()
+        .from('company_members')
+        .select('user_id')
+        .eq('company_id', admin.companyId)
+        .eq('role', 'owner')
+        .limit(1)
+        .then(async (r) => {
+          const id = (r.data as { user_id: string }[] | null)?.[0]?.user_id
+          if (r.error || !id) return null
+          const u = await db().from('users').select('name').eq('id', id).maybeSingle()
+          return (u.data as { name: string } | null)?.name ?? null
+        }))
+        .catch(() => null)
+    : null
   const in3 = kstDate(new Date(Date.now() + 3 * 86_400_000))
   const payOverdue = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date < today)
   const paySoon = vpays.filter((p) => !p.paid_at && p.due_date && p.due_date >= today && p.due_date <= in3)
@@ -993,6 +1043,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           주휴수당이 정산에 자동으로 들어가요 ›
         </NewsNote>
       )}
+      {/* 이 회사에 새로 합류한 관리자: 어느 회사 관리자가 됐는지 + 대표 관리자 (누르면 관리자 목록 · 닫으면 다시 안 보임 · 사흘 동안) — 정기 개선 2026-11-22 20:35 */}
+      {joinedHere && (
+        <NewsNote id={`joined-${admin.companyId}`} href="/admin/settings#admins">
+          {admin.companyName} 관리자가 됐어요{ownerName ? ` · 대표 ${ownerName}` : ''} ›
+        </NewsNote>
+      )}
       {/* 한 계정으로 두 역할: 다른 회사에서 오늘 내 근무 → 근무자 화면 '내 근무'로 바로 (출근·종료는 거기서) */}
       {myShift && (
         <a href="/api/view?to=worker&next=/me" className="card-link flex animate-pop items-center gap-3 p-3.5 ring-emerald-200/80" data-my-shift>
@@ -1016,14 +1072,26 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0) ? '다른 회사에 확인할 일' : otherUnread.some((c) => c.n > 0) ? '다른 회사에 새 문의' : '다른 회사 행사'}
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0)
+              ? '다른 회사에 확인할 일'
+              : otherUnread.some((c) => c.n > 0)
+                ? '다른 회사에 새 문의'
+                : otherUnread.some((c) => c.today > 0 || c.tomorrow > 0)
+                  ? '다른 회사 행사'
+                  : '새로 합류한 회사'}
           </span>
           {otherUnread.map((c) => (
             <form key={c.id} action={switchCompany} className="max-w-full">
               <input type="hidden" name="company" value={c.id} />
               {/* 누르면 그 회사로: 새 문의 n · 확정을 기다리는 지원자 n (있는 것만) */}
-              <SubmitButton className="chip max-w-full" pendingText="바꾸는 중…" track="다른 회사 문의로 바꾸기">
+              <SubmitButton className={`chip max-w-full${c.joined ? ' relative' : ''}`} pendingText="바꾸는 중…" track="다른 회사 문의로 바꾸기">
                 <span className="min-w-0 truncate">{c.name}</span>
+                {/* 사흘 안에 관리자로 승인된 회사 (할 일이 없어도 보임 · 누르면 그 회사로) — 칩 위 모서리에 작은 꼬리표 (회사 이름 자리를 줄이지 않게) — 정기 개선 2026-11-22 20:35 */}
+                {c.joined && (
+                  <span className="absolute -top-2 left-2.5 animate-pop rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 font-bold whitespace-nowrap text-white" data-other-joined>
+                    새로 합류
+                  </span>
+                )}
                 {/* 그 회사에서 근무자에게 약속한 정산일이 오늘이거나 지났는데 아직 지급 전 (회사를 바꾸면 '급여 지급 전' 할 일에 빨갛게) */}
                 {c.payLate > 0 && (
                   <span className="shrink-0 whitespace-nowrap" data-other-paylate>
@@ -1427,7 +1495,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       )}
 
       {/* 대금 시트(거래장부): 오늘 아침 연동 결과 한 줄 (장부 회사 관리자만) */}
-      <LedgerToday companyId={admin.companyId} />
+      <LedgerToday status={ledgerTodayP} />
       {/* 지난달 근무가 있으면: 이번 달 신고 마감 (원천세 · 근로내용확인신고 · 일용근로소득 지급명세) */}
       {(await filingP) && filingDues(filingToday).length > 0 && (
         <FilingChecklist companyId={admin.companyId} month={filingMonth} monthLabel={`${Number(filingMonth.slice(5, 7))}월`} dues={filingDues(filingToday)} />

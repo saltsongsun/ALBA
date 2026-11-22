@@ -480,6 +480,15 @@ export async function ledgerStatus(companyId: string, jobId?: string): Promise<L
   return { configured: sheetsConfigured(), last, exported, paid }
 }
 
+/**
+ * 장부 회사면 연동 상태, 아니면 null — '장부 회사인지 확인'과 '기록 읽기'를 함께 출발해 기다림을 한 번으로 (속도 개선 2026-11-22).
+ * 기록은 이 회사(company_id) 것만 읽고, 장부 회사가 아니면 읽은 것을 버림
+ */
+export async function ledgerStatusIfOn(companyId: string, jobId?: string): Promise<LedgerStatus | null> {
+  const [on, status] = await Promise.all([isLedgerCompany(companyId).catch(() => false), ledgerStatus(companyId, jobId).catch(() => null)])
+  return on ? status : null
+}
+
 /** 연동 기록 글에서 보여 줄 부분만 ('아침 자동 · …' 앞머리 · run= 꼬리 빼고) */
 export function syncText(detail: string | null | undefined): string {
   return (detail ?? '').replace(/ · run=\S+$/, '').replace(/^(버튼|아침 자동) · /, '')

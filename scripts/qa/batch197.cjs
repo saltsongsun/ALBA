@@ -35,7 +35,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await rest('companies', 'POST', { ...c1, id: C2, company_name: '두번째기획', seal_image: null, created_at: nowIso })
   await rest('companies', 'POST', { ...c1, id: C3, company_name: '세번째상사', seal_image: null, created_at: nowIso })
   await rest('users', 'POST', { ...a0, id: M, name: '두회사관리자', phone: '01019700001', is_super: false })
-  for (const company_id of [C1, C2]) await rest('company_members', 'POST', { company_id, user_id: M, role: 'admin', created_at: nowIso })
+  // 오래전에 합류한 관리자로 (사흘 안에 합류하면 '새로 합류' 표시가 붙음 — 묶음 353에서 따로 확인 · 정기 개선 2026-11-22 20:35)
+  for (const company_id of [C1, C2]) await rest('company_members', 'POST', { company_id, user_id: M, role: 'admin', created_at: '2026-10-01T00:00:00Z' })
   const job = (id, company_id, title, patch) => rest('jobs', 'POST', { ...j, id, company_id, title, status: 'open', applications: [], ...patch })
   // 두번째기획: 내일 시작 1 + (세지 않는 것) 어제 끝남 · 내일이지만 취소 · 오늘이지만 임시 저장
   await job(JM, C2, '내일 행사', { start_date: tmr, end_date: tmr })
