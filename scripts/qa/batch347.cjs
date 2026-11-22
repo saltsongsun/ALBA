@@ -86,7 +86,9 @@ const kday = (n = 0) => new Date(Date.now() + 9 * 3600e3 + n * 864e5).toISOStrin
   const c2 = one(await cards.nth(1).innerText().catch(() => ''))
   ok('확정 대기 카드 두 장', (await cards.count()) === 2, String(await cards.count()))
   ok("첫 카드: 진행 단계(지원 · 확정) 있고 '지원완료' 배지 없음", c1.includes('지원') && c1.includes('확정') && c1.includes('서명') && !c1.includes('지원완료'), c1.slice(0, 120))
-  ok("둘째 카드: '지원완료' 배지 그대로", c2.includes('지원완료'), c2.slice(0, 120))
+  // 둘째 카드는 오늘 09:00~18:00 공고(J): 그 근무 시간이 끝나면 '지원완료' 대신 '미확정' 배지 (저녁에 돌려도 맞게 · 정기 개선 2026-11-22 18:35)
+  const jOver = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16) >= '18:00'
+  ok(jOver ? "둘째 카드: 근무 시간이 끝나 '미확정' 배지" : "둘째 카드: '지원완료' 배지 그대로", jOver ? c2.includes('미확정') && !c2.includes('지원완료') : c2.includes('지원완료'), c2.slice(0, 120))
   if (SHOTS) {
     await cards.nth(0).scrollIntoViewIfNeeded()
     await kp.screenshot({ path: `${SHOTS}/me-waiting.png` })
