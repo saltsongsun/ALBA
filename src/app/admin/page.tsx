@@ -320,9 +320,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           () => new Set<string>(),
         )
       : Promise.resolve(new Set<string>())
-    const [pendingLv, pendingTotal, , others, [rel, scores], replyMin, noted] = await Promise.all([pendingLvP, pendingTotalP, weeklyP, othersP, relP, replyP, notedP])
+    // 이 회사가 아직 한 번도 확정해 본 적이 없으면 '확정하면 어떻게 되나요?' 안내를 접어서 (처음 쓰는 회사 · 못 읽으면 안 보임)
+    const firstP: Promise<boolean> = pendingApps.length
+      ? Promise.resolve(db().from('applications').select('id', { count: 'exact', head: true }).eq('company_id', admin.companyId).eq('status', 'approved')).then(
+          (r) => !r.error && r.count === 0,
+          () => false,
+        )
+      : Promise.resolve(false)
+    const [pendingLv, pendingTotal, , others, [rel, scores], replyMin, noted, firstConfirm] = await Promise.all([pendingLvP, pendingTotalP, weeklyP, othersP, relP, replyP, notedP, firstP])
     const pendingMore = pendingTotal - pendingApps.length
-    return { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin, noted }
+    return { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin, noted, firstConfirm }
   })()
   pendingExtrasP.catch(() => {})
   // 곧(모레까지) 시작하거나 진행 중인데 확정 인원이 모자란 행사: 취소로 빈자리가 생겼을 때 바로 보이게
@@ -680,7 +687,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     })),
     ...vendorTodos,
   ]
-  const { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin, noted } = await pendingExtrasP
+  const { pendingApps, pendingLv, pendingTotal, pendingMore, isFull, headOf, weeklyFor, others, rel, scores, replyMin, noted, firstConfirm } = await pendingExtrasP
   // '보통 3시간 내 답변 · 가장 오래 기다린 지원 2일째' (한 시간 넘게 기다린 지원자가 있을 때만 뒤쪽)
   const oldestMin = pendingApps.length ? (Date.now() - Math.min(...pendingApps.map((p) => Date.parse(p.created_at)))) / 60_000 : 0
   const waitLine = [
@@ -1332,6 +1339,26 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <p className="-mt-2 mb-3 truncate text-xs text-mute" title="'보통 n시간 내 답변'은 지원한 근무자의 공고 화면에도 보여요" data-dash-wait>
             {waitLine}
           </p>
+        )}
+        {/* 처음 확정하는 회사: 누르면 무엇이 일어나는지 접어 둠 (확정·미선발·보류 차이 · 한 번이라도 확정하면 사라짐) — 정기 개선 2026-11-22 18:35 */}
+        {firstConfirm && (
+          <details className="group mb-3 rounded-2xl bg-brand-50 px-4 py-2.5 text-sm text-brand-900" data-first-confirm>
+            <summary className="tap cursor-pointer font-semibold text-brand-700">처음이세요? 확정하면 이렇게 돼요</summary>
+            <ul className="mt-2 space-y-1.5 group-open:animate-[slide-down_0.22s_ease-out_both]" data-first-confirm-rows>
+              <li>
+                <b>확정</b> · 근무자에게 앱 알림이 가고, 공고에 넣은 서류가 서명 대기로 준비돼요
+              </li>
+              <li>
+                <b>단체방</b> · 확정한 사람은 그 행사 단체방에 함께해요
+              </li>
+              <li>
+                <b>미선발</b> · 근무자에게 결과 알림이 가요
+              </li>
+              <li>
+                <b>보류</b> · 근무자에게 알리지 않고 잠시 미뤄 둬요
+              </li>
+            </ul>
+          </details>
         )}
         {pendingApps.length === 0 ? (
           <Empty icon="📭" title="확정을 기다리는 지원자가 없어요">

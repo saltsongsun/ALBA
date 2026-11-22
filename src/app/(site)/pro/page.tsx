@@ -102,7 +102,14 @@ export default async function ProHome(props: PageProps<'/pro'>) {
               <>
                 {user.name}님,
                 <br />
-                {vendor ? '받은 견적 요청을 확인하세요' : '오늘도 좋은 무대 만들어요'}
+                {/* 외주 업체: 지금 상황에 맞는 한 줄 (아직 어느 회사와도 안 이어졌으면 '확인하세요'가 아니라 무엇을 기다리는지) — 정기 개선 2026-11-22 18:35 */}
+                {!vendor
+                  ? '오늘도 좋은 무대 만들어요'
+                  : toAnswer.length > 0
+                    ? '받은 견적 요청을 확인하세요'
+                    : linked.length === 0 && quotes.length === 0 && pays.length === 0
+                      ? '회사와 이어지면 견적 요청이 와요'
+                      : '새 견적 요청을 기다려요'}
               </>
             ) : (
               <>
