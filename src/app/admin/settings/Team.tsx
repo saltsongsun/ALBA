@@ -133,7 +133,10 @@ export default async function Team({ admin }: { admin: AdminUser }) {
           </div>
         </div>
       ) : (
-        <p className="rounded-2xl bg-bg p-3 text-sm text-sub">관리자 초대·승인은 대표 관리자{ownerNames.length ? `(${ownerNames.join(', ')})` : ''}가 할 수 있어요.</p>
+        // 고르게 두 줄로 ('할 / 수 있어요'처럼 끝말만 떨어지지 않게 · 정기 개선 2026-11-23 08:35)
+        <p className="text-balance rounded-2xl bg-bg p-3 text-sm text-sub" data-team-owner-note>
+          관리자 초대·승인은 대표 관리자{ownerNames.length ? `(${ownerNames.join(', ')})` : ''}가 할 수 있어요.
+        </p>
       )}
 
       <ul className="divide-y divide-line">

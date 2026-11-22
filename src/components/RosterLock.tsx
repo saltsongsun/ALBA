@@ -90,7 +90,11 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
             명단 열기
           </SubmitButton>
         </form>
-        <p className="text-balance text-xs text-mute">한 번 열면 {minutes}분 동안 다시 묻지 않아요. 누가 언제 열었는지 기록돼요.</p>
+        {/* 두 문장을 한 줄씩 (360px에서 '묻지 / 않아요'처럼 말 중간에서 끊기지 않게 · 정기 개선 2026-11-23 08:35) */}
+        <p className="text-xs text-mute" data-roster-note>
+          <span className="block">한 번 열면 {minutes}분 동안 다시 묻지 않아요.</span>
+          <span className="block">누가 언제 열었는지 기록돼요.</span>
+        </p>
       </div>
     </div>
   )

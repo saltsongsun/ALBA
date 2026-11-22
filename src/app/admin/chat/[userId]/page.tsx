@@ -301,11 +301,10 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   let noEnd: { jobId: string; date: string | null; left: number } | null = null
   if (noEndAsk?.job?.id) {
     const jid = noEndAsk.job.id
-    const [{ data: nj }, { data: na }] = await Promise.all([
-      db().from('jobs').select('id, company_id').eq('id', jid).maybeSingle(),
-      db().from('attendance').select('job_id, user_id, work_date, clock_in, clock_out, adj_out').eq('job_id', jid).eq('user_id', userId),
-    ])
+    // 공고가 지금 회사 것인지 먼저 확인한 뒤에만 그 근무자 출퇴근을 읽음 (다른 회사 공고 번호가 섞여 들어와도 다른 회사 기록은 읽지 않게 · 정기 개선 2026-11-23 08:35)
+    const { data: nj } = await db().from('jobs').select('id, company_id').eq('id', jid).eq('company_id', admin.companyId).maybeSingle()
     if (nj && (nj as { company_id: string }).company_id === admin.companyId) {
+      const { data: na } = await db().from('attendance').select('job_id, user_id, work_date, clock_in, clock_out, adj_out').eq('job_id', jid).eq('user_id', userId)
       const open = ((na ?? []) as { job_id: string; user_id: string; work_date: string; clock_in: string | null; clock_out: string | null; adj_out: string | null }[])
         .filter((a) => a.job_id === jid && a.user_id === userId && !a.clock_out && !a.adj_out && a.work_date < today)
         .map((a) => a.work_date)
