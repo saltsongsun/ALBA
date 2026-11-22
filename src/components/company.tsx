@@ -15,6 +15,7 @@ export function CompanySwitcher({
   waiting = {},
   lapsed = {},
   unsigned = {},
+  join = {},
   events = {},
 }: {
   companies: { id: string; name: string }[]
@@ -26,6 +27,8 @@ export function CompanySwitcher({
   lapsed?: Record<string, number>
   /** 다른 회사 오늘 행사에서 서명 안 한 사람 수 (서명 전이면 근무 시작이 막힘) */
   unsigned?: Record<string, number>
+  /** 내가 대표인 다른 회사에 승인을 기다리는 관리자 가입 신청 수 (점도 켬 — 새로 온 일이라서) */
+  join?: Record<string, number>
   /** 다른 회사의 행사: '오늘 행사 2' · '내일 행사 1' 같은 짧은 말 (알림 점은 안 켬 — 새로 온 일이 아니라서) */
   events?: Record<string, string>
 }) {
@@ -33,7 +36,7 @@ export function CompanySwitcher({
   // 쓴 내용이 있을 때 한 번 멈춘 뒤 다시 고를 수 있는 때까지
   const armedUntil = useRef(0)
   // 다른 회사에 새 문의·확정 대기 지원자가 있으면 점 + 고르기 목록에 '· 새 문의 N · 대기 N'
-  const other = Object.values(unread).reduce((n, x) => n + x, 0) + Object.values(waiting).reduce((n, x) => n + x, 0)
+  const other = Object.values(unread).reduce((n, x) => n + x, 0) + Object.values(waiting).reduce((n, x) => n + x, 0) + Object.values(join).reduce((n, x) => n + x, 0)
   return (
     <form action={switchCompany} className="min-w-0">
       {/* 보고 있던 메뉴에 그대로 남도록 (서버에서 정해 둔 메뉴만 받음) */}
@@ -66,6 +69,7 @@ export function CompanySwitcher({
           {companies.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
+              {c.id !== current && join[c.id] ? ` · 관리자 신청 ${join[c.id]}` : ''}
               {c.id !== current && unread[c.id] ? ` · 새 문의 ${unread[c.id]}` : ''}
               {c.id !== current && unsigned[c.id] ? ` · 서명 안 함 ${unsigned[c.id]}` : ''}
               {c.id !== current && waiting[c.id] ? ` · 대기 ${waiting[c.id]}` : ''}

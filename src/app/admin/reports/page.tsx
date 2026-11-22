@@ -143,7 +143,13 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
         <Link href={`/admin/reports?month=${shiftMonth(month, -1)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="지난 달" data-month-prev>
           ‹
         </Link>
-        <Link href="/admin/reports" className="min-w-0 flex-1 text-center text-sm leading-tight font-bold whitespace-nowrap" data-month-label>
+        {/* 달을 바꾸면 가운데 달 이름이 톡 (0.25초 · 어느 달로 바뀌었는지 눈에 · 움직임 줄이기면 바로) — 정기 개선 2026-11-23 03:35 */}
+        <Link
+          key={month}
+          href="/admin/reports"
+          className="min-w-0 flex-1 animate-[pop_0.25s_var(--ease-spring)_both] text-center text-sm leading-tight font-bold whitespace-nowrap"
+          data-month-label
+        >
           <span className={`block text-[11px] font-semibold ${isThisMonth ? 'text-brand-600' : 'text-mute'}`}>{isThisMonth ? '이번 달' : '이번 달로'}</span>
           {y}년 {m}월
         </Link>
@@ -153,7 +159,8 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
       </nav>
 
       {/* 한눈에: 지급총액만 크게 · 세금·보험은 아래 작은 세 칸 */}
-      <section className="card space-y-3" data-report-summary>
+      {/* 달을 바꾸면 합계 카드가 살짝 올라오며 새 숫자로 (0.25초 · 같은 자리 숫자만 바뀌어 못 알아채지 않게) */}
+      <section key={month} className="card animate-[rise_0.25s_var(--ease-spring)_both] space-y-3" data-report-summary>
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-mute">지급총액</p>

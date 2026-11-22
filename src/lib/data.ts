@@ -302,18 +302,19 @@ export async function lapsedWaiting(companyId: string, today: string): Promise<{
  * 회사는 이 관리자가 속한 곳(companies)만 봄 · 12곳까지 · 아무것도 없으면 뺌 (대시보드 안내·회사 고르기 표시)
  */
 export async function otherCompaniesTodo(
-  companies: { id: string; name: string }[],
+  /** role: 그 회사에서 내 역할 — 대표('owner')인 회사만 관리자 가입 신청 수를 셈 (승인은 대표만 할 수 있어서) */
+  companies: { id: string; name: string; role?: string }[],
   currentId: string,
   /** 관리자 홈에서만: 약속한 정산일이 오늘이거나 지났는데 지급 전인 근무자 수 (메뉴의 회사 바꾸기에서는 묻지 않음 — 화면마다 느려지지 않게) */
   withPay = false,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number }[]> {
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, now, lapsed, payLate] = await Promise.all([
+      const [n, now, lapsed, payLate, join] = await Promise.all([
         unreadForAdmins(c.id).catch(() => 0),
         companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0 })),
         lapsedWaiting(c.id, today).then(
@@ -326,11 +327,22 @@ export async function otherCompaniesTodo(
               () => 0,
             )
           : 0,
+        // 내가 대표인 다른 회사에 승인을 기다리는 관리자 가입 신청 (지금 보는 회사에서만 보이면 다른 회사 신청은 묻혀서 · 정기 개선 2026-11-23 03:35)
+        c.role === 'owner'
+          ? db()
+              .from('company_join_requests')
+              .select('user_id', { count: 'exact', head: true })
+              .eq('company_id', c.id)
+              .then(
+                (r) => (r.error ? 0 : (r.count ?? 0)),
+                () => 0,
+              )
+          : 0,
       ])
-      return { id: c.id, name: c.name, n, ...now, lapsed, payLate }
+      return { id: c.id, name: c.name, n, ...now, lapsed, payLate, join }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0)
 }
 
 /**

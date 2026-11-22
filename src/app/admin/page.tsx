@@ -586,7 +586,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...otherTodo.map((c) => ({ ...c, joined: joined.includes(c.id) })),
     ...admin.companies
       .filter((c) => c.id !== admin.companyId && joined.includes(c.id) && !otherTodo.some((o) => o.id === c.id))
-      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, joined: true })),
+      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, joined: true })),
   ]
   // 지금 회사에 새로 합류했으면: 대표 관리자 이름 (관리자 목록에서 연락처를 보도록 · 못 읽으면 이름 없이)
   const joinedHere = joined.includes(admin.companyId)
@@ -1072,7 +1072,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0)
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0)
               ? '다른 회사에 확인할 일'
               : otherUnread.some((c) => c.n > 0)
                 ? '다른 회사에 새 문의'
@@ -1090,6 +1090,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 {c.joined && (
                   <span className="absolute -top-2 left-2.5 animate-pop rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 font-bold whitespace-nowrap text-white" data-other-joined>
                     새로 합류
+                  </span>
+                )}
+                {/* 내가 대표인 그 회사에 승인을 기다리는 관리자 가입 신청 (회사를 바꾸면 '관리자 가입 신청 · 승인해 주세요' 할 일 → 관리자 목록) — 정기 개선 2026-11-23 03:35 */}
+                {c.join > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-join>
+                    관리자 신청 <b className="text-amber-600">{c.join}</b>
                   </span>
                 )}
                 {/* 그 회사에서 근무자에게 약속한 정산일이 오늘이거나 지났는데 아직 지급 전 (회사를 바꾸면 '급여 지급 전' 할 일에 빨갛게) */}
