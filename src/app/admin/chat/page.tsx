@@ -14,8 +14,10 @@ import { fmtDateRange } from '@/lib/time'
 import { fmtDate, kstDate, kstTime } from '@/lib/time'
 import Flash from '@/components/Flash'
 import SearchInput from '@/components/SearchInput'
-import { ConfirmSubmit, ShareButton } from '@/components/ui'
+import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import { markAllInquiriesRead } from '@/app/actions/chat'
+import { switchCompany } from '@/app/actions/company'
+import { otherCompaniesUnread, soleUnreadThread } from '@/lib/data'
 import { ASK_INVOICE, askTag, isQuietNotice, needsReply, paidAfterAsk, SIGNAL } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '문의' }
@@ -39,7 +41,7 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
   const onlyNoReply = !onlyUnread && sp.noreply === '1'
   const today = kstDate()
   // 단체방 목록 · 1:1 문의 · 지금 근무 중인 사람을 한 번에 출발 (예전에는 단체방을 다 읽은 뒤에야 문의를 읽기 시작했음)
-  const [{ rooms, senderName }, rows, workingIds] = await Promise.all([
+  const [{ rooms, senderName }, rows, workingIds, otherCos] = await Promise.all([
     adminRooms(admin.companyId, admin.id).then(async (rooms) => {
       // 단체방 마지막 말을 쓴 사람 이름 (나는 '나')
       const lastSenders = [...new Set(rooms.map((r) => r.last?.sender_id).filter((id): id is string => !!id && id !== admin.id))]
@@ -74,6 +76,14 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         (r) => ((r.data ?? []) as { user_id: string; clock_out: string | null }[]).filter((a) => !a.clock_out).map((a) => a.user_id),
         () => [] as string[],
       ),
+    // 여러 회사를 맡은 관리자: 다른 회사에 온 새 문의 수 (맡은 회사만 · 회사 이름과 수만, 글 내용은 읽지 않음)
+    // 그 회사에 새 문의가 한 사람뿐이면 회사를 바꾸며 그 대화를 바로 엶 (정기 개선 2026-11-22 12:35)
+    admin.companies.length > 1
+      ? otherCompaniesUnread(admin.companies, admin.companyId).then(
+          (list) => Promise.all(list.map(async (c) => ({ ...c, open: await soleUnreadThread(c.id).catch(() => null) }))),
+          () => [] as { id: string; name: string; n: number; open: string | null }[],
+        )
+      : ([] as { id: string; name: string; n: number; open: string | null }[]),
   ])
   // 대화마다: 사람이 직접 쓴 마지막 글(근무자 글 · 담당자가 직접 쓴 답장) · 자동 안내 수
   // 목록은 직접 쓴 마지막 글로 줄 세우고 미리보기도 그 글로 (자동 안내가 나중에 와도 위로 올라오지 않게)
@@ -157,11 +167,33 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
           <AutoRefresh seconds={15} pulse="/api/pulse?s=admin-chat" />
         </div>
         {!nothing && (
-          <a href="/admin/chat/export" download className="chip h-8 shrink-0 px-3 text-xs">
-            ⬇️ 모든 대화 저장
+          <a href="/admin/chat/export" download className="chip h-8 shrink-0 gap-1 px-3 text-xs text-sub transition active:scale-95" data-inbox-export>
+            <Icon name="download" className="text-mute" /> 모든 대화 저장
           </a>
         )}
       </div>
+      {/* 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (회사 이름 · 수) — 누르면 그 회사로 바꾸고 문의함에 그대로 (한 사람뿐이면 그 대화로)
+          회사를 바꾸는 서버 동작이 맡은 회사인지 다시 확인함 (정기 개선 2026-11-22 12:35) */}
+      {otherCos.length > 0 && (
+        <div className="fade-x -mx-4 -mt-1 flex items-center gap-2 overflow-x-auto px-4 [scrollbar-width:none]" data-inbox-others>
+          <span className="shrink-0 text-xs font-semibold whitespace-nowrap text-sub">
+            <Icon name="building" className="text-mute" /> 다른 회사 새 문의
+          </span>
+          {otherCos.map((c) => (
+            <form key={c.id} action={switchCompany} className="shrink-0 animate-pop" data-inbox-other={c.id}>
+              <input type="hidden" name="company" value={c.id} />
+              <input type="hidden" name="back" value="/admin/chat" />
+              {c.open && <input type="hidden" name="open" value={`/admin/chat/${c.open}`} />}
+              <SubmitButton className="chip h-8 gap-1.5 px-3 text-xs transition active:scale-95" pendingText="바꾸는 중…" track="다른 회사 문의함으로 바꾸기">
+                <span className="max-w-[9rem] truncate">{c.name}</span>
+                <span className="grid h-5 min-w-5 place-items-center rounded-full bg-rose-500 px-1.5 text-[11px] font-bold text-white tabular-nums" data-inbox-other-n>
+                  {c.n}
+                </span>
+              </SubmitButton>
+            </form>
+          ))}
+        </div>
+      )}
       {/* 같은 근무 단체방: 공고마다 확정자 + 참여한 담당자 · 참여 안 한 방·끝난 방은 아래에 접어 둠 */}
       {/* 검색 (공고 화면과 같은 모양): 이름·번호·메시지 내용 · 단체방 이름 */}
       {!nothing && (
@@ -190,8 +222,8 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
         const pastUnread = past.reduce((n, r) => n + r.unread, 0)
         const card = (r: (typeof rooms)[number]) => (
           <Link key={r.id} href={`/admin/chat/room/${r.id}`} className="card-link flex items-center gap-3 p-3.5" data-room-row data-joined={r.joined ? '1' : '0'}>
-            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg">
-              👥
+            <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-50 text-lg text-brand-600" data-room-icon>
+              <Icon name="users" />
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-baseline justify-between gap-2">
@@ -241,15 +273,15 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
       })()}
       {!nothing && (
         <div className="flex gap-1.5">
-          <Link href={qs(false)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${!onlyUnread && !onlyNoReply ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+          <Link href={qs(false)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition duration-200 active:scale-95 ${!onlyUnread && !onlyNoReply ? 'bg-ink text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
             전체 {found.length}
           </Link>
-          <Link href={qs(true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
+          <Link href={qs(true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition duration-200 active:scale-95 ${onlyUnread ? 'bg-rose-600 text-white' : 'bg-white text-sub ring-1 ring-line'}`}>
             안 읽음 {term ? found.filter((t) => t.unread > 0).length : unreadCount}
           </Link>
           {/* 읽고 답하지 않은 문의가 있을 때만 */}
           {(noReplyCount > 0 || onlyNoReply) && (
-            <Link href={qs(false, true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold ${onlyNoReply ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'}`} data-inbox-noreply-chip>
+            <Link href={qs(false, true)} className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition duration-200 active:scale-95 ${onlyNoReply ? 'bg-amber-500 text-white' : 'bg-white text-sub ring-1 ring-line'}`} data-inbox-noreply-chip>
               답장 전 {noReplyCount}
             </Link>
           )}
