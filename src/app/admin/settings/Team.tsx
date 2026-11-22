@@ -9,6 +9,9 @@ import { fmtDate, kstDate, kstTime, waitedText } from '@/lib/time'
 
 type Person = { id: string; name: string; phone: string }
 
+/** 관리자 목록 '새로' 표시 기간 (관리자 홈 '○○ 관리자가 됐어요'와 같은 사흘 · 정기 개선 2026-11-23 01:35) */
+const JOINED_DAYS = 3
+
 /**
  * 회사 설정 맨 위 '관리자' 칸.
  * 대표 관리자: 초대 코드(복사·공유·바꾸기) + 가입 신청 승인·거절 + 관리자 빼기 / 일반 관리자: 관리자 목록만
@@ -45,7 +48,8 @@ export default async function Team({ admin }: { admin: AdminUser }) {
   const sorted = [...members].sort((a, b) => (a.role === b.role ? 0 : a.role === 'owner' ? -1 : 1))
 
   return (
-    <section id="admins" className="card scroll-mt-20 space-y-4">
+    // 관리자 홈 '○○ 관리자가 됐어요 ›'·처음 시작 단계에서 #admins로 오면 테두리가 한 번 퍼짐 (어디인지 보이게 · 움직임 줄이기면 없음)
+    <section id="admins" className="card scroll-mt-20 space-y-4" data-target-flash>
       <div className="flex items-center justify-between gap-2">
         <h2 className="flex items-center gap-1.5 text-lg font-bold">
           <Icon name="users" className="text-brand-600" />
@@ -127,15 +131,38 @@ export default async function Team({ admin }: { admin: AdminUser }) {
         {sorted.map((m) => {
           const p = people.get(m.user_id)
           const me = m.user_id === admin.id
+          // 관리자(대표 아님)는 언제 합류했는지 · 사흘 안이면 '새로' (누가 우리 회사 자료를 보는지 한눈에)
+          const joined = m.role === 'admin' && m.created_at ? kstDate(m.created_at) : null
+          const fresh = !!joined && now - Date.parse(m.created_at) < JOINED_DAYS * 864e5
           return (
-            <li key={m.user_id} className="flex items-center gap-2 py-2.5">
+            <li key={m.user_id} className="flex items-center gap-2 py-2.5" data-admin-row={m.role}>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-1.5">
                   <b className="truncate">{p?.name ?? '관리자'}</b>
                   {me && <span className="shrink-0 text-sm text-mute">(나)</span>}
                   <span className={`badge shrink-0 ${m.role === 'owner' ? 'bg-brand-50 text-brand-700' : 'bg-gray-100 text-sub'}`}>{m.role === 'owner' ? '대표' : '관리자'}</span>
+                  {fresh && (
+                    <span className="badge shrink-0 animate-[pop_0.25s_var(--ease-spring)_both] bg-emerald-50 text-emerald-700" data-admin-new>
+                      새로
+                    </span>
+                  )}
                 </span>
-                <span className="block text-sm text-sub">{phoneFmt(p?.phone)}</span>
+                <span className="block truncate text-sm text-sub">
+                  {/* 다른 관리자 번호는 눌러서 바로 전화 (현장에서 서로 찾을 때) · 내 번호는 글자만 */}
+                  {p?.phone && !me ? (
+                    <a href={`tel:${p.phone}`} className="tabular-nums transition active:opacity-60" data-admin-tel>
+                      {phoneFmt(p.phone)}
+                    </a>
+                  ) : (
+                    <span className="tabular-nums">{phoneFmt(p?.phone)}</span>
+                  )}
+                  {joined && (
+                    <span className="whitespace-nowrap text-mute" data-admin-joined>
+                      {' '}
+                      · {fmtDate(joined)} 합류
+                    </span>
+                  )}
+                </span>
               </span>
               {owner && !me && (m.role === 'admin' || admin.isSuper) && (
                 <form action={removeTeamAdmin.bind(null, m.user_id)} className="shrink-0">

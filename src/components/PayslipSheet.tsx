@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { maskAccount, won, wonKorean } from '@/lib/format'
 import type { WorkerPay } from '@/lib/payroll'
 import { fmtDate, fmtDateLong, kstDate, kstTime, minutesText } from '@/lib/time'
@@ -7,7 +8,19 @@ import SealMark from './SealMark'
 const h = (min: number) => (min / 60).toFixed(min % 60 ? 2 : 0).replace(/\.?0+$/, '')
 
 /** 임금명세서 한 장 (근무자 1명). 한 사람 화면·공고 전체 한 번에 인쇄에서 같이 씀 */
-export default function PayslipSheet({ data, className = '', watermark }: { data: WorkerPay; className?: string; /** 열람 일시·열람자 */ watermark?: string }) {
+export default function PayslipSheet({
+  data,
+  className = '',
+  watermark,
+  self = false,
+}: {
+  data: WorkerPay
+  className?: string
+  /** 열람 일시·열람자 */
+  watermark?: string
+  /** 근무자 본인이 보는 중 — 계좌가 없으면 '계좌 등록 →' (화면에만 · 인쇄 안 됨) */
+  self?: boolean
+}) {
   const { job, settings, worker, rows, total } = data
   const hourly = job.pay_type === 'hourly'
   const paidDates = rows.filter((r) => r.paid_at).map((r) => r.paid_at!)
@@ -75,7 +88,21 @@ export default function PayslipSheet({ data, className = '', watermark }: { data
             </tr>
             <tr>
               <th>지급계좌</th>
-              <td>{worker.bank_account ? `${worker.bank_name ?? ''} ${maskAccount(worker.bank_account)}` : '-'}</td>
+              <td>
+                {worker.bank_account ? (
+                  `${worker.bank_name ?? ''} ${maskAccount(worker.bank_account)}`
+                ) : self ? (
+                  // 계좌가 없으면 급여를 못 보냄 → 명세서를 보는 김에 바로 등록 (정기 개선 2026-11-23 01:35)
+                  <>
+                    <span className="print:inline hidden">-</span>
+                    <Link href="/me/profile#bank_account" className="no-print inline-flex items-center gap-1 font-semibold text-rose-600 transition active:scale-95" data-payslip-account>
+                      없음 · 계좌 등록 →
+                    </Link>
+                  </>
+                ) : (
+                  '-'
+                )}
+              </td>
             </tr>
           </tbody>
         </table>

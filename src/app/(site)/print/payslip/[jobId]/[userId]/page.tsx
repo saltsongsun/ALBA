@@ -27,7 +27,7 @@ export default async function PayslipPage(props: PageProps<'/print/payslip/[jobI
       </div>
       {/* 종료 기록이 없는 지난 날: 계산에서 빠져 있음 → 근무자는 담당자에게 알리기, 관리자는 종료 넣기 (인쇄 안 됨) */}
       <NoEndNote rows={data.rows} jobId={jobId} userId={userId} self={viewer.id === userId} />
-      <PayslipSheet data={data} watermark={viewerMark(viewer)} />
+      <PayslipSheet data={data} watermark={viewerMark(viewer)} self={viewer.id === userId} />
     </div>
   )
 }
