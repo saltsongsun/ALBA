@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import Icon from '@/components/Icon'
 import Empty from '@/components/Empty'
 import ProMode from '@/components/ProMode'
 import { phoneFmt, won, wonReadable } from '@/lib/format'
@@ -136,7 +137,8 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
       </section>
 
       <section>
-        <h2 className="section-title">📄 견적 요청 {quotes.length > 0 && <span className="text-brand-600">{quotes.length}</span>}</h2>
+        <h2 className="section-title">
+          <Icon name="file" className="text-brand-600" /> 견적 요청 {quotes.length > 0 && <span className="text-brand-600">{quotes.length}</span>}</h2>
         {quotes.length === 0 ? (
           <Empty icon="📄" title="받은 견적 요청이 없어요">
             새 견적 요청이 오면 여기와 휴대폰 알림으로 알려 드려요.
@@ -169,7 +171,9 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
       </section>
 
       <section id="pay" className="scroll-mt-20">
-        <h2 className="section-title">💸 대금</h2>
+        <h2 className="section-title">
+          <Icon name="card" className="text-brand-600" /> 대금
+        </h2>
         {pays.length === 0 ? (
           <Empty icon="💸" title="아직 대금 내역이 없어요">
             견적이 선정되면 지급 예정일과 함께 여기에 보여요.
@@ -241,7 +245,9 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
 
       {user.memberType === 'expert' && (
         <Link href="/me/history" className="card-link flex items-center justify-between p-4 text-sm font-semibold">
-          <span>🧾 전문가 의뢰로 일한 대금 (지급명세서)</span>
+          <span className="min-w-0 truncate" data-pro-payslip>
+            <Icon name="receipt" className="text-mute" /> 전문가 의뢰로 일한 대금 (지급명세서)
+          </span>
           <span className="text-brand-600">보기 →</span>
         </Link>
       )}

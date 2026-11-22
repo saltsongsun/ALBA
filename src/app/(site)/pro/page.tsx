@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import Empty from '@/components/Empty'
+import Icon from '@/components/Icon'
 import Flash from '@/components/Flash'
 import ProMode from '@/components/ProMode'
 import JobCard from '@/components/JobCard'
@@ -32,7 +33,7 @@ export default async function ProHome(props: PageProps<'/pro'>) {
   const today = kstDate()
   const type = user && user.role !== 'admin' ? user.memberType : null
   const vendor = type === 'vendor'
-  const [jobs, myApps, quotes, pays, photoAt, linked] = await Promise.all([
+  const [jobs, myApps, quotes, pays, photoAt, linked, hasAccount] = await Promise.all([
     vendor
       ? []
       : db()
@@ -64,6 +65,18 @@ export default async function ProHome(props: PageProps<'/pro'>) {
       : 'n/a',
     // 외주 업체: 나를 외주사로 등록해 둔 회사 (없으면 회사에 알려 줄 번호를 보여 줌)
     vendor && user ? partnerCompanies(user.id) : [],
+    // 대금 계좌를 넣었는지만 봄 (번호는 읽지 않음 · 못 읽으면 안내를 띄우지 않음) — 정기 개선 2026-11-22 16:35
+    user && (vendor || type === 'expert')
+      ? db()
+          .from('users')
+          .select('bank_account_enc')
+          .eq('id', user.id)
+          .maybeSingle()
+          .then(
+            (r) => (r.error ? true : !!(r.data as { bank_account_enc: string | null } | null)?.bank_account_enc),
+            () => true,
+          )
+      : true,
   ])
   const counts = countApps(jobs, 'approved')
   const mine = new Map(myApps.map((a) => [a.job_id, a.status]))
@@ -79,7 +92,11 @@ export default async function ProHome(props: PageProps<'/pro'>) {
         <span aria-hidden className="pointer-events-none absolute -top-14 -right-12 size-48 animate-float rounded-full bg-white/10" />
         <span aria-hidden className="pointer-events-none absolute right-16 -bottom-16 size-28 animate-float rounded-full bg-white/5 [animation-delay:1.2s]" />
         <div className="relative">
-          <p className="text-sm font-semibold text-white/75">{type ? `${MEMBER_TYPES[type].emoji} ${MEMBER_TYPES[type].label}` : '🎛️ 전문가 · 🏢 외주 업체'}</p>
+          {/* 가입 유형: 이모지 대신 선 아이콘 (휴대폰마다 모양이 다르지 않게 · 정기 개선 2026-11-22 16:35) */}
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-white/75" data-pro-kind>
+            <Icon name={vendor ? 'building' : type === 'worker' ? 'smile' : 'sparkle'} />
+            {type ? MEMBER_TYPES[type].label : '전문가 · 외주 업체'}
+          </p>
           <h1 className="mt-1 text-2xl leading-tight font-extrabold">
             {user && type && type !== 'worker' ? (
               <>
@@ -142,6 +159,24 @@ export default async function ProHome(props: PageProps<'/pro'>) {
         </div>
       </section>
 
+      {/* 대금 계좌가 비어 있으면 (전문가·외주 업체): 회사가 대금을 보내려면 꼭 필요해서 홈 맨 위에 한 줄
+          받을 대금이 있으면 빨간 말로 · 누르면 내 정보의 계좌 칸으로 (정기 개선 2026-11-22 16:35) */}
+      {user && (vendor || type === 'expert') && !hasAccount && (
+        <Link href="/me/profile#bank_account" className="card-link flex animate-pop items-center gap-3 p-4" data-pro-account={unpaidSum ? 'due' : ''}>
+          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-2xl bg-rose-50 text-lg text-rose-600">
+            <Icon name="card" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-bold">대금 계좌를 등록해 주세요</span>
+            {/* 금액은 바로 위 '받을 대금' 칸에 크게 있어서 여기선 말로만 (같은 숫자를 두 번 쓰지 않게) */}
+            <span className={`block truncate text-sm ${unpaidSum ? 'font-semibold text-rose-600' : 'text-sub'}`}>
+              {unpaidSum ? '받을 대금이 계좌를 기다려요' : '회사가 대금을 바로 보낼 수 있어요'}
+            </span>
+          </span>
+          <span className="shrink-0 text-sm font-bold whitespace-nowrap text-brand-600">등록 →</span>
+        </Link>
+      )}
+
       {user?.role !== 'admin' && type === 'worker' && (
         <p className="rounded-2xl bg-brand-50 px-4 py-3 text-sm text-brand-700">
           지금은 아르바이트 회원이에요. 전문가 의뢰에 지원하려면{' '}
@@ -154,7 +189,9 @@ export default async function ProHome(props: PageProps<'/pro'>) {
 
       {toAnswer.length > 0 && (
         <section>
-          <h2 className="section-title">📄 답할 견적 요청</h2>
+          <h2 className="section-title">
+            <Icon name="file" className="text-brand-600" /> 답할 견적 요청
+          </h2>
           <div className="stagger space-y-2">
             {toAnswer.slice(0, 5).map((q) => (
               <Link key={q.id} href={`/quote/${q.token}`} className="card-link flex items-center justify-between gap-3 p-4">
@@ -214,7 +251,9 @@ export default async function ProHome(props: PageProps<'/pro'>) {
 
       {user && unpaid.length > 0 && (
         <section>
-          <h2 className="section-title">💸 받을 대금</h2>
+          <h2 className="section-title">
+            <Icon name="card" className="text-brand-600" /> 받을 대금
+          </h2>
           <div className="card divide-y divide-line py-1">
             {unpaid.slice(0, 4).map((p) => {
               // 늦은 대금이 바로 눈에 띄게: 오른쪽 금액 아래 'n일 지남' · '오늘 지급' · 'D-n'
