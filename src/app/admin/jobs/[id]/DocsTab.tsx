@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { smsHead } from '@/lib/format'
-import { nudgeWorkers, rerequestDoc, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
+import { nudgeWorkers, rerequestDoc, rerequestDocs, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
 import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
@@ -29,6 +29,7 @@ export default function DocsTab({
   company = '',
   missing = [],
   changes = new Map(),
+  flashKey = '',
 }: {
   job: Job
   approved: AppRow[]
@@ -44,6 +45,8 @@ export default function DocsTab({
   missing?: readonly { key: string; label: string }[]
   /** 근무자마다 이 공고로 마지막에 보낸 '🔔 일정 변경' 알림 (우리 회사 문의함) */
   changes?: Map<string, { at: string; body: string }>
+  /** 화면 위 안내 글(m) — 바뀌면 '서명 안 한' 칸 번쩍을 다시 */
+  flashKey?: string
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -227,7 +230,8 @@ export default function DocsTab({
       {unsigned.length > 0 && (
         <div id="unsigned" className="card scroll-mt-24 space-y-2.5 p-3.5" data-unsigned-tools>
           {/* 대시보드 '서명 안 함'으로 왔으면 '앱 알림' 버튼이 화면 가운데에서 번쩍 */}
-          <HashFlash id="unsigned" />
+          {/* 같은 화면에서 일괄 재서명 뒤 돌아왔을 때도 다시 번쩍 (안내 글이 바뀌면 새로 그림) */}
+          <HashFlash key={flashKey} id="unsigned" />
           <p className="flex items-baseline justify-between gap-2 text-sm">
             <b className="shrink-0">서명 안 한 {unsigned.length}명</b>
             {ago && (
@@ -270,8 +274,16 @@ export default function DocsTab({
             </ul>
           )}
           <p className="text-xs break-keep">
-            <span className="font-semibold">{staleNames.slice(0, 3).join(', ')}{staleNames.length > 3 ? ` 외 ${staleNames.length - 3}명` : ''}</span> · 서류에 들어간 내용이 바뀌었으면 표에서 &lsquo;재서명&rsquo;을 눌러 주세요.
+            <span className="font-semibold">{staleNames.slice(0, 3).join(', ')}{staleNames.length > 3 ? ` 외 ${staleNames.length - 3}명` : ''}</span> · 서류에 들어간 내용이 바뀌었으면 {stale.length > 1 ? '한 번에 다시 받거나 표에서' : '표에서'} &lsquo;재서명&rsquo;을 눌러 주세요.
           </p>
+          {/* 둘 이상이면 한 번에 (사람이 많을 때 하나씩 누르지 않게) — 정기 개선 2026-11-22 10:35 */}
+          {stale.length > 1 && (
+            <form action={rerequestDocs.bind(null, job.id, stale.map((d) => d.id))} className="pt-1" data-doc-stale-all>
+              <ConfirmSubmit className="btn-white btn-sm w-full text-amber-800" confirmText={`${stale.length}건 모두 다시 받을까요?`}>
+                바뀐 {stale.length}건 모두 재서명 요청
+              </ConfirmSubmit>
+            </form>
+          )}
         </div>
       )}
       {cols.length === 0 ? (

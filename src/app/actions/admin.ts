@@ -1920,6 +1920,35 @@ export async function rerequestDoc(docId: string) {
   revalidatePath(`/admin/jobs/${doc.job_id}`)
 }
 
+/**
+ * 서류 탭 '서명한 뒤 일정이 바뀐 서류 n건' → 한 번에 재서명 요청 (하나씩 누르는 '재서명'과 같은 일을 여러 건에)
+ * 우리 회사 · 이 공고 · 서명 완료 서류만 · 끝나면 서류 탭 '서명 안 한 n명'(#unsigned)으로 돌아가 앱 알림 버튼이 번쩍 (정기 개선 2026-11-22 10:35)
+ */
+export async function rerequestDocs(jobId: string, docIds: string[]) {
+  const admin = await requireAdmin()
+  if (!isUuid(jobId)) return
+  const ids = [...new Set(docIds.filter((id) => isUuid(id)))].slice(0, 500)
+  if (!ids.length) return
+  const rows = must(
+    await db().from('signed_docs').select('*').eq('company_id', admin.companyId).eq('job_id', jobId).eq('status', 'signed').in('id', ids),
+  ) as SignedDoc[]
+  const docs = rows.filter((d) => d.company_id === admin.companyId && d.job_id === jobId && d.status === 'signed' && ids.includes(d.id))
+  if (docs.length) {
+    must(await db().from('signed_docs').update({ status: 'void' }).eq('company_id', admin.companyId).in('id', docs.map((d) => d.id)))
+    must(
+      await db()
+        .from('signed_docs')
+        .insert(docs.map((d) => ({ company_id: d.company_id, job_id: d.job_id, user_id: d.user_id, template_id: d.template_id, kind: d.kind, title: d.title, status: 'pending' }))),
+    )
+    await Promise.all(docs.map((d) => audit(admin.id, 'doc.rerequest', d.user_id, d.id, admin.companyId)))
+  }
+  revalidatePath(`/admin/jobs/${jobId}`)
+  const people = new Set(docs.map((d) => d.user_id)).size
+  redirect(
+    `/admin/jobs/${jobId}?tab=docs&m=${encodeURIComponent(docs.length ? `${people}명에게 다시 서명을 받을 서류를 만들었어요 · 아래 '앱 알림'으로 알려 주세요` : '다시 요청할 서류가 없어요')}#unsigned`,
+  )
+}
+
 export async function saveTemplate(id: string | null, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()
   const title = str(form, 'title', 100)

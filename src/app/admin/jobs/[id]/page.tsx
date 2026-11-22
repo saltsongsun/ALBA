@@ -561,7 +561,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
       )}
       {tab === 'att' && <AttTab company={admin.companyName} job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
       {tab === 'pay' && <PayTab company={admin.companyName} job={job} atts={atts} users={users} origin={origin} />}
-      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} missing={docsMissing} changes={docChanges} />}
+      {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} missing={docsMissing} changes={docChanges} flashKey={typeof sp.m === 'string' ? sp.m : ''} />}
     </div>
   )
 }
