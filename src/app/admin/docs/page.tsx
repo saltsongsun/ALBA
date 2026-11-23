@@ -6,6 +6,7 @@ import Flash from '@/components/Flash'
 import Icon from '@/components/Icon'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
+import { templateJobCounts } from '@/lib/templateUse'
 import { companyDocs, DOC_KIND_LABEL, DOC_LIMIT, filterQuery, parseDocFilter, type DocFilter, type DocRow } from '@/lib/docList'
 import { requireAdmin } from '@/lib/session'
 import { fmtDate, fmtDateRange, kstDate, kstDateTime } from '@/lib/time'
@@ -318,7 +319,11 @@ async function FirstDocs({ companyId }: { companyId: string }) {
 
 /** 서식 목록 (예전 '서류 서식' 화면) */
 async function Templates({ companyId }: { companyId: string }) {
-  const tpls = must(await db().from('doc_templates').select('*').eq('company_id', companyId).order('created_at')) as DocTemplate[]
+  const [tpls, using] = await Promise.all([
+    db().from('doc_templates').select('*').eq('company_id', companyId).order('created_at').then((r) => must(r) as DocTemplate[]),
+    // 서식마다 지금 쓰는 진행 중 공고 수 (고치기 전에 어디에 영향이 가는지) — 정기 개선 2026-11-24 07:35
+    templateJobCounts(companyId),
+  ])
   return (
     <>
       <p className="text-sm text-sub">
@@ -335,7 +340,14 @@ async function Templates({ companyId }: { companyId: string }) {
             </div>
             <p className="mt-2 font-bold">{t.title}</p>
             <p className="mt-1 line-clamp-2 text-xs text-mute">{t.body.replace(/[#\-{}]/g, '').slice(0, 120)}</p>
-            <p className="mt-2 text-xs text-mute">수정 {fmtDate(kstDate(t.updated_at))}</p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-mute">
+              <span>수정 {fmtDate(kstDate(t.updated_at))}</span>
+              {(using.get(t.id) ?? 0) > 0 && (
+                <span className="font-semibold whitespace-nowrap text-brand-700" data-tpl-used={using.get(t.id)}>
+                  · 진행 중 공고 {using.get(t.id)}개에서 써요
+                </span>
+              )}
+            </p>
           </Link>
         ))}
       </div>

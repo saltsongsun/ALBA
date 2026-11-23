@@ -261,8 +261,14 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
     <form action={action} onReset={keepInputs} className="grid gap-4 lg:grid-cols-2">
       <div className="space-y-3">
         <div className="card space-y-3">
+          {/* 두 칸에 이름표 (전엔 이름 칸과 종류 칸이 둘 다 '근로계약서'라 무엇인지 헷갈림 · 정기 개선 2026-11-24 07:35) */}
           <div className="grid grid-cols-[1fr_auto] gap-3">
-            <input name="title" className="input" defaultValue={tpl?.title} placeholder="서식 이름 (예: 단기 근로계약서)" required />
+            <label className="min-w-0 space-y-1">
+              <span className="block text-xs font-semibold text-sub">서식 이름</span>
+              <input name="title" className="input" defaultValue={tpl?.title} placeholder="예: 단기 근로계약서" required />
+            </label>
+            <label className="space-y-1">
+              <span className="block text-xs font-semibold text-sub">종류</span>
             <select name="kind" className="input" defaultValue={tpl?.kind ?? 'contract'}>
               <option value="contract">근로계약서</option>
               <option value="service">용역계약서 (전문가)</option>
@@ -270,8 +276,15 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
               <option value="consent">동의서</option>
               <option value="other">기타</option>
             </select>
+            </label>
           </div>
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-bg p-1 text-sm font-semibold">
+          {/* 고치는 방법 두 칸: 흰 막대가 고른 칸으로 미끄러져 감 (0.2초 · 움직임 줄이기면 바로) */}
+          <div className="relative grid grid-cols-2 gap-1 rounded-xl bg-bg p-1 text-sm font-semibold" data-tpl-mode={mode}>
+            <span
+              aria-hidden
+              className={`absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-lg bg-white shadow-sm transition-transform duration-200 ease-[var(--ease-spring)] ${mode === 'text' ? 'translate-x-[calc(100%+4px)]' : 'translate-x-0'}`}
+              data-tpl-pill
+            />
             {(
               [
                 ['items', '항목별로 고치기'],
@@ -282,7 +295,8 @@ export function TemplateEditor({ tpl }: { tpl: DocTemplate | null }) {
                 key={m}
                 type="button"
                 onClick={() => switchMode(m)}
-                className={`rounded-lg py-2 transition ${mode === m ? 'bg-white text-ink shadow-sm' : 'text-mute'}`}
+                aria-pressed={mode === m}
+                className={`relative z-10 rounded-lg py-2 transition-colors duration-200 active:scale-[0.98] ${mode === m ? 'text-ink' : 'text-mute'}`}
               >
                 {label}
               </button>
