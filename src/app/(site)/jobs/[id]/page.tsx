@@ -671,22 +671,25 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                     : '이번에는 함께하지 못하게 됐어요.'}
             </p>
             {/* 이미 출근했으면: 지금 근무 중인지 · 마지막으로 근무한 날과 시간 (확정만 보이던 칸에 내 진행 상태) */}
-            {liveAtt && overEnd && overMin >= 0 ? (
-              // 종료 시각이 지났는데 종료 전: 초록 '근무 중' 대신 주황으로 얼마나 지났는지 (종료를 눌러야 급여가 계산돼요)
-              <p className="flex items-center gap-2 text-sm font-semibold text-amber-700" data-my-work="over">
-                <span aria-hidden className="size-2 shrink-0 rounded-full bg-amber-500" />
-                <span className="min-w-0">
-                  {kstTime(overEnd.toISOString())} 종료 · <span className="inline-block animate-[pop_0.25s_var(--ease-spring)_both]">{minutesText(Math.max(1, overMin))} 지났어요</span>
-                </span>
-              </p>
-            ) : liveAtt ? (
-              <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700" data-my-work="working">
-                <span aria-hidden className="relative flex size-2 shrink-0">
-                  <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-                </span>
-                지금 근무 중 · {kstTime(liveAtt.adj_in ?? liveAtt.clock_in)} 시작
-              </p>
+            {liveAtt ? (
+              <>
+                <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700" data-my-work="working">
+                  <span aria-hidden className="relative flex size-2 shrink-0">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
+                  </span>
+                  지금 근무 중 · {kstTime(liveAtt.adj_in ?? liveAtt.clock_in)} 시작
+                </p>
+                {/* 그날 종료 시각이 지났는데 종료 전: 바로 아래 주황 한 줄로 얼마나 지났는지 (내 근무 카드와 같은 말 · 종료를 눌러야 급여가 계산돼요) — 정기 개선 2026-11-23 22:35 */}
+                {overEnd && overMin >= 0 && (
+                  <p className="flex items-center gap-2 text-sm font-semibold text-amber-700" data-my-work-over>
+                    <span aria-hidden className="size-2 shrink-0 rounded-full bg-amber-500" />
+                    <span className="min-w-0">
+                      {kstTime(overEnd.toISOString())} 종료 · <span className="inline-block animate-[pop_0.25s_var(--ease-spring)_both]">{minutesText(Math.max(1, overMin))} 지났어요</span>
+                    </span>
+                  </p>
+                )}
+              </>
             ) : lastAtt ? (
               <p className="text-sm text-sub" data-my-work={lastOut ? 'done' : 'open'}>
                 {lastOut ? (
