@@ -18,7 +18,8 @@ const rest = (p, method = 'GET', body) => fetch(`${MD}/rest/v1/${p}`, { method, 
 ;(async () => {
   // 준비: 공고는 내일까지 (저녁에도 끝나지 않게) · 모집 6명
   // 인원은 기본 숨김 → '근무자에게 인원 보이기'를 켠 공고로 (사용자 요청 2026-11-17)
-  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: kstDate(new Date(Date.now() + 86400e3)), headcount: 6, hidden_fields: ['headcount_shown'] })
+  // 근무 시간도 하루 종일로 (저녁에 종료 시각이 지나면 '근무 종료하러 가기'가 빨강으로 바뀜 — 정기 개선 2026-11-23 22:35)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { end_date: kstDate(new Date(Date.now() + 86400e3)), start_time: '00:00:00', end_time: '23:59:00', headcount: 6, hidden_fields: ['headcount_shown'] })
 
   const b = await chromium.launch()
   const errs = []

@@ -41,7 +41,11 @@ const one = (s) => (s ?? '').replace(/\s+/g, ' ').trim()
   const dots = await w.locator('[data-apply-steps] [data-step-dot]').evaluateAll((els) => els.map((e) => e.getAttribute('data-step-dot')))
   ok("진행 단계: 지원 ✓ · 확정 ✓ · 서명(지금) · 출근 ✓", dots.join(',') === 'done,done,now,done', dots.join(','))
   const note = one(await w.locator('[data-sticky-note]').textContent().catch(() => ''))
-  ok("아래 바: '지금 근무 중이에요 · 서명이 아직 남았어요'", note === '지금 근무 중이에요 · 서명이 아직 남았어요', note)
+  // 정기 개선 2026-11-23 22:35: 그날 종료 시각이 지났으면 '근무 시간이 끝났어요 · 서명이 아직 남았어요'
+  const [jb] = await rest(`jobs?id=eq.${J}`)
+  const endAt = new Date(`${att.work_date}T${String(att.sched_end ?? jb.end_time).slice(0, 5)}:00+09:00`).getTime()
+  const want = Date.now() >= endAt ? '근무 시간이 끝났어요 · 서명이 아직 남았어요' : '지금 근무 중이에요 · 서명이 아직 남았어요'
+  ok(`아래 바: '${want}'`, note === want, note)
   ok('360px 옆으로 안 밀림', await w.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
   if (SHOTS) {
     await w.locator('[data-apply-steps]').scrollIntoViewIfNeeded().catch(() => {})

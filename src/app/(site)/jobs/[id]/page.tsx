@@ -23,7 +23,7 @@ import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
 import { phoneFmt, won } from '@/lib/format'
 import { headcountTbd, shows } from '@/lib/jobFields'
-import { breakDescription, estimateDay, TAX_LABEL, workOver } from '@/lib/pay'
+import { breakDescription, estimateDay, scheduledEnd, shiftOf, TAX_LABEL, workOver } from '@/lib/pay'
 import { adminCompanies, getUser } from '@/lib/session'
 import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutesText } from '@/lib/time'
 import type { Application, Job } from '@/lib/types'
@@ -65,7 +65,7 @@ export async function generateMetadata(props: PageProps<'/jobs/[id]'>): Promise<
 
 const CANCEL_REASONS = ['일정이 생겼어요', '몸이 아파요', '교통·거리 문제', '다른 일을 하게 됐어요', '기타']
 
-type MyAtt = { id: string; work_date: string; clock_in: string; clock_out: string | null; adj_in: string | null; adj_out: string | null }
+type MyAtt = { id: string; work_date: string; clock_in: string; clock_out: string | null; adj_in: string | null; adj_out: string | null; sched_start?: string | null; sched_end?: string | null }
 
 function Row({ k, children }: { k: string; children: React.ReactNode }) {
   return (
@@ -173,7 +173,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     user
       ? db()
           .from('attendance')
-          .select('id, work_date, clock_in, clock_out, adj_in, adj_out')
+          .select('id, work_date, clock_in, clock_out, adj_in, adj_out, sched_start, sched_end')
           .eq('job_id', job.id)
           .eq('user_id', user.id)
           .limit(60)
@@ -274,6 +274,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const liveAtt = myWork.find((a) => !a.clock_out && Date.now() - new Date(a.clock_in).getTime() < 18 * 3600_000) ?? null
   const lastAtt = myWork.filter((a) => a !== liveAtt).at(-1) ?? null
   const worked = myWork.length > 0
+  // 근무 중인데 그날 종료 시각(근무시간 변경에 동의했으면 그 시간)이 지남: '지금 근무 중'이 아니라 '종료 HH:MM · n 지났어요' (내 근무 카드와 같은 말) — 정기 개선 2026-11-23 22:35
+  const overEnd = liveAtt ? scheduledEnd(shiftOf(job, liveAtt), liveAtt.work_date) : null
+  const overMin = overEnd ? Math.floor((Date.now() - overEnd.getTime()) / 60_000) : -1
   const lastOut = lastAtt ? (lastAtt.adj_out ?? lastAtt.clock_out) : null
   const replyMin = app?.status === 'applied' && !lapsed && job.status !== 'cancelled' ? await replyMinutes(job.company_id).catch(() => null) : null
   // 아직 지원 전이면 겹치는 근무를 미리 알려 줌 (지원은 막지 않음: 여러 날 행사는 날짜를 골라 지원할 수 있어서)
@@ -594,7 +597,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           targetId="apply"
           title={job.title}
           // 이미 근무를 시작했으면 '근무 전에'가 아니라 지금 상태 그대로
-          note={liveAtt ? '지금 근무 중이에요 · 서명이 아직 남았어요' : worked ? '근무했어요 · 서명이 아직 남았어요' : '확정됐어요 · 근무 전에 서명해 주세요'}
+          note={
+            liveAtt
+              ? overMin >= 0
+                ? '근무 시간이 끝났어요 · 서명이 아직 남았어요'
+                : '지금 근무 중이에요 · 서명이 아직 남았어요'
+              : worked
+                ? '근무했어요 · 서명이 아직 남았어요'
+                : '확정됐어요 · 근무 전에 서명해 주세요'
+          }
           summary={`서류 ${pendingIds.length}건 서명이 남았어요`}
           href={`/docs/${pendingIds[0]}`}
           hrefLabel="서명하기"
@@ -660,7 +671,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                     : '이번에는 함께하지 못하게 됐어요.'}
             </p>
             {/* 이미 출근했으면: 지금 근무 중인지 · 마지막으로 근무한 날과 시간 (확정만 보이던 칸에 내 진행 상태) */}
-            {liveAtt ? (
+            {liveAtt && overEnd && overMin >= 0 ? (
+              // 종료 시각이 지났는데 종료 전: 초록 '근무 중' 대신 주황으로 얼마나 지났는지 (종료를 눌러야 급여가 계산돼요)
+              <p className="flex items-center gap-2 text-sm font-semibold text-amber-700" data-my-work="over">
+                <span aria-hidden className="size-2 shrink-0 rounded-full bg-amber-500" />
+                <span className="min-w-0">
+                  {kstTime(overEnd.toISOString())} 종료 · <span className="inline-block animate-[pop_0.25s_var(--ease-spring)_both]">{minutesText(Math.max(1, overMin))} 지났어요</span>
+                </span>
+              </p>
+            ) : liveAtt ? (
               <p className="flex items-center gap-2 text-sm font-semibold text-emerald-700" data-my-work="working">
                 <span aria-hidden className="relative flex size-2 shrink-0">
                   <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
@@ -758,7 +777,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   {expert ? '모집 중인 다른 의뢰 보기 →' : '모집 중인 다른 알바 보기 →'}
                 </Link>
               ) : (
-                <Link href="/me" className={`${app.status === 'approved' && unsignedHere && !ended ? 'btn-gray' : 'btn-primary'} flex-1`}>
+                <Link
+                  // 종료 시각이 지났으면 '근무 종료하러 가기'가 눈에 띄게 (빨강 · 서명 버튼 아래에서도 회색에 묻히지 않게)
+                  href={liveAtt && overMin >= 0 ? '/me#clock' : '/me'}
+                  className={`${liveAtt && overMin >= 0 ? 'btn-danger' : app.status === 'approved' && unsignedHere && !ended ? 'btn-gray' : 'btn-primary'} flex-1`}
+                  data-end-go={liveAtt && overMin >= 0 ? 'over' : undefined}
+                >
                   {liveAtt ? '근무 종료하러 가기' : app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
                 </Link>
               )}

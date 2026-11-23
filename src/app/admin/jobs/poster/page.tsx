@@ -38,8 +38,16 @@ export default async function PosterPage() {
           <h1 className="text-2xl font-extrabold text-balance">{admin.companyName} 모집 공고</h1>
           <p className="text-sm text-sub">휴대폰 카메라로 찍으면 지금 모집 중인 공고를 보고 바로 지원할 수 있어요</p>
         </div>
-        <div className="mx-auto w-full max-w-64 rounded-2xl bg-white p-3 ring-1 ring-line [&_svg]:h-auto [&_svg]:w-full" data-poster-qr dangerouslySetInnerHTML={{ __html: svg }} />
-        <p className="text-xs break-all text-mute">{url}</p>
+        {/* QR은 열 때 살짝 톡 (0.25초 · 움직임 줄이기면 바로) */}
+        <div
+          className="mx-auto w-full max-w-64 animate-[pop_0.25s_var(--ease-spring)_both] rounded-2xl bg-white p-3 ring-1 ring-line [&_svg]:h-auto [&_svg]:w-full"
+          data-poster-qr
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+        {/* 주소는 화면에선 한 줄 (회사 번호 중간에서 두 줄로 꺾이던 것 · 전체는 '링크 복사'로) · 인쇄하면 전체 주소 — 정기 개선 2026-11-23 22:35 */}
+        <p className="truncate text-xs text-mute print:break-all print:whitespace-normal" title={url} data-poster-url>
+          {url.replace(/^https?:\/\//, '')}
+        </p>
       </section>
       {open === 0 && (
         <p className="no-print rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900 ring-1 ring-amber-200/70" data-poster-empty>
