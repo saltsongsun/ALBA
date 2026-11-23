@@ -382,7 +382,24 @@ export default async function MePage(props: PageProps<'/me'>) {
       })
       .map((a) => a.job_id),
   )
-  const topDocs = pendingDocs.filter((d) => !signInToday.has(d.job_id))
+  // 서명할 서류마다 그 근무가 언제인지: 이미 시작·끝났으면 빨갛게 위로 (근로계약서는 일하기 전에 받는 것) · 아니면 'M/D 근무 전' (정기 개선 2026-11-23 18:36)
+  const appOfJob = new Map(apps.map((a) => [a.job_id, a]))
+  const docWhen = (jobId: string): { late: boolean; text: string; day: string } => {
+    const a = appOfJob.get(jobId)
+    if (!a?.job) return { late: false, text: '', day: '9999-12-31' }
+    const days = a.available_dates?.length ? [...a.available_dates].sort() : null
+    const first = days ? days[0] : a.job.start_date
+    const last = days ? days[days.length - 1] : a.job.end_date
+    if (last < today) return { late: true, text: '근무 끝남', day: first }
+    if (first <= today) return { late: true, text: '근무 시작됨', day: first }
+    return { late: false, text: `${fmtDate(first)} 근무 전`, day: first }
+  }
+  const topDocs = pendingDocs
+    .filter((d) => !signInToday.has(d.job_id))
+    .sort((x, y) => {
+      const a = docWhen(x.job_id), b = docWhen(y.job_id)
+      return Number(b.late) - Number(a.late) || a.day.localeCompare(b.day)
+    })
   // 위 카드가 없으면 바로 가기(/me#sign-docs)는 오늘의 근무 카드의 첫 '서명 ›' 줄로
   const signAnchorJob = topDocs.length === 0 ? pendingDocs.find((d) => signInToday.has(d.job_id))?.job_id : undefined
   const jobsById = new Map(apps.map((a) => [a.job_id, a.job]))
@@ -798,15 +815,35 @@ export default async function MePage(props: PageProps<'/me'>) {
             서명할 서류가 {topDocs.length}건 있어요
           </h2>
           <div className="space-y-2">
-            {topDocs.map((d) => (
-              <Link key={d.id} href={`/docs/${d.id}`} className="flex items-center justify-between gap-3 rounded-xl bg-bg px-4 py-3 font-semibold transition active:scale-[0.98]">
-                <span className="min-w-0">
-                  <span className="block">{d.title}</span>
-                  <span className="block truncate text-xs font-medium text-mute">{docJobLine(d.job_id)}</span>
-                </span>
-                <span className="shrink-0 whitespace-nowrap text-brand-600">서명 →</span>
-              </Link>
-            ))}
+            {topDocs.map((d, i) => {
+              const when = docWhen(d.job_id)
+              return (
+                // 아랫줄 맨 앞에 근무가 언제인지 (근무 끝남·근무 시작됨은 빨강) · 줄이 차례로 살짝 올라옴 (0.25초 · 움직임 줄이기면 바로)
+                <Link
+                  key={d.id}
+                  href={`/docs/${d.id}`}
+                  className="flex animate-[rise_0.25s_var(--ease-spring)_both] items-center justify-between gap-3 rounded-xl bg-bg px-4 py-3 font-semibold transition active:scale-[0.98]"
+                  style={{ animationDelay: `${Math.min(i, 5) * 40}ms` }}
+                  data-sign-doc={when.late ? 'late' : 'before'}
+                >
+                  <span className="min-w-0">
+                    <span className="block">{d.title}</span>
+                    <span className="block truncate text-xs font-medium text-mute">
+                      {when.text && (
+                        <>
+                          <b className={when.late ? 'font-bold text-rose-600' : 'font-semibold text-amber-700'} data-sign-when>
+                            {when.text}
+                          </b>
+                          {' · '}
+                        </>
+                      )}
+                      {docJobLine(d.job_id)}
+                    </span>
+                  </span>
+                  <span className={`shrink-0 whitespace-nowrap ${when.late ? 'text-rose-600' : 'text-brand-600'}`}>서명 →</span>
+                </Link>
+              )
+            })}
           </div>
         </section>
       )}
