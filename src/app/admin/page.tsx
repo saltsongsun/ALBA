@@ -26,7 +26,7 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { overlapDay } from '@/lib/overlap'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, soleUnreadThread, unpaidByJob, unreadForAdmins, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, soleUnreadThread, unpaidByJob, unreadForAdmins, workedUnsigned, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
@@ -182,6 +182,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 여러 회사를 맡았으면: 다른 회사에 온 새 문의 (바로 그 회사로 바꿔 보기)
   // 여러 회사를 맡았으면: 다른 회사의 새 문의 + 확정을 기다리는 지원자 (회사를 바꿔 보지 않아도 알게)
   const othersP = admin.companies.length > 1 ? otherCompaniesTodo(admin.companies, admin.companyId, true).catch(() => []) : Promise.resolve([])
+  // 일했는데(지난 날 출근 기록) 서류에 아직 서명 안 한 사람 · 이 회사만 (정기 개선 2026-11-23 14:35)
+  const workedUnsignedP = workedUnsigned(admin.companyId, kstDate()).catch(() => [])
   // 새로 합류한 회사 (사흘 안에 관리자로 승인된 곳 · 대표가 아닌 관리자 · 내 소속만): 지금 회사면 한 줄 환영, 다른 회사면 '다른 회사' 줄에 '새로 합류'
   //   승인 알림을 누르면 예전 회사가 먼저 열릴 수 있어서 (첫 회사로 열림) — 정기 개선 2026-11-22 20:35
   const joinedCut = Date.now() - JOINED_DAYS * 86_400_000
@@ -580,7 +582,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // sub: 아래 작은 줄 (줄 글자가 잘려도 어떤 공고인지 보이게 공고 이름을 위로)
   type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string; sub?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
-  const [reviews, otherTodo, myShift, joined] = await Promise.all([reviewsP, othersP, myShiftP, joinedP])
+  const [reviews, otherTodo, myShift, joined, workedUnsignedAll] = await Promise.all([reviewsP, othersP, myShiftP, joinedP, workedUnsignedP])
   // 새로 합류한 다른 회사는 할 일이 없어도 '다른 회사' 줄에 (누르면 그 회사로) — 정기 개선 2026-11-22 20:35
   const otherUnread = [
     ...otherTodo.map((c) => ({ ...c, joined: joined.includes(c.id) })),
@@ -677,6 +679,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       n: g.length,
       href: `/admin/jobs/${g[0].job_id}?tab=docs#unsigned`,
       tone: 'text-amber-700',
+    })),
+    // 일했는데 서명 안 함: 지난 날 출근 기록이 있는데 서류가 아직 서명 대기 (근로계약서는 일하기 전에 줘야 해서 빨갛게)
+    // 오늘 근무로 위 줄에 이미 나온 사람은 빼고 · 아래 작은 줄에 마지막으로 일한 날 · 누르면 그 공고 서류 탭 '서명 안 한 n명' (정기 개선 2026-11-23 14:35)
+    ...group(
+      workedUnsignedAll.filter((w) => !unsignedBy.today.some((a) => a.job_id === w.job_id && a.user_id === w.user_id)),
+      (w) => w.job_id,
+    ).map((g) => ({
+      key: `worked-unsigned-${g[0].job_id}`,
+      icon: 'pen' as const,
+      text: `일했는데 서명 안 함 · ${g[0].title}`,
+      n: g.length,
+      href: `/admin/jobs/${g[0].job_id}?tab=docs#unsigned`,
+      tone: 'text-rose-600',
+      sub: `${fmtDate(g.reduce((d, w) => (w.last > d ? w.last : d), g[0].last))} 근무`,
     })),
     ...group(otAsk, (a) => `${a.job_id}|${a.work_date}`).map((g) => ({
       key: `ot-${g[0].job_id}-${g[0].work_date}`,

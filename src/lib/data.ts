@@ -271,6 +271,59 @@ async function companyNow(companyId: string, today: string, tomorrow: string): P
 }
 
 /**
+ * 일했는데 서명 안 함: 오늘 전 날짜에 출근 기록이 있는데 그 공고 서류가 아직 '서명 대기'인 사람 (최근 30일 근무 · 이 회사 자료만).
+ * 근로계약서는 일하기 전에 줘야 해서, 근무가 끝났어도 빨리 받아 두도록 대시보드 '확인할 일'에 (정기 개선 2026-11-23 14:35)
+ * 공고·사람마다 하나: 마지막으로 일한 날 · 공고 이름
+ */
+export async function workedUnsigned(companyId: string, today: string): Promise<{ job_id: string; user_id: string; title: string; last: string }[]> {
+  const since = kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) - 30 * 86_400_000))
+  const docs = (
+    must(await db().from('signed_docs').select('job_id, user_id, status, company_id').eq('company_id', companyId).eq('status', 'pending').limit(2000)) as {
+      job_id: string
+      user_id: string
+      status: string
+      company_id: string
+    }[]
+  ).filter((d) => d.status === 'pending' && d.company_id === companyId)
+  if (!docs.length) return []
+  const atts = await allByIds<{ job_id: string; user_id: string; work_date: string; company_id: string }>(
+    docs.map((d) => d.job_id),
+    (part, a, b) =>
+      db()
+        .from('attendance')
+        .select('job_id, user_id, work_date, company_id')
+        .eq('company_id', companyId)
+        .in('job_id', part)
+        .gte('work_date', since)
+        .lt('work_date', today)
+        .order('id')
+        .range(a, b),
+  )
+  // 마지막으로 일한 날 (조건을 여기서 한 번 더 — 오늘 근무는 '오늘 근무 · 서명 안 함'이 맡음)
+  const last = new Map<string, string>()
+  for (const a of atts) {
+    if (a.company_id !== companyId || a.work_date >= today || a.work_date < since) continue
+    const k = `${a.job_id}|${a.user_id}`
+    if ((last.get(k) ?? '') < a.work_date) last.set(k, a.work_date)
+  }
+  const hit = docs.filter((d) => last.has(`${d.job_id}|${d.user_id}`))
+  if (!hit.length) return []
+  const jobIds = [...new Set(hit.map((d) => d.job_id))]
+  const jobs = await allByIds<{ id: string; title: string; company_id: string }>(jobIds, (part, a, b) =>
+    db().from('jobs').select('id, title, company_id').eq('company_id', companyId).in('id', part).order('id').range(a, b),
+  )
+  const titleOf = new Map(jobs.filter((j) => j.company_id === companyId).map((j) => [j.id, j.title]))
+  const seen = new Set<string>()
+  return hit.flatMap((d) => {
+    const k = `${d.job_id}|${d.user_id}`
+    // 다른 회사 공고(제목을 못 읽음)거나 같은 사람 서류가 여러 건이면 한 번만
+    if (seen.has(k) || !titleOf.has(d.job_id)) return []
+    seen.add(k)
+    return [{ job_id: d.job_id, user_id: d.user_id, title: titleOf.get(d.job_id)!, last: last.get(k)! }]
+  })
+}
+
+/**
  * 끝난 행사(지난 30일)인데 결과를 못 들은 대기 지원자 (공고별 · 이 회사만 · 보류한 사람은 빼고).
  * 끝난 행사는 '확정 대기'에 안 나와 잊기 쉬움 → 대시보드 '확인할 일'·다른 회사 안내에서 알려 줌
  */

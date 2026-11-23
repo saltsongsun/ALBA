@@ -6,7 +6,7 @@ import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
 import HashFlash from '@/components/HashFlash'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { kstDateTime } from '@/lib/time'
+import { kstDate, kstDateTime } from '@/lib/time'
 import { nudgeAgo } from '@/lib/nudge'
 import { parseChanges } from '@/lib/signals'
 import type { Job, SignedDoc } from '@/lib/types'
@@ -249,7 +249,8 @@ export default function DocsTab({
             <GroupContact
               phones={unsigned.map((u) => users.get(u)?.phone)}
               label="문자"
-              body={`${smsHead(company, job.title)} 근무 전에 근로계약서 등 서류에 서명해 주세요.\n${origin}/me`}
+              // 근무가 이미 시작됐으면 '근무 전에'가 아니라 '아직 서명 안 함'으로 (앱 알림과 같은 말 — 정기 개선 2026-11-23 14:35)
+              body={`${smsHead(company, job.title)} ${job.start_date <= kstDate() ? '근로계약서 등 서류에 아직 서명하지 않았어요. 앱에서 서명해 주세요.' : '근무 전에 근로계약서 등 서류에 서명해 주세요.'}\n${origin}/me`}
               className="btn-white btn-sm"
               copyClassName="btn-white btn-sm"
             />

@@ -1704,7 +1704,13 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
         : `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
   const [title, text] = {
-    sign: [SIGN_NUDGE, `${job.title} ${job.audience === 'expert' ? '시작' : '근무'} 전에 앱 '${myWorkTab(job.audience)}'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`],
+    // 근무가 이미 시작됐거나 끝난 공고면 '근무 전에'가 아니라 '아직 서명 안 함'으로 (대시보드 '일했는데 서명 안 함'에서 보내는 알림 — 정기 개선 2026-11-23 14:35)
+    sign: [
+      SIGN_NUDGE,
+      job.start_date <= kstDate()
+        ? `${job.title} 서류에 아직 서명하지 않았어요. 앱 '${myWorkTab(job.audience)}'에서 서명해 주세요.`
+        : `${job.title} ${job.audience === 'expert' ? '시작' : '근무'} 전에 앱 '${myWorkTab(job.audience)}'에서 서류에 서명해 주세요. 서명해야 근무 시작 버튼이 열려요.`,
+    ],
     clockin: ['⏰ 출근 확인', `${job.title} · 근무 시작 시각(${hhmm(job.start_time)})이 지났어요. 현장에 도착했으면 앱에서 '근무 시작'을 눌러 주세요.`],
     clockout: ['🏁 근무 종료 확인', `${job.title} · 일이 끝났으면 앱에서 '근무 종료'를 눌러 주세요. 계약 시간 이후는 서로 확인한 뒤에만 급여에 들어가요.`],
     account: [SIGNAL.account, `${job.title} 급여를 보내 드리려면 계좌가 필요해요. 앱 '내 정보'에서 은행·계좌번호·예금주를 등록해 주세요.`],
