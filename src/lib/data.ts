@@ -244,7 +244,11 @@ export async function otherCompaniesUnread(companies: { id: string; name: string
  * 그 회사의 지금 일: 확정을 기다리는 지원자 수(보류 빼고 · 모집·마감 상태이고 아직 안 끝난 공고만 — 대시보드 '확정 대기'와 같은 기준)
  * + 오늘 진행하는 행사 수 · 내일 시작하는 행사 수. 공고는 한 번만 읽음
  */
-async function companyNow(companyId: string, today: string, tomorrow: string): Promise<{ waiting: number; today: number; tomorrow: number; unsigned: number }> {
+async function companyNow(
+  companyId: string,
+  today: string,
+  tomorrow: string,
+): Promise<{ waiting: number; today: number; tomorrow: number; unsigned: number; pendingKeys: Set<string> }> {
   const jobs = (
     ((await db().from('jobs').select('id, status, start_date, end_date, contract_method').eq('company_id', companyId).in('status', ['open', 'closed']).gte('end_date', today)).data ?? []) as Pick<
       Job,
@@ -252,7 +256,7 @@ async function companyNow(companyId: string, today: string, tomorrow: string): P
     >[]
   ).filter((j) => (j.status === 'open' || j.status === 'closed') && j.end_date >= today)
   const ids = jobs.map((j) => j.id)
-  if (!ids.length) return { waiting: 0, today: 0, tomorrow: 0, unsigned: 0 }
+  if (!ids.length) return { waiting: 0, today: 0, tomorrow: 0, unsigned: 0, pendingKeys: new Set() }
   // 오늘 진행하는 앱 서명 공고에서 아직 서명 안 한 사람 (대시보드 '오늘 근무 · 서명 안 함'과 같은 일 · 그 회사 서류만)
   const todaySign = jobs.filter((j) => j.start_date <= today && j.contract_method !== 'paper' && j.contract_method !== 'external').map((j) => j.id)
   const [r, docs] = await Promise.all([
@@ -267,6 +271,8 @@ async function companyNow(companyId: string, today: string, tomorrow: string): P
     today: jobs.filter((j) => j.start_date <= today).length,
     tomorrow: jobs.filter((j) => j.start_date === tomorrow).length,
     unsigned: new Set(pending.map((d) => `${d.job_id}|${d.user_id}`)).size,
+    // '서명 없이 근무'에서 같은 사람을 두 번 세지 않게 (진행 중 공고의 서명 대기는 '서명 안 함'에만)
+    pendingKeys: new Set(pending.map((d) => `${d.job_id}|${d.user_id}`)),
   }
 }
 
@@ -358,18 +364,18 @@ export async function otherCompaniesTodo(
   /** role: 그 회사에서 내 역할 — 대표('owner')인 회사만 관리자 가입 신청 수를 셈 (승인은 대표만 할 수 있어서) */
   companies: { id: string; name: string; role?: string }[],
   currentId: string,
-  /** 관리자 홈에서만: 약속한 정산일이 오늘이거나 지났는데 지급 전인 근무자 수 (메뉴의 회사 바꾸기에서는 묻지 않음 — 화면마다 느려지지 않게) */
+  /** 관리자 홈에서만: 약속한 정산일이 오늘이거나 지났는데 지급 전인 근무자 수 · 서명 없이 근무한 사람 수 (메뉴의 회사 바꾸기에서는 묻지 않음 — 화면마다 느려지지 않게) */
   withPay = false,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number }[]> {
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number; worked: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, now, lapsed, payLate, join] = await Promise.all([
+      const [n, now, lapsed, payLate, join, worked] = await Promise.all([
         unreadForAdmins(c.id).catch(() => 0),
-        companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0 })),
+        companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0, pendingKeys: new Set<string>() })),
         lapsedWaiting(c.id, today).then(
           (l) => l.reduce((t, j) => t + j.n, 0),
           () => 0,
@@ -391,11 +397,15 @@ export async function otherCompaniesTodo(
                 () => 0,
               )
           : 0,
+        // 관리자 홈에서만: 그 회사에서 일했는데(지난 날 출근 기록) 서류 서명이 아직인 사람 — 대시보드 '일했는데 서명 안 함'과 같은 기준 (정기 개선 2026-11-23 16:35)
+        withPay ? workedUnsigned(c.id, today).catch(() => []) : [],
       ])
-      return { id: c.id, name: c.name, n, ...now, lapsed, payLate, join }
+      const { pendingKeys, ...counts } = now
+      const workedN = worked.filter((w) => !pendingKeys.has(`${w.job_id}|${w.user_id}`)).length
+      return { id: c.id, name: c.name, n, ...counts, lapsed, payLate, join, worked: workedN }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0)
 }
 
 /**

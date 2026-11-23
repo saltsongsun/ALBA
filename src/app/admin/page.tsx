@@ -588,7 +588,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...otherTodo.map((c) => ({ ...c, joined: joined.includes(c.id) })),
     ...admin.companies
       .filter((c) => c.id !== admin.companyId && joined.includes(c.id) && !otherTodo.some((o) => o.id === c.id))
-      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, joined: true })),
+      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, worked: 0, joined: true })),
   ]
   // 지금 회사에 새로 합류했으면: 대표 관리자 이름 (관리자 목록에서 연락처를 보도록 · 못 읽으면 이름 없이)
   const joinedHere = joined.includes(admin.companyId)
@@ -1088,7 +1088,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0)
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0)
               ? '다른 회사에 확인할 일'
               : otherUnread.some((c) => c.n > 0)
                 ? '다른 회사에 새 문의'
@@ -1125,10 +1125,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     문의 <b className="text-rose-600">{c.n}</b>
                   </span>
                 )}
-                {/* 그 회사 오늘 행사에서 서명 안 한 사람 (서명 전이면 근무 시작이 막힘 — 회사를 바꾸면 '확인할 일' 맨 위에) */}
-                {c.unsigned > 0 && (
-                  <span className="shrink-0 whitespace-nowrap" data-other-unsigned>
-                    서명 안 함 <b className="text-rose-600">{c.unsigned}</b>
+                {/* 그 회사 오늘 행사에서 서명 안 한 사람 (서명 전이면 근무 시작이 막힘 — 회사를 바꾸면 '확인할 일' 맨 위에)
+                    + 일했는데 서류 서명이 아직인 사람 (회사를 바꾸면 '일했는데 서명 안 함' 할 일 · 같은 사람은 한 번만)
+                    칩은 짧게 한 마디로 합쳐서 (회사 이름이 잘리지 않게) — 정기 개선 2026-11-23 16:35 */}
+                {c.unsigned + c.worked > 0 && (
+                  <span className="shrink-0 whitespace-nowrap" data-other-unsigned data-other-worked={c.worked || undefined}>
+                    서명 안 함 <b className="text-rose-600">{c.unsigned + c.worked}</b>
                   </span>
                 )}
                 {c.waiting > 0 && (
@@ -1164,11 +1166,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <h2 className="flex items-center gap-2 font-bold">
             <Icon name="check" className="text-brand-600" />
             확인할 일
-            <span className="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white">{todos.reduce((t, x) => t + x.n, 0)}</span>
+            {/* 30초마다 새로 읽을 때 합계가 바뀌면 숫자가 톡 (같으면 그대로 · 움직임 줄이기면 바로) — 정기 개선 2026-11-23 16:35 */}
+            <span key={todos.reduce((t, x) => t + x.n, 0)} className="animate-[pop_0.25s_var(--ease-spring)_both] rounded-full bg-rose-500 px-2 py-0.5 text-xs font-bold text-white" data-todo-total>
+              {todos.reduce((t, x) => t + x.n, 0)}
+            </span>
           </h2>
           <ul className="divide-y divide-line">
-            {todos.map((t) => (
-              <li key={t.key} className="flex items-center gap-2" data-todo={t.key}>
+            {todos.map((t, i) => (
+              // 줄이 위에서부터 차례로 살짝 올라옴 (0.25초 · 새로 생긴 일만 다시 올라옴 · 움직임 줄이기면 바로)
+              <li
+                key={t.key}
+                className="flex animate-[rise_0.25s_var(--ease-spring)_both] items-center gap-2"
+                style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }}
+                data-todo={t.key}
+              >
                 <Link href={t.href} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
                   <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-bg text-[17px] text-sub">
                     <Icon name={t.icon} />
