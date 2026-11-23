@@ -63,6 +63,9 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
   //   알림 시각은 서류 목록 안에서 이름·공고와 함께 읽음 (차례로 기다리지 않게 · 속도 개선 2026-11-22)
   const { rows, base, all, changes } = await companyDocs(companyId, f, { changes: true })
   const stale = (d: DocRow) => d.status === 'signed' && !!d.signed_at && !!d.job_id && (changes.get(`${d.job_id}:${d.user_id}`) ?? '') > d.signed_at
+  // 근무가 이미 시작됐는데 아직 서명 안 한 서류 (계약서 없이 일하는 중 · 가장 급한 것 · 정기 개선 2026-11-23 12:35)
+  const today = kstDate()
+  const late = (d: DocRow) => d.status === 'pending' && !!d.job && d.job.start_date <= today
   const count = (s: DocRow['status']) => base.filter((d) => d.status === s).length
   const chips: { label: string; status: DocFilter['status']; n: number }[] = [
     { label: '전체', status: null, n: base.filter((d) => d.status !== 'void').length },
@@ -75,6 +78,9 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
   // 공고별로 묶기 (최근 서명·요청 순서 그대로)
   const groups = new Map<string, DocRow[]>()
   for (const d of rows) groups.set(d.job_id, [...(groups.get(d.job_id) ?? []), d])
+  // '서명 대기'만 볼 때: 근무가 이미 시작된 공고 묶음을 맨 위로 (가장 급한 것부터 · 나머지 순서는 그대로)
+  const entries = [...groups.entries()]
+  if (f.status === 'pending') entries.sort((x, y) => Number(y[1].some(late)) - Number(x[1].some(late)))
   const filtered = !!(f.q || f.job || f.status || f.kind)
   // 공고 묶음은 처음엔 접어 둠 (공고가 하나뿐이거나 이름·공고로 찾는 중이면 펼침)
   const openAll = groups.size <= 1 || !!(f.q || f.job)
@@ -114,7 +120,7 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
           <Link
             key={c.label}
             href={`/admin/docs${filterQuery({ ...f, status: c.status })}`}
-            className={`rounded-full px-3 py-1.5 text-[13px] font-semibold tabular-nums ${f.status === c.status ? (c.status === 'pending' ? 'bg-amber-500 text-white' : 'bg-ink text-white') : 'bg-white text-sub ring-1 ring-line'}`}
+            className={`rounded-full px-3 py-1.5 text-[13px] font-semibold tabular-nums transition active:scale-95 ${f.status === c.status ? (c.status === 'pending' ? 'bg-amber-500 text-white' : 'bg-ink text-white') : 'bg-white text-sub ring-1 ring-line'}`}
           >
             {c.label} {c.n}
           </Link>
@@ -159,8 +165,9 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
           </div>
           )}
           {total > DOC_LIMIT && <p className="text-xs text-mute">최근 {DOC_LIMIT}건만 보여요. 공고나 이름으로 좁혀 보세요.</p>}
-          <div className="space-y-3">
-            {[...groups.entries()].map(([jobId, list]) => {
+          {/* 거르기(상태·공고·종류·찾기)를 바꾸면 목록이 살짝 올라옴 (0.25초 · 움직임 줄이기면 바로) */}
+          <div key={filterQuery(f)} className="animate-[rise_0.25s_var(--ease-spring)_both] space-y-3" data-docs-list>
+            {entries.map(([jobId, list]) => {
               const job = list[0].job
               return (
                 <details key={jobId} open={openAll} className="group card overflow-hidden p-0" data-docs-job={jobId}>
@@ -176,12 +183,18 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                         {(() => {
                           const signed = list.filter((d) => d.status === 'signed').length
                           const waiting = list.filter((d) => d.status === 'pending').length
+                          const lateN = list.filter(late).length
                           const changed = list.filter(stale).length
                           return (
                             <>
                               {/* 좁은 화면에서 줄이 바뀌어도 '일정 바뀜 1'처럼 한 덩어리는 끊기지 않게 */}
                               {signed > 0 && <span className="whitespace-nowrap text-emerald-700"> · 서명 {signed}</span>}
-                              {waiting > 0 && <span className="font-semibold whitespace-nowrap text-amber-700"> · 대기 {waiting}</span>}
+                              {waiting > 0 && (
+                                <span className={`font-semibold whitespace-nowrap ${lateN > 0 ? 'text-rose-600' : 'text-amber-700'}`} data-docs-job-waiting={lateN > 0 ? 'late' : 'wait'}>
+                                  {' '}
+                                  · 대기 {waiting}
+                                </span>
+                              )}
                               {changed > 0 && (
                                 <span className="font-semibold whitespace-nowrap text-amber-700" data-docs-job-stale={changed}>
                                   {' '}
@@ -227,6 +240,11 @@ async function Signed({ companyId, f }: { companyId: string; f: DocFilter }) {
                                   </Link>
                                 )}
                               </>
+                            ) : late(d) ? (
+                              // 근무가 시작됐는데 서명 전: 빨갛게 + 눌러서 그 공고 서류 탭 '서명 안 한 사람' (앱 알림 버튼이 번쩍)
+                              <Link href={`/admin/jobs/${d.job_id}?tab=docs#unsigned`} className="tap font-semibold whitespace-nowrap text-rose-600" data-doc-row-late>
+                                서명 안 함 · {d.job!.end_date < today ? '근무 끝남' : '근무 시작됨'} ›
+                              </Link>
                             ) : d.status === 'pending' ? (
                               <span className="font-semibold text-amber-700">서명 대기 · 요청 {fmtDate(kstDate(d.created_at))}</span>
                             ) : (
