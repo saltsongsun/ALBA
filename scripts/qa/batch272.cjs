@@ -80,7 +80,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await nudge.click()
   await p.waitForURL((u) => u.pathname === `/admin/jobs/${J}` && u.hash === '#unsigned', { timeout: 15000 }).catch(() => {})
   await p.locator('#unsigned').waitFor({ timeout: 15000 }).catch(() => {})
-  ok("누르면 '서명 안 한 1명' 칸", one(await p.locator('#unsigned b').first().textContent().catch(() => '')) === '서명 안 한 1명')
+  // 2026-11-23 20:35부터 출근 기록이 있으면 뒤에 '· 일함 n'이 붙음 → 앞부분 '서명 안 한 1명'만 봄
+  ok("누르면 '서명 안 한 1명' 칸", /^서명 안 한 1명( · 일함 \d+)?$/.test(one(await p.locator('#unsigned b').first().textContent().catch(() => ''))))
 
   // ── 4. 전체 보기: 서명한 서류는 PDF 그대로 · 'PDF 받기' 카드도
   await p.goto(`${D}/admin/docs`, { waitUntil: 'networkidle' })

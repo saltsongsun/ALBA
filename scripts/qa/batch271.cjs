@@ -76,7 +76,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await tools.waitFor({ timeout: 15000 }).catch(() => {})
   await p.waitForTimeout(400)
   const flashed = await tools.evaluate((el) => { const f = el.querySelector('[data-flash]'); return f ? (f.textContent ?? '').trim() : null }).catch(() => null)
-  ok("서류 탭 '서명 안 한 1명' 칸 · '앱 알림' 버튼이 번쩍", one(await tools.locator('b').first().textContent().catch(() => '')) === '서명 안 한 1명' && flashed === '앱 알림', String(flashed))
+  // 2026-11-23 20:35부터 출근 기록이 있으면 뒤에 '· 일함 n'이 붙음 → 앞부분 '서명 안 한 1명'만 봄
+  ok("서류 탭 '서명 안 한 1명' 칸 · '앱 알림' 버튼이 번쩍", /^서명 안 한 1명( · 일함 \d+)?$/.test(one(await tools.locator('b').first().textContent().catch(() => ''))) && flashed === '앱 알림', String(flashed))
   const inView = await tools.evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight }).catch(() => false)
   ok('그 칸이 화면 안에 보임', inView)
   if (SHOTS) await tools.screenshot({ path: `${SHOTS}/docs-unsigned-flash.png` }).catch(() => {})

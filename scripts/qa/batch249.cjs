@@ -41,7 +41,8 @@ const nudge = (id, job, ago) => ({ id, thread_user_id: W, sender_id: A, from_adm
   await a.goto(`${D}/admin/jobs/${J}?tab=docs`, { waitUntil: 'networkidle' })
   await tools.waitFor({ timeout: 15000 }).catch(() => {})
   const btns = (await tools.locator('a, button').allInnerTexts()).map(one)
-  ok("한 칸: '서명 안 한 1명' · [앱 알림] [문자] [번호 1개 복사]", one(await tools.locator('b').first().innerText()) === '서명 안 한 1명' && JSON.stringify(btns) === JSON.stringify(['앱 알림', '문자', '번호 1개 복사']), JSON.stringify(btns))
+  // 2026-11-23 20:35부터 출근 기록이 있으면 뒤에 '· 일함 n'이 붙음 → 앞부분 '서명 안 한 1명'만 봄
+  ok("한 칸: '서명 안 한 1명' · [앱 알림] [문자] [번호 1개 복사]", /^서명 안 한 1명( · 일함 \d+)?$/.test(one(await tools.locator('b').first().innerText())) && JSON.stringify(btns) === JSON.stringify(['앱 알림', '문자', '번호 1개 복사']), JSON.stringify(btns))
   ok("'서명 안 한 1명'을 버튼마다 되풀이하지 않음", (await a.getByText(/서명 안 한 \d+명(에게 문자| 앱 알림)/).count()) === 0)
   ok("위 줄은 '서명 완료 n / m건' · PDF · 필요 서류 바꾸기만", (await a.locator('[data-job-docs-pdf]').count()) === 1 && (await a.getByRole('link', { name: '필요 서류 바꾸기' }).count()) === 1)
   const rows = await tools.evaluate((el) => [...el.children].map((c) => Math.round(c.getBoundingClientRect().height)))
