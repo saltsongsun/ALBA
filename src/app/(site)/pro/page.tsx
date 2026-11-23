@@ -240,10 +240,12 @@ export default async function ProHome(props: PageProps<'/pro'>) {
         </section>
       )}
 
-      {/* 답할 견적이 없을 때: 아직 이어진 회사가 없으면 회사에 알려 줄 번호 · 있으면 어느 회사에 등록됐는지 */}
+      {/* 답할 견적이 없을 때: 아직 이어진 회사가 없으면 회사에 알려 줄 번호 · 있으면 어느 회사에 등록됐는지
+          받을 대금이 있으면 큰 빈 카드 대신 대금 아래 한 줄로 (늦은 대금이 첫 화면 위에 오게 · 정기 개선 2026-11-24 03:35) */}
       {vendor &&
         user &&
         toAnswer.length === 0 &&
+        !(linked.length > 0 && unpaid.length > 0) &&
         (linked.length === 0 ? (
           <PartnerShareCard name={user.name} phone={phoneFmt(user.phone)} />
         ) : (
@@ -286,6 +288,13 @@ export default async function ProHome(props: PageProps<'/pro'>) {
             대금 전체 보기 →
           </Link>
         </section>
+      )}
+      {vendor && user && toAnswer.length === 0 && linked.length > 0 && unpaid.length > 0 && (
+        <p className="flex animate-[rise_0.25s_var(--ease-spring)_both] items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm ring-1 ring-line" data-quote-none="home">
+          <Icon name="file" className="shrink-0 text-mute" />
+          <span className="min-w-0 flex-1 truncate font-semibold text-sub">답할 견적 요청이 없어요</span>
+          <span className="shrink-0 text-xs whitespace-nowrap text-mute">등록된 회사 {linked.length}곳</span>
+        </p>
       )}
       {/* 얼굴 사진이 없는 전문가는 등록 창, 그다음 알림 켜기 권유 */}
       {user && type === 'expert' && !photoAt && <PhotoPrompt userId={user.id} name={user.name} />}

@@ -139,10 +139,13 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
       <section>
         <h2 className="section-title">
           <Icon name="file" className="text-brand-600" /> 견적 요청 {quotes.length > 0 && <span className="text-brand-600">{quotes.length}</span>}</h2>
+        {/* 대금은 있는데 견적 요청만 없으면 큰 빈 카드 대신 한 줄 (아래 대금 목록이 첫 화면에 들어오게 · 정기 개선 2026-11-24 03:35) */}
         {quotes.length === 0 ? (
-          <Empty icon="📄" title="받은 견적 요청이 없어요">
-            새 견적 요청이 오면 여기와 휴대폰 알림으로 알려 드려요.
-          </Empty>
+          <p className="card flex animate-[rise_0.25s_var(--ease-spring)_both] items-center gap-2 px-4 py-3 text-sm" data-quote-none="money">
+            <Icon name="file" className="shrink-0 text-mute" />
+            <span className="min-w-0 flex-1 truncate font-semibold text-sub">받은 견적 요청이 없어요</span>
+            <span className="shrink-0 text-xs whitespace-nowrap text-mute">새 요청은 알림으로</span>
+          </p>
         ) : (
           <div className="card divide-y divide-line py-1">
             {quotes.map((q) => {
@@ -175,9 +178,11 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
           <Icon name="card" className="text-brand-600" /> 대금
         </h2>
         {pays.length === 0 ? (
-          <Empty icon="💸" title="아직 대금 내역이 없어요">
-            견적이 선정되면 지급 예정일과 함께 여기에 보여요.
-          </Empty>
+          <p className="card flex animate-[rise_0.25s_var(--ease-spring)_both] items-center gap-2 px-4 py-3 text-sm" data-pay-none>
+            <Icon name="card" className="shrink-0 text-mute" />
+            <span className="min-w-0 flex-1 truncate font-semibold text-sub">아직 대금 내역이 없어요</span>
+            <span className="shrink-0 text-xs whitespace-nowrap text-mute">선정되면 여기에</span>
+          </p>
         ) : (
           <div className="card divide-y divide-line py-1">
             {pays.map((p) => {
