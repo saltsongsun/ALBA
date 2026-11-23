@@ -1,11 +1,13 @@
 import Icon from '@/components/Icon'
+import LiveNumber from '@/components/LiveNumber'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import QRCode from 'qrcode'
 import AutoRefresh from '@/components/AutoRefresh'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { CopyButton, PrintButton } from '@/components/ui'
-import { companyJob } from '@/lib/company'
+import { companyJob, jobInMyOtherCompany } from '@/lib/company'
 import { getSettings } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
@@ -22,7 +24,12 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
   const { id } = await props.params
   if (!isUuid(id)) notFound()
   const job = await companyJob(admin, id)
-  if (!job) notFound()
+  if (!job) {
+    // 띄워 둔 QR 화면에서 다른 회사로 바꿨거나 즐겨찾기로 열었을 때: 내가 맡은 회사 공고면 그 회사로 바꿔서 다시 열기 (정기 개선 2026-11-24 05:35)
+    const other = await jobInMyOtherCompany(admin, id)
+    if (!other) notFound()
+    return <OtherCompanyJob title="다른 회사 공고예요" company={other} now={admin.companyName} open={`/admin/jobs/${id}/qr`} />
+  }
   const today = kstDate()
   const active = ['open', 'closed'].includes(job.status) && dateList(job.start_date, job.end_date).includes(today)
   const url = `${await siteOrigin()}/join/${job.id}?c=${joinCode(job.id, today)}`
@@ -104,23 +111,31 @@ export default async function EmergencyQrPage(props: PageProps<'/admin/jobs/[id]
       </div>
       {active && (
         <section className="no-print card mx-auto max-w-md">
-          <div className="flex items-center justify-between gap-2">
-            <h2 className="font-bold">오늘 QR로 합류한 사람 {joined.length}명</h2>
+          {/* 자동 갱신 글자(시각 포함)가 길어지면 제목을 두 줄로 꺾지 않고 아래 줄로 내려감 */}
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-0.5">
+            {/* 새로 합류하면 숫자가 톡 · 새 줄은 살짝 올라오며 · 상태(서명 대기 → 출근 전 → 근무 중)가 바뀐 배지만 톡 (정기 개선 2026-11-24 05:35) */}
+            <h2 className="font-bold whitespace-nowrap" data-qr-joined-count={joined.length}>
+              오늘 QR로 합류한 사람 <LiveNumber value={joined.length} />명
+            </h2>
             {/* QR을 띄워 둔 채로 합류·서명·출근이 바로 보이게 */}
             <AutoRefresh seconds={10} />
           </div>
           {joined.length === 0 ? (
-            <p className="mt-1 text-sm text-mute">아직 없어요.</p>
+            <p className="mt-1 text-sm text-mute" data-qr-joined-empty>
+              아직 없어요 · 찍으면 여기에 바로 떠요
+            </p>
           ) : (
             <ul className="mt-2 divide-y divide-line text-sm">
               {joined.map((a) => (
-                <li key={a.user_id} className="flex justify-between py-2">
-                  <Link href={`/admin/workers/${a.user_id}`} className="font-semibold">
+                <li key={a.user_id} className="flex animate-[rise_0.25s_var(--ease-spring)_both] items-center justify-between gap-2 py-2" data-qr-joined={a.user_id}>
+                  <Link href={`/admin/workers/${a.user_id}`} className="min-w-0 truncate font-semibold">
                     {a.user?.name ?? '알 수 없음'}
                   </Link>
-                  <span className="flex items-center gap-2">
-                    <span className="text-xs text-mute">{kstTime(a.decided_at!)} 합류</span>
-                    <span className={`badge ${stateOf(a.user_id).cls}`}>{stateOf(a.user_id).label}</span>
+                  <span className="flex shrink-0 items-center gap-2">
+                    <span className="text-xs whitespace-nowrap text-mute">{kstTime(a.decided_at!)} 합류</span>
+                    <span key={stateOf(a.user_id).label} className={`badge animate-[pop_0.25s_var(--ease-spring)_both] ${stateOf(a.user_id).cls}`} data-qr-state>
+                      {stateOf(a.user_id).label}
+                    </span>
                   </span>
                 </li>
               ))}

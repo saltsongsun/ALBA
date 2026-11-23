@@ -3,8 +3,9 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import Flash from '@/components/Flash'
 import JobForm from '@/components/JobForm'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { getSettings } from '@/lib/data'
-import { companyJob } from '@/lib/company'
+import { companyJob, jobInMyOtherCompany } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { contactLabel } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
@@ -34,7 +35,12 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
       .eq('status', 'approved')
       .then((r) => r.count ?? 0, () => 0),
   ])
-  if (!job) notFound()
+  if (!job) {
+    // 내가 맡은 다른 회사의 공고면: 없는 화면 대신 그 회사로 바꿔서 이 화면 열기 (정기 개선 2026-11-24 05:35)
+    const other = await jobInMyOtherCompany(admin, id)
+    if (!other) notFound()
+    return <OtherCompanyJob title="다른 회사 공고예요" company={other} now={admin.companyName} open={`/admin/jobs/${id}/edit`} />
+  }
   const templates = allTemplates.filter((t) => t.active || job.required_docs.includes(t.id))
   return (
     <div className="mx-auto max-w-3xl">

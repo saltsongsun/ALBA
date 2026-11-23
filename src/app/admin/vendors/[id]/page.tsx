@@ -4,7 +4,9 @@ import { notFound } from 'next/navigation'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import Fold from '@/components/Fold'
+import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { VendorForm } from '@/components/vendor'
+import { rowInMyOtherCompany } from '@/lib/company'
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { maskAccount, won } from '@/lib/format'
@@ -23,7 +25,20 @@ export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>
   if (!isUuid(id)) notFound()
   const { data } = await db().from('vendors').select('*').eq('company_id', admin.companyId).eq('id', id).maybeSingle()
   const v = data as Vendor | null
-  if (!v) notFound()
+  if (!v) {
+    // 내가 맡은 다른 회사의 외주 업체면: 없는 화면 대신 그 회사로 바꿔서 열기 (정기 개선 2026-11-24 05:35)
+    const other = await rowInMyOtherCompany(admin, 'vendors', id)
+    if (!other) notFound()
+    return (
+      <OtherCompanyJob
+        title="다른 회사 외주 업체예요"
+        company={other}
+        now={admin.companyName}
+        open={`/admin/vendors/${id}`}
+        back={{ href: '/admin/vendors?tab=list', label: '지금 회사 업체 목록으로' }}
+      />
+    )
+  }
   const [quotes, payments] = await Promise.all([
     db()
       .from('quotes')

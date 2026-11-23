@@ -41,8 +41,14 @@ const ID = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
 const OPEN_JOB = new RegExp(`^/admin/(?:jobs|chat/room)/(${ID})(?:\\?[A-Za-z0-9=&_.-]{1,120})?$`)
 const OPEN_THREAD = new RegExp(`^/admin/chat/(${ID})$`)
 const OPEN_REQUEST = new RegExp(`^/admin/vendors/requests/(${ID})$`)
+// 공고 고치기 · 긴급 투입 QR / 외주 업체 · 서류 서식 (정기 개선 2026-11-24 05:35 — 띄워 둔 QR·즐겨찾기 주소가 회사를 바꾼 뒤에도 열리게)
+const OPEN_JOB_TOOL = new RegExp(`^/admin/jobs/(${ID})/(?:edit|qr)$`)
+const OPEN_ROW: [RegExp, string][] = [
+  [new RegExp(`^/admin/vendors/(${ID})$`), 'vendors'],
+  [new RegExp(`^/admin/docs/(${ID})$`), 'doc_templates'],
+]
 async function openTarget(path: string, companyId: string): Promise<string | null> {
-  const jobId = OPEN_JOB.exec(path)?.[1]
+  const jobId = OPEN_JOB.exec(path)?.[1] ?? OPEN_JOB_TOOL.exec(path)?.[1]
   if (jobId) {
     const { data } = await db().from('jobs').select('company_id').eq('id', jobId).maybeSingle()
     return (data as { company_id: string } | null)?.company_id === companyId ? path : null
@@ -51,6 +57,13 @@ async function openTarget(path: string, companyId: string): Promise<string | nul
   const reqId = OPEN_REQUEST.exec(path)?.[1]
   if (reqId) {
     const { data } = await db().from('quote_requests').select('company_id').eq('id', reqId).maybeSingle()
+    return (data as { company_id: string } | null)?.company_id === companyId ? path : null
+  }
+  // 외주 업체 · 서류 서식: 그 회사 것일 때만
+  for (const [re, table] of OPEN_ROW) {
+    const rowId = re.exec(path)?.[1]
+    if (!rowId) continue
+    const { data } = await db().from(table).select('company_id').eq('id', rowId).maybeSingle()
     return (data as { company_id: string } | null)?.company_id === companyId ? path : null
   }
   // 문의 대화: 그 회사와 주고받은 글이 있는 사람일 때만
