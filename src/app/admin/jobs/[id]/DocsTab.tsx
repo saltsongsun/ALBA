@@ -30,6 +30,7 @@ export default function DocsTab({
   missing = [],
   changes = new Map(),
   flashKey = '',
+  worked = new Set(),
 }: {
   job: Job
   approved: AppRow[]
@@ -47,6 +48,8 @@ export default function DocsTab({
   changes?: Map<string, { at: string; body: string }>
   /** 화면 위 안내 글(m) — 바뀌면 '서명 안 한' 칸 번쩍을 다시 */
   flashKey?: string
+  /** 이 공고에 출근 기록이 있는 사람 — 서명 안 하고 일했으면 빨갛게 (근로계약서는 일하기 전에 줘야 해서) */
+  worked?: Set<string>
 }) {
   const live = docs.filter((d) => d.status !== 'void')
   const voided = docs.filter((d) => d.status === 'void')
@@ -56,6 +59,8 @@ export default function DocsTab({
     : [...new Map(live.map((d) => [d.template_id ?? d.title, { id: d.template_id ?? d.title, title: d.title }])).values()]
   const signedCount = live.filter((d) => d.status === 'signed').length
   const unsigned = [...new Set(live.filter((d) => d.status === 'pending').map((d) => d.user_id))]
+  // 서명 안 한 사람 중 이미 일한 사람 (출근 기록 있음) — 먼저 받아야 할 사람 (정기 개선 2026-11-23 20:35)
+  const workedUnsigned = unsigned.filter((u) => worked.has(u)).length
   // 마지막 '서명 요청' 알림 때 (방금 · n분 전 · 오늘 14:02) — 30분 안이면 다시 보낼 때 한 번 더 확인
   const ago = nudgeAgo(lastNudge)
   // 서명한 뒤에 '🔔 일정 변경'을 받은 사람의 서류: 바뀌기 전 내용으로 서명됨 → 재서명할지 확인 (정기 개선 2026-11-22 02:35 · 자동으로 무효 처리하지 않음)
@@ -233,7 +238,14 @@ export default function DocsTab({
           {/* 같은 화면에서 일괄 재서명 뒤 돌아왔을 때도 다시 번쩍 (안내 글이 바뀌면 새로 그림) */}
           <HashFlash key={flashKey} id="unsigned" />
           <p className="flex items-baseline justify-between gap-2 text-sm">
-            <b className="shrink-0">서명 안 한 {unsigned.length}명</b>
+            <b className="shrink-0">
+              서명 안 한 {unsigned.length}명
+              {workedUnsigned > 0 && (
+                <span className="inline-block animate-[pop_0.25s_var(--ease-spring)_both] font-bold text-rose-600" data-unsigned-worked>
+                  &nbsp;· 일함 {workedUnsigned}
+                </span>
+              )}
+            </b>
             {ago && (
               <span className={`min-w-0 truncate text-xs ${ago.recent ? 'font-semibold text-amber-700' : 'text-mute'} ${ago.when === '방금' ? 'inline-block animate-pop' : ''}`} data-last-nudge={ago.recent ? 'recent' : 'old'}>
                 앱 알림 {ago.when} 보냄
@@ -318,6 +330,11 @@ export default function DocsTab({
                           {d.status === 'signed' ? (
                             <Link href={`/docs/${d.id}`} className="badge bg-emerald-50 text-emerald-700">
                               서명 {kstDateTime(d.signed_at!)}
+                            </Link>
+                          ) : worked.has(uid) ? (
+                            // 서명 전인데 이미 일함 (출근 기록 있음) → 빨갛게
+                            <Link href={`/docs/${d.id}`} className="badge whitespace-nowrap bg-rose-50 text-rose-700" data-doc-worked>
+                              서명 대기 · 일함
                             </Link>
                           ) : (
                             <Link href={`/docs/${d.id}`} className="badge bg-amber-50 text-amber-700">
