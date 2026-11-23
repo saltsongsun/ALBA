@@ -38,7 +38,8 @@ const DAY = '[일월화수목금토]'
   const span = { start_date: kstDay(now - 864e5), end_date: kstDay(now + 864e5), start_time: '00:00:00', end_time: '23:59:00' }
   await rest(`jobs?id=eq.${J}`, 'PATCH', span)
   const inAt = now - 40 * 60e3
-  await rest(`attendance?user_id=eq.${W}`, 'PATCH', { work_date: kstDay(inAt), clock_in: new Date(inAt).toISOString(), clock_out: null })
+  // 그날 근무 시간은 지금을 감싸게 (자정 언저리에 출근 날이 어제가 되면 어제 23:59에 끝난 근무가 되어 '종료 지남'으로 바뀜 — 정기 개선 2026-11-23 22:35)
+  await rest(`attendance?user_id=eq.${W}`, 'PATCH', { work_date: kstDay(inAt), clock_in: new Date(inAt).toISOString(), clock_out: null, sched_start: `${kstHm(inAt)}:00`, sched_end: `${kstHm(now + 3 * 3600e3)}:00` })
   const open = async () => { await w.goto(`${D}/jobs/${J}`); await w.locator('[data-apply-steps]').waitFor({ timeout: 15000 }).catch(() => {}) }
   const line = w.locator('[data-my-work]')
   const steps = w.locator('[data-apply-steps]')
