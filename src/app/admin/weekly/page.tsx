@@ -161,7 +161,8 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
         <Link href={`/admin/weekly?w=${addDays(ws, -7)}`} className="grid size-10 shrink-0 place-items-center rounded-xl text-lg font-bold text-sub active:bg-bg" aria-label="지난 주" data-week-prev>
           ‹
         </Link>
-        <Link href="/admin/weekly" className="min-w-0 flex-1 text-center text-sm leading-tight font-bold whitespace-nowrap" data-week-range>
+        {/* 주를 바꾸면 날짜가 톡 (0.25초 · 움직임 줄이기면 바로 · 정기 개선 2026-11-23 10:35) */}
+        <Link key={ws} href="/admin/weekly" className="min-w-0 flex-1 animate-[pop_0.25s_var(--ease-spring)_both] text-center text-sm leading-tight font-bold whitespace-nowrap" data-week-range>
           <span className={`block text-[11px] font-semibold ${thisWeek ? 'text-brand-600' : 'text-mute'}`}>{thisWeek ? '이번 주' : '이번 주로'}</span>
           {range}
         </Link>
@@ -171,21 +172,22 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
       </nav>
 
       {/* 한눈에: 숫자 둘 */}
-      <div className="grid grid-cols-2 gap-3" data-weekly-tiles>
-        <div className="card min-w-0 px-4 py-3">
-          <p className="truncate text-xs font-semibold text-mute">예상 인건비</p>
+      {/* 숫자를 누르면 그 숫자의 내역으로 (인건비 → 공고별 · 주휴 → 근무자별, 내려간 곳 테두리가 한 번 퍼짐) · 주를 바꾸면 살짝 올라옴 */}
+      <div key={ws} className="grid animate-[rise_0.25s_var(--ease-spring)_both] grid-cols-2 gap-3" data-weekly-tiles>
+        <a href="#weekly-jobs" className="card-link min-w-0 px-4 py-3" data-weekly-tile="labor">
+          <p className="truncate text-xs font-semibold text-mute">예상 인건비 ›</p>
           <p className="truncate text-[22px] leading-tight font-extrabold tabular-nums">
             <LiveNumber value={labor + holidayWon} countUp />
             <span className="text-sm font-bold">원</span>
           </p>
-        </div>
-        <div className="card min-w-0 px-4 py-3">
-          <p className="truncate text-xs font-semibold text-mute">주휴수당 · {holiday.length}명</p>
+        </a>
+        <a href="#weekly-people" className="card-link min-w-0 px-4 py-3" data-weekly-tile="holiday">
+          <p className="truncate text-xs font-semibold text-mute">주휴수당 · {holiday.length}명 ›</p>
           <p className="truncate text-[22px] leading-tight font-extrabold text-emerald-700 tabular-nums">
             <LiveNumber value={holidayWon} countUp />
             <span className="text-sm font-bold">원</span>
           </p>
-        </div>
+        </a>
       </div>
       {before && (
         <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-xs font-semibold text-amber-900" data-weekly-before>
@@ -213,7 +215,7 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
       )}
 
       {/* 근무자별 주휴 */}
-      <section className="card p-0" data-weekly-people>
+      <section id="weekly-people" className="card scroll-mt-20 p-0" data-weekly-people data-target-flash>
         <h2 className="px-4 pt-3.5 pb-2 font-bold">근무자 {sorted.length}명</h2>
         {sorted.length === 0 ? (
           <p className="border-t border-line px-4 py-3 text-sm text-sub">이 주에 잡힌 근무가 없어요</p>
@@ -252,7 +254,7 @@ export default async function WeeklyPage(props: { searchParams: Promise<Record<s
       </section>
 
       {/* 공고별 예상 인건비 */}
-      <section className="card p-0" data-weekly-jobs>
+      <section id="weekly-jobs" className="card scroll-mt-20 p-0" data-weekly-jobs data-target-flash>
         <h2 className="px-4 pt-3.5 pb-2 font-bold">공고 {jobRows.length}개</h2>
         {jobRows.length === 0 ? (
           <p className="border-t border-line px-4 py-3 text-sm text-sub">이 주에 잡힌 공고가 없어요</p>
