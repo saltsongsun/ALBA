@@ -22,6 +22,7 @@ import { BANKS } from '@/lib/privacy'
 import { fixTime } from '@/lib/signals'
 import { kstDate, kstTime, minutesText } from '@/lib/time'
 import AccountDigits from './AccountDigits'
+import Icon from './Icon'
 import { onAccountPaste } from './accountPaste'
 import { onPhoneInput, phoneShown } from './phoneTyping'
 import Fold from './Fold'
@@ -127,8 +128,18 @@ export function StartCountdown({
     const h = Math.floor(m / 60)
     return h ? `${h}시간${m % 60 ? ` ${m % 60}분` : ''}` : `${m}분`
   }
-  // 3시간보다 많이 남았거나 근무 시간이 다 지났으면 표시 안 함
-  if (diff > 180 || now >= Date.parse(endAt)) return null
+  // 근무 시간이 다 지났으면 표시 안 함
+  if (now >= Date.parse(endAt)) return null
+  // 3시간보다 많이 남았으면 회색 한 줄로 조용히 (새벽에 열어도 '근무 시작' 버튼만 덩그러니 있지 않게 · 아직 멀었다는 걸 바로 알게) — 정기 개선 2026-11-24 01:35
+  if (diff > 180)
+    return (
+      <p className="flex items-center gap-1.5 px-1 text-sm text-sub" data-start-far>
+        <Icon name="clock" className="shrink-0 text-mute" />
+        <span>
+          {startText} 시작까지 <b className="font-semibold text-ink tabular-nums">{span(diff)}</b>
+        </span>
+      </p>
+    )
   if (diff <= 0 && confirmedAt && Date.parse(confirmedAt) > Date.parse(startAt))
     return (
       <p className="flex items-center gap-2.5 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900" data-start-late="after-confirm">

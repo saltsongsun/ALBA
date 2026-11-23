@@ -77,7 +77,11 @@ export default function Ranking({ joined, members, top, me, canJoin, weekLabel }
           <p className="text-xs text-mute">근무자 계정만 참여할 수 있어요.</p>
         ))}
       <p className="border-t border-line pt-2.5 text-xs break-keep text-mute" data-rank-rules>
-        출석 {RANK_POINTS.checkin} · 근무 마침 {RANK_POINTS.shift} · 글 {RANK_POINTS.post} · 댓글 {RANK_POINTS.comment}점 (글 {RANK_CAPS.post}개 · 댓글 {RANK_CAPS.comment}개까지) · 월요일에 새로 시작
+        {/* 묶음마다 한 덩어리로 (360px에서 '댓글 / 10개까지'처럼 괄호 중간에서 꺾이지 않게) — 정기 개선 2026-11-24 01:35 */}
+        <span className="whitespace-nowrap">출석 {RANK_POINTS.checkin} · 근무 마침 {RANK_POINTS.shift}</span> ·{' '}
+        <span className="whitespace-nowrap">글 {RANK_POINTS.post} · 댓글 {RANK_POINTS.comment}점</span>{' '}
+        <span className="whitespace-nowrap">(글 {RANK_CAPS.post}개 · 댓글 {RANK_CAPS.comment}개까지)</span> ·{' '}
+        <span className="whitespace-nowrap">월요일에 새로 시작</span>
       </p>
     </section>
   )

@@ -115,7 +115,7 @@ export default async function CompanyReviewsPage(props: PageProps<'/community/co
             </span>
           ) : (
             <>
-              이 회사에서 일했다면 <Link href="/me/history" className="font-semibold text-brand-600">지난 근무</Link>에서 첫 후기를 남겨 주세요.
+              이 회사에서 일했다면 <Link href="/me/history" className="font-semibold whitespace-nowrap text-brand-600">지난 근무</Link>에서 첫 후기를 남겨 주세요.
             </>
           )}
         </Empty>
