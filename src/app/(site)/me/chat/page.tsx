@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_NOEND, ASK_PAYDUE, ASK_PAYLATE, invoiceTag } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_DOCS, ASK_INVOICE, ASK_MISSED, ASK_NOEND, ASK_PAYDUE, ASK_PAYLATE, invoiceTag } from '@/lib/signals'
 import { partnerCompanies, partnerPayments } from '@/lib/partners'
 import { won } from '@/lib/format'
 import { sendInquiry } from '@/app/actions/chat'
@@ -54,6 +54,8 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
   const askInfo = sp.ask === 'info'
   const askMissed = sp.ask === 'missed'
   const askConfirm = sp.ask === 'confirm'
+  // 공고 화면 '서명할 서류를 곧 보내 드려요 · 담당자에게 알리기' → 첫 빠른 답이 '확정됐는데 서명할 서류를 아직 못 받았어요…' (그 공고 회사 문의함)
+  const askDocs = sp.ask === 'docs'
   // '지난 근무'에서 정산일이 지난 입금 대기 → 첫 빠른 답이 '정산일이 지났는데 급여가 아직…'
   const askPayLate = sp.ask === 'paylate'
   // 명세서·확인서의 '종료 기록 없음 · 담당자에게 알리기' → 첫 빠른 답이 '근무 종료 기록이 빠진 날이 있어요… (11/20(목))' (날짜는 형식이 맞는 것만 · 5개까지)
@@ -281,7 +283,7 @@ export default async function ChatPage(props: PageProps<'/me/chat'>) {
         <ChatComposer
           action={sendInquiry.bind(null, companyId ?? '', job?.id ?? null)}
           placeholder={support(companyId) ? '고객센터에 보낼 내용' : '담당자에게 보낼 내용'}
-          quickReplies={paydueAsk ? [paydueAsk] : invoiceAsk ? [invoiceAsk] : noEndAsk ? [noEndAsk, ...QUICK_DONE] : askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askPayLate ? [ASK_PAYLATE, ...QUICK_DONE.filter((q) => !q.startsWith('급여'))] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
+          quickReplies={paydueAsk ? [paydueAsk] : invoiceAsk ? [invoiceAsk] : noEndAsk ? [noEndAsk, ...QUICK_DONE] : askInfo ? [ASK_INFO, ...(support(companyId) ? QUICK_SUPPORT : QUICK_DAY).filter((q) => !q.startsWith('계좌·전화번호'))] : askMissed ? [ASK_MISSED, ...QUICK_DAY] : askDocs && job ? [ASK_DOCS, ...QUICK_JOB.filter((q) => q !== '아직 지원할 수 있나요?')] : askPayLate ? [ASK_PAYLATE, ...QUICK_DONE.filter((q) => !q.startsWith('급여'))] : askConfirm && job ? QUICK_WAIT : job ? QUICK_JOB : support(companyId) ? QUICK_SUPPORT : onlyWaiting ? QUICK_WAIT : quickDay}
           context={
             job && (
               <p className="flex items-center gap-1.5 text-xs font-semibold text-sub">

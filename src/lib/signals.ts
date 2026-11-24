@@ -22,6 +22,12 @@ export const ASK_PAYLATE = '정산일이 지났는데 급여가 아직 안 들�
  * 정기 개선 2026-11-22 23:35
  */
 export const ASK_NOEND = '근무 종료 기록이 빠진 날이 있어요. 확인 부탁드려요.'
+/**
+ * 근무자 공고 화면 '서명할 서류를 곧 보내 드려요'(보낼 때가 지났는데 아직 없음) → 그 공고 회사 담당자에게
+ * (문의함 '서류 요청' 표시 · 서류 탭 '지금 보내기'로) — 정기 개선 2026-11-25 06:35
+ */
+export const ASK_DOCS = '확정됐는데 서명할 서류를 아직 못 받았어요. 확인 부탁드려요.'
+export const isDocsAsk = (body: string) => body.startsWith(ASK_DOCS.slice(0, 14))
 export const isNoEndAsk = (body: string) => body.startsWith(ASK_NOEND.slice(0, 14))
 /** 근무자의 '정산일 지남' 급여 문의인지 (앞부분만 보고 · 뒤에 말을 덧붙여도) */
 export const isPayLateAsk = (body: string) => body.startsWith(ASK_PAYLATE.slice(0, 12))
@@ -159,6 +165,7 @@ export function askTag(body: string): { label: string; urgent: boolean } | null 
   if (head.startsWith(SIGNAL.fix)) return { label: '기록 정정', urgent: false }
   if (isNoEndAsk(head)) return { label: '종료 기록', urgent: false }
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return { label: '확정 문의', urgent: false }
+  if (isDocsAsk(head)) return { label: '서류 요청', urgent: false }
   if (head.startsWith(ASK_INVOICE)) return { label: '계산서', urgent: false }
   if (head.startsWith(ASK_PAYDUE)) return { label: '대금 문의', urgent: false }
   if (isPayLateAsk(head)) return { label: '급여 문의', urgent: true }

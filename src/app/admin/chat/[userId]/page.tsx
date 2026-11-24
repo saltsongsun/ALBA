@@ -19,7 +19,7 @@ import ReadSync from '@/components/ReadSync'
 import { db, must } from '@/lib/db'
 import { requireAdmin } from '@/lib/session'
 import { workerInCompany } from '@/lib/company'
-import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, ASK_PAYLATE, invoiceTag, isNoEndAsk, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
+import { ASK_CONFIRM, ASK_INVOICE, ASK_MISSED, ASK_PAYDUE, ASK_PAYLATE, invoiceTag, isDocsAsk, isNoEndAsk, isRequestAnswer, parsePayday, SIGNAL } from '@/lib/signals'
 import { markInvoice, markVendorPaid } from '@/app/actions/vendor'
 import { agreedShiftFor } from '@/lib/shift'
 import { won } from '@/lib/format'
@@ -48,6 +48,8 @@ function repliesFor(last: ChatMessage | undefined): string[] {
   if (head.startsWith(ASK_PAYDUE)) return ['확인해 보고 오늘 안에 알려 드릴게요.', '늦어서 죄송해요. 이번 주 안에 지급할게요.']
   // '지원했는데 확정 여부가 궁금해요' (곧 시작인데 아직 확정 전인 지원자)
   if (head.startsWith(ASK_CONFIRM.slice(0, 12))) return ['확정했어요. 내 근무에서 확인해 주세요.', '검토 중이에요. 오늘 안에 알려 드릴게요.', '이번에는 인원이 다 찼어요. 다음에 꼭 함께해요.']
+  // '확정됐는데 서명할 서류를 아직 못 받았어요' (공고 화면 '곧 보내 드려요'에서 · 정기 개선 2026-11-25 06:35)
+  if (isDocsAsk(head)) return ['서류를 보냈어요. 내 근무에서 서명해 주세요.', '확인해 보고 바로 보내 드릴게요.']
   return []
 }
 

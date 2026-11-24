@@ -403,12 +403,18 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <span className="badge bg-gray-100 text-mute">마감</span>
           )}
           {/* 행사가 끝났는데 확정되지 않은 지원은 '지원완료' 대신 '미확정' (아래 결과 칸 · 내 근무 화면과 같은 말 — 정기 개선 2026-11-21 20:35) */}
+          {/* 내 지원 상태 배지를 누르면 맨 아래 '내 지원' 칸으로 (긴 공고를 내리지 않아도 · 도착하면 테두리가 짧게 한 번) — 정기 개선 2026-11-25 06:35 */}
           {app && lapsed ? (
-            <span className="badge bg-bg text-mute" data-app-badge="lapsed">
+            <a href="#apply" className="badge tap bg-bg text-mute transition active:scale-95" data-app-badge="lapsed" aria-label="내 지원 상태 보기">
               미확정
-            </span>
+            </a>
           ) : (
-            app && APP_STATUS[app.status] && <span className={`badge ${APP_STATUS[app.status].cls}`} data-app-badge={app.status}>{APP_STATUS[app.status].label}</span>
+            app &&
+            APP_STATUS[app.status] && (
+              <a href="#apply" className={`badge tap transition active:scale-95 ${APP_STATUS[app.status].cls}`} data-app-badge={app.status} aria-label="내 지원 상태 보기">
+                {APP_STATUS[app.status].label} ↓
+              </a>
+            )
           )}
           {job.event_name && <span className="text-xs font-semibold text-mute">{job.event_name}</span>}
         </div>
@@ -647,7 +653,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
       )}
       {/* 내 근무의 '못 가요'에서 왔을 때: 취소 칸으로 내려가 테두리로 표시 */}
       <HashFocus prefix="cant" />
-      <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl">
+      <div id="apply" className="mt-4 scroll-mt-20 space-y-3 rounded-2xl" data-target-ring>
         {clashes.length > 0 && (
           <div className="animate-pop rounded-2xl bg-amber-50 p-4 text-sm ring-1 ring-amber-200/70">
             <p className="font-bold text-amber-900">⚠️ 같은 시간에 잡힌 근무가 있어요</p>
@@ -706,25 +712,33 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                     : '이번에는 함께하지 못하게 됐어요.'}
             </p>
             {/* 서명 서류는 모집이 끝나면 옴 (지금은 할 일 없음 · 오면 알림) · 보낼 때가 지났는데 아직이면 '곧' */}
-            {docsWait && (
-              <p className="flex items-center gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-docs-later={docsLater ? '' : 'soon'}>
+            {docsWait && docsLater && (
+              <p className="flex items-center gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-docs-later="">
                 <Icon name="file" className="shrink-0 text-mute" />
                 <span className="min-w-0">
-                  {docsLater ? (
-                    <>
-                      서명할 서류는 <b className="font-semibold text-ink">모집이 끝나면</b> 보내 드려요
-                      {/* 늦어도 언제 오는지 날짜로 (근무 전날 저녁 6시 · 정기 개선 2026-11-25) */}
-                      <span className="block text-xs text-mute" data-docs-auto-at={docsAt ?? ''}>
-                        늦어도 {docsAt ?? '근무 전날 저녁'}에 알림으로 와요
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      서명할 서류를 <b className="font-semibold text-ink">곧</b> 보내 드려요 · 근무 시작 전에 서명해 주세요
-                    </>
-                  )}
+                  서명할 서류는 <b className="font-semibold text-ink">모집이 끝나면</b> 보내 드려요
+                  {/* 늦어도 언제 오는지 날짜로 (근무 전날 저녁 6시 · 정기 개선 2026-11-25) */}
+                  <span className="block text-xs text-mute" data-docs-auto-at={docsAt ?? ''}>
+                    늦어도 {docsAt ?? '근무 전날 저녁'}에 알림으로 와요
+                  </span>
                 </span>
               </p>
+            )}
+            {/* 보낼 때가 지났는데 서류가 아직 없음: 줄 전체를 누르면 그 회사 문의함에 '서류를 아직 못 받았어요'가 첫 빠른 답으로 (정기 개선 2026-11-25 06:35) */}
+            {docsWait && !docsLater && (
+              <Link
+                href={`/me/chat?job=${job.id}&ask=docs`}
+                className="flex items-center gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub transition active:scale-[0.98]"
+                data-docs-later="soon"
+              >
+                <Icon name="file" className="shrink-0 text-mute" />
+                <span className="min-w-0">
+                  서명할 서류를 <b className="font-semibold text-ink">곧</b> 보내 드려요 · 근무 시작 전에 서명해 주세요
+                  <span className="block text-xs font-semibold text-brand-700" data-docs-ask>
+                    아직 안 왔으면 담당자에게 알리기 →
+                  </span>
+                </span>
+              </Link>
             )}
             {/* 이미 출근했으면: 지금 근무 중인지 · 마지막으로 근무한 날과 시간 (확정만 보이던 칸에 내 진행 상태) */}
             {liveAtt ? (

@@ -192,7 +192,8 @@ const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
   const w7 = await pg(U(7))
   await open(w7, `/jobs/${JT}`)
   const soon = w7.locator('[data-docs-later="soon"]')
-  ok("오늘 근무 · 서류 아직 없음: '서명할 서류를 곧 보내 드려요 · 근무 시작 전에 서명해 주세요' · 서명 버튼 없음", one(await soon.innerText().catch(() => '')) === '서명할 서류를 곧 보내 드려요 · 근무 시작 전에 서명해 주세요' && (await w7.locator('[data-sign-cta]').count()) === 0, one(await soon.innerText().catch(() => '')))
+  // (정기 개선 2026-11-25 06:35) 줄을 누르면 담당자에게 알리기 — 아래 작은 줄 '아직 안 왔으면 담당자에게 알리기 →'
+  ok("오늘 근무 · 서류 아직 없음: '서명할 서류를 곧 보내 드려요 · 근무 시작 전에 서명해 주세요' (+ 담당자에게 알리기) · 서명 버튼 없음", one(await soon.innerText().catch(() => '')) === '서명할 서류를 곧 보내 드려요 · 근무 시작 전에 서명해 주세요 아직 안 왔으면 담당자에게 알리기 →' && (await w7.locator('[data-sign-cta]').count()) === 0, one(await soon.innerText().catch(() => '')))
   // ── 10. 안전장치: 근무일에 서류 없이 근무 시작 → 그때 서류를 만들고 먼저 서명하게
   await open(w7, '/me')
   const btn = w7.locator('[data-clock-main]').first()

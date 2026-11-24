@@ -981,6 +981,15 @@ html[data-text='lg'] {
 [data-target-flash]:target {
   animation: flash-ring 1s ease-out 1;
 }
+/* 같은 화면의 배지·칩을 눌러 내려온 칸: 테두리가 짧게 한 번 (0.3초 · 움직임 줄이기면 없음) — 공고 화면 '내 지원' 칸 · 정기 개선 2026-11-25 06:35 */
+[data-target-ring]:target {
+  animation: flash-ring 0.3s ease-out 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-target-ring]:target {
+    animation: none;
+  }
+}
 /* 같은 화면의 칩(#이름)을 눌러 접힌 카드가 펼쳐지며 내려왔을 때: 그 카드 테두리가 짧게 한 번 (어디가 열렸는지 보이게 · 움직임 줄이기면 없음) — 정기 개선 2026-11-21 13:35 */
 .fold-card:target {
   animation: flash-ring 0.3s ease-out 1;

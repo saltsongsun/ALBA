@@ -59,7 +59,8 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
 
   // ── 2. 아직 행사 전 → 예전처럼 '지원완료'
   await go(p, `/jobs/${JF}`)
-  ok("행사 전: 위 배지 '지원완료' (예전 그대로)", (await p.locator('[data-app-badge]').getAttribute('data-app-badge')) === 'applied' && one(await p.locator('[data-app-badge]').innerText()) === '지원완료')
+  // (정기 개선 2026-11-25 06:35) 배지를 누르면 '내 지원' 칸으로 — 끝에 작은 ↓
+  ok("행사 전: 위 배지 '지원완료' (예전 그대로)", (await p.locator('[data-app-badge]').getAttribute('data-app-badge')) === 'applied' && /^지원완료( ↓)?$/.test(one(await p.locator('[data-app-badge]').innerText())))
 
   // ── 3. 커뮤니티 놀이터 줄: 출석 전 칩 + 짧은 글 · 잘리지 않음
   const cut = (pg) => pg.locator('[data-play-entry-text]').evaluate((e) => e.scrollWidth > e.clientWidth + 1)
