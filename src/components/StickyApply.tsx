@@ -18,6 +18,7 @@ export default function StickyApply({
   note,
   cta = '지원하기',
   hrefLabel = '1분 가입하고 지원',
+  live,
 }: {
   targetId: string
   title: string
@@ -32,6 +33,8 @@ export default function StickyApply({
   cta?: string
   /** href가 있을 때 버튼 글자 (확정 뒤 서명이 남았으면 '서명하기') */
   hrefLabel?: string
+  /** 오늘 근무가 곧 시작(soon · 주황 점)하거나 이미 시작(started · 초록 점이 숨쉬듯)했을 때 안내 앞 표시 */
+  live?: 'soon' | 'started'
 }) {
   const [mounted, setMounted] = useState(false)
   const [targetVisible, setTargetVisible] = useState(false)
@@ -68,8 +71,14 @@ export default function StickyApply({
       <div className="glass mx-auto flex max-w-md animate-slide-up items-center gap-3 rounded-[22px] p-2 pl-4">
         <div className="min-w-0 flex-1">
           {note ? (
-            <p className="truncate text-xs font-semibold text-amber-700" data-sticky-note>
-              {note}
+            <p className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-amber-700" data-sticky-note>
+              {live && (
+                <span className="relative flex size-2 shrink-0" aria-hidden data-sticky-live={live}>
+                  {live === 'started' && <span className="absolute inset-0 animate-ping rounded-full bg-emerald-400 opacity-60" />}
+                  <span className={`relative size-2 rounded-full ${live === 'started' ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                </span>
+              )}
+              <span className="min-w-0 truncate">{note}</span>
             </p>
           ) : (
             <p className="truncate text-xs text-mute">{title}</p>

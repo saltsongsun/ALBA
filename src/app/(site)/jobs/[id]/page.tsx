@@ -235,6 +235,29 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const asWorker = !!user && (user.role === 'worker' || !ownJob)
   const needPhoto = !!user && asWorker && user.memberType !== 'vendor' && !photoAt
   const needIdentity = !!user && user.role === 'admin' && !ownJob && !me?.rrn_masked
+  // 오늘 근무가 곧 시작하거나 이미 시작했을 때 지원 칸에 안내 · 아래 바에 짧은 한 줄 (비회원도 가입 전에 보게 — 정기 개선 2026-11-24 17:35)
+  const timing: { kind: 'soon' | 'started'; bar: string } | null = startsSoon
+    ? { kind: 'soon', bar: `${minutesText(soonMin)} 뒤 시작` }
+    : startedToday
+      ? { kind: 'started', bar: `${hhmm(job.start_time)}~${hhmm(job.end_time)} 진행 중` }
+      : null
+  const timingNote = (
+    <>
+      {startsSoon && (
+        <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-soon-note>
+          <b className="block font-semibold">
+            {hhmm(job.start_time)} 시작 · {minutesText(soonMin)} 뒤예요
+          </b>
+          <span className="block">늦지 않게 갈 수 있을 때 지원해 주세요</span>
+        </p>
+      )}
+      {startedToday && (
+        <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-started-note>
+          {hhmm(job.start_time)}에 이미 시작한 {expert ? '일정이에요' : '근무예요'}. 지원하면 담당자가 확인한 뒤 알려 드려요.
+        </p>
+      )}
+    </>
+  )
   const wrongType = !!user && asWorker && !canApplyTo(user.memberType, job.audience)
   // 전에 확정돼 일한 회사 (이 공고 말고 다른 공고 · 근무가 시작됨 · 취소 공고는 빼고) — 회사 이름 옆·아래 다른 공고 카드에 '✓ 일했던 곳'
   const workedMine = mine.filter((m) => m.status === 'approved' && m.job && m.job.status !== 'cancelled' && m.job.start_date <= kstDate())
@@ -587,7 +610,9 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
           href={user ? undefined : `/signup?type=${job.audience === 'expert' ? 'expert' : 'worker'}&next=${encodeURIComponent(path)}`}
           aboveTabs={!!user}
           // 얼굴 사진이 없으면 아래 칸이 '사진 올리기'라서, 바도 그대로 말해 줌 (눌렀는데 지원이 아니라 놀라지 않게)
-          note={needPhoto ? '지원 전에 얼굴 사진 1장이 필요해요' : needIdentity ? '처음 한 번 근무자 정보가 필요해요' : undefined}
+          note={needPhoto ? '지원 전에 얼굴 사진 1장이 필요해요' : needIdentity ? '처음 한 번 근무자 정보가 필요해요' : timing?.bar}
+          // 오늘 곧 시작·이미 시작: 안내 앞에 작은 점 (진행 중이면 초록 숨쉬기 · 움직임 줄이기면 멈춤)
+          live={!needPhoto && !needIdentity ? timing?.kind : undefined}
           cta={needPhoto ? '사진 올리고 지원' : needIdentity ? '정보 넣고 지원' : undefined}
         />
       )}
@@ -646,6 +671,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         {!user ? (
           canApply && (
             <div className="card space-y-3 text-center">
+              {/* 비회원도 가입하기 전에 오늘 근무가 곧/이미 시작했는지 (가입하고 나서야 알지 않게) */}
+              {timing && <div className="text-left">{timingNote}</div>}
               <p className="font-semibold">지원하려면 가입 또는 로그인이 필요해요</p>
               <div className="grid grid-cols-2 gap-2">
                 <Link href={`/signup?type=${job.audience === 'expert' ? 'expert' : 'worker'}&next=${encodeURIComponent(path)}`} className="btn-primary">
@@ -927,19 +954,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             <form action={applyJob.bind(null, job.id)} className="card space-y-4">
               {/* 방금 사진을 올려 이 칸이 나타났으면 알려 줌 */}
               <PhotoDoneNote />
-              {startsSoon && (
-                <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-soon-note>
-                  <b className="block font-semibold">
-                    {hhmm(job.start_time)} 시작 · {minutesText(soonMin)} 뒤예요
-                  </b>
-                  <span className="block">늦지 않게 갈 수 있을 때 지원해 주세요</span>
-                </p>
-              )}
-              {startedToday && (
-                <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-started-note>
-                  {hhmm(job.start_time)}에 이미 시작한 {expert ? '일정이에요' : '근무예요'}. 지원하면 담당자가 확인한 뒤 알려 드려요.
-                </p>
-              )}
+              {timingNote}
               {dates.length > 1 && (
                 <ApplyDays
                   days={dates.map((d) => ({ value: d, label: fmtDate(d), past: d < kstDate(), busy: busyOn(d) }))}
