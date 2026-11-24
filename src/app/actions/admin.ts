@@ -291,13 +291,18 @@ export async function setJobStatus(jobId: string, status: Job['status']) {
  * 공고 '서류' 탭 '지금 보내기': 모집 마감 전이라도 확정자에게 서명 서류를 바로 보냄 (관리자가 먼저 받고 싶을 때)
  * 우리 회사 공고만 (company_id) · 이미 서류가 있는 사람은 건너뜀
  */
-export async function issueDocsNow(jobId: string) {
+export async function issueDocsNow(jobId: string, from?: 'dashboard' | FormData) {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
   if (!job || job.status === 'cancelled') return
   const n = await issueDocsAndTell(job, admin.id, 'closed')
   await audit(admin.id, 'doc.issue_now', null, `${jobId} ${n}명`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
+  // 관리자 홈 할 일 '서류 안 보냄' 줄의 '보내기'에서 왔으면 홈에 그대로 (정기 개선 2026-11-25 04:36 · 공고에 들어가지 않고 바로)
+  if (from === 'dashboard') {
+    revalidatePath('/admin')
+    back('/admin', n ? `${job.title} · 확정 ${n}명에게 서명할 서류를 보냈어요` : '보낼 사람이 없어요 · 확정자 모두 서류가 있어요')
+  }
   back(`/admin/jobs/${jobId}?tab=docs`, n ? `확정 ${n}명에게 서명할 서류를 보냈어요` : '보낼 사람이 없어요 · 확정자 모두 서류가 있어요')
 }
 

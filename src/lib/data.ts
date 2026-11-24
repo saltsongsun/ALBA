@@ -146,12 +146,15 @@ export function docsDue(job: Pick<Job, 'status' | 'start_date'>, now = Date.now(
  * 모집 중인 공고의 서명 서류가 저절로 가는 때 — 근무 전날 저녁 6시(매일 저녁 알림 작업) · '오늘 저녁 6시' / '내일 저녁 6시' / '11/26(목) 저녁 6시'
  * (정기 개선 2026-11-25: '근무 전날 저녁'보다 날짜를 바로 알게) · 이미 보낼 때면(docsDue) null
  */
-export function docsAutoAt(job: Pick<Job, 'status' | 'start_date'>, now = Date.now(), abs = false): string | null {
+export function docsAutoAt(job: Pick<Job, 'status' | 'start_date'>, now = Date.now(), abs = false, short = false): string | null {
   if (docsDue(job, now)) return null
   const [y, m, d] = job.start_date.split('-').map(Number)
   const eve = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
+  const rel = eve === kstDate(new Date(now)) ? '오늘' : eve === kstDate(new Date(now + 86_400_000)) ? '내일' : null
+  // short: 좁은 한 줄용 '내일 저녁' · '11/27 저녁' (정기 개선 2026-11-25 04:36 · 근무자 내 근무 카드)
+  if (short) return `${rel ?? `${Number(eve.slice(5, 7))}/${Number(eve.slice(8, 10))}`} 저녁`
   // abs: 나중에 다시 읽는 알림 글에는 '오늘·내일' 대신 날짜로
-  const day = abs ? fmtDate(eve) : eve === kstDate(new Date(now)) ? '오늘' : eve === kstDate(new Date(now + 86_400_000)) ? '내일' : fmtDate(eve)
+  const day = abs ? fmtDate(eve) : (rel ?? fmtDate(eve))
   return `${day} 저녁 6시`
 }
 

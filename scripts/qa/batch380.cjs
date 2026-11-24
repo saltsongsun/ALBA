@@ -68,8 +68,9 @@ const kday = (d = 0) => new Date(Date.now() + 9 * 3600e3 + d * 864e5).toISOStrin
   const rowM = a.locator(`[data-todo="nodoc-${JM}"]`)
   const tT = one(await rowT.innerText().catch(() => ''))
   const tM = one(await rowM.innerText().catch(() => ''))
-  ok("오늘: '서류 안 보냄 · 오늘 행사380' + '오늘 근무' 1명 (빨강)", tT.includes('서류 안 보냄 · 오늘 행사380') && tT.includes('오늘 근무') && /1\s*명/.test(tT) && (await rowT.locator('.text-rose-600').count()) > 0, tT)
-  ok("내일: '서류 안 보냄 · 내일 행사380' + '내일 근무' 2명 (주황 · 서류 있는 1명 빼고)", tM.includes('서류 안 보냄 · 내일 행사380') && tM.includes('내일 근무') && /2\s*명/.test(tM) && (await rowM.locator('.text-amber-700').count()) > 0, tM)
+  // 정기 개선 2026-11-25 04:36: 오른쪽 '보내기' 자리 때문에 위 줄 '서류 안 보냄 · 오늘/내일 근무' · 공고 이름은 아래 작은 줄
+  ok("오늘: '서류 안 보냄 · 오늘 근무' + '오늘 행사380' 1명 (빨강)", tT.includes('서류 안 보냄 · 오늘 근무') && tT.includes('오늘 행사380') && /1\s*명/.test(tT) && (await rowT.locator('.text-rose-600').count()) > 0, tT)
+  ok("내일: '서류 안 보냄 · 내일 근무' + '내일 행사380' 2명 (주황 · 서류 있는 1명 빼고)", tM.includes('서류 안 보냄 · 내일 근무') && tM.includes('내일 행사380') && /2\s*명/.test(tM) && (await rowM.locator('.text-amber-700').count()) > 0, tM)
   // 공고 이름이 잘리지 않음
   ok('공고 이름 안 잘림 (360px)', await rowM.locator('a').first().evaluate((el) => [...el.querySelectorAll('*')].every((x) => getComputedStyle(x).textOverflow !== 'ellipsis' || x.scrollWidth <= x.clientWidth + 1)))
   ok("서류가 이미 있는 사람은 '내일 근무 · 서명 안 함' 줄에 (1명)", /1\s*명/.test(one(await a.locator(`[data-todo="unsigned-${JM}"]`).innerText().catch(() => ''))))

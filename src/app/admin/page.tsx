@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { startedTodayOnly, workOver } from '@/lib/pay'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
-import { decideApplication, decideSelected, holdApplication, holdSelected, rejectWaiting, setJobStatus } from '@/app/actions/admin'
+import { decideApplication, decideSelected, holdApplication, holdSelected, issueDocsNow, rejectWaiting, setJobStatus } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -584,7 +584,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     .filter((m) => m !== null)
   // notify: 줄 오른쪽에 바로 '미선발 알림' (끝난 행사의 대기 지원자 · 그 공고 id)
   // sub: 아래 작은 줄 (줄 글자가 잘려도 어떤 공고인지 보이게 공고 이름을 위로)
-  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string; sub?: string }
+  // send: 줄 오른쪽에 바로 '보내기' (서류가 아직 안 간 확정자에게 서명 서류 · 그 공고 id)
+  type Todo = { key: string; icon: IconName; text: string; n: number; href: string; tone: string; unit?: string; notify?: string; sub?: string; send?: string }
   const [vpays, vreqs, vquotes, joinWait, jobsEver, appsEver, memberCount] = await vendorP
   const [reviews, otherTodo, myShift, joined, workedUnsignedAll] = await Promise.all([reviewsP, othersP, myShiftP, joinedP, workedUnsignedP])
   // 새로 합류한 다른 회사는 할 일이 없어도 '다른 회사' 줄에 (누르면 그 회사로) — 정기 개선 2026-11-22 20:35
@@ -683,12 +684,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       return {
         key: `nodoc-${g[0].job_id}`,
         icon: 'pen' as const,
-        // 공고 이름이 잘리지 않게 짧게 · '오늘/내일 근무'는 아래 작은 줄
-        text: `서류 안 보냄 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+        // 오른쪽 '보내기' 버튼 자리 때문에 위 줄은 짧게 '서류 안 보냄 · 내일 근무' · 공고 이름은 아래 작은 줄 (정기 개선 2026-11-25 04:36)
+        text: `서류 안 보냄 · ${day} 근무`,
         n: g.length,
         href: `/admin/jobs/${g[0].job_id}?tab=docs#docs-waiting`,
         tone: day === '오늘' ? 'text-rose-600' : 'text-amber-700',
-        sub: `${day} 근무`,
+        sub: titleOf.get(g[0].job_id) ?? '공고',
+        send: g[0].job_id,
       }
     }),
     ...group(unsignedBy.tomorrow, (a) => a.job_id).map((g) => ({
@@ -1222,7 +1224,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     {t.n}
                     {t.unit ?? '명'}
                   </b>
-                  {!t.notify && (
+                  {!t.notify && !t.send && (
                     <span aria-hidden className="shrink-0 text-mute">
                       ›
                     </span>
@@ -1233,6 +1235,14 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   <form action={rejectWaiting.bind(null, t.notify, false, 'dashboard')} className="shrink-0" data-lapsed-notify>
                     <ConfirmSubmit className="btn-gray btn-sm" confirmText={`${t.n}명에게 알릴까요?`} track="끝난 행사 미선발 알림(대시보드)">
                       미선발 알림
+                    </ConfirmSubmit>
+                  </form>
+                )}
+                {/* 서류가 아직 안 간 확정자: 공고에 들어가지 않고 여기서 바로 '보내기' (두 번 눌러 확인 · 보내면 홈에 그대로 안내) — 정기 개선 2026-11-25 04:36 */}
+                {t.send && (
+                  <form action={issueDocsNow.bind(null, t.send, 'dashboard')} className="shrink-0" data-todo-send>
+                    <ConfirmSubmit className="btn-gray btn-sm" confirmText={`${t.n}명에게 보낼까요?`} track="서류 지금 보내기(대시보드)">
+                      보내기
                     </ConfirmSubmit>
                   </form>
                 )}

@@ -42,7 +42,7 @@ import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutes
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { contractNameOf } from '@/lib/members'
-import { docsDue } from '@/lib/data'
+import { docsAutoAt, docsDue } from '@/lib/data'
 import { VIEW_COOKIE } from '@/lib/view'
 
 export const metadata: Metadata = { title: '내 근무' }
@@ -285,7 +285,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       {docsLaterJobs.has(a.job_id) && (
         <p className="mt-0.5 flex items-center gap-1 text-xs text-sub" data-docs-later>
           <Icon name="file" className="shrink-0 text-mute" />
-          <span className="min-w-0 truncate">서명할 서류는 모집이 끝나면 와요</span>
+          {/* 늦어도 언제 오는지 (근무 전날 저녁 · 마감하면 더 일찍) — 정기 개선 2026-11-25 04:36 */}
+          <span className="min-w-0 truncate">{docsAutoAt(a.job, Date.now(), false, true) ? `서명할 서류는 늦어도 ${docsAutoAt(a.job, Date.now(), false, true)}에 와요` : '서명할 서류는 모집이 끝나면 와요'}</span>
         </p>
       )}
     </>

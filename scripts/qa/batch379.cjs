@@ -77,7 +77,10 @@ const kday = (d = 0) => new Date(Date.now() + 9 * 3600e3 + d * 864e5).toISOStrin
   const w1 = await pg(U(1))
   await open(w1, '/me')
   const later1 = w1.locator('[data-docs-later]')
-  ok("근무자1 내 근무: 두 예정 근무 카드에 '서명할 서류는 모집이 끝나면 와요' (한 줄)", (await later1.count()) === 2 && (await later1.allInnerTexts()).every((t) => one(t) === '서명할 서류는 모집이 끝나면 와요') && (await later1.evaluateAll((els) => els.every((el) => el.getBoundingClientRect().height < 22))), JSON.stringify((await later1.allInnerTexts()).map(one)))
+  // 정기 개선 2026-11-25 04:36: 늦어도 언제 오는지 '서명할 서류는 늦어도 M/D 저녁에 와요' (근무 전날 저녁)
+  const md379 = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
+  const want379 = [kday(4), kday(7)].map((d) => `서명할 서류는 늦어도 ${md379(d)} 저녁에 와요`).sort().join('|')
+  ok("근무자1 내 근무: 두 예정 근무 카드에 '서명할 서류는 늦어도 M/D 저녁에 와요' (한 줄)", (await later1.count()) === 2 && (await later1.allInnerTexts()).map(one).sort().join('|') === want379 && (await later1.evaluateAll((els) => els.every((el) => el.getBoundingClientRect().height < 22))), JSON.stringify((await later1.allInnerTexts()).map(one)))
   ok('360px 옆으로 안 밀림 (내 근무)', await noSide(w1))
   if (SHOTS) await w1.locator('[data-next-work]').first().screenshot({ path: `${SHOTS}/me-next-docs-later.png` }).catch(() => {})
   const w4 = await pg(U(4))
