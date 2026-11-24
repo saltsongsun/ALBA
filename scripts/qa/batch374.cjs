@@ -120,7 +120,8 @@ const anim = (loc) => loc.evaluate((el) => [getComputedStyle(el).animationName, 
   const [orig] = await rest(`jobs?id=eq.${J374}`)
   ok('원래 공고는 그대로 (회사 · 상태 · 서류)', orig.company_id === C1 && orig.status === 'open' && JSON.stringify(orig.required_docs) === JSON.stringify([TPL, TX]))
   ok('고치기 화면이 새 공고로', new URL(m.url()).pathname === `/admin/jobs/${cp?.id}/edit` && new URL(m.url()).searchParams.get('open') === 'schedule', m.url())
-  const hw = (await m.context().cookies(D)).find((c) => c.name === 'hw_company')?.value
+  // 화면 위 회사 고르기가 받은 회사 (쿠키는 테스트가 넣은 것과 서버가 바꾼 것이 주소에 따라 둘로 보일 수 있어 화면으로 확인)
+  const hw = await m.locator('select[aria-label="회사 고르기"]').inputValue().catch(() => '')
   ok(`화면 회사가 ${CO2}로 바뀜`, hw === C2, hw)
   const flash = one(await m.locator('[role=status]').first().innerText().catch(() => ''))
   ok(`안내: '${CO2}로 복사했어요 · 날짜를 바꾸고 공개로 저장하세요' · 뺀 서류 · 가산수당`, flash.includes(`${CO2}로 복사했어요 · 날짜를 바꾸고 공개로 저장하세요`) && flash.includes('이 회사에 없는 서류는 뺐어요: 현장 서약서374') && flash.includes('가산수당 설정이 이 회사 기본과 달라요'), flash)
