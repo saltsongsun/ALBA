@@ -205,7 +205,7 @@ export default function DocsTab({
         </>
       )}
       {/* 모집 중: 확정자에게 서류는 아직 안 감 — 마감하면(또는 근무 전날 저녁) 자동으로 · 먼저 보내려면 '지금 보내기'
-          보낼 때가 지났는데 아직 없으면(저녁 작업이 놓침) 주황으로 '아직 서류를 못 받았어요' */}
+          보낼 때가 지났는데 아직 없으면(저녁 작업이 놓침) 주황으로 '서류가 아직 안 갔어요' */}
       {waitingDocs > 0 && (
         <div id="docs-waiting" className={`flex scroll-mt-24 items-center gap-3 rounded-xl px-3.5 py-2.5 ${due ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-bg'}`} data-docs-waiting={due ? 'late' : ''}>
           {/* 대시보드 '서류 아직 안 보냄'에서 오면 '지금 보내기'가 번쩍 */}
@@ -213,15 +213,16 @@ export default function DocsTab({
           <p className="min-w-0 flex-1 text-sm">
             {due ? (
               <>
-                <b className="block font-semibold text-amber-900">확정 {waitingDocs}명 · 아직 서류를 못 받았어요</b>
+                <b className="block font-semibold text-amber-900">확정 {waitingDocs}명 · 서류가 아직 안 갔어요</b>
                 <span className="block text-xs text-amber-800">근무 전에 서명하게 지금 보내 주세요</span>
               </>
             ) : (
               <>
-                <b className="block font-semibold">확정 {waitingDocs}명 · 서류는 모집 마감 때 보내요</b>
-                {/* 언제 저절로 가는지 날짜로 ('오늘 저녁 6시' · '11/26(목) 저녁 6시') */}
+                {/* 360px에서 한 줄로 (예전 '서류는 모집 마감 때 보내요'는 '때 보내요'만 다음 줄로 떨어짐) — 정기 개선 2026-11-25 02:35 */}
+                <b className="block font-semibold">확정 {waitingDocs}명 · 마감 때 서류가 가요</b>
+                {/* 마감을 안 해도 저절로 가는 때를 날짜로 ('오늘 저녁 6시' · '11/26(목) 저녁 6시') — 360px에서 한 줄 (정기 개선 2026-11-25 02:35) */}
                 <span className="block text-xs text-mute" data-docs-auto-at={autoAt ?? ''}>
-                  마감을 안 하면 {autoAt ?? '근무 전날 저녁'}에 자동으로
+                  늦어도 {autoAt ?? '근무 전날 저녁'}엔 가요
                 </span>
               </>
             )}

@@ -592,7 +592,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...otherTodo.map((c) => ({ ...c, joined: joined.includes(c.id) })),
     ...admin.companies
       .filter((c) => c.id !== admin.companyId && joined.includes(c.id) && !otherTodo.some((o) => o.id === c.id))
-      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, worked: 0, joined: true })),
+      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, worked: 0, nodoc: 0, joined: true })),
   ]
   // 지금 회사에 새로 합류했으면: 대표 관리자 이름 (관리자 목록에서 연락처를 보도록 · 못 읽으면 이름 없이)
   const joinedHere = joined.includes(admin.companyId)
@@ -1107,7 +1107,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0)
+            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0 || c.nodoc > 0)
               ? '다른 회사에 확인할 일'
               : otherUnread.some((c) => c.n > 0)
                 ? '다른 회사에 새 문의'
@@ -1150,6 +1150,13 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 {c.unsigned + c.worked > 0 && (
                   <span className="shrink-0 whitespace-nowrap" data-other-unsigned data-other-worked={c.worked || undefined}>
                     서명 안 함 <b className="text-rose-600">{c.unsigned + c.worked}</b>
+                  </span>
+                )}
+                {/* 그 회사 오늘·내일 근무 확정자 중 서명 서류가 아직 안 간 사람 (모집 마감 전 · 회사를 바꾸면 '서류 안 보냄 · 공고' 할 일)
+                    처음 보일 때 톡 (짧게 · 움직임 줄이기면 끔) — 정기 개선 2026-11-25 02:35 */}
+                {c.nodoc > 0 && (
+                  <span className="shrink-0 animate-pop whitespace-nowrap" data-other-nodoc>
+                    서류 안 보냄 <b className="text-amber-600">{c.nodoc}</b>
                   </span>
                 )}
                 {c.waiting > 0 && (

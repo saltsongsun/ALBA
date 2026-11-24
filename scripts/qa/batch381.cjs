@@ -1,7 +1,7 @@
 // 묶음 381 (정기 개선 2026-11-25 00:36 KST)
 // ① 저녁 6시 작업이 모집 중인 공고의 확정자에게 서류를 저절로 보내면 → 그 회사 관리자에게만 알림 + 기록(doc.issue_auto, 그 공고 회사로)
 //    · 같은 날 두 번 돌아도 새로 보낸 사람이 없으면 기록·알림 없음 · 다른 회사 공고는 그 회사 기록으로 (회사별)
-// ② 서류가 언제 오는지 날짜로: 관리자 서류 탭 '마감을 안 하면 11/26(목) 저녁 6시에 자동으로' (내일이면 '내일', 오늘이면 '오늘')
+// ② 서류가 언제 오는지 날짜로: 관리자 서류 탭 '늦어도 11/26(목) 저녁 6시엔 가요' (내일이면 '내일', 오늘이면 '오늘')
 //    근무자 공고 화면 '늦어도 … 저녁 6시에 알림으로 와요' · 확정 알림 '늦어도 11/26(목) 저녁 6시에는 와요.' (알림 글은 늘 날짜로)
 // ③ 확정하면 떠 있는 안내의 합계가 앞 금액에서 새 금액으로 굴러감 (300ms · '움직임 줄이기'면 바로 새 금액)
 // node scripts/qa/batch381.cjs <default 앱> <default 가짜> <shots>
@@ -83,14 +83,16 @@ const evening = new Date(Date.now() + 9 * 3600e3).getUTCHours() >= 18
   const a = await pg(A)
   await open(a, `/admin/jobs/${JC}?tab=docs`)
   const atC = a.locator('[data-docs-waiting] [data-docs-auto-at]')
-  ok("모레 근무: '마감을 안 하면 내일 저녁 6시에 자동으로'", one(await atC.innerText().catch(() => '')) === '마감을 안 하면 내일 저녁 6시에 자동으로', one(await atC.innerText().catch(() => '')))
+  // 정기 개선 2026-11-25 02:35: 한 줄로 '늦어도 … 엔 가요'
+  ok("모레 근무: '늦어도 내일 저녁 6시엔 가요'", one(await atC.innerText().catch(() => '')) === '늦어도 내일 저녁 6시엔 가요', one(await atC.innerText().catch(() => '')))
   ok('그 줄은 한 줄 · 360px 옆으로 안 밀림', (await atC.evaluate((el) => el.getBoundingClientRect().height < 22).catch(() => false)) && (await noSide(a)))
   if (SHOTS) await a.locator('[data-docs-waiting]').screenshot({ path: `${SHOTS}/docs-auto-at.png` }).catch(() => {})
   await open(a, `/admin/jobs/${JD}?tab=docs`)
-  ok(`사흘 뒤 근무: '마감을 안 하면 ${fd(kday(2))} 저녁 6시에 자동으로'`, one(await a.locator('[data-docs-waiting] [data-docs-auto-at]').innerText().catch(() => '')) === `마감을 안 하면 ${fd(kday(2))} 저녁 6시에 자동으로`)
+  const atD = a.locator('[data-docs-waiting] [data-docs-auto-at]')
+  ok(`사흘 뒤 근무: '늦어도 ${fd(kday(2))} 저녁 6시엔 가요' (날짜가 들어가도 한 줄)`, one(await atD.innerText().catch(() => '')) === `늦어도 ${fd(kday(2))} 저녁 6시엔 가요` && (await atD.evaluate((el) => el.getBoundingClientRect().height < 22).catch(() => false)), one(await atD.innerText().catch(() => '')))
   if (!evening) {
     await open(a, `/admin/jobs/${JA}?tab=docs`)
-    ok("내일 근무(저녁 6시 전): '마감을 안 하면 오늘 저녁 6시에 자동으로'", one(await a.locator('[data-docs-waiting] [data-docs-auto-at]').innerText().catch(() => '')) === '마감을 안 하면 오늘 저녁 6시에 자동으로')
+    ok("내일 근무(저녁 6시 전): '늦어도 오늘 저녁 6시엔 가요'", one(await a.locator('[data-docs-waiting] [data-docs-auto-at]').innerText().catch(() => '')) === '늦어도 오늘 저녁 6시엔 가요')
   } else ok('(저녁 6시 뒤 · 내일 근무는 이미 보낼 때라 건너뜀)', true)
 
   // ── 2. 근무자 공고 화면: 늦어도 언제

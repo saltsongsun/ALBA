@@ -319,6 +319,53 @@ async function companyNow(
 }
 
 /**
+ * 서류 안 보냄: 오늘·내일 근무하는 확정자 가운데 서명 서류(앱 서명)가 아직 하나도 없는 사람 수 — 이 회사 자료만 (company_id).
+ * 근로계약서는 모집 마감 후에 가서(사용자 요청 2026-11-24) 마감을 잊으면 근무 직전까지 비어 있을 수 있음.
+ * 대시보드 '서류 안 보냄 · 공고' 할 일과 같은 기준 — 여러 회사를 맡은 관리자 홈의 다른 회사 칩에 씀 (정기 개선 2026-11-25 02:35)
+ */
+export async function noDocsSoon(companyId: string, today: string, tomorrow: string): Promise<number> {
+  const jobs = (
+    must(
+      await db()
+        .from('jobs')
+        .select('id, status, start_date, end_date, contract_method, required_docs, company_id')
+        .eq('company_id', companyId)
+        .in('status', ['open', 'closed'])
+        .gte('end_date', today)
+        .lte('start_date', tomorrow),
+    ) as (Pick<Job, 'id' | 'status' | 'start_date' | 'end_date' | 'contract_method' | 'required_docs'> & { company_id: string })[]
+  ).filter(
+    (j) =>
+      j.company_id === companyId &&
+      (j.status === 'open' || j.status === 'closed') &&
+      j.end_date >= today &&
+      j.start_date <= tomorrow &&
+      j.contract_method !== 'paper' &&
+      j.contract_method !== 'external' &&
+      (j.required_docs?.length ?? 0) > 0,
+  )
+  if (!jobs.length) return 0
+  const ids = jobs.map((j) => j.id)
+  const [apps, docs] = await Promise.all([
+    allByIds<{ job_id: string; user_id: string; available_dates: string[] | null; status: string }>(ids, (part, a, b) =>
+      db().from('applications').select('id, job_id, user_id, available_dates, status').eq('company_id', companyId).in('job_id', part).eq('status', 'approved').order('id').range(a, b),
+    ),
+    allByIds<{ job_id: string; user_id: string; status: string }>(ids, (part, a, b) =>
+      db().from('signed_docs').select('id, job_id, user_id, status').eq('company_id', companyId).in('job_id', part).in('status', ['pending', 'signed']).order('id').range(a, b),
+    ),
+  ])
+  const has = new Set(docs.filter((d) => d.status === 'pending' || d.status === 'signed').map((d) => `${d.job_id}|${d.user_id}`))
+  const byId = new Map(jobs.map((j) => [j.id, j]))
+  const works = (a: { job_id: string; available_dates: string[] | null }, d: string) => {
+    const j = byId.get(a.job_id)
+    return !!j && j.start_date <= d && j.end_date >= d && (!a.available_dates || a.available_dates.includes(d))
+  }
+  return new Set(
+    apps.filter((a) => a.status === 'approved' && !has.has(`${a.job_id}|${a.user_id}`) && (works(a, today) || works(a, tomorrow))).map((a) => `${a.job_id}|${a.user_id}`),
+  ).size
+}
+
+/**
  * 일했는데 서명 안 함: 오늘 전 날짜에 출근 기록이 있는데 그 공고 서류가 아직 '서명 대기'인 사람 (최근 30일 근무 · 이 회사 자료만).
  * 근로계약서는 일하기 전에 줘야 해서, 근무가 끝났어도 빨리 받아 두도록 대시보드 '확인할 일'에 (정기 개선 2026-11-23 14:35)
  * 공고·사람마다 하나: 마지막으로 일한 날 · 공고 이름
@@ -408,14 +455,14 @@ export async function otherCompaniesTodo(
   currentId: string,
   /** 관리자 홈에서만: 약속한 정산일이 오늘이거나 지났는데 지급 전인 근무자 수 · 서명 없이 근무한 사람 수 (메뉴의 회사 바꾸기에서는 묻지 않음 — 화면마다 느려지지 않게) */
   withPay = false,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number; worked: number }[]> {
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number; worked: number; nodoc: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, now, lapsed, payLate, join, worked] = await Promise.all([
+      const [n, now, lapsed, payLate, join, worked, nodoc] = await Promise.all([
         unreadForAdmins(c.id).catch(() => 0),
         companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0, pendingKeys: new Set<string>() })),
         lapsedWaiting(c.id, today).then(
@@ -441,13 +488,15 @@ export async function otherCompaniesTodo(
           : 0,
         // 관리자 홈에서만: 그 회사에서 일했는데(지난 날 출근 기록) 서류 서명이 아직인 사람 — 대시보드 '일했는데 서명 안 함'과 같은 기준 (정기 개선 2026-11-23 16:35)
         withPay ? workedUnsigned(c.id, today).catch(() => []) : [],
+        // 관리자 홈에서만: 오늘·내일 근무 확정자 중 서명 서류가 아직 안 간 사람 (그 회사로 바꾸면 '서류 안 보냄 · 공고' 할 일)
+        withPay ? noDocsSoon(c.id, today, tomorrow).catch(() => 0) : 0,
       ])
       const { pendingKeys, ...counts } = now
       const workedN = worked.filter((w) => !pendingKeys.has(`${w.job_id}|${w.user_id}`)).length
-      return { id: c.id, name: c.name, n, ...counts, lapsed, payLate, join, worked: workedN }
+      return { id: c.id, name: c.name, n, ...counts, lapsed, payLate, join, worked: workedN, nodoc }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0 || c.nodoc > 0)
 }
 
 /**

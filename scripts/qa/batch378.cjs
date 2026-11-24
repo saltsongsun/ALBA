@@ -141,7 +141,8 @@ const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
   // ── 4. 서류 탭: 확정 4명 · 서류는 모집 마감 때 + 지금 보내기
   await open(a, `/admin/jobs/${JF}?tab=docs`)
   const wait = a.locator('[data-docs-waiting]')
-  ok(`서류 탭: '확정 4명 · 서류는 모집 마감 때 보내요 / 마감을 안 하면 ${fd(kday(4))} 저녁 6시에 자동으로' + '지금 보내기'`, one(await wait.innerText().catch(() => '')) === `확정 4명 · 서류는 모집 마감 때 보내요 마감을 안 하면 ${fd(kday(4))} 저녁 6시에 자동으로 지금 보내기`, one(await wait.innerText().catch(() => '')))
+  // 정기 개선 2026-11-25 02:35: 제목을 한 줄로 '확정 n명 · 마감 때 서류가 가요'
+  ok(`서류 탭: '확정 4명 · 마감 때 서류가 가요 / 늦어도 ${fd(kday(4))} 저녁 6시엔 가요' + '지금 보내기'`, one(await wait.innerText().catch(() => '')) === `확정 4명 · 마감 때 서류가 가요 늦어도 ${fd(kday(4))} 저녁 6시엔 가요 지금 보내기`, one(await wait.innerText().catch(() => '')))
   ok('360px 옆으로 안 밀림 (서류 탭)', await noSide(a))
   if (SHOTS) await wait.screenshot({ path: `${SHOTS}/docs-waiting.png` }).catch(() => {})
 
@@ -185,7 +186,7 @@ const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
   // ── 8-2. 관리자 서류 탭: 보낼 때가 지났는데 서류가 없는 확정자 → 주황 '아직 서류를 못 받았어요' + 지금 보내기
   await open(a, `/admin/jobs/${JT}?tab=docs`)
   const late = a.locator('[data-docs-waiting="late"]')
-  ok("오늘 근무 · 서류 없는 확정자: '확정 1명 · 아직 서류를 못 받았어요 / 근무 전에 서명하게 지금 보내 주세요' + '지금 보내기'", one(await late.innerText().catch(() => '')) === '확정 1명 · 아직 서류를 못 받았어요 근무 전에 서명하게 지금 보내 주세요 지금 보내기' && (await noSide(a)), one(await late.innerText().catch(() => '')))
+  ok("오늘 근무 · 서류 없는 확정자: '확정 1명 · 서류가 아직 안 갔어요 / 근무 전에 서명하게 지금 보내 주세요' + '지금 보내기'", one(await late.innerText().catch(() => '')) === '확정 1명 · 서류가 아직 안 갔어요 근무 전에 서명하게 지금 보내 주세요 지금 보내기' && (await noSide(a)), one(await late.innerText().catch(() => '')))
   if (SHOTS) await late.screenshot({ path: `${SHOTS}/docs-late.png` }).catch(() => {})
   // ── 9. 보낼 때가 지났는데 서류가 아직 없음(저녁 작업이 놓침): 근무자 공고 화면은 '곧 보내 드려요' · 서명 단계는 ✓ 아님
   const w7 = await pg(U(7))

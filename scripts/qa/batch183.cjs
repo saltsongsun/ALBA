@@ -94,7 +94,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await a.goto(`${D}/admin`)
   await a.locator('main').waitFor({ timeout: 15000 }).catch(() => {})
   await a.waitForTimeout(400)
-  ok("다른 회사에 남은 일이 없으면 점 없음 · 안내는 '다른 회사 행사 · 내일 행사 1'만", (await a.locator('header select[name=company]').inputValue()) === C1 && ((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim() === '다른 회사 행사 두번째기획 내일 행사 1' && (await a.locator('header [data-other-unread]').count()) === 0, `${await a.locator('header select[name=company]').inputValue()} | ${((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ')}`)
+  // (정기 개선 2026-11-25 02:35) 서명 서류는 모집 마감 후에 가서, 방금 확정한 내일 근무자에게 서류가 아직 없으면 홈 칩에 '서류 안 보냄 n'도 (메뉴 회사 고르기 점은 그대로 없음)
+  const rest183 = ((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ').trim()
+  ok("다른 회사에 남은 일이 없으면 점 없음 · 안내는 '다른 회사 행사 · 내일 행사 1'만 (서류가 아직이면 '서류 안 보냄 n')", (await a.locator('header select[name=company]').inputValue()) === C1 && (rest183 === '다른 회사 행사 두번째기획 내일 행사 1' || /^다른 회사에 확인할 일 두번째기획 서류 안 보냄 \d+ 내일 행사 1$/.test(rest183)) && (await a.locator('header [data-other-unread]').count()) === 0, `${await a.locator('header select[name=company]').inputValue()} | ${((await a.locator('[data-other-companies]').innerText().catch(() => '')) ?? '').replace(/\s+/g, ' ')}`)
 
   // ── 2. 근무자 내 근무: 근무 날엔 '오늘의 근무'가 먼저
   await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: today, end_date: today, start_time: '00:00:00', end_time: '23:59:00' })
