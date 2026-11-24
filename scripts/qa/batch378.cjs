@@ -31,6 +31,8 @@ const one = (s) => (s ?? '').replace(/\s+/g, ' ').trim()
 const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)
 const kday = (d = 0) => new Date(Date.now() + 9 * 3600e3 + d * 864e5).toISOString().slice(0, 10)
 const won = (n) => `${n.toLocaleString('ko-KR')}원`
+// 'YYYY-MM-DD' → '11/26(목)' (앱 fmtDate와 같음)
+const fd = (d) => { const [, m, dd] = d.split('-').map(Number); return `${m}/${dd}(${'일월화수목금토'[new Date(d + 'T00:00:00Z').getUTCDay()]})` }
 const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
 
 ;(async () => {
@@ -92,6 +94,8 @@ const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
   const card1 = a.locator(`#app-${AP(1)}`)
   await confirmIn(a, `#app-${AP(1)}`)
   // 화면은 그대로 · 머리글 아래 '확정 1명 · 전체 약 ○원 · +○원' (확정한 카드는 접힌 '확정' 칸으로 들어감)
+  // 합계는 앞 금액에서 새 금액으로 잠깐 굴러감 (정기 개선 2026-11-25) → 다 굴러간 뒤에 읽기
+  await a.locator('[data-plan-toast] [data-plan-toast-total]:not([data-rolling])').waitFor({ timeout: 5000 }).catch(() => {})
   const toast = one(await a.locator('[data-plan-toast] [role=status]').innerText().catch(() => ''))
   ok(`떠 있는 안내: '확정 1명 · 전체 약 ${won(DAY * 3)} +${won(DAY * 3)}' (한 줄 · 화면 안)`, toast.startsWith(`확정 1명 · 전체 약 ${won(DAY * 3)} +${won(DAY * 3)}`) && (await a.locator('[data-plan-toast] [role=status]').evaluate((el) => { const r = el.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight && r.height < 56 })) && (await a.locator('[data-plan-toast] span.truncate').evaluate((el) => el.scrollWidth <= el.clientWidth + 1)), toast)
   if (SHOTS) await a.locator('[data-plan-toast] [role=status]').screenshot({ path: `${SHOTS}/plan-toast.png` }).catch(() => {})
@@ -112,7 +116,8 @@ const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
   const w1 = await pg(U(1))
   await open(w1, `/jobs/${JF}`)
   const later = w1.locator('[data-docs-later]')
-  ok("근무자 공고 화면: '서명할 서류는 모집이 끝나면 보내 드려요 · 오면 알림으로 알려 드려요' · 서명 버튼 없음", one(await later.innerText().catch(() => '')) === '서명할 서류는 모집이 끝나면 보내 드려요 · 오면 알림으로 알려 드려요' && (await w1.locator('[data-sign-cta]').count()) === 0, one(await later.innerText().catch(() => '')))
+  // 정기 개선 2026-11-25: 아래 작은 줄에 늦어도 언제 오는지 날짜로 (근무 전날 저녁 6시)
+  ok(`근무자 공고 화면: '서명할 서류는 모집이 끝나면 보내 드려요 / 늦어도 ${fd(kday(4))} 저녁 6시에 알림으로 와요' · 서명 버튼 없음`, one(await later.innerText().catch(() => '')) === `서명할 서류는 모집이 끝나면 보내 드려요 늦어도 ${fd(kday(4))} 저녁 6시에 알림으로 와요` && (await w1.locator('[data-sign-cta]').count()) === 0, one(await later.innerText().catch(() => '')))
   if (SHOTS) await w1.locator('.card', { has: later }).screenshot({ path: `${SHOTS}/worker-docs-later.png` }).catch(() => {})
 
   // ── 3. 한꺼번에 확정 (대기 3명) → 안내에 이번 금액 · 전체 금액
@@ -136,7 +141,7 @@ const DAY = 82560 // 09:00~18:00 · 시급 10,320원 · 휴게 60분 → 8시간
   // ── 4. 서류 탭: 확정 4명 · 서류는 모집 마감 때 + 지금 보내기
   await open(a, `/admin/jobs/${JF}?tab=docs`)
   const wait = a.locator('[data-docs-waiting]')
-  ok("서류 탭: '확정 4명 · 서류는 모집 마감 때 보내요 / 마감을 안 하면 근무 전날 저녁에 자동으로' + '지금 보내기'", one(await wait.innerText().catch(() => '')) === '확정 4명 · 서류는 모집 마감 때 보내요 마감을 안 하면 근무 전날 저녁에 자동으로 지금 보내기', one(await wait.innerText().catch(() => '')))
+  ok(`서류 탭: '확정 4명 · 서류는 모집 마감 때 보내요 / 마감을 안 하면 ${fd(kday(4))} 저녁 6시에 자동으로' + '지금 보내기'`, one(await wait.innerText().catch(() => '')) === `확정 4명 · 서류는 모집 마감 때 보내요 마감을 안 하면 ${fd(kday(4))} 저녁 6시에 자동으로 지금 보내기`, one(await wait.innerText().catch(() => '')))
   ok('360px 옆으로 안 밀림 (서류 탭)', await noSide(a))
   if (SHOTS) await wait.screenshot({ path: `${SHOTS}/docs-waiting.png` }).catch(() => {})
 

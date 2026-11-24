@@ -5,6 +5,43 @@ import { createPortal } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
 
 const SHOW_MS = 5000
+// 합계가 앞 금액에서 새 금액으로 굴러가는 시간 (짧게 · '움직임 줄이기'면 바로 새 금액)
+const ROLL_MS = 300
+const won = (n: number) => `${Math.abs(n).toLocaleString('ko-KR')}원`
+
+/** 앞 합계 → 새 합계로 숫자가 빠르게 바뀜 (정기 개선 2026-11-25 · 얼마가 늘었는지 눈으로 보이게) */
+const stillMotion = () => {
+  try {
+    return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  } catch {
+    return false
+  }
+}
+
+function RollWon({ from, to }: { from: number; to: number }) {
+  // '움직임 줄이기'면 처음부터 새 금액 (앞 금액이 한 번 비치지도 않게)
+  const [v, setV] = useState(() => (stillMotion() ? to : from))
+  useEffect(() => {
+    if (from === to || stillMotion()) {
+      setV(to)
+      return
+    }
+    const start = performance.now()
+    let raf = 0
+    const step = (t: number) => {
+      const p = Math.min(1, (t - start) / ROLL_MS)
+      setV(Math.round(from + (to - from) * (1 - Math.pow(1 - p, 3))))
+      if (p < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [from, to])
+  return (
+    <b className="tabular-nums" data-plan-toast-total={to} data-rolling={v !== to ? '' : undefined}>
+      {won(v)}
+    </b>
+  )
+}
 
 /**
  * 지원자 탭에서 한 사람씩 확정·되돌리면 머리글 아래 잠깐 떠 있는 안내 (관리자 화면에만 씀 · 사용자 요청 2026-11-24
@@ -18,7 +55,7 @@ export default function PlanToast({ total, count }: { total: number; count: numb
   const prev = useRef<{ total: number; count: number } | null>(null)
   // 이번 화면이 위쪽 안내를 달고 왔는지 (그린 때 값 · 안내가 주소에서 m을 지우기 전)
   const withNote = useSearchParams().has('m')
-  const [shown, setShown] = useState<{ total: number; count: number; diff: number; at: number } | null>(null)
+  const [shown, setShown] = useState<{ total: number; count: number; diff: number; from: number; at: number } | null>(null)
   const [closing, setClosing] = useState(false)
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -27,7 +64,7 @@ export default function PlanToast({ total, count }: { total: number; count: numb
     const p = prev.current
     prev.current = { total, count }
     if (!p || (p.total === total && p.count === count) || withNote) return
-    setShown({ total, count, diff: total - p.total, at: Date.now() })
+    setShown({ total, count, diff: total - p.total, from: p.total, at: Date.now() })
     setClosing(false)
     const close = setTimeout(() => setClosing(true), SHOW_MS)
     const gone = setTimeout(() => setShown(null), SHOW_MS + 300)
@@ -40,7 +77,6 @@ export default function PlanToast({ total, count }: { total: number; count: numb
   }, [total, count])
 
   if (!mounted || !shown) return null
-  const won = (n: number) => `${Math.abs(n).toLocaleString('ko-KR')}원`
   return createPortal(
     <div
       className={`no-print fixed inset-x-0 top-[calc(env(safe-area-inset-top,0px)+4.25rem)] z-50 mx-auto w-full max-w-md px-4 transition-opacity duration-300 ${closing ? 'opacity-0' : ''}`}
@@ -49,7 +85,7 @@ export default function PlanToast({ total, count }: { total: number; count: numb
       <div className="rounded-xl bg-white shadow-lg shadow-brand-900/10">
         <div key={shown.at} role="status" className="relative flex animate-slide-down items-center gap-2 overflow-hidden rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
           <span className="min-w-0 flex-1 truncate">
-            확정 <b className="tabular-nums">{shown.count}명</b> · 전체 약 <b className="tabular-nums">{won(shown.total)}</b>
+            확정 <b className="tabular-nums">{shown.count}명</b> · 전체 약 <RollWon from={shown.from} to={shown.total} />
           </span>
           {shown.diff !== 0 && (
             <b className={`shrink-0 animate-pop tabular-nums ${shown.diff > 0 ? 'text-emerald-700' : 'text-sub'}`} data-plan-toast-diff>

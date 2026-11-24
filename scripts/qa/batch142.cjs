@@ -140,7 +140,9 @@ const statusOf = async (id) => (await rest(`applications?id=eq.${id}`))[0]?.stat
   ok('확정 알림 (문의함)', my.some((m) => String(m.body).includes('근무가 확정됐어요') || String(m.title ?? '').includes('확정')))
   const docs = await rest(`signed_docs?user_id=eq.${Y}&job_id=eq.${J}`)
   const [job] = await rest(`jobs?id=eq.${J}`)
-  ok('확정하면 서명할 서류도 만들어짐', !(job.required_docs ?? []).length || docs.length > 0, `${docs.length}`)
+  // 서류는 모집 마감 때(또는 근무 전날 저녁 6시부터) 감 — 사용자 요청 2026-11-24. 이 공고는 내일 근무라 저녁 6시 전에는 아직 없음
+  const due = job.status !== 'open' || new Date(Date.now() + 9 * 3600e3).getUTCHours() >= 18
+  ok(due ? '확정하면 서명할 서류도 만들어짐 (근무 전날 저녁)' : '확정해도 서류는 아직 (모집 마감·전날 저녁 6시에)', !(job.required_docs ?? []).length || (due ? docs.length > 0 : docs.length === 0), `${docs.length}`)
   ok('자바스크립트 오류 없음', errs.length === 0, errs.join(' | '))
   await b.close()
   console.log(fails ? `${fails} FAILED` : 'ALL PASSED'); process.exit(fails ? 1 : 0)

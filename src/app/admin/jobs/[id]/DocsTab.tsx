@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { smsHead } from '@/lib/format'
 import { issueDocsNow, nudgeWorkers, rerequestDoc, rerequestDocs, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
-import { docsDue } from '@/lib/data'
+import { docsAutoAt, docsDue } from '@/lib/data'
 import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
@@ -90,6 +90,7 @@ export default function DocsTab({
   // 끝나지 않은 공고만 (예전 공고의 옛 기록은 건드리지 않음)
   const noDoc = templates.length > 0 && job.status !== 'cancelled' && job.end_date >= kstDate() ? approved.filter((a) => !hasDoc.has(a.user_id)).length : 0
   const due = docsDue(job)
+  const autoAt = docsAutoAt(job)
   // 보낼 때가 지났는데(마감함·근무 전날 저녁 지남) 아직 서류가 없는 확정자: 저녁 작업이 놓쳤을 때 — 바로 보내게
   const waitingDocs = noDoc
   const missingLabels = missing.map((m) => m.label).join(' · ')
@@ -218,7 +219,10 @@ export default function DocsTab({
             ) : (
               <>
                 <b className="block font-semibold">확정 {waitingDocs}명 · 서류는 모집 마감 때 보내요</b>
-                <span className="block text-xs text-mute">마감을 안 하면 근무 전날 저녁에 자동으로</span>
+                {/* 언제 저절로 가는지 날짜로 ('오늘 저녁 6시' · '11/26(목) 저녁 6시') */}
+                <span className="block text-xs text-mute" data-docs-auto-at={autoAt ?? ''}>
+                  마감을 안 하면 {autoAt ?? '근무 전날 저녁'}에 자동으로
+                </span>
               </>
             )}
           </p>

@@ -11,7 +11,7 @@ import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
 import { phoneFmt, roJosa, won } from '@/lib/format'
 import { planner } from '@/lib/confirmPlan'
-import { audit, docsDue, ensureDocsWhenDue, ensurePendingDocsMany, getJob, getSettings, releaseDocs } from '@/lib/data'
+import { audit, docsAutoAt, docsDue, ensureDocsWhenDue, ensurePendingDocsMany, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { issueDocsAndTell } from '@/lib/docIssue'
 import { byIds, db, must } from '@/lib/db'
 import { BULK_MAX } from '@/lib/limits'
@@ -675,7 +675,7 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
             job.required_docs.length
               ? docsDue(job)
                 ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.`
-                : `✍️ 서명할 서류(${contractNameOf(job.audience)} 등)는 모집이 끝나면 보내 드려요.`
+                : `✍️ 서명할 서류(${contractNameOf(job.audience)} 등)는 모집이 끝나면 보내 드려요. 늦어도 ${docsAutoAt(job, Date.now(), true) ?? '근무 전날 저녁'}에는 와요.`
               : '',
           ]
             .filter(Boolean)

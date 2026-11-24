@@ -6,7 +6,7 @@ import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
 import { clientInfo } from './session'
 import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
-import { kstDate } from './time'
+import { fmtDate, kstDate } from './time'
 import { isQuietNotice, needsReply, paidAfterAsk, parsePayday, SIGNAL } from './signals'
 import { paydayDate, paydayGuess } from './payday'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
@@ -140,6 +140,19 @@ export function docsDue(job: Pick<Job, 'status' | 'start_date'>, now = Date.now(
   if (job.status !== 'open' && job.status !== 'draft') return true
   if (job.start_date <= kstDate(new Date(now))) return true
   return job.start_date <= kstDate(new Date(now + 86_400_000)) && new Date(now + 9 * 3_600_000).getUTCHours() >= 18
+}
+
+/**
+ * 모집 중인 공고의 서명 서류가 저절로 가는 때 — 근무 전날 저녁 6시(매일 저녁 알림 작업) · '오늘 저녁 6시' / '내일 저녁 6시' / '11/26(목) 저녁 6시'
+ * (정기 개선 2026-11-25: '근무 전날 저녁'보다 날짜를 바로 알게) · 이미 보낼 때면(docsDue) null
+ */
+export function docsAutoAt(job: Pick<Job, 'status' | 'start_date'>, now = Date.now(), abs = false): string | null {
+  if (docsDue(job, now)) return null
+  const [y, m, d] = job.start_date.split('-').map(Number)
+  const eve = new Date(Date.UTC(y, m - 1, d - 1)).toISOString().slice(0, 10)
+  // abs: 나중에 다시 읽는 알림 글에는 '오늘·내일' 대신 날짜로
+  const day = abs ? fmtDate(eve) : eve === kstDate(new Date(now)) ? '오늘' : eve === kstDate(new Date(now + 86_400_000)) ? '내일' : fmtDate(eve)
+  return `${day} 저녁 6시`
 }
 
 /** 확정한 사람의 서류: 보낼 때면 지금 만들고, 아니면 모집 마감(또는 근무 전날)에 한 번에 — 새로 서류가 생긴 사람을 돌려줌 */

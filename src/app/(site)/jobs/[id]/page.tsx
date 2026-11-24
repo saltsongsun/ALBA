@@ -17,7 +17,7 @@ import PhotoDoneNote from '@/components/PhotoDoneNote'
 import { PHOTO_DONE_KEY } from '@/lib/photoDone'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
-import { approvedCounts, countApps, docsDue, getJob, getSettings, JOB_WITH_APP_STATUS, replyMinutes, replySpan, type JobWithAppStatus } from '@/lib/data'
+import { approvedCounts, countApps, docsAutoAt, docsDue, getJob, getSettings, JOB_WITH_APP_STATUS, replyMinutes, replySpan, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
@@ -221,6 +221,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   // (예전처럼 '✓ 서명'으로 보이지 않게 · 근무 시작을 누르면 그때라도 서류를 만들고 먼저 서명하게 함)
   const docsWait = app?.status === 'approved' && docs.length > 0 && myDocs.length === 0
   const docsLater = docsWait && !docsDue(job)
+  const docsAt = docsLater ? docsAutoAt(job) : null
   const est = estimateDay(job)
   const dates = dateList(job.start_date, job.end_date)
   const ended = job.end_date < kstDate()
@@ -711,7 +712,11 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                 <span className="min-w-0">
                   {docsLater ? (
                     <>
-                      서명할 서류는 <b className="font-semibold text-ink">모집이 끝나면</b> 보내 드려요 · 오면 알림으로 알려 드려요
+                      서명할 서류는 <b className="font-semibold text-ink">모집이 끝나면</b> 보내 드려요
+                      {/* 늦어도 언제 오는지 날짜로 (근무 전날 저녁 6시 · 정기 개선 2026-11-25) */}
+                      <span className="block text-xs text-mute" data-docs-auto-at={docsAt ?? ''}>
+                        늦어도 {docsAt ?? '근무 전날 저녁'}에 알림으로 와요
+                      </span>
                     </>
                   ) : (
                     <>

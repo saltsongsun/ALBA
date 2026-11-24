@@ -1,9 +1,10 @@
 import 'server-only'
 import { allPages, db } from './db'
-import { issueDocsToApproved } from './data'
+import { audit, issueDocsToApproved } from './data'
 import { scheduleSummary } from './docs'
 import { myWorkTab } from './members'
 import { tellWorkers } from './notify'
+import { sendAdminPush } from './push'
 import { kstDate } from './time'
 import type { Job } from './types'
 
@@ -51,6 +52,14 @@ export async function issueDueDocs(): Promise<{ jobs: number; people: number }> 
     if (k) {
       n++
       people += k
+      // 그 회사 관리자에게만: 마감을 안 해서 저녁에 저절로 보냈다고 (정기 개선 2026-11-25 · 같은 서류를 또 보내거나 걱정하지 않게, 모집은 그대로라고)
+      await audit(null, 'doc.issue_auto', null, `${job.id} ${k}명`, job.company_id).catch(() => null)
+      await sendAdminPush(job.company_id, {
+        title: '✍️ 서류를 자동으로 보냈어요',
+        body: `${job.title} · 확정 ${k}명\n${job.start_date > today ? '내일' : '오늘'} 근무라 서명할 서류를 보냈어요. 모집은 아직 열려 있어요.`,
+        url: `/admin/jobs/${job.id}?tab=docs`,
+        tag: `docs-auto-${job.id}`,
+      }, { optional: true }).catch(() => null)
     }
   }
   return { jobs: n, people }
