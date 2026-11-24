@@ -25,7 +25,8 @@ export async function issueDocsAndTell(job: Job, senderId: string | null, why: '
       why === 'closed' ? '모집이 끝나 서류가 준비됐어요.' : '근무 전에 서명할 서류가 준비됐어요.',
       `앱 ‘${myWorkTab(job.audience)}’에서 근무 전에 서명해 주세요.`,
     ].join('\n'),
-    url: '/me',
+    // 알림을 누르면 내 근무의 '서명할 서류' 칸으로 바로 (첫 서명 버튼이 번쩍)
+    url: '/me#sign-docs',
     tag: `docs-${job.id}`,
   })
   return got.length

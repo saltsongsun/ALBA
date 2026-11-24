@@ -680,7 +680,8 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
           ]
             .filter(Boolean)
             .join('\n'),
-          url: '/me',
+          // 서류가 바로 생겼으면 알림을 누를 때 '서명할 서류' 칸으로 (이미 시작한 근무면 내 근무 맨 위 — 도착 알리기)
+          url: !now && job.required_docs.length && docsDue(job) ? '/me#sign-docs' : '/me',
           tag: `approved-${job.id}`,
         })
       : null

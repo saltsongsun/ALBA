@@ -206,7 +206,9 @@ export default function DocsTab({
       {/* 모집 중: 확정자에게 서류는 아직 안 감 — 마감하면(또는 근무 전날 저녁) 자동으로 · 먼저 보내려면 '지금 보내기'
           보낼 때가 지났는데 아직 없으면(저녁 작업이 놓침) 주황으로 '아직 서류를 못 받았어요' */}
       {waitingDocs > 0 && (
-        <div className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 ${due ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-bg'}`} data-docs-waiting={due ? 'late' : ''}>
+        <div id="docs-waiting" className={`flex scroll-mt-24 items-center gap-3 rounded-xl px-3.5 py-2.5 ${due ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-bg'}`} data-docs-waiting={due ? 'late' : ''}>
+          {/* 대시보드 '서류 아직 안 보냄'에서 오면 '지금 보내기'가 번쩍 */}
+          <HashFlash id="docs-waiting" />
           <p className="min-w-0 flex-1 text-sm">
             {due ? (
               <>

@@ -520,23 +520,27 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             .in('job_id', signJobs.map((j) => j.id))
             .eq('status', 'approved')
             .then((r) => must(r) as { job_id: string; user_id: string; available_dates: string[] | null }[]),
+          // 서명 대기 + 서명함 (서류가 아직 없는 확정자도 가리려고 — 근로계약서는 모집 마감 후 · 사용자 요청 2026-11-24)
           db()
             .from('signed_docs')
             .select('job_id, user_id, status').eq('company_id', admin.companyId)
             .in('job_id', signJobs.map((j) => j.id))
-            .eq('status', 'pending')
-            .then((r) => (must(r) as { job_id: string; user_id: string; status: string }[]).filter((d) => d.status === 'pending')),
+            .in('status', ['pending', 'signed'])
+            .then((r) => (must(r) as { job_id: string; user_id: string; status: string }[]).filter((d) => d.status === 'pending' || d.status === 'signed')),
         ]).then(([apps, docs]) => {
-          const pending = new Set(docs.map((d) => `${d.job_id}|${d.user_id}`))
+          const pending = new Set(docs.filter((d) => d.status === 'pending').map((d) => `${d.job_id}|${d.user_id}`))
+          const hasDoc = new Set(docs.map((d) => `${d.job_id}|${d.user_id}`))
           const jobOf = new Map(signJobs.map((j) => [j.id, j]))
           const works = (a: { job_id: string; available_dates: string[] | null }, d: string) =>
             !!jobOf.get(a.job_id) && covers(jobOf.get(a.job_id)!, d) && (!a.available_dates || a.available_dates.includes(d))
           const unsigned = apps.filter((a) => pending.has(`${a.job_id}|${a.user_id}`))
           // 오늘 근무하는 사람은 '오늘'에만 (여러 날 행사에서 같은 사람이 두 줄에 겹치지 않게)
           const todayRows = unsigned.filter((a) => works(a, today))
-          return { today: todayRows, tomorrow: unsigned.filter((a) => !todayRows.includes(a) && works(a, tomorrow)) }
+          // 오늘·내일 근무인데 서류가 아직 안 간 확정자 (모집 중이라 아직 안 보냄 · 저녁 작업이 놓침) — 서류 탭에서 바로 보내게 (정기 개선 2026-11-24 22:36)
+          const nodoc = apps.filter((a) => (jobOf.get(a.job_id)?.required_docs?.length ?? 0) > 0 && !hasDoc.has(`${a.job_id}|${a.user_id}`) && (works(a, today) || works(a, tomorrow)))
+          return { today: todayRows, tomorrow: unsigned.filter((a) => !todayRows.includes(a) && works(a, tomorrow)), nodoc }
         })
-      : { today: [], tomorrow: [] },
+      : { today: [], tomorrow: [], nodoc: [] },
     // 최근 며칠 근무에 대한 기록 정정 요청과 그 답 (답하지 않은 것만 셈 · 지난 근무를 다음 날 요청할 수 있어서 며칠 치)
     db()
       .from('messages')
@@ -672,6 +676,21 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       href: `/admin/jobs/${g[0].job_id}?tab=docs#unsigned`,
       tone: 'text-rose-600',
     })),
+    // 서류가 아직 안 간 확정자 (오늘·내일 근무): 누르면 서류 탭 '지금 보내기'가 번쩍
+    ...group(unsignedBy.nodoc, (a) => a.job_id).map((g) => {
+      const j = signJobs.find((x) => x.id === g[0].job_id)
+      const day = j && covers(j, today) ? '오늘' : '내일'
+      return {
+        key: `nodoc-${g[0].job_id}`,
+        icon: 'pen' as const,
+        // 공고 이름이 잘리지 않게 짧게 · '오늘/내일 근무'는 아래 작은 줄
+        text: `서류 안 보냄 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
+        n: g.length,
+        href: `/admin/jobs/${g[0].job_id}?tab=docs#docs-waiting`,
+        tone: day === '오늘' ? 'text-rose-600' : 'text-amber-700',
+        sub: `${day} 근무`,
+      }
+    }),
     ...group(unsignedBy.tomorrow, (a) => a.job_id).map((g) => ({
       key: `unsigned-${g[0].job_id}`,
       icon: 'pen' as const,
