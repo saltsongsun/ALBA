@@ -81,7 +81,7 @@ const KEEP = 450
     const sec = ((answered || Date.now()) - t0) / 1000
     await fetch(`${MD}/__latency?ms=5`)
     const m = decodeURIComponent(new URL(p.url()).searchParams.get('m') ?? '')
-    ok("'450명을 확정했어요. 근무자에게 알렸어요.' · 느린 DB에서도 서버 처리 15초 안에", m === '450명을 확정했어요. 근무자에게 알렸어요.' && sec < 15, `${m} · ${sec.toFixed(1)}초`)
+    ok("'450명을 확정했어요. 근무자에게 알렸어요.' · 느린 DB에서도 서버 처리 15초 안에", /^450명을 확정했어요\. 근무자에게 알렸어요\.( 이번 450명 약 [\d,]+원 · 확정 \d+명 전체 약 [\d,]+원)?$/.test(m) && sec < 15, `${m} · ${sec.toFixed(1)}초`)
     await fetch(`${MD}/__limits`)
     const apps = await rest(`applications?job_id=eq.${J}`)
     const mine = apps.filter((a) => a.id.startsWith('11111111-0000-4000-8000-0000002740') || a.id.startsWith('11111111-0000-4000-8000-0000002741') || a.id.startsWith('11111111-0000-4000-8000-0000002742'))
