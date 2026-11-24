@@ -23,6 +23,8 @@ type Props = {
   /** 확정 인원 · 모집 인원 (다 찼으면 '모집 마감'을 크게) */
   approved?: number
   headcount?: number
+  /** 모집을 마감하면 서명 서류가 갈 확정자 수 (있으면 '모집 마감'을 한 번 누를 때 알려 줌) */
+  docsTo?: number
   /** 대시보드 카드 안: 작게, 숫자 줄 없이 */
   compact?: boolean
 }
@@ -31,7 +33,7 @@ type Props = {
  * 관리자 공고의 '지금 할 일' 큰 버튼 (사용자 요청 2026-11-06 "관리자도 근무자처럼 버튼들 만들어줘 · 행사 종료하기 등등").
  * 행사 전: 지원자 확인·모집 마감 / 당일 근무 시간: 출석 체크 / 중간 날 끝: 오늘 근무 마무리 / 마지막 날 끝: 행사 종료하기 / 끝남: 정산하러 가기
  */
-export default function JobActions({ job, today, working, finished = 0, absent = 0, waiting = 0, approved = 0, headcount = 0, compact = false }: Props) {
+export default function JobActions({ job, today, working, finished = 0, absent = 0, waiting = 0, approved = 0, headcount = 0, docsTo = 0, compact = false }: Props) {
   const phase = jobPhase(job, today)
   if (phase === 'cancelled') return null
   const size = compact ? 'py-3 text-base' : 'py-4 text-lg'
@@ -65,6 +67,8 @@ export default function JobActions({ job, today, working, finished = 0, absent =
     </p>
   ))
   const endText = hhmm(shiftOf(job).end_time)
+  // '모집 마감'을 한 번 누르면: 마감하면 무엇이 일어나는지 (확정자에게 서명 서류가 감 — 근로계약서는 모집 마감 후 · 사용자 요청 2026-11-24)
+  const closeAsk = docsTo > 0 ? `마감하면 확정 ${docsTo}명에게 서류가 가요` : '한 번 더 누르면 모집 마감'
   return (
     <div data-job-actions={phase} className="space-y-2">
       {counts}
@@ -83,7 +87,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
         (job.status === 'open' && headcount > 0 && approved >= headcount ? (
           <>
             <form action={setJobStatus.bind(null, job.id, 'closed')}>
-              <ConfirmSubmit className={`${BIG} ${size} bg-brand-600 hover:bg-brand-700`} confirmText="한 번 더 누르면 모집 마감" track="인원 다 참 · 모집 마감">
+              <ConfirmSubmit className={`${BIG} ${size} bg-brand-600 hover:bg-brand-700`} confirmText={closeAsk} track="인원 다 참 · 모집 마감">
                 인원이 다 찼어요 · 모집 마감
               </ConfirmSubmit>
             </form>
@@ -102,7 +106,7 @@ export default function JobActions({ job, today, working, finished = 0, absent =
             )}
             {job.status === 'open' && (
               <form action={setJobStatus.bind(null, job.id, 'closed')}>
-                <ConfirmSubmit className="btn-gray w-full" confirmText="한 번 더 누르면 모집 마감" track="모집 마감하기">
+                <ConfirmSubmit className="btn-gray w-full" confirmText={closeAsk} track="모집 마감하기">
                   모집 마감하기
                 </ConfirmSubmit>
               </form>

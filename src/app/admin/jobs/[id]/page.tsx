@@ -160,6 +160,9 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     : dates.includes(today) ? today : dates[0]
   const tab = (['apps', 'att', 'pay', 'docs'] as const).find((t) => t === sp.tab) ?? (dates.includes(today) ? 'att' : 'apps')
   const approved = apps.filter((a) => a.status === 'approved')
+  // 모집을 마감하면 서명 서류가 갈 확정자 (앱 서명 서식이 있고 아직 서류가 없는 사람) — '모집 마감' 버튼에서 미리 알려 줌 (정기 개선 2026-11-24 20:36)
+  const hasLiveDoc = new Set(docs.filter((d) => d.status !== 'void').map((d) => d.user_id))
+  const docsTo = job.status === 'open' && templates.length > 0 ? approved.filter((a) => !hasLiveDoc.has(a.user_id)).length : 0
   // 보류한 지원자는 '대기'에서 빼고 (지원자 탭 '보류'에 따로)
   const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
@@ -419,7 +422,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                 )}
               </div>
             )}
-            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} approved={approved.length} headcount={job.headcount} />
+            <JobActions job={job} today={today} working={actWorking} finished={actFinished} absent={actAbsent} waiting={waiting.length} approved={approved.length} headcount={job.headcount} docsTo={docsTo} />
             {/* 같은 크기 칸 한 줄 · 자주 안 쓰는 것(복사·모집·행사 취소·삭제)은 더보기 안에 · 행사 종료는 위의 큰 버튼 */}
             <JobTools
               tools={[
@@ -474,6 +477,12 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                     <form action={setJobStatus.bind(null, job.id, 'closed')}>
                       <SubmitButton className={MENU_ROW}>
                         <Icon name="check" className="text-mute" /> 모집 마감
+                        {/* 마감하면 확정자에게 서명 서류가 감 (미리 알려 줌) */}
+                        {docsTo > 0 && (
+                          <span className="ml-auto text-xs font-normal whitespace-nowrap text-mute" data-close-docs>
+                            확정 {docsTo}명에게 서류
+                          </span>
+                        )}
                       </SubmitButton>
                     </form>
                   )}

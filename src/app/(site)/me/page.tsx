@@ -42,6 +42,7 @@ import { dateList, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstTime, minutes
 import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib/types'
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { contractNameOf } from '@/lib/members'
+import { docsDue } from '@/lib/data'
 import { VIEW_COOKIE } from '@/lib/view'
 
 export const metadata: Metadata = { title: '내 근무' }
@@ -262,11 +263,31 @@ export default async function MePage(props: PageProps<'/me'>) {
   const restUpcoming = heroNext ? upcoming.filter((x) => x.id !== heroNext.id) : upcoming
   // 다음 근무 장소로 가는 길 (전날 미리 확인 · 장소 정보가 없으면 없음)
   const nextMap = heroNext ? mapLinks({ name: heroNext.job.location_name, address: heroNext.job.address, lat: heroNext.job.lat, lng: heroNext.job.lng }) : null
-  // 예정 근무에 덧붙는 줄: 배치 · 계약서 안내 · 일정이 바뀐 알림 (큰 카드와 목록 카드가 같이 씀)
+  // 확정했지만 서명 서류가 아직 안 온 예정 근무: 모집이 끝나면(마감·근무 전날 저녁) 보내 줌 → 카드에 한 줄
+  // (근로계약서는 모집 마감 후 · 사용자 요청 2026-11-24 — 서류가 왜 없는지 궁금하지 않게 · 정기 개선 20:36)
+  // 앱으로 서명할 서식이 있을 때만 (종이·다른 서비스로 받는 근로계약서만 있으면 앱 서류가 오지 않음 — 서류 만드는 규칙과 같게)
+  const hasDocJob = new Set(docs.map((d) => d.job_id))
+  const laterCand = upcoming.filter((a) => !hasDocJob.has(a.job_id) && (a.job.required_docs?.length ?? 0) > 0 && !docsDue(a.job))
+  const laterTpl = laterCand.length
+    ? (((await db().from('doc_templates').select('id, kind').in('id', [...new Set(laterCand.flatMap((a) => a.job.required_docs))].slice(0, 200))).data ?? []) as { id: string; kind: string }[])
+    : []
+  const tplKind = new Map(laterTpl.map((t) => [t.id, t.kind]))
+  const docsLaterJobs = new Set(
+    laterCand
+      .filter((a) => a.job.required_docs.some((id) => tplKind.has(id) && ((a.job.contract_method ?? 'app') === 'app' || tplKind.get(id) !== 'contract')))
+      .map((a) => a.job_id),
+  )
+  // 예정 근무에 덧붙는 줄: 배치 · 계약서 안내 · 서류는 모집이 끝나면 · 일정이 바뀐 알림 (큰 카드와 목록 카드가 같이 씀)
   const upcomingExtras = (a: AppWithJob) => (
     <>
       {a.position && <p className="mt-0.5 text-sm font-semibold text-brand-700"><Icon name="pin" /> 배치 · {a.position}</p>}
       <ContractNote job={a.job} received={a.contract_received_at} compact />
+      {docsLaterJobs.has(a.job_id) && (
+        <p className="mt-0.5 flex items-center gap-1 text-xs text-sub" data-docs-later>
+          <Icon name="file" className="shrink-0 text-mute" />
+          <span className="min-w-0 truncate">서명할 서류는 모집이 끝나면 와요</span>
+        </p>
+      )}
     </>
   )
   // 확정 뒤 담당자가 시간·장소를 바꿨으면 눈에 띄게 — 무엇이 어떻게 바뀌었는지 바로 (공고까지 안 들어가도) · 안 읽었으면 '새'
