@@ -6,7 +6,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import RevealTabs from '@/components/RevealTabs'
 import { notFound } from 'next/navigation'
-import { cancelEvent, deleteJob, duplicateJob, nudgeComing, setJobStatus } from '@/app/actions/admin'
+import { cancelEvent, copyJobToCompany, deleteJob, duplicateJob, nudgeComing, setJobStatus } from '@/app/actions/admin'
 import Announce from '@/components/Announce'
 import Flash from '@/components/Flash'
 import { wageBadge } from '@/components/JobCard'
@@ -15,7 +15,7 @@ import JobTools from '@/components/JobTools'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { getSettings, hasSeal, wageTotal } from '@/lib/data'
 import { missingSetup } from '@/lib/setup'
-import { won } from '@/lib/format'
+import { roJosa, won } from '@/lib/format'
 import { companyJob, jobInMyOtherCompany } from '@/lib/company'
 import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { db, must } from '@/lib/db'
@@ -137,6 +137,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
   // 근로계약서를 종이·다른 서비스로 받으면 앱 서명 서류에서 계약서 서식은 뺌
   const templates = allTemplates.filter((t) => job.required_docs.includes(t.id) && (job.contract_method === 'app' || t.kind !== 'contract'))
   const today = kstDate()
+  // 이 공고를 복사해 갈 수 있는 내 다른 회사 (대표·관리자로 있는 곳만 · 최고 관리자 권한으로만 보이는 회사는 빼고)
+  const copyTo = admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super')
   // 아직 모집 중인 공고 (마감·종료·취소·지난 행사가 아님)
   // 단톡방 모집 문구는 모집 중일 때만: 마지막 날 근무 시간이 지나면(모집중으로 남아 있어도) 숨김 — 끝난 공고를 다시 올리는 실수 막기
   const recruiting = job.status === 'open' && job.end_date >= today && !workOver(job, job.end_date)
@@ -433,6 +435,34 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
                       <Icon name="copy" className="text-mute" /> 복사해서 새 공고
                     </SubmitButton>
                   </form>
+                  {/* 내가 맡은 다른 회사로 복사 (정기 개선 2026-11-24 11:35 · 대표·관리자로 있는 회사만 · 서버가 다시 확인) */}
+                  {copyTo.length === 1 && (
+                    <form action={copyJobToCompany.bind(null, job.id)} data-copy-to>
+                      <input type="hidden" name="company" value={copyTo[0].id} />
+                      <SubmitButton className={MENU_ROW} pendingText="복사하는 중…">
+                        <Icon name="building" className="text-mute" />
+                        <span className="min-w-0 truncate">
+                          {copyTo[0].name}
+                          {roJosa(copyTo[0].name)} 복사
+                        </span>
+                      </SubmitButton>
+                    </form>
+                  )}
+                  {copyTo.length > 1 && (
+                    <form action={copyJobToCompany.bind(null, job.id)} className="flex items-center gap-2 px-3.5 py-2" data-copy-to>
+                      <Icon name="building" className="shrink-0 text-mute" />
+                      <select name="company" className="input min-w-0 flex-1 py-2 text-sm" aria-label="복사할 회사" defaultValue={copyTo[0].id}>
+                        {copyTo.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                      <SubmitButton className="btn-soft btn-sm shrink-0 whitespace-nowrap" pendingText="복사 중…">
+                        복사
+                      </SubmitButton>
+                    </form>
+                  )}
                   {job.status !== 'open' && job.status !== 'cancelled' && (
                     <form action={setJobStatus.bind(null, job.id, 'open')}>
                       <SubmitButton className={MENU_ROW}>

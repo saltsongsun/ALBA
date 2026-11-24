@@ -5,11 +5,12 @@ import { rosterUnlockedFor } from '@/lib/rosterLock'
 import { FINISHED_NOTE, finishIfAllOut, tellPaydayOnEnd } from '@/lib/autoFinish'
 import { remindOthersToClockOut } from '@/lib/remind'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
-import { phoneFmt } from '@/lib/format'
-import { audit, ensurePendingDocs, ensurePendingDocsMany, getJob, releaseDocs } from '@/lib/data'
+import { phoneFmt, roJosa } from '@/lib/format'
+import { audit, ensurePendingDocs, ensurePendingDocsMany, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { byIds, db, must } from '@/lib/db'
 import { BULK_MAX } from '@/lib/limits'
 import { withWeeklyPay } from '@/lib/weekly'
@@ -23,7 +24,7 @@ import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
 import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGN_NUDGE, SIGNAL, signalOf } from '@/lib/signals'
-import { requireAdmin } from '@/lib/session'
+import { COMPANY_COOKIE, requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { bizNoOwners } from '@/lib/bizNo'
 import { dateList, fmtDate, fmtDateRange, fromKstInput, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
@@ -444,7 +445,64 @@ export async function duplicateJob(jobId: string) {
       .select('id')
       .single(),
   ) as { id: string }
-  redirect(`/admin/jobs/${created.id}/edit?m=${encodeURIComponent('복사본을 만들었습니다. 날짜를 바꾸고 공개로 저장하세요.')}`)
+  redirect(`/admin/jobs/${created.id}/edit?open=schedule&m=${encodeURIComponent('복사본을 만들었습니다. 날짜를 바꾸고 공개로 저장하세요.')}`)
+}
+
+/**
+ * 이 공고를 내가 맡은 다른 회사로 복사 (정기 개선 2026-11-24 11:35 — 회사마다 같은 행사를 다시 처음부터 쓰지 않게).
+ * · 받을 회사는 내가 관리자(대표·관리자)로 있는 회사만 — 최고 관리자 권한으로만 보이는 회사는 안 됨. 서버가 다시 확인
+ * · 지원자·출퇴근·서류는 가져가지 않음 (공고 내용만). 받는 회사에 임시 저장으로 생기고, 그 회사 화면으로 바꿔서 고치기를 엶
+ * · 받을 서류: 그 회사에 같은 이름의 서식이 있으면 그것으로, 없으면 빼고 무엇을 뺐는지 알려 줌 (다른 회사 서식이 섞이지 않게)
+ */
+export async function copyJobToCompany(jobId: string, form: FormData) {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) back('/admin/jobs', '공고를 찾을 수 없어요.')
+  const toId = str(form, 'company', 40)
+  const target = admin.companies.find((c) => c.id === toId && c.id !== admin.companyId && c.role !== 'super')
+  if (!target) back(`/admin/jobs/${jobId}`, '복사할 수 없는 회사예요.')
+  // 받을 서류를 받는 회사 서식으로 바꿈 (이름이 같은 것 · 사용 중인 것만)
+  const docs = job.required_docs ?? []
+  let mapped: string[] = []
+  const dropped: string[] = []
+  if (docs.length) {
+    const [mine, theirs] = await Promise.all([
+      db().from('doc_templates').select('id, title').eq('company_id', admin.companyId).in('id', docs).then((r) => must(r) as { id: string; title: string }[]),
+      db().from('doc_templates').select('id, title, active').eq('company_id', target.id).then((r) => (must(r) as { id: string; title: string; active: boolean }[]).filter((t) => t.active)),
+    ])
+    const byTitle = new Map<string, string>()
+    for (const t of theirs) if (!byTitle.has(t.title.trim())) byTitle.set(t.title.trim(), t.id)
+    for (const id of docs) {
+      const title = mine.find((t) => t.id === id)?.title.trim()
+      if (!title) continue
+      const to = byTitle.get(title)
+      if (to) { if (!mapped.includes(to)) mapped.push(to) } else dropped.push(title)
+    }
+    mapped = mapped.slice(0, 20)
+  }
+  const settings = await getSettings(target.id)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id, created_at, updated_at, ...rest } = job as Job & { updated_at?: string }
+  const created = must(
+    await db()
+      .from('jobs')
+      .insert({ ...rest, company_id: target.id, title: `${job.title} (복사)`, status: 'draft', created_by: admin.id, required_docs: mapped })
+      .select('id')
+      .single(),
+  ) as { id: string }
+  await audit(admin.id, 'job.copy_company', null, `${jobId} → ${created.id} ${admin.companyName} → ${target.name} · ${job.title}`.slice(0, 500), target.id)
+  // 받은 회사 화면으로 바꿔서 바로 고치기 (회사 바꾸기와 같은 쿠키)
+  ;(await cookies()).set(COMPANY_COOKIE, target.id, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 365,
+  })
+  const notes = [`${target.name}${roJosa(target.name)} 복사했어요 · 날짜를 바꾸고 공개로 저장하세요`]
+  if (dropped.length) notes.push(`이 회사에 없는 서류는 뺐어요: ${dropped.slice(0, 2).join(', ')}${dropped.length > 2 ? ` 외 ${dropped.length - 2}개` : ''}`)
+  if (job.premium_enabled !== settings.workplace_5plus) notes.push('가산수당 설정이 이 회사 기본과 달라요')
+  redirect(`/admin/jobs/${created.id}/edit?open=schedule&m=${encodeURIComponent(notes.join(' · '))}`)
 }
 
 export async function deleteJob(jobId: string) {

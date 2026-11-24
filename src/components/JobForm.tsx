@@ -286,6 +286,7 @@ export default function JobForm({
   recent,
   company,
   fallbackContact = null,
+  openSchedule = false,
 }: {
   job: Job | null
   templates: Tpl[]
@@ -298,6 +299,8 @@ export default function JobForm({
   company?: string
   /** 현장 담당 번호를 비우면 근무자에게 대신 보이는 회사 문의 번호 ('김담당 010-…' · 없으면 null) */
   fallbackContact?: string | null
+  /** 복사해서 막 만든 공고: '일정 · 인원' 칸을 펼치고 테두리를 한 번 반짝 (날짜부터 바꾸게 · 기본 정보는 한 줄 요약으로 접음) */
+  openSchedule?: boolean
 }) {
   const [state, action] = useActionState(saveJob.bind(null, job?.id ?? null), null)
   // 현장 담당 번호를 썼는지 (비우면 근무자에게 무엇이 보이는지 바로 아래에 알려 줌 · 최근 담당 칩으로 채워도 같게)
@@ -480,7 +483,7 @@ export default function JobForm({
           </label>
         ))}
       </fieldset>
-      <Fold title="기본 정보" open summary={brief(v('title') || '제목을 적어 주세요')}>
+      <Fold title="기본 정보" open={!openSchedule} summary={brief(v('title') || '제목을 적어 주세요')}>
         <Field label="공고 제목 *">
           <input name="title" className="input" defaultValue={job?.title} placeholder="예) 진주남강유등축제 안내·질서 스태프" required />
         </Field>
@@ -499,7 +502,9 @@ export default function JobForm({
 
       <Fold
         title="일정 · 인원"
-        open={isNew}
+        id="schedule"
+        open={isNew || openSchedule}
+        flash={openSchedule}
         summary={brief(
           v('start_date')
             ? `${fmtDate(v('start_date'))}${v('end_date') && v('end_date') !== v('start_date') ? ` ~ ${fmtDate(v('end_date'))}` : ''} ${v('start_time')}~${v('end_time')} · ${tbd ? '인원 미정' : `${v('headcount')}명`}`
