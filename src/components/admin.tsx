@@ -471,6 +471,7 @@ export function SettingsForm({
   company,
   companyId,
   backJob,
+  others = [],
 }: {
   s: Settings
   firstJob?: boolean
@@ -478,6 +479,8 @@ export function SettingsForm({
   companyId?: string
   /** 공고 '서류' 탭의 '채우기'로 왔을 때 그 공고 (저장 뒤 돌아가는 버튼) */
   backJob?: string
+  /** 여러 회사를 맡은 관리자: 운영 기본값을 채울 수 있는 내 다른 회사 (값이 다른 곳만 · 최대 3곳) */
+  others?: OtherDefaults[]
 }) {
   const [state, action] = useActionState(saveSettings, null)
   const nextCard = (firstJob || !!backJob) && !!state?.ok
@@ -536,6 +539,7 @@ export function SettingsForm({
       </section>
       <section className="card space-y-4">
         <h2 className="font-bold">운영 기본값</h2>
+        {others.length > 0 && <FillFromCompany formId="settings-form" others={others} />}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
           <label>
             <span className="label">문의 담당자</span>
@@ -574,6 +578,58 @@ export function SettingsForm({
       </SubmitButton>
       {nextCard && <SetupNext left={left} back={backJob} />}
     </form>
+  )
+}
+
+type OtherDefaults = { id: string; name: string; contact_name: string | null; contact_phone: string | null; default_hourly_wage: number | null }
+
+/**
+ * 운영 기본값(문의 담당자·연락처·기본 시급)을 내가 맡은 다른 회사 값으로 채우기 (정기 개선 2026-11-24 15:35 — 새 회사를 열 때 다시 치지 않게).
+ * 칸만 채우고 저장은 '설정 저장'으로 (저장 바가 뜸) · 5인 이상 여부·상호·사업자번호·직인은 회사마다 달라 가져오지 않음.
+ * 채워진 칸은 초록 테두리가 0.3초 한 번 · '✓ ○○ 값으로 채웠어요' (움직임 줄이기면 테두리 없이 글만)
+ */
+function FillFromCompany({ formId, others }: { formId: string; others: OtherDefaults[] }) {
+  const [done, setDone] = useState<{ name: string; n: number } | null>(null)
+  const fill = (o: OtherDefaults) => {
+    const f = document.getElementById(formId) as HTMLFormElement | null
+    if (!f) return
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const pairs: [string, string | null][] = [
+      ['contact_name', o.contact_name],
+      ['contact_phone', o.contact_phone ? phoneShown(o.contact_phone) : null],
+      ['default_hourly_wage', o.default_hourly_wage ? String(o.default_hourly_wage) : null],
+    ]
+    for (const [name, v] of pairs) {
+      const el = f.elements.namedItem(name)
+      if (v == null || !(el instanceof HTMLInputElement)) continue
+      el.value = v
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+      if (!still) el.animate?.([{ boxShadow: '0 0 0 3px rgb(16 185 129 / 0.5)' }, { boxShadow: '0 0 0 3px rgb(16 185 129 / 0)' }], { duration: 300, easing: 'ease-out' })
+    }
+    setDone((d) => ({ name: o.name, n: (d?.n ?? 0) + 1 }))
+  }
+  return (
+    <div className="space-y-1" data-fill-from>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-xs text-mute">내 다른 회사 값으로</span>
+        {others.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => fill(o)}
+            className="max-w-[12rem] truncate rounded-full border border-line px-3 py-1.5 text-[13px] font-semibold text-sub transition hover:border-brand-500 hover:text-brand-700 active:scale-95"
+            data-fill-company={o.id}
+          >
+            {o.name}
+          </button>
+        ))}
+      </div>
+      {done && (
+        <p key={done.n} className="animate-pop text-xs font-semibold text-emerald-700" data-fill-done>
+          ✓ {done.name} 값으로 채웠어요 · 저장해야 바뀌어요
+        </p>
+      )}
+    </div>
   )
 }
 
