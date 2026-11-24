@@ -675,7 +675,7 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
             job.required_docs.length
               ? docsDue(job)
                 ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.`
-                : '✍️ 서명할 서류(근로계약서 등)는 모집이 끝나면 보내 드려요.'
+                : `✍️ 서명할 서류(${contractNameOf(job.audience)} 등)는 모집이 끝나면 보내 드려요.`
               : '',
           ]
             .filter(Boolean)

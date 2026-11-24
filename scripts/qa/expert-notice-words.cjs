@@ -51,7 +51,8 @@ const see = (p, t, ms = 8000) => p.getByText(t).first().waitFor({ timeout: ms })
   await a.waitForTimeout(2000)
   const ap = await msgs('✅ 의뢰가 확정됐어요')
   ok('확정 알림: ✅ 의뢰가 확정됐어요', ap.length === 1, (await rest('messages')).filter((m) => m.thread_user_id === EX).map((m) => m.body.split('\n')[0]).join(' | '))
-  ok("확정 알림: 앱 ‘내 일’에서 서명", ap[0]?.body.includes('‘내 일’에서 서류에 서명'))
+  // 모집 중인 이틀 뒤 일: 서명 서류는 모집이 끝나면 (사용자 요청 2026-11-24) — 전문가는 용역계약서로 안내
+  ok("확정 알림: 서명 서류(용역계약서 등)는 모집이 끝나면", ap[0]?.body.includes('서명할 서류(용역계약서 등)는 모집이 끝나면 보내 드려요') && !ap[0]?.body.includes('근로계약서'), ap[0]?.body)
 
   // 종이 계약으로 바꾸고 계약서 안내 보내기: '용역계약서 작성 안내'
   await rest(`jobs?id=eq.${JX}`, 'PATCH', { contract_method: 'paper' })

@@ -63,6 +63,8 @@ const LINE = '⏰ 오늘 근무는 00:00에 이미 시작했어요. 아직 현�
   ok(`확정 알림 둘째 줄(제목 다음): '${LINE}'`, msgs.length === before + 1 && lines[1] === LINE, lines.slice(0, 2).join(' / '))
 
   // ── 2. 근무자 내 근무: 차분한 안내 + 눈에 띄는 '도착 시간 알리기'
+  // (확정하면 오늘 근무라 서명 서류가 바로 생김 → 서명을 먼저 마친 상태에서 확인 · 가짜 DB가 서류 상태 기본값(서명 대기)을 넣게 된 뒤로)
+  await rest(`signed_docs?job_id=eq.${J}&user_id=eq.${AP}`, 'PATCH', { status: 'signed', signed_at: new Date().toISOString() })
   const w = await mk(AP)
   await w.goto(`${D}/me`, { waitUntil: 'networkidle' })
   const late = w.locator('[data-start-late]').first()
