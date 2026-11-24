@@ -1,8 +1,9 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { restoreDefaultTemplates } from '@/app/actions/admin'
+import { copyTemplate, restoreDefaultTemplates } from '@/app/actions/admin'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
+import Fold from '@/components/Fold'
 import Icon from '@/components/Icon'
 import { SubmitButton } from '@/components/ui'
 import { db, must } from '@/lib/db'
@@ -53,7 +54,11 @@ export default async function DocsPage(props: PageProps<'/admin/docs'>) {
           </Link>
         ))}
       </nav>
-      {tpl ? <Templates companyId={admin.companyId} /> : <Signed companyId={admin.companyId} f={parseDocFilter(sp)} />}
+      {tpl ? (
+        <Templates companyId={admin.companyId} others={admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super')} />
+      ) : (
+        <Signed companyId={admin.companyId} f={parseDocFilter(sp)} />
+      )}
     </div>
   )
 }
@@ -318,18 +323,79 @@ async function FirstDocs({ companyId }: { companyId: string }) {
 }
 
 /** 서식 목록 (예전 '서류 서식' 화면) */
-async function Templates({ companyId }: { companyId: string }) {
-  const [tpls, using] = await Promise.all([
+async function Templates({ companyId, others }: { companyId: string; others: { id: string; name: string }[] }) {
+  const [tpls, using, theirs] = await Promise.all([
     db().from('doc_templates').select('*').eq('company_id', companyId).order('created_at').then((r) => must(r) as DocTemplate[]),
     // 서식마다 지금 쓰는 진행 중 공고 수 (고치기 전에 어디에 영향이 가는지) — 정기 개선 2026-11-24 07:35
     templateJobCounts(companyId),
+    // 내가 맡은 다른 회사의 쓰는 서식 (가져오기 목록 · 관리자로 속한 회사만) — 정기 개선 2026-11-24 09:35
+    others.length
+      ? db()
+          .from('doc_templates')
+          .select('id, company_id, title, kind, active')
+          .in('company_id', others.map((c) => c.id))
+          .order('created_at')
+          .limit(100)
+          .then((r) => ((r.data ?? []) as { id: string; company_id: string; title: string; kind: DocTemplate['kind']; active: boolean }[]).filter((t) => t.active && others.some((c) => c.id === t.company_id)))
+      : [],
   ])
+  const nameOf = new Map(others.map((c) => [c.id, c.name]))
+  const mineTitles = new Set(tpls.map((t) => t.title))
   return (
     <>
-      <p className="text-sm text-sub">
-        공고마다 확정 인원에게 서명받을 서류를 고를 수 있습니다. 근무자는 앱에서 내용을 읽고 손가락으로 서명하며, 서명한 시점의 내용·회사 직인·서명 시각·IP가 함께
-        보관됩니다.
-      </p>
+      {/* 설명은 한 줄 + 자세히 (정기 개선 2026-11-24 09:35 · '설명은 짧게 하거나 접어 두기') */}
+      <div className="text-sm text-sub" data-tpl-intro>
+        <p>공고마다 확정 인원에게 서명받을 서류를 골라요.</p>
+        <details className="group mt-0.5 text-xs text-mute">
+          <summary className="tap inline-flex cursor-pointer items-center font-semibold">자세히</summary>
+          <p className="mt-1 animate-[slide-down_0.25s_ease-out_both] text-sub">
+            근무자는 앱에서 내용을 읽고 손가락으로 서명해요. 서명한 때의 내용·회사 직인·서명 시각·IP가 함께 보관돼요.
+          </p>
+        </details>
+      </div>
+      {theirs.length > 0 && (
+        <div data-tpl-import>
+          <Fold
+            title="다른 회사 서식 가져오기"
+            badge={<span className="text-sm font-semibold text-mute">· {theirs.length}개</span>}
+            summary="내가 맡은 다른 회사 서식을 이 회사로 복사해요"
+            className="space-y-2"
+          >
+            <p className="text-xs text-sub">원래 서식은 그대로예요</p>
+            <ul className="divide-y divide-line">
+              {theirs.map((t, i) => (
+                <li
+                  key={t.id}
+                  className="flex animate-[rise_0.25s_var(--ease-spring)_both] items-center gap-3 py-2.5"
+                  style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }}
+                  data-tpl-src={t.id}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs font-semibold text-mute">
+                      {nameOf.get(t.company_id)} · {KIND[t.kind]}
+                    </span>
+                    {/* 같은 이름이 이미 있으면 제목 옆에 짧게 (가져오면 '(회사 이름에서)'가 붙음) */}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate font-semibold">{t.title}</span>
+                      {mineTitles.has(t.title) && (
+                        <span className="badge shrink-0 bg-bg text-sub" data-tpl-same>
+                          같은 이름
+                        </span>
+                      )}
+                    </span>
+                  </span>
+                  <form action={copyTemplate} className="shrink-0">
+                    <input type="hidden" name="id" value={t.id} />
+                    <SubmitButton className="btn-soft btn-sm" pendingText="가져오는 중…">
+                      가져오기
+                    </SubmitButton>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          </Fold>
+        </div>
+      )}
       <div className="grid gap-3 md:grid-cols-2">
         {tpls.map((t) => (
           <Link key={t.id} href={`/admin/docs/${t.id}`} className={`card-link block ${t.active ? '' : 'opacity-50'}`}>
@@ -351,14 +417,16 @@ async function Templates({ companyId }: { companyId: string }) {
           </Link>
         ))}
       </div>
-      <div className="card text-sm text-sub">
-        <p className="mb-1 font-bold text-ink">앱이 자동으로 만드는 서류</p>
-        <ul className="list-disc space-y-0.5 pl-5">
-          <li>임금명세서 — 근로기준법 제48조에 따른 항목(구성항목·계산방법·공제내역)을 근무 기록에서 자동 작성</li>
-          <li>근무확인서 — 근무기간·일수·시간과 회사 직인</li>
-          <li>개인정보 수집·이용 동의 — 가입할 때 받으며 동의 시각을 기록</li>
-          <li>근로자 명부·정산표·월별 신고자료 — CSV(엑셀)로 내려받기</li>
-        </ul>
+      {/* 앱이 자동으로 만드는 서류: 접어 두고 한 줄 (펼치면 네 가지 · 정기 개선 2026-11-24 09:35) */}
+      <div data-tpl-auto>
+        <Fold title="앱이 자동으로 만드는 서류" badge={<span className="text-sm font-semibold text-mute">· 4가지</span>} className="text-sm text-sub">
+          <ul className="list-disc space-y-0.5 pl-5">
+            <li>임금명세서 — 근로기준법 제48조에 따른 항목(구성항목·계산방법·공제내역)을 근무 기록에서 자동 작성</li>
+            <li>근무확인서 — 근무기간·일수·시간과 회사 직인</li>
+            <li>개인정보 수집·이용 동의 — 가입할 때 받으며 동의 시각을 기록</li>
+            <li>근로자 명부·정산표·월별 신고자료 — CSV(엑셀)로 내려받기</li>
+          </ul>
+        </Fold>
       </div>
     </>
   )

@@ -1983,6 +1983,38 @@ export async function restoreDefaultTemplates() {
   back('/admin/docs?tab=tpl', missing.length ? `기본 서식 ${missing.length}개를 추가했습니다.` : '기본 서식이 이미 모두 있습니다.')
 }
 
+/**
+ * 내가 맡은 다른 회사의 서식을 지금 회사로 복사 (정기 개선 2026-11-24 09:35)
+ * · 가져오는 서식은 내가 관리자(대표·관리자)로 속한 다른 회사 것만 — 최고 관리자라도 속하지 않은 회사 것은 없는 것처럼
+ * · 원래 서식은 그대로 · 같은 이름이 있으면 '(회사 이름에서)'를 붙임 · 새 공고 기본 체크는 끔 (복사만으로 공고에 붙지 않게)
+ * · 글에 원래 회사 이름이 그대로 적혀 있으면 고치라고 알려 줌 (서류에는 보통 {{회사명}} 자리채움을 씀)
+ */
+export async function copyTemplate(form: FormData) {
+  const admin = await requireAdmin()
+  const id = str(form, 'id', 40)
+  const fail = () => back('/admin/docs?tab=tpl', '가져올 서식을 찾을 수 없어요.')
+  if (!isUuid(id)) fail()
+  const { data } = await db().from('doc_templates').select('company_id, title, kind, body').eq('id', id).maybeSingle()
+  const src = data as { company_id: string; title: string; kind: string; body: string } | null
+  const from = src && src.company_id !== admin.companyId ? admin.companies.find((c) => c.id === src.company_id && c.role !== 'super') : undefined
+  if (!src || !from) return fail()
+  const mine = must(await db().from('doc_templates').select('title').eq('company_id', admin.companyId)) as { title: string }[]
+  const title = (mine.some((t) => t.title === src.title) ? `${src.title} (${from.name}에서)` : src.title).slice(0, 100)
+  const created = must(
+    await db()
+      .from('doc_templates')
+      .insert({ company_id: admin.companyId, title, kind: src.kind, body: src.body, is_default: false, active: true })
+      .select('id')
+      .single(),
+  ) as { id: string }
+  await audit(admin.id, 'template.copy', null, `${from.name} → ${admin.companyName} · ${title}`, admin.companyId)
+  revalidatePath('/admin/docs')
+  const named = from.name.length >= 2 && src.body.includes(from.name)
+  redirect(
+    `/admin/docs/${created.id}?m=${encodeURIComponent(named ? `${from.name}에서 가져왔어요 · 글에 '${from.name}' 이름이 그대로 있어요. 고쳐 주세요` : `${from.name}에서 가져왔어요 · 원래 서식은 그대로예요`)}`,
+  )
+}
+
 // ───────────── 근무자 ─────────────
 
 /**
