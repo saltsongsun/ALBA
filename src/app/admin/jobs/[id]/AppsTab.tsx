@@ -17,6 +17,9 @@ import { GroupContact } from '@/components/GroupContact'
 import HashFocus from '@/components/HashFocus'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
 import { APP_STATUS } from '@/components/JobCard'
+import LiveNumber from '@/components/LiveNumber'
+import PlanToast from '@/components/PlanToast'
+import { planner } from '@/lib/confirmPlan'
 
 /** 관리자 화면 배지: 근무자 화면 말('지원완료')이 아니라 관리자가 할 일 기준 ('대기' 목록과 같은 말) */
 const adminLabel = (status: keyof typeof APP_STATUS) => (status === 'applied' ? '확정 대기' : APP_STATUS[status].label)
@@ -295,6 +298,9 @@ export default async function AppsTab({
   const waiting = apps.filter((a) => a.status === 'applied' && !a.held_at).length
   const heldN = apps.filter(isHeld).length
   const approved = apps.filter((a) => a.status === 'approved')
+  // 확정한 일정 금액 (관리자에게만 · 사용자 요청 2026-11-24): 사람마다 고른 날 × 하루 예정 금액 · 확정 전체 합계
+  const planOf = planner(job)
+  const planTotal = approved.reduce((t, a) => t + planOf(a.available_dates).gross, 0)
   // 날짜별 확정 인원 (여러 날 행사는 사람마다 가능한 날이 달라서 날마다 셈)
   const dates = dateList(job.start_date, job.end_date)
   const multi = dates.length > 1
@@ -440,6 +446,18 @@ export default async function AppsTab({
         )}
         <Weekly a={a} />
         <Memo uid={a.user_id} />
+        {/* 확정한 사람: 이 사람 전체 일정 금액 (확정하면 톡 나타남) */}
+        {a.status === 'approved' && (() => {
+          const pl = planOf(a.available_dates)
+          return (
+            <p className="flex animate-pop items-center gap-1.5 text-sm" data-app-plan>
+              <span className="text-mute">확정 일정</span>
+              <b className="tabular-nums">{pl.days}일</b>
+              <span className="text-mute">· 약</span>
+              <b className="text-emerald-700 tabular-nums">{won(pl.gross)}</b>
+            </p>
+          )
+        })()}
         <div className="rounded-xl bg-bg px-3 py-2 text-sm text-sub">
           <p>가능일 {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}</p>
           {a.message && <p className="text-ink">“{a.message}”</p>}
@@ -482,10 +500,18 @@ export default async function AppsTab({
           </Link>
         )
       })()}
+      {/* 한 사람씩 확정·되돌리면 머리글 아래 '확정 n명 · 전체 약 ○원 · +○원' (확정한 카드는 접힌 칸으로 들어가므로) */}
+      <PlanToast total={planTotal} count={approved.length} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-sub">
           확정 <b className="text-ink">{approved.length}</b>
           {tbd ? '명 · 인원 미정' : ` / 모집 ${job.headcount}명`} · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
+          {/* 확정한 전체 일정 금액 (확정·되돌리기 하면 숫자가 통 튐) */}
+          {approved.length > 0 && (
+            <span className="block whitespace-nowrap" data-apps-plan-total>
+              확정 전체 일정 약 <LiveNumber value={planTotal} className="font-bold text-emerald-700" />원
+            </span>
+          )}
           {/* 끝난 행사에 대기자가 남았으면: 확정 대신 미선발로 정리할 때 (대시보드의 '끝난 행사'와 같은 표시) */}
           {jobEnded && waiting > 0 && (
             <span className="badge ml-1.5 bg-bg text-mute" data-apps-ended>
@@ -731,6 +757,11 @@ export default async function AppsTab({
                         </td>
                         <td className="min-w-48 text-xs text-sub">
                           {a.available_dates ? a.available_dates.map(fmtDate).join(', ') : '전체'}
+                          {a.status === 'approved' && (
+                            <div className="mt-0.5 animate-pop font-semibold text-emerald-700 tabular-nums" data-app-plan>
+                              {planOf(a.available_dates).days}일 · 약 {won(planOf(a.available_dates).gross)}
+                            </div>
+                          )}
                           {a.message && <div className="mt-0.5 text-ink">“{a.message}”</div>}
                           {!!a.user.careers?.length && (
                             <div className="mt-0.5">

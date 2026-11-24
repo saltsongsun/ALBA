@@ -8,7 +8,7 @@ export const JOB_FIELDS = [
   { key: 'premium', label: '가산', hint: '연장·야간 50% 가산 (가산을 켠 공고만)' },
   { key: 'tax', label: '공제', hint: '세금·고용보험 공제 방식' },
   { key: 'pay_day', label: '지급일', hint: '임금 지급일 (적은 경우)' },
-  { key: 'docs', label: '서류', hint: '확정 후 서명할 서류 목록' },
+  { key: 'docs', label: '서류', hint: '모집 마감 후 서명할 서류 목록' },
 ] as const
 
 export type JobFieldKey = (typeof JOB_FIELDS)[number]['key']

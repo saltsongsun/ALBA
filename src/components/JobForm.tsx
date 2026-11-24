@@ -862,7 +862,7 @@ export default function JobForm({
 
       <Fold
         id="docs"
-        title="확정 후 서명받을 서류"
+        title="모집 마감 후 서명받을 서류"
         className="space-y-3"
         summary={brief(
           [CONTRACT_TEXT[contractMethod] && `계약서 ${CONTRACT_TEXT[contractMethod]}`, docTitles.length ? docTitles.join(', ') : contractMethod === 'app' ? '⚠️ 없음 (근로계약서는 꼭 받아야 해요)' : '']
@@ -876,7 +876,7 @@ export default function JobForm({
           <div className="grid gap-2 sm:grid-cols-3">
             {(
               [
-                ['app', '앱에서 전자서명', '확정되면 앱으로 서명 요청'],
+                ['app', '앱에서 전자서명', '모집이 끝나면 앱으로 서명 요청'],
                 ['paper', '종이(서면)로 받기', '현장에서 종이에 작성'],
                 ['external', '다른 서비스', '모두싸인 등 전자계약'],
               ] as const

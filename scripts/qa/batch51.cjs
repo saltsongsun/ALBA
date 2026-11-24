@@ -99,7 +99,7 @@ const hm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 6
   const tops = await mc.locator('a').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)))
   ok('담당자: 번호 아래 전화·문자가 한 줄', tops.length === 2 && tops[0] === tops[1] && (await mc.innerText()).includes('010-5555-6666'), JSON.stringify(tops))
   const docLines = n.locator('[data-doc-lines]')
-  ok("서류: 이름 아래 '확정 후 앱에서 전자서명' (괄호 없이)", (await docLines.innerText().catch(() => '')).includes('확정 후 앱에서 전자서명') && !(await docLines.innerText().catch(() => '')).includes('('))
+  ok("서류: 이름 아래 '모집 마감 후 앱에서 전자서명' (괄호 없이)", (await docLines.innerText().catch(() => '')).includes('모집 마감 후 앱에서 전자서명') && !(await docLines.innerText().catch(() => '')).includes('('))
   ok('360px: 옆으로 안 밀림 (공고)', await n.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1))
 
   // ── 7. 관리자 근무자 목록 칩 줄 끝 흐림 ──

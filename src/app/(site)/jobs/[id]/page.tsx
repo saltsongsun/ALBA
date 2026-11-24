@@ -17,7 +17,7 @@ import PhotoDoneNote from '@/components/PhotoDoneNote'
 import { PHOTO_DONE_KEY } from '@/lib/photoDone'
 import { ConfirmSubmit, ShareButton, SubmitButton } from '@/components/ui'
 import VenueMap from '@/components/VenueMap'
-import { approvedCounts, countApps, getJob, getSettings, JOB_WITH_APP_STATUS, replyMinutes, replySpan, type JobWithAppStatus } from '@/lib/data'
+import { approvedCounts, countApps, docsDue, getJob, getSettings, JOB_WITH_APP_STATUS, replyMinutes, replySpan, type JobWithAppStatus } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { overlapDay } from '@/lib/overlap'
 import { scheduleSummary, scheduleText } from '@/lib/docs'
@@ -93,7 +93,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
     .order('start_date')
     .limit(3)
     .then((r) => (must(r) as JobWithAppStatus[]).filter((j) => j.id !== job.id && j.status === 'open' && j.end_date >= kstDate()))
-  const [counts, app, docs, mine, pendingIds, company, me, coInfo, others, myAtt, jobNotes, lastMessage] = await Promise.all([
+  const [counts, app, docs, mine, myDocs, company, me, coInfo, others, myAtt, jobNotes, lastMessage] = await Promise.all([
     approvedCounts([job.id]),
     user
       ? db().from('applications').select('*').eq('job_id', job.id).eq('user_id', user.id).maybeSingle().then((r) => r.data as Application | null)
@@ -122,17 +122,18 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
               }[],
           )
       : [],
-    // 이 공고에서 아직 서명 안 한 내 서류 (진행 단계 표시 + '서류 서명하기' 버튼으로 첫 서류 바로 열기)
+    // 이 공고의 내 서류 (서명 대기·서명함): 아직 서명 안 한 것은 진행 단계 표시 + '서류 서명하기' 버튼으로 첫 서류 바로 열기
+    // (서명 대기만 읽던 것을 서명한 것까지 — 서류가 아직 안 왔는지(모집 마감 뒤에 옴) 가리려고)
     user
       ? db()
           .from('signed_docs')
-          .select('id, created_at')
+          .select('id, created_at, status')
           .eq('job_id', job.id)
           .eq('user_id', user.id)
-          .eq('status', 'pending')
-          .limit(20)
-          .then((r) => ((r.data ?? []) as { id: string; created_at: string }[]).sort((a, b) => a.created_at.localeCompare(b.created_at)).map((d) => d.id))
-      : ([] as string[]),
+          .in('status', ['pending', 'signed'])
+          .limit(40)
+          .then((r) => ((r.data ?? []) as { id: string; created_at: string; status: string }[]).sort((a, b) => a.created_at.localeCompare(b.created_at)))
+      : ([] as { id: string; created_at: string; status: string }[]),
     // 공고를 낸 회사 (여러 회사가 함께 씀)
     getSettings(job.company_id),
     // 얼굴 사진 (없으면 지원 전에 올리게) · 급여 계좌가 있는지 (지원·확정 뒤 등록 안내)
@@ -213,7 +214,13 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const lastChange = jobNotes.change
   const otherCounts = countApps(others, 'approved')
   const approved = counts[job.id] ?? 0
+  const pendingIds = myDocs.filter((d) => d.status === 'pending').map((d) => d.id)
   const unsignedHere = pendingIds.length > 0
+  // 확정됐지만 서명 서류가 아직 안 옴: 모집이 끝나면(마감·근무 전날) 보내 줌 (사용자 요청 2026-11-24 "모집완료 후 작성으로")
+  // 서류가 아직 안 옴: 모집이 끝나면(마감·근무 전날 저녁) 보내 줌 · 보낼 때가 지났는데 아직 없으면(저녁 작업이 늦음) '곧 보내 드려요'
+  // (예전처럼 '✓ 서명'으로 보이지 않게 · 근무 시작을 누르면 그때라도 서류를 만들고 먼저 서명하게 함)
+  const docsWait = app?.status === 'approved' && docs.length > 0 && myDocs.length === 0
+  const docsLater = docsWait && !docsDue(job)
   const est = estimateDay(job)
   const dates = dateList(job.start_date, job.end_date)
   const ended = job.end_date < kstDate()
@@ -577,7 +584,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   [
                     job.contract_method === 'paper' && [contractNameOf(job.audience), '현장에서 종이로 작성'],
                     job.contract_method === 'external' && [contractNameOf(job.audience), '모두싸인 등 전자계약'],
-                    docs.length > 0 && [docs.map((d) => d.title).join(', '), '확정 후 앱에서 전자서명'],
+                    docs.length > 0 && [docs.map((d) => d.title).join(', '), '모집 마감 후 앱에서 전자서명'],
                   ].filter(Boolean) as [string, string][]
                 ).map(([name, how]) => (
                   <span key={name} className="block">
@@ -687,7 +694,7 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
         ) : app && app.status !== 'cancelled' ? (
           <div className="card space-y-3">
             {/* 서명이 남았는데 이미 출근 기록이 있으면 (담당자가 대신 기록 등) '출근'은 ✓ · '서명'은 지금 할 일로 남김 */}
-            {app.status !== 'rejected' && !lapsed && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere ? 3 : worked ? 5 : 4} also={unsignedHere && worked ? [4] : undefined} />}
+            {app.status !== 'rejected' && !lapsed && <ApplySteps step={app.status === 'applied' ? 2 : unsignedHere || docsWait ? 3 : worked ? 5 : 4} also={unsignedHere && worked ? [4] : undefined} />}
             <p className="font-semibold" data-app-result={lapsed ? 'lapsed' : app.status}>
               {app.status === 'approved'
                 ? '근무가 확정됐어요.'
@@ -697,6 +704,23 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                     ? '지원이 접수됐어요. 확정되면 알려 드릴게요.'
                     : '이번에는 함께하지 못하게 됐어요.'}
             </p>
+            {/* 서명 서류는 모집이 끝나면 옴 (지금은 할 일 없음 · 오면 알림) · 보낼 때가 지났는데 아직이면 '곧' */}
+            {docsWait && (
+              <p className="flex items-center gap-2 rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub" data-docs-later={docsLater ? '' : 'soon'}>
+                <Icon name="file" className="shrink-0 text-mute" />
+                <span className="min-w-0">
+                  {docsLater ? (
+                    <>
+                      서명할 서류는 <b className="font-semibold text-ink">모집이 끝나면</b> 보내 드려요 · 오면 알림으로 알려 드려요
+                    </>
+                  ) : (
+                    <>
+                      서명할 서류를 <b className="font-semibold text-ink">곧</b> 보내 드려요 · 근무 시작 전에 서명해 주세요
+                    </>
+                  )}
+                </span>
+              </p>
+            )}
             {/* 이미 출근했으면: 지금 근무 중인지 · 마지막으로 근무한 날과 시간 (확정만 보이던 칸에 내 진행 상태) */}
             {liveAtt ? (
               <>

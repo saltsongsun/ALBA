@@ -103,15 +103,15 @@ export async function approvedCounts(jobIds: string[]): Promise<Record<string, n
  * 예전엔 한 사람씩 세 번씩 차례로 물어서, 수백 명을 한꺼번에 확정하면 서버 시간이 넘어 일부만 서류가 생길 수 있었음
  * (서류가 없으면 근무 시작 전 서명을 못 해서 현장에서 막힘)
  */
-export async function ensurePendingDocsMany(job: Job, userIds: string[]) {
+export async function ensurePendingDocsMany(job: Job, userIds: string[]): Promise<string[]> {
   const users = [...new Set(userIds)]
-  if (!users.length || !job.required_docs?.length) return
+  if (!users.length || !job.required_docs?.length) return []
   const templates = must(
     await db().from('doc_templates').select('id, kind, title').in('id', job.required_docs),
   ) as { id: string; kind: string; title: string }[]
   // 근로계약서를 종이·다른 서비스(모두싸인 등)로 받는 공고는 앱 서명에서 뺌
   const need = (job.contract_method ?? 'app') === 'app' ? templates : templates.filter((t) => t.kind !== 'contract')
-  if (!need.length) return
+  if (!need.length) return []
   const existing = await allByIds<{ job_id: string; user_id: string; template_id: string | null; status: string }>(users, (part, a, b) =>
     db().from('signed_docs').select('id, job_id, user_id, template_id, status').eq('job_id', job.id).in('user_id', part).neq('status', 'void').order('id').range(a, b),
   )
@@ -120,11 +120,40 @@ export async function ensurePendingDocsMany(job: Job, userIds: string[]) {
     need.filter((t) => !have.has(`${u}|${t.id}`)).map((t) => ({ job_id: job.id, user_id: u, template_id: t.id, kind: t.kind, title: t.title })),
   )
   for (let i = 0; i < rows.length; i += 500) must(await db().from('signed_docs').insert(rows.slice(i, i + 500)))
+  // 새로 서류가 생긴 사람 (서류가 왔다고 알릴 사람)
+  return [...new Set(rows.map((r) => r.user_id))]
 }
 
 /** 한 사람 (위와 같은 규칙) */
 export async function ensurePendingDocs(job: Job, userId: string) {
   return ensurePendingDocsMany(job, [userId])
+}
+
+/**
+ * 서명 서류(근로계약서 등)를 지금 보낼 때인지 — 사용자 요청 2026-11-24 "근로계약서는 확정 후 작성 말고 모집완료 후 작성으로".
+ * · 모집을 마감했으면(모집마감·종료) 보냄
+ * · 아직 모집 중이어도 근무가 오늘 시작하거나, 내일 시작하는데 저녁 6시(한국)가 지났으면 보냄
+ *   (마감을 깜빡해도 근무 전에 서명하게 — 안전장치. 매일 저녁 6시 알림 작업이 내일 근무 확정자에게 서류를 보내는 때와 같게:
+ *    그 전에는 '모집이 끝나면 보내 드려요'로 보이고, 그 뒤에 확정한 사람은 바로 받음)
+ */
+export function docsDue(job: Pick<Job, 'status' | 'start_date'>, now = Date.now()): boolean {
+  if (job.status !== 'open' && job.status !== 'draft') return true
+  if (job.start_date <= kstDate(new Date(now))) return true
+  return job.start_date <= kstDate(new Date(now + 86_400_000)) && new Date(now + 9 * 3_600_000).getUTCHours() >= 18
+}
+
+/** 확정한 사람의 서류: 보낼 때면 지금 만들고, 아니면 모집 마감(또는 근무 전날)에 한 번에 — 새로 서류가 생긴 사람을 돌려줌 */
+export async function ensureDocsWhenDue(job: Job, userIds: string[]): Promise<string[]> {
+  if (!docsDue(job)) return []
+  return ensurePendingDocsMany(job, userIds)
+}
+
+/** 이 공고의 확정자 모두에게 서류를 만들고 (이미 있으면 그대로) 새로 생긴 사람을 돌려줌 — 모집 마감·근무 전날 */
+export async function issueDocsToApproved(job: Job): Promise<string[]> {
+  const rows = await allPages<{ user_id: string }>((a, b) =>
+    db().from('applications').select('user_id').eq('job_id', job.id).eq('status', 'approved').order('id').range(a, b),
+  )
+  return ensurePendingDocsMany(job, rows.map((r) => r.user_id))
 }
 
 /**

@@ -9,8 +9,10 @@ import { cookies } from 'next/headers'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { decrypt, hashPin } from '@/lib/crypto'
-import { phoneFmt, roJosa } from '@/lib/format'
-import { audit, ensurePendingDocs, ensurePendingDocsMany, getJob, getSettings, releaseDocs } from '@/lib/data'
+import { phoneFmt, roJosa, won } from '@/lib/format'
+import { planner } from '@/lib/confirmPlan'
+import { audit, docsDue, ensureDocsWhenDue, ensurePendingDocsMany, getJob, getSettings, releaseDocs } from '@/lib/data'
+import { issueDocsAndTell } from '@/lib/docIssue'
 import { byIds, db, must } from '@/lib/db'
 import { BULK_MAX } from '@/lib/limits'
 import { withWeeklyPay } from '@/lib/weekly'
@@ -215,8 +217,12 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
     if (job && job.contract_method !== 'app') {
       await db().from('signed_docs').delete().eq('job_id', id).eq('kind', 'contract').eq('status', 'pending')
     }
-    // 확정자 서류를 한 번에 (사람이 많아도 서버 시간이 넘지 않게)
-    if (job) await ensurePendingDocsMany(job, approved.map((a) => a.user_id))
+    // 확정자 서류를 한 번에 (사람이 많아도 서버 시간이 넘지 않게) — 보낼 때(모집 마감·근무 내일 안)만 · 사용자 요청 2026-11-24
+    // 이번 고치기로 보낼 때가 됐으면(마감으로 바꿈·날짜를 앞당김) 서류가 새로 생긴 사람에게 알림까지
+    if (job && docsDue(job)) {
+      if (!docsDue(before)) await issueDocsAndTell(job, admin.id, job.status === 'open' || job.status === 'draft' ? 'dayBefore' : 'closed')
+      else await ensurePendingDocsMany(job, approved.map((a) => a.user_id))
+    }
     // 일정·장소·급여가 바뀌었으면 확정자·지원자에게 바로 알림 (끝난 행사·임시저장 제외)
     const changes = job ? jobChanges(before, job) : []
     if (job && changes.length && apps.length && form.get('notify_change') && ['open', 'closed'].includes(job.status) && before.end_date >= kstDate()) {
@@ -268,10 +274,31 @@ export async function saveJob(jobId: string | null, _: FormState, form: FormData
 export async function setJobStatus(jobId: string, status: Job['status']) {
   const admin = await requireAdmin()
   if (!isUuid(jobId) || !['draft', 'open', 'closed', 'done'].includes(status)) return
+  const before = await companyJob(admin, jobId)
   // 취소한 행사는 되돌리지 않음 (지원이 모두 취소됨 → 복사해서 새 공고로)
   must(await db().from('jobs').update({ status }).eq('id', jobId).eq('company_id', admin.companyId).neq('status', 'cancelled'))
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/')
+  // 모집을 마감하면 확정자에게 서명 서류(근로계약서 등)를 이때 보냄 (사용자 요청 2026-11-24 "모집완료 후 작성으로")
+  // 이미 서류가 있는 사람은 건너뛰므로, 근무 전날 저녁 작업이 놓친 사람도 마감할 때 채워짐
+  if (before && before.status !== 'cancelled' && before.status !== status && (status === 'closed' || status === 'done')) {
+    const n = await issueDocsAndTell({ ...before, status }, admin.id, 'closed')
+    if (n) back(`/admin/jobs/${jobId}`, `${status === 'done' ? '행사를 종료했어요' : '모집을 마감했어요'} · 확정 ${n}명에게 서명할 서류를 보냈어요`)
+  }
+}
+
+/**
+ * 공고 '서류' 탭 '지금 보내기': 모집 마감 전이라도 확정자에게 서명 서류를 바로 보냄 (관리자가 먼저 받고 싶을 때)
+ * 우리 회사 공고만 (company_id) · 이미 서류가 있는 사람은 건너뜀
+ */
+export async function issueDocsNow(jobId: string) {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job || job.status === 'cancelled') return
+  const n = await issueDocsAndTell(job, admin.id, 'closed')
+  await audit(admin.id, 'doc.issue_now', null, `${jobId} ${n}명`, admin.companyId)
+  revalidatePath(`/admin/jobs/${jobId}`)
+  back(`/admin/jobs/${jobId}?tab=docs`, n ? `확정 ${n}명에게 서명할 서류를 보냈어요` : '보낼 사람이 없어요 · 확정자 모두 서류가 있어요')
 }
 
 /**
@@ -645,7 +672,11 @@ async function tellApproved(job: Job, userIds: string[], adminId: string | null)
             now ? `⏰ 오늘 근무는 ${hhmm(job.start_time)}에 이미 시작했어요. 아직 현장이 아니면 바로 와 주시고 ‘${myWorkTab(job.audience)}’에서 도착 시간을 알려 주세요.` : '',
             job.title,
             `${scheduleSummary(job)}${job.location_name ? ` · ${job.location_name}` : ''}`,
-            job.required_docs.length ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.` : '',
+            job.required_docs.length
+              ? docsDue(job)
+                ? `✍️ 앱 ‘${myWorkTab(job.audience)}’에서 서류에 서명해 주세요.`
+                : '✍️ 서명할 서류(근로계약서 등)는 모집이 끝나면 보내 드려요.'
+              : '',
           ]
             .filter(Boolean)
             .join('\n'),
@@ -671,6 +702,26 @@ async function tellNotSelected(job: Job, userIds: string[], adminId: string, clo
   })
 }
 
+/**
+ * 확정 뒤 관리자 안내에 붙이는 금액 (관리자에게만 · 사용자 요청 2026-11-24 "지원자를 확정하면 확정한 전체 일정 얼마인지 알려줘")
+ * 한 사람: 'n일 약 ○원' · 여러 사람: '이번 n명 약 ○원' + 이 공고 확정 전체 '확정 n명 전체 약 ○원' (공고 시간대로 일했을 때의 세전 예상)
+ */
+async function planNote(job: Job, userIds: string[]): Promise<string> {
+  const { data } = await db().from('applications').select('user_id, available_dates').eq('job_id', job.id).eq('status', 'approved').range(0, 4999)
+  const rows = (data ?? []) as { user_id: string; available_dates: string[] | null }[]
+  if (!rows.length) return ''
+  const plan = planner(job)
+  const mine = rows.filter((r) => userIds.includes(r.user_id))
+  const total = rows.reduce((t, r) => t + plan(r.available_dates).gross, 0)
+  const head =
+    mine.length === 1
+      ? `${plan(mine[0].available_dates).days}일 약 ${won(plan(mine[0].available_dates).gross)}`
+      : mine.length > 1
+        ? `이번 ${mine.length}명 약 ${won(mine.reduce((t, r) => t + plan(r.available_dates).gross, 0))}`
+        : ''
+  return [head, `확정 ${rows.length}명 전체 약 ${won(total)}`].filter(Boolean).join(' · ')
+}
+
 /** from='dashboard': 대시보드에서 눌렀으면 처리 뒤 대시보드 위쪽에 '○○님 확정 · 알림을 보냈어요' (누가 어떻게 됐는지 바로 보이게) */
 // (공고 화면처럼 두 값만 묶어 폼에 걸면 세 번째 자리에 폼 데이터가 들어오므로 'dashboard'일 때만 대시보드로)
 export async function decideApplication(appId: string, status: 'approved' | 'rejected' | 'applied', from?: 'dashboard' | 'chat' | FormData) {
@@ -693,7 +744,8 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
   if (status === 'approved') {
     const job = await getJob(app.job_id)
     if (job) {
-      await ensurePendingDocs(job, app.user_id)
+      // 서명 서류는 모집이 끝난 뒤에 (이미 마감했거나 근무가 내일 안이면 바로)
+      await ensureDocsWhenDue(job, [app.user_id])
       await tellApproved(job, [app.user_id], admin.id)
     }
   } else {
@@ -727,7 +779,13 @@ export async function decideApplication(appId: string, status: 'approved' | 'rej
     const { data: u } = await db().from('users').select('name').eq('id', app.user_id).maybeSingle()
     const name = (u as { name: string } | null)?.name ?? '근무자'
     // 휴대폰 한 줄에 들어가게 짧게
-    const msg = status === 'approved' ? `${name}님 확정 · 알림을 보냈어요` : app.status === 'applied' ? `${name}님 미선발 · 알림을 보냈어요` : `${name}님을 미선발로 바꿨어요`
+    let msg = status === 'approved' ? `${name}님 확정 · 알림을 보냈어요` : app.status === 'applied' ? `${name}님 미선발 · 알림을 보냈어요` : `${name}님을 미선발로 바꿨어요`
+    // 확정이면 그 사람 전체 일정 금액 + 공고 확정 전체 (관리자에게만)
+    if (status === 'approved') {
+      const job = await getJob(app.job_id)
+      const note = job ? await planNote(job, [app.user_id]) : ''
+      if (note) msg = `${msg} · ${note}`
+    }
     // 문의 대화('확정 여부가 궁금해요')에서 눌렀으면 그 대화로
     if (from === 'chat') revalidatePath(`/admin/chat/${app.user_id}`)
     redirect(`${from === 'chat' ? `/admin/chat/${app.user_id}` : '/admin'}?m=${encodeURIComponent(msg)}`)
@@ -750,9 +808,12 @@ export async function approveAllApplied(jobId: string) {
       (part) => db().from('applications').update({ status: 'approved', decided_at: new Date().toISOString() }).in('id', part),
     ),
   )
-  await ensurePendingDocsMany(job, apps.map((a) => a.user_id))
+  await ensureDocsWhenDue(job, apps.map((a) => a.user_id))
   await tellApproved(job, apps.map((a) => a.user_id), admin.id)
   revalidatePath(`/admin/jobs/${jobId}`)
+  // 확정한 일정 금액 (관리자에게만): 이번에 확정한 사람들 · 공고 확정 전체
+  const note = await planNote(job, apps.map((a) => a.user_id))
+  back(`/admin/jobs/${jobId}?tab=apps`, `${apps.length}명을 확정했어요. 근무자에게 알렸어요.${note ? ` ${note}` : ''}`)
 }
 
 /** 지원자 탭에서 고른 사람만 한 번에 확정 (대기 중인 지원만) */
@@ -824,14 +885,32 @@ export async function decideSelected(scope: string, status: 'approved' | 'reject
     if (!users.length) continue
     if (status === 'approved') {
       // 서류는 공고마다 한 번에 (예전: 한 사람씩 차례로 → 수백 명이면 서버 시간이 넘어 일부만 서류가 생길 수 있었음)
-      await ensurePendingDocsMany(job, users)
+      await ensureDocsWhenDue(job, users)
       await tellApproved(job, users, admin.id)
     } else told += await tellNotSelected(job, users, admin.id, false)
     revalidatePath(`/admin/jobs/${jid}`)
   }
   await audit(admin.id, status === 'approved' ? 'app.approve_selected' : 'app.reject_selected', null, `${[...jobs.keys()].join(',')} ${apps.length}명`, admin.companyId)
   revalidatePath('/admin')
-  back(path, status === 'approved' ? `${apps.length}명을 확정했어요. 근무자에게 알렸어요.` : `${apps.length}명을 미선발로 정하고 ${told}명에게 알렸어요.`)
+  // 확정이면 이번에 확정한 일정 금액 (관리자에게만 · 한 공고면 그 공고 확정 전체도)
+  let note = ''
+  if (status === 'approved') {
+    if (jobs.size === 1) {
+      const [job] = jobs.values()
+      note = await planNote(job, apps.map((a) => a.user_id))
+    } else {
+      // 여러 공고를 한 번에(대시보드): 이번에 확정한 사람들의 일정 금액 합계만
+      let g = 0
+      for (const job of jobs.values()) {
+        const ids = apps.filter((a) => a.job_id === job.id).map((a) => a.user_id)
+        const { data } = await db().from('applications').select('user_id, available_dates').eq('job_id', job.id).in('user_id', ids)
+        const plan = planner(job)
+        g += ((data ?? []) as { available_dates: string[] | null }[]).reduce((t, r) => t + plan(r.available_dates).gross, 0)
+      }
+      if (g > 0) note = `이번 ${apps.length}명 약 ${won(g)}`
+    }
+  }
+  back(path, status === 'approved' ? `${apps.length}명을 확정했어요. 근무자에게 알렸어요.${note ? ` ${note}` : ''}` : `${apps.length}명을 미선발로 정하고 ${told}명에게 알렸어요.`)
 }
 
 /**
@@ -897,6 +976,8 @@ export async function rejectWaiting(jobId: string, close?: unknown, from?: unkno
       .eq('status', 'applied'),
   )
   const n = await tellNotSelected(job, apps.map((a) => a.user_id), admin.id, true)
+  // 모집을 마감했으면 확정자에게 서명 서류를 이때 보냄 (모집완료 후 작성 · 사용자 요청 2026-11-24)
+  const docsSent = closing ? await issueDocsAndTell({ ...job, status: 'closed' }, admin.id, 'closed') : 0
   await audit(admin.id, closing ? 'app.close_reject_waiting' : 'app.reject_waiting', null, `${jobId} ${apps.length}명`, admin.companyId)
   revalidatePath(`/admin/jobs/${jobId}`)
   revalidatePath('/admin')
@@ -904,7 +985,7 @@ export async function rejectWaiting(jobId: string, close?: unknown, from?: unkno
   back(
     path,
     closing
-      ? `모집을 마감하고 대기 ${apps.length}명에게 미선발을 알렸어요 (${n}명).`
+      ? `모집을 마감하고 대기 ${apps.length}명에게 미선발을 알렸어요 (${n}명).${docsSent ? ` 확정 ${docsSent}명에게 서명할 서류를 보냈어요.` : ''}`
       : from === 'dashboard'
         ? `대기 ${apps.length}명 미선발 · 알림을 보냈어요` // 대시보드 위쪽 한 줄 (휴대폰 한 줄에 들어가게)
         : `대기 ${apps.length}명을 미선발로 정리하고 ${n}명에게 알렸어요.`,
@@ -934,11 +1015,12 @@ export async function assignWorkerToJob(userId: string, form: FormData) {
         { onConflict: 'job_id,user_id' },
       ),
   )
-  await ensurePendingDocs(job, userId)
+  await ensureDocsWhenDue(job, [userId])
   await tellApproved(job, [userId], admin.id)
   revalidatePath(`/admin/jobs/${job.id}`)
   revalidatePath(path)
-  back(path, `${u.name}님을 「${job.title}」에 확정했어요. 근무자에게 알렸어요.`)
+  const note = await planNote(job, [userId])
+  back(path, `${u.name}님을 「${job.title}」에 확정했어요. 근무자에게 알렸어요.${note ? ` ${note}` : ''}`)
 }
 
 export async function addWorkerToJob(jobId: string, form: FormData) {
@@ -961,10 +1043,11 @@ export async function addWorkerToJob(jobId: string, form: FormData) {
         { onConflict: 'job_id,user_id' },
       ),
   )
-  await ensurePendingDocs(job, u.id)
+  await ensureDocsWhenDue(job, [u.id])
   await tellApproved(job, [u.id], admin.id)
   revalidatePath(`/admin/jobs/${jobId}`)
-  back(path, `${u.name}님을 확정 인원에 추가했습니다.`)
+  const note = await planNote(job, [u.id])
+  back(path, `${u.name}님을 확정 인원에 추가했습니다.${note ? ` ${note}` : ''}`)
 }
 
 // ───────────── 출퇴근 ─────────────

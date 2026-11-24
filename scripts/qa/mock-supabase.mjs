@@ -261,6 +261,7 @@ const server = http.createServer(async (req, res) => {
       if (table === 'companies') row.active ??= true
       if (table === 'jobs') row.audience ??= 'worker'
       if (table === 'vendors') row.user_id ??= null
+      if (table === 'signed_docs') row.status ??= 'pending' // 실제 DB 기본값 (서명 대기)
       row.created_at ??= new Date().toISOString() // 실제 DB 기본값처럼
       // 커뮤니티·후기: 가려짐 없음으로 시작
       if (table.startsWith('community_') || table === 'company_reviews') {

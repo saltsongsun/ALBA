@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { after } from 'next/server'
 import { redirect } from 'next/navigation'
 import { blindIndex, decrypt, encrypt, hashPin, verifyPin } from '@/lib/crypto'
-import { approvedCounts, audit, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
+import { approvedCounts, audit, ensureDocsWhenDue, ensurePendingDocs, getJob, getSettings, releaseDocs } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { buildDocVars, renderTemplate } from '@/lib/docs'
 import { calcDay, OT_ASK_MIN, scheduledEnd, shiftOf, workOver } from '@/lib/pay'
@@ -132,7 +132,8 @@ export async function applyJob(jobId: string, form: FormData) {
   if (existing) must(await db().from('applications').update(row).eq('id', existing.id))
   else must(await db().from('applications').insert(row))
 
-  if (status === 'approved') await ensurePendingDocs(job, user.id)
+  // 자동 확정: 서명 서류는 모집이 끝난 뒤에 (이미 마감했거나 근무가 내일 안이면 바로 · 사용자 요청 2026-11-24)
+  if (status === 'approved') await ensureDocsWhenDue(job, [user.id])
   after(async () =>
     sendAdminPush(job.company_id, {
       title: status === 'approved' ? '✅ 자동 확정' : '🙋 새 지원',
@@ -338,7 +339,14 @@ export async function clockIn(jobId: string, lat: number | null, lng: number | n
     db().from('attendance').select('id, job_id, work_date').eq('user_id', user.id).is('clock_out', null).limit(1),
   ])
   if (app?.status !== 'approved') return { error: '근무가 확정된 공고만 출근할 수 있습니다.' }
-  if (pendingDocs) return { error: '근로계약서 등 서류에 먼저 서명해 주세요.' }
+  // 안전장치: 근무일인데 서명 서류가 아직 안 왔으면(모집 마감·전날 저녁 발급을 놓침) 지금 만들고 먼저 서명하게 (사용자 요청 2026-11-24)
+  const fresh = pendingDocs ? [] : await ensureDocsWhenDue(job, [user.id]).catch(() => [] as string[])
+  if (fresh.length) {
+    // 방금 만든 서류가 화면에 바로 보이게 (서명하러 가기 버튼)
+    revalidatePath('/me')
+    revalidatePath(`/jobs/${job.id}`)
+  }
+  if (pendingDocs || fresh.length) return { error: '근로계약서 등 서류에 먼저 서명해 주세요.' }
   if (open?.length) return { error: '아직 종료하지 않은 근무가 있습니다. 먼저 근무 종료를 눌러 주세요.' }
 
   const pos = coords(lat, lng)
@@ -744,7 +752,13 @@ export async function requestClockIn(jobId: string, lat: number | null, lng: num
     .eq('job_id', jobId)
     .eq('user_id', user.id)
     .eq('status', 'pending')
-  if (pendingDocs) return { error: '근로계약서 등 서류에 먼저 서명해 주세요.' }
+  // 근무 시작과 같은 안전장치: 서류가 아직 안 왔으면 지금 만들고 먼저 서명하게 (사용자 요청 2026-11-24)
+  const fresh = pendingDocs ? [] : await ensureDocsWhenDue(r.job, [user.id]).catch(() => [] as string[])
+  if (fresh.length) {
+    revalidatePath('/me')
+    revalidatePath(`/jobs/${r.job.id}`)
+  }
+  if (pendingDocs || fresh.length) return { error: '근로계약서 등 서류에 먼저 서명해 주세요.' }
   const last = r.todaySent.find((m) => signalOf(m.body) === 'arrive')
   if (last && Date.now() - Date.parse(last.created_at) < 5 * 60_000) {
     return { ok: `${kstTime(last.created_at)}에 이미 요청했어요. 담당자가 확인하면 근무 중으로 바뀌어요.` }

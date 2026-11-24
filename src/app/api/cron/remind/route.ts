@@ -3,6 +3,7 @@ import { timingSafeEqual } from 'node:crypto'
 import { cleanupRateEvents } from '@/lib/ratelimit'
 import { sendDayBeforeReminders, sendForgotClockOutReminders } from '@/lib/remind'
 import { sendWaitNotes } from '@/lib/waitNote'
+import { issueDueDocs } from '@/lib/docIssue'
 import { kstTime } from '@/lib/time'
 
 /**
@@ -21,6 +22,8 @@ export async function GET(req: Request) {
     if (!(req.headers.get('user-agent') ?? '').startsWith('vercel-cron/')) return new Response('forbidden', { status: 403 })
     if (Number(kstTime(new Date()).slice(0, 2)) < 17) return Response.json({ skipped: '저녁 5시 이후에만 보냅니다.' })
   }
+  // 안전장치: 아직 모집 중인데 근무가 내일 안에 시작하는 공고는 확정자에게 서명 서류를 보냄 (마감을 깜빡해도 근무 전에 서명하게)
+  const docs = await issueDueDocs().catch(() => ({ jobs: -1, people: 0 }))
   const result = await sendDayBeforeReminders()
   // 지난 근무의 종료를 깜빡한 근무자에게 끝난 시각을 알려 달라고 (기록마다 한 번)
   const forgot = await sendForgotClockOutReminders()
@@ -29,5 +32,5 @@ export async function GET(req: Request) {
   await cleanupRateEvents() // 하루 한 번: 오래된 자동화 방어 기록 지우기
   // 화면 이동 기록(자체 분석)은 180일만 보관
   await db().from('usage_events').delete().lt('at', new Date(Date.now() - 180 * 86_400_000).toISOString()).then(() => null, () => null)
-  return Response.json({ ...result, forgot, waiting })
+  return Response.json({ ...result, forgot, waiting, docs })
 }

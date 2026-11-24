@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { smsHead } from '@/lib/format'
-import { nudgeWorkers, rerequestDoc, rerequestDocs, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
+import { issueDocsNow, nudgeWorkers, rerequestDoc, rerequestDocs, setContractReceived, setContractReceivedSelected, voidDoc } from '@/app/actions/admin'
+import { docsDue } from '@/lib/data'
 import { PickAll, PickBar } from '@/components/BulkApprove'
 import { GroupContact } from '@/components/GroupContact'
 import Empty from '@/components/Empty'
@@ -84,6 +85,13 @@ export default function DocsTab({
   // (앱 서명: 서류가 모두 서명됨 · 종이: 확정자 계약서를 모두 받음)
   const allDone = outside ? approved.length > 0 && notReceived.length === 0 : live.length > 0 && signedCount === live.length
   const showMissing = missing.length > 0 && !allDone
+  // 서명 서류는 모집이 끝난 뒤에 보냄 (사용자 요청 2026-11-24): 아직 서류가 없는 확정자 수 (마감·근무 전날에 자동 · '지금 보내기'로 먼저)
+  const hasDoc = new Set(live.map((d) => d.user_id))
+  // 끝나지 않은 공고만 (예전 공고의 옛 기록은 건드리지 않음)
+  const noDoc = templates.length > 0 && job.status !== 'cancelled' && job.end_date >= kstDate() ? approved.filter((a) => !hasDoc.has(a.user_id)).length : 0
+  const due = docsDue(job)
+  // 보낼 때가 지났는데(마감함·근무 전날 저녁 지남) 아직 서류가 없는 확정자: 저녁 작업이 놓쳤을 때 — 바로 보내게
+  const waitingDocs = noDoc
   const missingLabels = missing.map((m) => m.label).join(' · ')
 
   return (
@@ -194,6 +202,30 @@ export default function DocsTab({
           <PickBar formId={RCV_FORM} action={setContractReceivedSelected.bind(null, job.id)} label="선택 {n}명 받음으로" confirm="{n}명 받음으로 표시할까요?" short="받음" />
         )}
         </>
+      )}
+      {/* 모집 중: 확정자에게 서류는 아직 안 감 — 마감하면(또는 근무 전날 저녁) 자동으로 · 먼저 보내려면 '지금 보내기'
+          보낼 때가 지났는데 아직 없으면(저녁 작업이 놓침) 주황으로 '아직 서류를 못 받았어요' */}
+      {waitingDocs > 0 && (
+        <div className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 ${due ? 'bg-amber-50 ring-1 ring-amber-200' : 'bg-bg'}`} data-docs-waiting={due ? 'late' : ''}>
+          <p className="min-w-0 flex-1 text-sm">
+            {due ? (
+              <>
+                <b className="block font-semibold text-amber-900">확정 {waitingDocs}명 · 아직 서류를 못 받았어요</b>
+                <span className="block text-xs text-amber-800">근무 전에 서명하게 지금 보내 주세요</span>
+              </>
+            ) : (
+              <>
+                <b className="block font-semibold">확정 {waitingDocs}명 · 서류는 모집 마감 때 보내요</b>
+                <span className="block text-xs text-mute">마감을 안 하면 근무 전날 저녁에 자동으로</span>
+              </>
+            )}
+          </p>
+          <form action={issueDocsNow.bind(null, job.id)}>
+            <SubmitButton className="btn-white btn-sm shrink-0 whitespace-nowrap" pendingText="보내는 중…" track="서류 지금 보내기">
+              지금 보내기
+            </SubmitButton>
+          </form>
+        </div>
       )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         {/* 서명 진행: 숫자 아래 얇은 막대가 0에서 차오름 (다 받으면 ✓) */}
