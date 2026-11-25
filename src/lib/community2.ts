@@ -88,7 +88,8 @@ export async function checkinView(userId: string) {
   return { date: today, current: s.current, best: s.best, done: s.today, week: week.map((d) => ({ day: d, done: set.has(d), isToday: d === today, future: d > today })) }
 }
 
-export type RankRow = { userId: string; nick: string; points: number; rank: number; me: boolean }
+// 화면으로 가는 줄에는 회원 id를 넣지 않음 (별명 뒤 실제 회원이 화면 데이터로 새지 않게 · 보안 점검 2026-11-25)
+export type RankRow = { nick: string; points: number; rank: number; me: boolean }
 
 /**
  * 이번 주 랭킹: '참여하기'를 누른 사람만 · 별명과 점수만.
@@ -139,7 +140,8 @@ export async function weeklyRanking(viewerId: string): Promise<{ joined: boolean
     // 별명은 화면에 보이는 줄만 (참여한 사람이 많아도 한 번에 묻는 수가 적게)
     const nick = await nicknames([...top, ...(me ? [me] : [])].map((r) => r.userId))
     for (const r of [...top, ...(me ? [me] : [])]) r.nick = nick.get(r.userId) ?? '병아리'
-    return { joined, members: ids.length, top, me }
+    const out = ({ nick, points, rank, me }: (typeof rows)[number]): RankRow => ({ nick, points, rank, me })
+    return { joined, members: ids.length, top: top.map(out), me: me ? out(me) : null }
   } catch {
     return empty
   }

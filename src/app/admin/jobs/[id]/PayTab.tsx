@@ -29,7 +29,7 @@ import LedgerPanel from '../../LedgerPanel'
 import { ledgerStatusIfOn } from '@/lib/ledger'
 import { SwipeHint } from '@/components/SwipeHint'
 
-export default async function PayTab({ job, atts, users, origin, company = '' }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string }) {
+export default async function PayTab({ job, atts, users, origin, company = '', filesOpen = true }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string; filesOpen?: boolean }) {
   const userIds = [...new Set(atts.map((a) => a.user_id))]
   // 아래 조회들은 서로 기다릴 필요가 없어서 한 번에 출발 (예전: 외주 비용 → 업체 이름 → 주휴 → 계좌 요청 → 정산일 안내를 차례로)
   const noAccountIds = userIds.filter((uid) => !users.get(uid)?.bank_account_enc)
@@ -258,6 +258,7 @@ export default async function PayTab({ job, atts, users, origin, company = '' }:
             csvHref={`/admin/export/settlement?job=${job.id}`}
             printHref={rows.length > 0 ? `/print/payslip/${job.id}` : null}
             incomplete={incomplete}
+            locked={!filesOpen}
           />
         </div>
       </div>

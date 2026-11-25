@@ -84,8 +84,11 @@ export default async function CoworkersPage() {
         </Empty>
       ) : (
         <ul className="stagger space-y-2" data-coworker-list>
-          {list.map((c) => (
-            <li key={c.id} className="card flex items-center gap-3 p-4" data-coworker={c.mine ? 'sharing' : 'none'}>
+          {/* 상대 회원 id는 화면 데이터에 싣지 않음: 줄은 순서로 구분하고, 버튼은 서버가 암호화해 붙이는 값으로 (별명 뒤 실제 회원이 새지 않게 · 보안 점검 2026-11-25) */}
+          {list.map((c, i) => {
+            const target = c.id
+            return (
+            <li key={i} className="card flex items-center gap-3 p-4" data-coworker={c.mine ? 'sharing' : 'none'}>
               <span aria-hidden className={`grid size-11 shrink-0 place-items-center rounded-full text-xl ${c.mine ? 'bg-brand-600 text-white' : 'bg-brand-50'}`}>
                 {c.mine ? '🤝' : '🐥'}
               </span>
@@ -98,20 +101,33 @@ export default async function CoworkersPage() {
                 {c.theirs && <p className="text-xs font-semibold text-brand-700" data-shares-with-me>나에게 지원 공고를 보여 줘요</p>}
               </div>
               {c.mine ? (
-                <form action={unlinkCoworker.bind(null, c.id)} className="shrink-0">
+                <form
+                  action={async () => {
+                    'use server'
+                    await unlinkCoworker(target)
+                  }}
+                  className="shrink-0"
+                >
                   <ConfirmSubmit className="btn-soft btn-sm" confirmText="그만 보여 줄까요?" track="그만 보여 주기">
                     ✓ 보여 주는 중
                   </ConfirmSubmit>
                 </form>
               ) : (
-                <form action={linkCoworker.bind(null, c.id)} className="shrink-0">
+                <form
+                  action={async () => {
+                    'use server'
+                    await linkCoworker(target)
+                  }}
+                  className="shrink-0"
+                >
                   <SubmitButton className="btn-gray btn-sm" pendingText="…" track="내 지원 보여 주기">
                     내 지원 보여 주기
                   </SubmitButton>
                 </form>
               )}
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
       <p className="text-center text-xs text-balance text-mute">실명·연락처·사진은 보이지 않아요. 내가 보여 줘도 상대의 지원은 보이지 않고, 언제든 그만 보여 줄 수 있어요(알림 없음).</p>

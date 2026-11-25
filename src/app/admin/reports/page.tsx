@@ -11,6 +11,8 @@ import Flash from '@/components/Flash'
 import ReportDownloads from '@/components/ReportDownloads'
 import { isLedgerCompany } from '@/lib/ledger'
 import { SwipeHint } from '@/components/SwipeHint'
+import RosterLock from '@/components/RosterLock'
+import { ROSTER_MINUTES, rosterUnlockedFor } from '@/lib/rosterLock'
 
 export const metadata: Metadata = { title: '정산 · 신고자료' }
 
@@ -52,6 +54,10 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
   const sp = await props.searchParams
   const thisMonth = kstDate().slice(0, 7)
   const month = typeof sp.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) ? sp.month : thisMonth
+  // 신고 파일에는 주민등록번호 전체 → 명단 잠금을 푼 10분 안에만 받음. 잠긴 채 파일을 누르면 여기 잠금 화면으로 (풀면 이 달 신고자료로 · 보안 점검 2026-11-25)
+  const filesOpen = (await rosterUnlockedFor(admin.id)) > 0
+  if (sp.unlock && !filesOpen)
+    return <RosterLock next={`/admin/reports?month=${month}`} minutes={ROSTER_MINUTES} title="신고 파일 잠금" desc="파일에 주민등록번호가 있어 한 번 더 확인해요." button="잠금 풀기" />
   const [rows, logs, ledgerOn] = await Promise.all([
     monthlyRows(month, admin.companyId),
     db()
@@ -217,6 +223,7 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
       <section className="card space-y-3" data-report-downloads>
         <h2 className="font-bold">신고자료 내려받기</h2>
         <ReportDownloads
+          locked={!filesOpen}
           incomplete={open.length}
           files={[
             { key: 'daily', href: `/admin/export/daily-income?month=${month}`, label: '일용근로소득 지급명세', note: `${due} 말일까지 · 홈택스`, count: inFile('daily') },

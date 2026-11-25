@@ -11,7 +11,7 @@ export type ReportFile = { key: string; href: string; label: string; note?: stri
  * '파일에 빠져요' 안내 (4초 안에 한 번 더 누르면 받음) — 정산 탭 정산표 엑셀과 같은 방식
  * 줄마다 파일에 들어가는 사람 수 (0명이면 흐리게 — 빈 파일을 받아 신고하지 않게) · 누르면 잠깐 '✓ 받는 중' (눌렸는지 알게)
  */
-export default function ReportDownloads({ files, incomplete }: { files: ReportFile[]; incomplete: number }) {
+export default function ReportDownloads({ files, incomplete, locked = false }: { files: ReportFile[]; incomplete: number; locked?: boolean }) {
   const [armed, setArmed] = useState<string | null>(null)
   const [got, setGot] = useState<string | null>(null)
   useEffect(() => {
@@ -39,7 +39,10 @@ export default function ReportDownloads({ files, incomplete }: { files: ReportFi
                 data-report-file={f.key}
                 data-export-other={f.key === 'other' ? '' : undefined}
                 data-report-count={f.count}
+                data-report-locked={locked ? '' : undefined}
                 onClick={(e) => {
+                  // 잠겨 있으면 그대로 잠금 화면으로 (받는 중 표시·한 번 더 멈춤 없이 · 보안 점검 2026-11-25)
+                  if (locked) return
                   if (!incomplete || on) {
                     setArmed(null)
                     setGot(f.key)
@@ -66,7 +69,7 @@ export default function ReportDownloads({ files, incomplete }: { files: ReportFi
                   </span>
                 ) : (
                   <span className={`flex shrink-0 items-center gap-1 text-xs font-bold ${on ? 'text-amber-700' : empty ? 'text-mute' : 'text-brand-600'}`}>
-                    <Icon name="file" className="text-sm" />
+                    <Icon name={locked ? 'lock' : 'file'} className="text-sm" />
                     {on ? '한 번 더' : 'CSV'}
                   </span>
                 )}

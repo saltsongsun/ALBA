@@ -7,8 +7,21 @@ import { FormMessage, SubmitButton } from './ui'
 import Icon from './Icon'
 import PinDots from './PinDots'
 
-/** 근무자 명단 잠금 화면: 관리자 본인 로그인 비밀번호를 한 번 더 (10분 동안 열림) */
-export default function RosterLock({ next, minutes }: { next: string; minutes: number }) {
+/** 근무자 명단 잠금 화면: 관리자 본인 로그인 비밀번호를 한 번 더 (10분 동안 열림)
+ * 신고 파일·정산표·이체 목록(주민번호·계좌번호)도 같은 잠금 — 제목·안내·버튼 글만 바꿔 씀 (보안 점검 2026-11-25) */
+export default function RosterLock({
+  next,
+  minutes,
+  title = '근무자 명단 잠금',
+  desc = '근무자 개인정보가 있어 한 번 더 확인해요.',
+  button = '명단 열기',
+}: {
+  next: string
+  minutes: number
+  title?: string
+  desc?: string
+  button?: string
+}) {
   const [state, action] = useActionState(unlockRoster.bind(null, next), null)
   const pin = useRef<HTMLInputElement>(null)
   const form = useRef<HTMLFormElement>(null)
@@ -50,9 +63,9 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
           <Icon name="lock" />
         </span>
         <div>
-          <h1 className="text-xl font-extrabold">근무자 명단 잠금</h1>
+          <h1 className="text-xl font-extrabold">{title}</h1>
           <p className="mt-1 text-sm text-sub">
-            근무자 개인정보가 있어 한 번 더 확인해요.
+            {desc}
             <br />
             로그인할 때 쓰는 비밀번호를 넣어 주세요.
           </p>
@@ -87,7 +100,7 @@ export default function RosterLock({ next, minutes }: { next: string; minutes: n
           />
           <FormMessage state={state} />
           <SubmitButton className="btn-primary w-full py-3" pendingText="확인 중…">
-            명단 열기
+            {button}
           </SubmitButton>
         </form>
         {/* 두 문장을 한 줄씩 (360px에서 '묻지 / 않아요'처럼 말 중간에서 끊기지 않게 · 정기 개선 2026-11-23 08:35) */}

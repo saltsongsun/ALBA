@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { transferList } from '@/app/actions/admin'
 
@@ -7,9 +8,12 @@ import { transferList } from '@/app/actions/admin'
 export default function TransferCopy({ jobId }: { jobId: string }) {
   const [pending, start] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
+  const router = useRouter()
   const run = () =>
     start(async () => {
       const r = await transferList(jobId)
+      // 계좌번호가 들어 있어 명단 잠금을 먼저 (정산 탭 잠금 화면 → 풀면 다시 정산 탭 · 보안 점검 2026-11-25)
+      if (r.locked) return router.push(`/admin/jobs/${jobId}?tab=pay&unlock=transfer`)
       if (!r.ok) return setMsg(r.error ?? '복사하지 못했어요.')
       try {
         await navigator.clipboard.writeText(r.ok)

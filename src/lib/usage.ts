@@ -11,7 +11,8 @@ export function screenOf(raw: unknown): string | null {
     .split('/')
     .filter(Boolean)
     .slice(0, 6)
-    .map((s) => (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? '[id]' : /^\d+$/.test(s) ? '[n]' : s.length > 40 || !/^[a-z0-9._-]+$/i.test(s) ? '[x]' : s.toLowerCase()))
+    // 견적 링크의 비밀값(/quote/…)은 기록에 남기지 않음 (보안 점검 2026-11-25)
+    .map((s, i, all) => (i === 1 && all[0] === 'quote' ? '[token]' : /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ? '[id]' : /^\d+$/.test(s) ? '[n]' : s.length > 40 || !/^[a-z0-9._-]+$/i.test(s) ? '[x]' : s.toLowerCase()))
   return `/${parts.join('/')}`
 }
 

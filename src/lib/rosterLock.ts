@@ -39,10 +39,10 @@ export async function rosterUnlockedFor(userId: string): Promise<number> {
   }
 }
 
-/** 잠금을 푼 뒤 돌아갈 곳: 명단 화면·명부 CSV만 (다른 곳으로 보내는 링크 악용 막기) */
+/** 잠금을 푼 뒤 돌아갈 곳: 명단 화면·명부 CSV · 신고자료(달) · 공고 정산 탭만 (다른 곳으로 보내는 링크 악용 막기) */
 export function rosterNext(next: unknown): string {
   const s = typeof next === 'string' ? next : ''
-  return /^\/admin\/(workers(\/[0-9a-f-]{36})?(\?[\w%=&.-]*)?|export\/workers)$/.test(s) ? s : '/admin/workers'
+  return /^\/admin\/(workers(\/[0-9a-f-]{36})?(\?[\w%=&.-]*)?|export\/workers|reports(\?month=\d{4}-(0[1-9]|1[0-2]))?|jobs\/[0-9a-f-]{36}\?tab=pay)$/.test(s) ? s : '/admin/workers'
 }
 
 /**

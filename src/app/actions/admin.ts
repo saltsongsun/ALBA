@@ -1186,6 +1186,9 @@ export async function addAttendance(jobId: string, form: FormData) {
   const date = str(form, 'work_date')
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}`
   if (!isUuid(userId) || !isDate(date)) back(path, '근무자와 날짜를 확인해 주세요.')
+  // 공고 기간 안·오늘까지만 (오지 않은 날이나 공고 밖 날짜로 기록을 만들어 정산·신고·개인정보 열람 조건을 채우지 못하게 · 보안 점검 2026-11-25)
+  if (date < job.start_date || date > job.end_date) back(path, `공고 기간(${fmtDateRange(job.start_date, job.end_date)}) 안의 날짜만 넣을 수 있어요.`)
+  if (date > kstDate()) back(path, '아직 오지 않은 날은 넣을 수 없어요. 그날이 되면 넣어 주세요.')
   // 이 공고에 확정된 사람만 (아무 회원 id로 기록을 만들어 신고자료로 주민번호·계좌를 빼 가지 못하게)
   const { count: approvedApp } = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('user_id', userId).eq('status', 'approved')
   if (!approvedApp) back(path, '이 공고에 확정된 근무자만 기록을 추가할 수 있어요.')
@@ -1641,6 +1644,8 @@ export async function bulkClockIn(jobId: string, date: string, form: FormData) {
   if (!job) return
   const path = `/admin/jobs/${jobId}?tab=att&date=${date}&view=check`
   if (date !== kstDate()) back(path, '출석 체크로 근무 시작은 오늘만 할 수 있어요. 다른 날은 기록 추가로 넣어 주세요.')
+  // 오늘이 공고 기간 안일 때만 (보안 점검 2026-11-25)
+  if (date < job.start_date || date > job.end_date) back(path, '오늘은 이 공고의 근무일이 아니에요.')
   if (job.status === 'cancelled' || job.status === 'draft') back(path, '취소됐거나 임시 저장인 공고예요.')
   const ids = pickedIds(form)
   if (!ids.length) back(path, '근무를 시작할 사람을 골라 주세요.')
@@ -1952,10 +1957,12 @@ export async function requestAccount(userId: string) {
  * 은행 앱으로 이체할 목록 (미지급 근무자의 은행·계좌·예금주·실지급액). 화면에는 계좌를 가려 두고,
  * 누를 때만 서버에서 꺼내 복사하며 기록을 남김
  */
-export async function transferList(jobId: string): Promise<{ ok?: string; error?: string; n?: number }> {
+export async function transferList(jobId: string): Promise<{ ok?: string; error?: string; n?: number; locked?: boolean }> {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
   if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  // 보안: 계좌번호 전체 → 명단 잠금(비밀번호 한 번 더)을 푼 10분 안에만 (화면은 정산 탭 잠금 화면으로 · 보안 점검 2026-11-25)
+  if (!(await rosterUnlockedFor(admin.id))) return { error: '계좌번호가 있어 비밀번호를 한 번 더 확인해요.', locked: true }
   if (await overLimit(`export:${admin.id}`, 30, 3600)) return { error: '내려받기가 너무 잦아요. 한 시간 뒤에 다시 시도해 주세요.' }
   // 이체 금액도 주휴수당까지 (정산 탭과 같은 금액)
   const rows = await withWeeklyPay(

@@ -57,7 +57,8 @@ export default function UsageTracker() {
       }
       send({ k: 'view', p: path, r: before && before !== path ? before : null })
       try {
-        sessionStorage.setItem('hw_last', path)
+        // 견적 링크 비밀값은 이 탭 기억에도 남기지 않음 (보안 점검 2026-11-25)
+        sessionStorage.setItem('hw_last', path.startsWith('/quote/') ? '/quote/[token]' : path)
       } catch {}
       prev.current = path
       shown.current = 0

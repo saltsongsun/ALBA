@@ -940,6 +940,11 @@ export default async function AttTab({
                         </ConfirmSubmit>
                       </form>
                     </details>
+                  ) : date > today ? (
+                    // 아직 오지 않은 날은 수기 등록이 안 됨 (서버도 막음 · 보안 점검 2026-11-25)
+                    <p className="mt-3 border-t border-line pt-2.5 text-xs text-mute" data-att-add-later>
+                      수기 등록은 그날부터 할 수 있어요
+                    </p>
                   ) : (
                     // 문의 화면 '기록 넣기'로 왔으면 펼친 채로
                     <details open={fix === uid ? true : undefined} className="mt-3 border-t border-line pt-2.5" data-att-add={fix === uid ? 'open' : undefined}>

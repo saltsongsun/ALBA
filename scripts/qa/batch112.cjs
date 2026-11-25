@@ -10,6 +10,7 @@ const fs = require('node:fs')
 const { createHmac } = require('node:crypto')
 const SECRET = '0123456789abcdef0123456789abcdef0123'
 const cookie = (u) => { const p = Buffer.from(JSON.stringify({ u, v: 1, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update(p).digest('base64url')}` }
+const roster = (u) => { const p = Buffer.from(JSON.stringify({ u, e: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url'); return `${p}.${createHmac('sha256', SECRET).update('roster:' + p).digest('base64url')}` } // 주민번호·계좌가 든 파일은 명단 잠금을 푼 상태로 (보안 점검 2026-11-25)
 const [D, MD, SHOTS] = process.argv.slice(2)
 if (SHOTS) fs.mkdirSync(SHOTS, { recursive: true })
 const A = 'aaaaaaaa-0000-4000-8000-000000000001', W = 'bbbbbbbb-0000-4000-8000-000000000002', J = 'cccccccc-0000-4000-8000-000000000003'
@@ -33,7 +34,7 @@ const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`
   const pg = async (scheme = 'light') => {
     const ctx = await b.newContext({ ...devices['Galaxy S9+'], viewport: { width: 360, height: 740 }, locale: 'ko-KR', colorScheme: scheme, acceptDownloads: true })
     await ctx.addInitScript((sc) => { try { if (sc === 'dark') localStorage.setItem('theme', 'dark'); localStorage.setItem('push-nudge-later', String(Date.now())); localStorage.setItem('alba_install_hide_until', String(Date.now() + 864e5)) } catch {} }, scheme)
-    await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }])
+    await ctx.addCookies([{ name: 'alba_session', value: cookie(A), url: D }, { name: 'alba_roster', value: roster(A), url: D }])
     const p = await ctx.newPage()
     p.on('pageerror', (e) => errs.push(e.message.slice(0, 160)))
     return p

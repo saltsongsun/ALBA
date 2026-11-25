@@ -48,8 +48,9 @@ export default function Ranking({ joined, members, top, me, canJoin, weekLabel }
       </div>
       {top.length > 0 ? (
         <ol className="space-y-1" data-rank-list>
-          {top.map((r) => (
-            <Row key={r.userId} r={r} />
+          {/* 순서로 구분 (회원 id를 key로 쓰면 화면 데이터에 실려 감 · 보안 점검 2026-11-25) */}
+          {top.map((r, i) => (
+            <Row key={i} r={r} />
           ))}
           {meOutside && (
             <>

@@ -42,6 +42,8 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
     const jobId = url.searchParams.get('job') ?? ''
     const job = await companyJob(admin, jobId)
     if (!job) return new Response('공고를 찾을 수 없습니다.', { status: 404 })
+    // 보안: 계좌번호 전체가 든 파일 → 명단 잠금(비밀번호 한 번 더)을 푼 10분 안에만 (안 풀었으면 정산 탭 잠금 화면으로 · 보안 점검 2026-11-25)
+    if (!(await rosterUnlockedFor(admin.id))) return new Response(null, { status: 303, headers: { Location: `/admin/jobs/${jobId}?tab=pay&unlock=csv` } })
     const raw = must(await db().from('attendance').select('*').eq('job_id', jobId)) as Attendance[]
     // 주휴수당 (같은 회사 여러 공고를 합쳐 주마다 확인 · 정산 탭과 같은 금액)
     const atts = await withWeeklyPay(raw, job.company_id)
@@ -136,6 +138,8 @@ export async function GET(req: Request, ctx: RouteContext<'/admin/export/[kind]'
   }
 
   if (!validMonth) return new Response('month=YYYY-MM 값이 필요합니다.', { status: 400 })
+  // 보안: 신고 파일(일용·사업·기타소득, 근로내용)에는 주민등록번호 전체 → 명단 잠금을 푼 10분 안에만 (안 풀었으면 신고자료 잠금 화면으로 · 보안 점검 2026-11-25)
+  if (!(await rosterUnlockedFor(admin.id))) return new Response(null, { status: 303, headers: { Location: `/admin/reports?month=${month}&unlock=csv` } })
   const data = await monthlyRows(month, admin.companyId)
   const ym = month.replace('-', '')
 

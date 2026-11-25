@@ -123,8 +123,11 @@ const said = (r, msg) => r.text.includes(msg) || r.redirect.includes(msg)
   r = await call(a, 'admin', 'addAttendance', [J], { user_id: OUT, work_date: today, in: '09:00' })
   ok('다른 회사 근무자로 근무 기록 추가 막힘', said(r, '이 공고에 확정된 근무자만 기록을 추가'))
   ok('막힌 기록은 저장 안 됨', (await rest('attendance')).every((x) => x.user_id !== AP && x.user_id !== OUT))
+  // 기록 날짜는 공고 기간 안·오늘까지만 (보안 점검 2026-11-25) → 지난 날짜를 넣어 보려면 공고 시작일을 그날로
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: '2026-10-20' })
   r = await call(a, 'admin', 'addAttendance', [J], { user_id: W, work_date: '2026-10-20', in: '09:00', out: '18:00' })
   ok('확정된 근무자는 기록 추가됨 (확인용)', said(r, '근무 기록을 추가했습니다'), r.redirect)
+  await rest(`jobs?id=eq.${J}`, 'PATCH', { start_date: today })
 
   // ── 5. 평가: 이 공고에 지원했거나 일한 사람만 ──
   await call(a, 'admin', 'rateQuick', [OUT, J], { score: '1' })

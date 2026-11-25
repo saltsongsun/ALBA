@@ -14,7 +14,7 @@ const TILE_ARMED = `${BASE} bg-amber-50 text-amber-800 ring-amber-200`
  * 정산 탭 도구 줄: 급여 설정 · 정산표 엑셀 · 명세서 인쇄 (같은 크기 칸 한 줄).
  * 실수 막기: 아직 안 끝난 근무(근무 중·퇴근 기록 없음)가 있으면 정산표 엑셀은 한 번 멈추고 '정산표에 빠져 있어요' 안내 (4초 안에 한 번 더 누르면 받음)
  */
-export default function PayTools({ settingsHref, csvHref, printHref, incomplete }: { settingsHref: string; csvHref: string; printHref: string | null; incomplete: number }) {
+export default function PayTools({ settingsHref, csvHref, printHref, incomplete, locked = false }: { settingsHref: string; csvHref: string; printHref: string | null; incomplete: number; locked?: boolean }) {
   const [armed, setArmed] = useState(false)
   useEffect(() => {
     if (!armed) return
@@ -32,14 +32,16 @@ export default function PayTools({ settingsHref, csvHref, printHref, incomplete 
           href={csvHref}
           className={armed ? TILE_ARMED : TILE}
           data-pay-csv
+          data-pay-csv-locked={locked ? '' : undefined}
           onClick={(e) => {
-            if (!incomplete || armed) return
+            // 계좌번호가 든 파일: 잠겨 있으면 그대로 잠금 화면으로 (보안 점검 2026-11-25)
+            if (locked || !incomplete || armed) return
             e.preventDefault()
             setArmed(true)
             navigator.vibrate?.(30)
           }}
         >
-          <Icon name="file" className={`text-lg ${armed ? 'text-amber-600' : 'text-emerald-600'}`} />
+          <Icon name={locked ? 'lock' : 'file'} className={`text-lg ${armed ? 'text-amber-600' : 'text-emerald-600'}`} />
           <span className="max-w-full truncate">{armed ? '한 번 더 누르기' : '정산표 엑셀'}</span>
         </a>
         {printHref && (
