@@ -26,10 +26,11 @@ import LiveNumber from '@/components/LiveNumber'
 import PushToggle from '@/components/PushToggle'
 import { ConfirmSubmit, CopyButton, ShareButton, SubmitButton } from '@/components/ui'
 import { overlapDay } from '@/lib/overlap'
-import { countApps, getSettings, hasSeal, JOB_WITH_APP_STATUS, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, soleUnreadThread, unpaidByJob, unreadForAdmins, workedUnsigned, type JobWithAppStatus } from '@/lib/data'
+import { countApps, getSettings, hasSeal, lapsedWaiting, noReplyThreads, otherCompaniesTodo, replyMinutes, replySpan, soleUnreadThread, unpaidByJob, unreadForAdmins, workedUnsigned, type JobWithAppStatus } from '@/lib/data'
 import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
+import { fullAhead, JOB_WITH_APP_DATES } from '@/lib/fullness'
 import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
@@ -212,7 +213,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     hasSeal(admin.companyId),
     db()
       .from('jobs')
-      .select(JOB_WITH_APP_STATUS).eq('company_id', admin.companyId)
+      // 지원의 가능한 날도 함께 ('진행·예정 공고'에서 남은 날이 모두 다 찼는지 날짜별로 · 정기 개선 2026-11-25 17:35)
+      .select(JOB_WITH_APP_DATES).eq('company_id', admin.companyId)
       .in('status', ['open', 'closed'])
       .gte('end_date', today)
       .order('start_date')
@@ -1586,8 +1588,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
             </Empty>
           </div>
         )}
-        <div className="stagger grid gap-3 md:grid-cols-2">
-          {activeJobs.map((j) => (
+        <div className="stagger grid gap-3 md:grid-cols-2" data-dash-active>
+          {activeJobs.map((j) => {
+            // 남은 날이 모두 확정으로 다 참 → 막대 초록 · 모집 중인데 대기자가 남으면 '✓ 다 참 · 대기 n명' (공고 목록과 같은 기준 · 정기 개선 2026-11-25 17:35)
+            const full = fullAhead(j, today)
+            const fullWait = full && j.status === 'open' ? (waitingBy[j.id] ?? 0) : 0
+            return (
             <Link key={j.id} href={`/admin/jobs/${j.id}`} className="card-link block">
               <p className="font-bold">{j.title}</p>
               <p className="text-sm text-sub">
@@ -1607,10 +1613,17 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     )
                   })()}
                 {j.status === 'closed' && <span className="badge ml-2 bg-gray-100 text-mute">모집마감</span>}
+                {/* 다 찼는데 대기자가 남음: 들어가면 지원자 탭에서 '미선발 알림'이 먼저 (처음 보일 때 톡 · 움직임 줄이기면 끔) */}
+                {fullWait > 0 && (
+                  <span className="badge ml-2 animate-pop bg-emerald-50 whitespace-nowrap text-emerald-700" title="인원이 다 찼어요 · 대기자에게 결과를 알려 주세요" data-dash-full>
+                    ✓ 다 참 · 대기 {fullWait}명
+                  </span>
+                )}
               </p>
-              {!headcountTbd(j) && <SlotBar value={counts[j.id] ?? 0} max={j.headcount} className="mt-2" />}
+              {!headcountTbd(j) && <SlotBar value={counts[j.id] ?? 0} max={j.headcount} className="mt-2" color={full ? 'bg-emerald-500' : undefined} />}
             </Link>
-          ))}
+            )
+          })}
         </div>
       </section>
 

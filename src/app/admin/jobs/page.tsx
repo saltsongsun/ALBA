@@ -11,8 +11,8 @@ import { won } from '@/lib/format'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
-import { dateList, fmtDateRange, kstDate } from '@/lib/time'
-import { staffByDay } from '@/lib/staffing'
+import { fmtDateRange, kstDate } from '@/lib/time'
+import { fullAhead as fullAheadOf, JOB_WITH_APP_DATES } from '@/lib/fullness'
 import { workOver } from '@/lib/pay'
 import type { Job } from '@/lib/types'
 import { viewStats } from '@/lib/views'
@@ -75,7 +75,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           .slice(0, PAST_MAX))
       : null
   // 지원의 가능한 날도 함께 (여러 날 행사도 남은 날이 모두 다 찼는지 지원자 탭과 같은 기준으로 · 정기 개선 2026-11-25 15:35)
-  const SEL = '*, applications(status, available_dates), company:companies(company_name, verified)'
+  const SEL = JOB_WITH_APP_DATES
   const all =
     pastIds?.length === 0
       ? []
@@ -115,15 +115,8 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           : null
   const grossOf = (id: string) => wages[id]?.gross ?? 0
   const waitingBy = countApps(jobs, 'applied')
-  // 남은 날이 모두 확정으로 다 참 (끝난 날·인원 미정·취소 빼고 · 지원자 탭 '✓ 인원 다 참'과 같은 기준) — 막대를 초록으로
-  const fullAhead = (j: JobWithAppStatus) => {
-    if (headcountTbd(j) || j.status === 'cancelled' || j.status === 'draft' || j.headcount <= 0) return false
-    const ahead = dateList(j.start_date, j.end_date).filter((d) => d > today || (d === today && !workOver(j, d)))
-    if (!ahead.length) return false
-    const ok = (j.applications ?? []).filter((a) => a.status === 'approved') as { available_dates?: string[] | null }[]
-    const byDay = staffByDay(ahead, ok.map((a) => ({ available_dates: a.available_dates?.length ? a.available_dates : null })))
-    return ahead.every((d) => byDay[d] >= j.headcount)
-  }
+  // 남은 날이 모두 확정으로 다 참 (끝난 행사·인원 미정·취소 빼고 · 지원자 탭 '✓ 인원 다 참'과 같은 기준 · lib/fullness) — 막대를 초록으로
+  const fullAhead = (j: JobWithAppStatus) => fullAheadOf(j as JobWithAppStatus & { applications: { status: string; available_dates?: string[] | null }[] | null }, today)
   // 다 찼는데 모집 중이고 대기자가 남음 → '✓ 다 참' (들어가면 지원자 탭에서 '미선발 알림'이 먼저)
   const fullWait = (j: JobWithAppStatus) => j.status === 'open' && (waitingBy[j.id] ?? 0) > 0 && fullAhead(j)
   const unpaidOf = (id: string) => (unpaid as Record<string, { n: number }>)[id]?.n ?? 0
