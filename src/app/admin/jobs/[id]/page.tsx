@@ -13,7 +13,7 @@ import { wageBadge } from '@/components/JobCard'
 import JobActions from '@/components/JobActions'
 import JobTools from '@/components/JobTools'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { getSettings, hasSeal, wageTotal } from '@/lib/data'
+import { docsAutoAt, docsDue, getSettings, hasSeal, wageTotal } from '@/lib/data'
 import { missingSetup } from '@/lib/setup'
 import { roJosa, won } from '@/lib/format'
 import { companyJob, jobInMyOtherCompany } from '@/lib/company'
@@ -347,9 +347,14 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           {noContract && (
             <div className="mt-4 animate-pop rounded-2xl bg-amber-50/50 p-4 ring-1 ring-amber-200/70">
               <p className="font-bold">✍️ {contractName}를 받지 않는 {expertJob ? '의뢰' : '공고'}예요</p>
-              <p className="mt-1 text-sm text-sub">
+              <p className="mt-1 text-sm text-sub" data-no-contract-when={docsDue(job) ? 'now' : 'later'}>
                 {expertJob ? '전문가 의뢰는 용역계약서로 계약해요.' : '근로계약서는 근로기준법 제17조에 따라 서면(전자문서)으로 꼭 줘야 해요.'} 지정하면
-                {approved.length > 0 ? ` 이미 확정된 ${approved.length}명에게도 바로 ` : ' 확정되는 사람에게 '}
+                {/* 서류는 모집이 끝나면 감 (사용자 요청 2026-11-24) — 아직 보낼 때가 아니면 '바로'라고 하지 않고 언제 가는지 (정기 개선 2026-11-25 08:35) */}
+                {docsDue(job)
+                  ? approved.length > 0
+                    ? ` 이미 확정된 ${approved.length}명에게도 바로 `
+                    : ' 확정되는 사람에게 '
+                  : ` 모집을 마감할 때(늦어도 ${docsAutoAt(job) ?? '근무 전날 저녁'}) 확정${approved.length > 0 ? `된 ${approved.length}명` : '자'}에게 `}
                 서명 요청이 가고, 서명 전에는 근무 시작 버튼이 잠겨요.
               </p>
               <Link href={`/admin/jobs/${job.id}/edit#docs`} className="btn-primary btn-sm mt-3">

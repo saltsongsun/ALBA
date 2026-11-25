@@ -1482,8 +1482,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           <details className="group mb-3 rounded-2xl bg-brand-50 px-4 py-2.5 text-sm text-brand-900" data-first-confirm>
             <summary className="tap cursor-pointer font-semibold text-brand-700">처음이세요? 확정하면 이렇게 돼요</summary>
             <ul className="mt-2 space-y-1.5 group-open:animate-[slide-down_0.22s_ease-out_both]" data-first-confirm-rows>
+              {/* 서류는 확정할 때가 아니라 모집이 끝나면 감 (사용자 요청 2026-11-24 '모집완료 후 작성') — 안내도 바뀐 때에 맞춤 · 정기 개선 2026-11-25 08:35 */}
               <li>
-                <b>확정</b> · 근무자에게 앱 알림이 가고, 공고에 넣은 서류가 서명 대기로 준비돼요
+                <b>확정</b> · 근무자에게 앱 알림이 가요
+              </li>
+              <li data-first-confirm-docs>
+                <b>서류</b> · 모집을 마감하면 확정자에게 서명할 서류가 가요 <span className="whitespace-nowrap">(늦어도 근무 전날 저녁)</span>
               </li>
               <li>
                 <b>단체방</b> · 확정한 사람은 그 행사 단체방에 함께해요
