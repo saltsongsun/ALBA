@@ -1,7 +1,8 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
-import { restoreDefaultTemplatesHere, saveJob } from '@/app/actions/admin'
+import { copyTemplateHere, restoreDefaultTemplatesHere, saveJob } from '@/app/actions/admin'
+import type { OtherTpl } from '@/lib/otherTemplates'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { fmtDate, kstDate, minutesText } from '@/lib/time'
@@ -281,6 +282,7 @@ function preview(form: HTMLFormElement | null) {
 export default function JobForm({
   job,
   templates,
+  otherTpls = [],
   defaults,
   approved = 0,
   recent,
@@ -290,6 +292,8 @@ export default function JobForm({
 }: {
   job: Job | null
   templates: Tpl[]
+  /** 내 다른 회사의 계약서 서식 (이 회사에 계약서 서식이 없을 때 바로 가져오기 · 정기 개선 2026-11-25 12:35) */
+  otherTpls?: OtherTpl[]
   defaults: { hourly_wage: number; premium: boolean }
   /** 새 공고: 이 회사의 지난 공고에서 가져올 수 있는 값 (장소·지급일 안내·현장 담당자) */
   recent?: RecentJobValues
@@ -331,6 +335,25 @@ export default function JobForm({
   const [freshTpl, setFreshTpl] = useState<string[]>([])
   const [tplState, setTplState] = useState<'idle' | 'busy' | 'fail'>('idle')
   const [tplAdded, setTplAdded] = useState<number | null>(null)
+  // 내 다른 회사 계약서 가져오기: 가져온 회사 이름 · 글에 그 회사 이름이 그대로 있는지 (고치라고 알려 줌)
+  const [tplCopied, setTplCopied] = useState<{ from: string; title: string; named: boolean } | null>(null)
+  const [copying, setCopying] = useState<string | null>(null)
+  const copyTpl = async (id: string) => {
+    setCopying(id)
+    try {
+      const r = await copyTemplateHere(id)
+      if (r.added) {
+        const t = r.added
+        setTpls((now) => (now.some((x) => x.id === t.id) ? now : [...now, t]))
+        setFreshTpl([t.id])
+        setTplCopied({ from: r.from ?? '', title: t.title, named: !!r.named })
+        setTplState('idle')
+      } else setTplState('fail')
+    } catch {
+      setTplState('fail')
+    }
+    setCopying(null)
+  }
   const restoreTpls = async () => {
     setTplState('busy')
     try {
@@ -944,8 +967,36 @@ export default function JobForm({
                 {tplState === 'busy' ? '불러오는 중…' : '불러오기'}
               </button>
             </div>
+            {/* 여러 회사를 맡은 관리자: 내 다른 회사에서 쓰던 계약서를 바로 가져오기 (기본 서식 대신 · 정기 개선 2026-11-25 12:35) */}
+            {otherTpls.some((t) => t.kind === (audience === 'expert' ? 'service' : 'contract')) && (
+              <div className="mt-1.5 flex min-w-0 items-center gap-1.5 text-xs" data-tpl-other>
+                <span className="shrink-0 text-amber-800">또는 내 다른 회사 것</span>
+                <span className="flex min-w-0 gap-1.5">
+                  {otherTpls
+                    .filter((t) => t.kind === (audience === 'expert' ? 'service' : 'contract'))
+                    .map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => copyTpl(t.id)}
+                        disabled={copying !== null}
+                        className={`tap min-w-0 truncate rounded-full bg-white px-2.5 py-1 font-semibold text-brand-700 ring-1 ring-brand-200 transition active:scale-95 disabled:opacity-60 ${copying === t.id ? 'animate-pulse' : ''}`}
+                        data-tpl-copy={t.id}
+                      >
+                        {copying === t.id ? '가져오는 중…' : `${t.company} · ${t.title}`}
+                      </button>
+                    ))}
+                </span>
+              </div>
+            )}
             {tplState === 'fail' && <p className="mt-1 text-xs text-rose-600">불러오지 못했어요 · 다시 눌러 주세요</p>}
           </div>
+        )}
+        {tplCopied && (
+          <p className="animate-pop text-sm font-semibold text-emerald-700" data-tpl-copied>
+            ✓ {tplCopied.from}에서 가져왔어요
+            {tplCopied.named && <span className="block text-xs font-normal text-amber-700">{`글에 '${tplCopied.from}' 이름이 그대로 있어요 · 서류 메뉴에서 고쳐 주세요`}</span>}
+          </p>
         )}
         {tplAdded !== null && (
           <p className="animate-pop text-sm font-semibold text-emerald-700" data-tpl-restored>
@@ -961,7 +1012,7 @@ export default function JobForm({
                 name="required_docs"
                 value={t.id}
                 label={contractMethod !== 'app' && t.kind === 'contract' ? `${t.title} (${CONTRACT_TEXT[contractMethod]}로 받으므로 앱에선 안 받음)` : t.title}
-                defaultChecked={fresh >= 0 ? (audience === 'expert' ? t.kind === 'service' : t.is_default) : job ? job.required_docs.includes(t.id) : t.is_default}
+                defaultChecked={fresh >= 0 ? (audience === 'expert' ? t.kind === 'service' : t.is_default || t.kind === 'contract') : job ? job.required_docs.includes(t.id) : t.is_default}
               />
             </div>
           )

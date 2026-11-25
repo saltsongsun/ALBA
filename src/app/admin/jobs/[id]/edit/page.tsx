@@ -8,6 +8,7 @@ import { getSettings } from '@/lib/data'
 import { companyJob, jobInMyOtherCompany } from '@/lib/company'
 import { db, must } from '@/lib/db'
 import { contactLabel } from '@/lib/format'
+import { otherCompanyContracts } from '@/lib/otherTemplates'
 import { requireAdmin } from '@/lib/session'
 import { isUuid } from '@/lib/validate'
 
@@ -18,7 +19,7 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
   const { id } = await props.params
   const sp = await props.searchParams
   if (!isUuid(id)) notFound()
-  const [job, settings, allTemplates, approved] = await Promise.all([
+  const [job, settings, allTemplates, approved, otherTpls] = await Promise.all([
     companyJob(admin, id),
     getSettings(admin.companyId),
     db()
@@ -34,6 +35,8 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
       .eq('job_id', id)
       .eq('status', 'approved')
       .then((r) => r.count ?? 0, () => 0),
+    // 내 다른 회사의 계약서 서식 (계약서 서식이 없을 때 여기서 바로 가져오게 · 정기 개선 2026-11-25 12:35)
+    otherCompanyContracts(admin),
   ])
   if (!job) {
     // 내가 맡은 다른 회사의 공고면: 없는 화면 대신 그 회사로 바꿔서 이 화면 열기 (정기 개선 2026-11-24 05:35)
@@ -49,7 +52,7 @@ export default async function EditJobPage(props: PageProps<'/admin/jobs/[id]/edi
         ← 공고로 돌아가기
       </Link>
       <h1 className="mt-2 mb-4 text-2xl font-extrabold">공고 수정</h1>
-      <JobForm job={job} templates={templates} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} approved={approved} fallbackContact={contactLabel(settings)} openSchedule={sp.open === 'schedule'} />
+      <JobForm job={job} templates={templates} otherTpls={otherTpls} defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }} approved={approved} fallbackContact={contactLabel(settings)} openSchedule={sp.open === 'schedule'} />
     </div>
   )
 }

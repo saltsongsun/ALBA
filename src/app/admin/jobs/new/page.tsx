@@ -12,6 +12,7 @@ import { getSettings, hasSeal } from '@/lib/data'
 import { db, must } from '@/lib/db'
 import { contactLabel } from '@/lib/format'
 import { requireAdmin } from '@/lib/session'
+import { otherCompanyContracts } from '@/lib/otherTemplates'
 import { missingSetup } from '@/lib/setup'
 import { recentJobValues } from '@/lib/recent-job'
 
@@ -22,7 +23,7 @@ export default async function NewJobPage(props: PageProps<'/admin/jobs/new'>) {
   const sp = await props.searchParams
   // 내가 대표·관리자로 있는 다른 회사 (최고 관리자 권한으로만 보이는 회사는 빼고) — 그 회사 공고로 시작할 수 있게
   const mine = admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super')
-  const [settings, sealSet, templates, recent, others] = await Promise.all([
+  const [settings, sealSet, templates, recent, others, otherTpls] = await Promise.all([
     getSettings(admin.companyId),
     hasSeal(admin.companyId),
     db()
@@ -55,6 +56,8 @@ export default async function NewJobPage(props: PageProps<'/admin/jobs/new'>) {
             () => [],
           )
       : Promise.resolve([] as { id: string; title: string; company_id: string; start_date: string; end_date: string; status: string }[]),
+    // 내 다른 회사의 계약서 서식 (이 회사에 계약서 서식이 없을 때 공고 쓰기에서 바로 가져오게 · 정기 개선 2026-11-25 12:35)
+    otherCompanyContracts(admin),
   ])
   // 이 회사의 계약서·명세서에 들어갈 정보가 비어 있으면 올리기 전에 알려 줌 (막지는 않음)
   const missing = missingSetup(settings, sealSet)
@@ -125,6 +128,7 @@ export default async function NewJobPage(props: PageProps<'/admin/jobs/new'>) {
       <JobForm
         job={null}
         templates={templates}
+        otherTpls={otherTpls}
         defaults={{ hourly_wage: settings.default_hourly_wage, premium: settings.workplace_5plus }}
         recent={recent}
         company={multi ? admin.companyName : undefined}

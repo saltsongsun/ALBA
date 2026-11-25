@@ -4,6 +4,7 @@
 //   · '✓ 기본 서식 4개를 불러왔어요' 톡 · 새 서식이 차례로 올라옴(0.25초) · 근로계약서(기본)는 미리 체크 · 나머지는 체크 안 함
 // · 서식은 있는데 근로계약서가 없음: '근로계약서 서식이 없어요' 같은 줄
 // · 다른 회사 서식은 그대로 (지금 회사에만 만들어짐) · 360px 옆으로 안 밀림 · 움직임 줄이기면 바로
+// (정기 개선 2026-11-25 12:35: 줄 아래에 '또는 내 다른 회사 것' 줄이 붙을 수 있어 첫 줄만 봄 · 그 줄은 batch387)
 // node scripts/qa/batch386.cjs <default 앱> <default 가짜> <shots>
 const { chromium, devices } = require('playwright')
 const fs = require('node:fs')
@@ -47,7 +48,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await title.fill('쓰던 공고386')
   const row = a.locator('[data-tpl-missing]')
   await row.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("서식 없음: '기본 서식이 아직 없어요' + [불러오기] (한 줄 · 글이 잘리지 않음)", one(await row.innerText().catch(() => '')) === '기본 서식이 아직 없어요 불러오기' && (await row.evaluate((el) => el.getBoundingClientRect().height < 56).catch(() => false)) && (await row.locator('span').first().evaluate((el) => el.scrollWidth <= el.clientWidth + 1).catch(() => false)), one(await row.innerText().catch(() => '')))
+  ok("서식 없음: '기본 서식이 아직 없어요' + [불러오기] (한 줄 · 글이 잘리지 않음)", one(await row.locator('div').first().innerText().catch(() => '')) === '기본 서식이 아직 없어요 불러오기' && (await row.locator('div').first().evaluate((el) => el.getBoundingClientRect().height < 44).catch(() => false)) && (await row.locator('span').first().evaluate((el) => el.scrollWidth <= el.clientWidth + 1).catch(() => false)), one(await row.innerText().catch(() => '')))
   ok('예전 문구(등록된 서식이 없습니다…)는 없음', (await a.getByText('등록된 서식이 없습니다').count()) === 0)
   ok('360px 옆으로 안 밀림', await noSide(a))
   if (SHOTS) await row.locator('xpath=..').screenshot({ path: `${SHOTS}/tpl-missing.png` }).catch(() => {})
@@ -82,7 +83,7 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   await c.goto(`${D}/admin/jobs/new#docs`, { waitUntil: 'networkidle' })
   const row4 = c.locator('[data-tpl-missing]')
   await row4.waitFor({ timeout: 15000 }).catch(() => {})
-  ok("근로계약서만 없음: '근로계약서 서식이 없어요' (한 줄 · 잘리지 않음)", one(await row4.innerText().catch(() => '')) === '근로계약서 서식이 없어요 불러오기' && (await row4.locator('span').first().evaluate((el) => el.scrollWidth <= el.clientWidth + 1).catch(() => false)), one(await row4.innerText().catch(() => '')))
+  ok("근로계약서만 없음: '근로계약서 서식이 없어요' (한 줄 · 잘리지 않음)", one(await row4.locator('div').first().innerText().catch(() => '')) === '근로계약서 서식이 없어요 불러오기' && (await row4.locator('span').first().evaluate((el) => el.scrollWidth <= el.clientWidth + 1).catch(() => false)), one(await row4.innerText().catch(() => '')))
   if (SHOTS) {
     await row4.evaluate((el) => el.scrollIntoView({ block: 'center' }))
     await c.waitForTimeout(200)

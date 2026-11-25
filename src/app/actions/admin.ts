@@ -2182,6 +2182,35 @@ export async function restoreDefaultTemplatesHere(): Promise<{ added: { id: stri
 }
 
 /**
+ * 공고 쓰기·고치기 화면에서 바로: 내가 맡은 다른 회사의 계약서 서식을 지금 회사로 가져오기 (정기 개선 2026-11-25 12:35)
+ * · 아래 copyTemplate과 같은 확인(내가 대표·관리자로 속한 다른 회사 서식만 · 최고 관리자 권한으로만 보이는 회사는 안 됨 ·
+ *   같은 이름이면 '(회사에서)' · 새 공고 기본 체크는 끔 · 기록)이지만 서식 화면으로 옮기지 않고 새 서식을 돌려줌 (쓰던 공고 그대로)
+ * · 글에 원래 회사 이름이 그대로 있으면 named: true (화면에서 고치라고 알려 줌)
+ */
+export async function copyTemplateHere(
+  id: string,
+): Promise<{ added?: { id: string; title: string; kind: string; is_default: boolean }; from?: string; named?: boolean; error?: string }> {
+  const admin = await requireAdmin()
+  if (!isUuid(id)) return { error: '가져올 서식을 찾을 수 없어요.' }
+  const { data } = await db().from('doc_templates').select('company_id, title, kind, body, active').eq('id', id).maybeSingle()
+  const src = data as { company_id: string; title: string; kind: string; body: string; active: boolean } | null
+  const from = src && src.company_id !== admin.companyId ? admin.companies.find((c) => c.id === src.company_id && c.role !== 'super') : undefined
+  if (!src || !from || !src.active) return { error: '가져올 서식을 찾을 수 없어요.' }
+  const mine = must(await db().from('doc_templates').select('title').eq('company_id', admin.companyId)) as { title: string }[]
+  const title = (mine.some((t) => t.title === src.title) ? `${src.title} (${from.name}에서)` : src.title).slice(0, 100)
+  const added = must(
+    await db()
+      .from('doc_templates')
+      .insert({ company_id: admin.companyId, title, kind: src.kind, body: src.body, is_default: false, active: true })
+      .select('id, title, kind, is_default')
+      .single(),
+  ) as { id: string; title: string; kind: string; is_default: boolean }
+  await audit(admin.id, 'template.copy', null, `${from.name} → ${admin.companyName} · ${title}`, admin.companyId)
+  revalidatePath('/admin/docs')
+  return { added, from: from.name, named: from.name.length >= 2 && src.body.includes(from.name) }
+}
+
+/**
  * 내가 맡은 다른 회사의 서식을 지금 회사로 복사 (정기 개선 2026-11-24 09:35)
  * · 가져오는 서식은 내가 관리자(대표·관리자)로 속한 다른 회사 것만 — 최고 관리자라도 속하지 않은 회사 것은 없는 것처럼
  * · 원래 서식은 그대로 · 같은 이름이 있으면 '(회사 이름에서)'를 붙임 · 새 공고 기본 체크는 끔 (복사만으로 공고에 붙지 않게)
