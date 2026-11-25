@@ -43,6 +43,8 @@ export default function MessageChips({ target, pro = false, multiDay = true, las
     if (!el) return
     el.value = next.slice(0, el.maxLength > 0 ? el.maxLength : 300)
     setText(el.value)
+    // 칸을 직접 친 것처럼 알림 (날짜 고르기가 '모든 날짜 가능해요'를 보고 날짜를 맞춤 · 정기 개선 2026-11-25 21:35)
+    el.dispatchEvent(new Event('input', { bubbles: true }))
     el.focus()
   }
   const toggle = (p: string) => {

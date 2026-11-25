@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import LiveNumber from '@/components/LiveNumber'
 
+/** 한마디 칩 '모든 날짜 가능해요' (MessageChips와 같은 말) */
+const ALL_DAYS = '모든 날짜 가능해요'
+
 /** 날짜 칩 여러 개를 짧게: '11/14(토), 11/15(일)' · 셋 넘으면 '11/14(토) 외 2일' */
 function daysText(labels: string[]) {
   return labels.length > 2 ? `${labels[0]} 외 ${labels.length - 1}일` : labels.join(', ')
@@ -58,6 +61,28 @@ export default function ApplyDays({
   const open = days.filter((d) => !d.past)
   const [picked, setPicked] = useState<string[]>(open.filter((d) => d.busy !== 'approved').map((d) => d.value))
   const all = picked.length === open.length
+  // 한마디에 '모든 날짜 가능해요'가 있는지 (칩으로 넣거나 직접 쳐도) — 넣는 순간 고를 수 있는 날을 모두 고르고,
+  // 그 뒤에 날짜를 빼면 한 줄로 알려 줌 (말과 고른 날이 어긋난 채 지원하지 않게 · 정기 개선 2026-11-25 21:35)
+  const openKey = open.map((d) => d.value).join(',')
+  const openRef = useRef(open.map((d) => d.value))
+  useEffect(() => {
+    openRef.current = openKey ? openKey.split(',') : []
+  }, [openKey])
+  const [saysAll, setSaysAll] = useState(false)
+  useEffect(() => {
+    const el = document.getElementById('message') as HTMLInputElement | null
+    if (!el) return
+    let before = el.value.includes(ALL_DAYS)
+    setSaysAll(before)
+    const on = () => {
+      const now = el.value.includes(ALL_DAYS)
+      if (now && !before) setPicked(openRef.current)
+      before = now
+      setSaysAll(now)
+    }
+    el.addEventListener('input', on)
+    return () => el.removeEventListener('input', on)
+  }, [])
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]))
   const fixed = open.filter((d) => d.busy === 'approved')
   const fixedOn = fixed.filter((d) => picked.includes(d.value))
@@ -69,7 +94,7 @@ export default function ApplyDays({
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="label mb-0">근무 가능한 날짜</p>
         {open.length > 1 && (
-          <button type="button" onClick={() => setPicked(all ? [] : open.map((d) => d.value))} className="text-sm font-semibold text-brand-600">
+          <button type="button" onClick={() => setPicked(all ? [] : open.map((d) => d.value))} className="tap text-sm font-semibold text-brand-600 transition active:scale-95" data-days-all>
             {all ? '모두 해제' : '모두 선택'}
           </button>
         )}
@@ -113,6 +138,15 @@ export default function ApplyDays({
           )
         })}
       </div>
+      {/* 한마디엔 '모든 날짜 가능해요'인데 일부만 고름: 한 줄 + '모두 고르기' (톡 · 움직임 줄이기면 바로) */}
+      {saysAll && !all && picked.length > 0 && (
+        <p className="mt-2 flex animate-pop items-center gap-2 text-xs font-semibold text-amber-800" data-says-all>
+          <span className="min-w-0 flex-1">‘모든 날짜 가능’인데 {picked.length}일만 골랐어요</span>
+          <button type="button" onClick={() => setPicked(open.map((d) => d.value))} className="shrink-0 rounded-full bg-amber-100 px-2.5 py-1 whitespace-nowrap text-amber-900 transition active:scale-95" data-says-all-fix>
+            모두 고르기
+          </button>
+        </p>
+      )}
       {/* 겹치는 날 안내: 한 줄씩 짧게 */}
       {(fixed.length > 0 || applied.length > 0) && (
         <div className="mt-2 space-y-0.5 text-xs" data-busy-note>
