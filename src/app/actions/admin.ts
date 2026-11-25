@@ -2160,6 +2160,28 @@ export async function restoreDefaultTemplates() {
 }
 
 /**
+ * 공고 쓰기·고치기 화면에서 바로: 빠진 기본 서식 불러오기 (정기 개선 2026-11-25 10:35)
+ * · 위 restoreDefaultTemplates와 같은 일(이름이 같은 서식은 건너뜀)이지만 서류 화면으로 옮기지 않고 새로 생긴 서식을 돌려줌
+ *   → 처음 쓰는 회사가 공고를 쓰다가 서류 메뉴로 나가 쓰던 내용을 잃지 않게
+ * · 지금 회사(admin.companyId) 서식만 만들고 돌려줌
+ */
+export async function restoreDefaultTemplatesHere(): Promise<{ added: { id: string; title: string; kind: string; is_default: boolean }[] }> {
+  const admin = await requireAdmin()
+  const existing = must(await db().from('doc_templates').select('title').eq('company_id', admin.companyId)) as { title: string }[]
+  const titles = new Set(existing.map((t) => t.title))
+  const missing = DEFAULT_TEMPLATES.filter((t) => !titles.has(t.title))
+  if (!missing.length) return { added: [] }
+  const added = must(
+    await db()
+      .from('doc_templates')
+      .insert(missing.map((t) => ({ ...t, company_id: admin.companyId })))
+      .select('id, title, kind, is_default'),
+  ) as { id: string; title: string; kind: string; is_default: boolean }[]
+  revalidatePath('/admin/docs')
+  return { added }
+}
+
+/**
  * 내가 맡은 다른 회사의 서식을 지금 회사로 복사 (정기 개선 2026-11-24 09:35)
  * · 가져오는 서식은 내가 관리자(대표·관리자)로 속한 다른 회사 것만 — 최고 관리자라도 속하지 않은 회사 것은 없는 것처럼
  * · 원래 서식은 그대로 · 같은 이름이 있으면 '(회사 이름에서)'를 붙임 · 새 공고 기본 체크는 끔 (복사만으로 공고에 붙지 않게)

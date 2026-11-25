@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, useState } from 'react'
-import { saveJob } from '@/app/actions/admin'
+import { restoreDefaultTemplatesHere, saveJob } from '@/app/actions/admin'
 import { won } from '@/lib/format'
 import { estimateDay, MIN_WAGE_2026, type PayRule } from '@/lib/pay'
 import { fmtDate, kstDate, minutesText } from '@/lib/time'
@@ -326,6 +326,23 @@ export default function JobForm({
   const [showCount, setShowCount] = useState(() => (job ? shows(job, 'headcount') : false))
   // 모집 대상: 아르바이트 / 전문가 (전문가 의뢰는 사업소득 3.3% · 용역계약서, 화면 색도 보라로)
   const [audience, setAudience] = useState<'worker' | 'expert'>(job?.audience ?? 'worker')
+  // 서류 서식: 처음 쓰는 회사는 서식이 없음 → 이 화면에서 바로 기본 서식 불러오기 (쓰던 내용 그대로 · 새로 생긴 서식은 차례로 올라옴) — 정기 개선 2026-11-25 10:35
+  const [tpls, setTpls] = useState(templates)
+  const [freshTpl, setFreshTpl] = useState<string[]>([])
+  const [tplState, setTplState] = useState<'idle' | 'busy' | 'fail'>('idle')
+  const [tplAdded, setTplAdded] = useState<number | null>(null)
+  const restoreTpls = async () => {
+    setTplState('busy')
+    try {
+      const { added } = await restoreDefaultTemplatesHere()
+      setTpls((now) => [...now, ...added.filter((t) => !now.some((x) => x.id === t.id))])
+      setFreshTpl(added.map((t) => t.id))
+      setTplAdded(added.length)
+      setTplState('idle')
+    } catch {
+      setTplState('fail')
+    }
+  }
   const [locMsg, setLocMsg] = useState('')
   // '현재 위치로': 찾는 동안 버튼이 '찾는 중…' (길면 10초) · 좌표가 들어오면 두 칸이 잠깐 초록 테두리
   const [locating, setLocating] = useState(false)
@@ -370,7 +387,7 @@ export default function JobForm({
   const dailyLow = payType === 'daily' && minDaily > 0 && dailyNow > 0 && dailyNow < minDaily
   const contractMethod = (fd ? v('contract_method') : job?.contract_method) || 'app'
   const CONTRACT_TEXT: Record<string, string> = { app: '', paper: '종이', external: '다른 서비스' }
-  const docTitles = templates
+  const docTitles = tpls
     .filter((t) => fd?.getAll('required_docs').includes(t.id) && (contractMethod === 'app' || t.kind !== 'contract'))
     .map((t) => t.title)
   const STATUS_TEXT: Record<string, string> = { open: '모집중', closed: '모집마감', draft: '임시저장', done: '종료', cancelled: '행사 취소' }
@@ -914,16 +931,41 @@ export default function JobForm({
           )}
         </div>
         <p className="label mt-1">{contractMethod === 'app' ? '앱에서 서명받을 서류' : '앱에서 서명받을 서류 (근로계약서 서식은 빠져요)'}</p>
-        {templates.length === 0 && <p className="text-sm text-mute">등록된 서식이 없습니다. 서류 서식 메뉴에서 기본 서식을 불러오세요.</p>}
-        {templates.map((t) => (
-          <Check
-            key={t.id}
-            name="required_docs"
-            value={t.id}
-            label={contractMethod !== 'app' && t.kind === 'contract' ? `${t.title} (${CONTRACT_TEXT[contractMethod]}로 받으므로 앱에선 안 받음)` : t.title}
-            defaultChecked={job ? job.required_docs.includes(t.id) : t.is_default}
-          />
-        ))}
+        {/* 서식이 없거나(처음 쓰는 회사) 앱 서명인데 계약서 서식이 없으면: 서류 메뉴로 나가지 않고 여기서 바로 불러오기 — 정기 개선 2026-11-25 10:35
+            (예전 한 줄 '등록된 서식이 없습니다. 서류 서식 메뉴에서 기본 서식을 불러오세요.'를 이 줄로 바꿈) */}
+        {(tpls.length === 0 || (contractMethod === 'app' && !tpls.some((t) => t.kind === (audience === 'expert' ? 'service' : 'contract')))) && (
+          <div className="rounded-xl bg-amber-50 px-3 py-2 text-sm ring-1 ring-amber-200" data-tpl-missing>
+            {/* 360px에서 한 줄 (말은 짧게 · 버튼은 '불러오기') */}
+            <div className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-semibold text-amber-900">
+                {tpls.length === 0 ? '기본 서식이 아직 없어요' : `${audience === 'expert' ? '용역' : '근로'}계약서 서식이 없어요`}
+              </span>
+              <button type="button" onClick={restoreTpls} disabled={tplState === 'busy'} className="btn-white btn-sm tap shrink-0 transition active:scale-95" data-tpl-restore>
+                {tplState === 'busy' ? '불러오는 중…' : '불러오기'}
+              </button>
+            </div>
+            {tplState === 'fail' && <p className="mt-1 text-xs text-rose-600">불러오지 못했어요 · 다시 눌러 주세요</p>}
+          </div>
+        )}
+        {tplAdded !== null && (
+          <p className="animate-pop text-sm font-semibold text-emerald-700" data-tpl-restored>
+            {tplAdded ? `✓ 기본 서식 ${tplAdded}개를 불러왔어요` : '✓ 기본 서식이 이미 모두 있어요'}
+          </p>
+        )}
+        {tpls.map((t) => {
+          const fresh = freshTpl.indexOf(t.id)
+          return (
+            // 방금 불러온 서식은 차례로 올라옴 (0.25초 · 움직임 줄이기면 바로) · 계약서·기본 서식은 미리 체크
+            <div key={t.id} className={fresh >= 0 ? 'animate-[rise_0.25s_ease-out_both]' : undefined} style={fresh >= 0 ? { animationDelay: `${fresh * 60}ms` } : undefined} data-tpl-fresh={fresh >= 0 ? '' : undefined}>
+              <Check
+                name="required_docs"
+                value={t.id}
+                label={contractMethod !== 'app' && t.kind === 'contract' ? `${t.title} (${CONTRACT_TEXT[contractMethod]}로 받으므로 앱에선 안 받음)` : t.title}
+                defaultChecked={fresh >= 0 ? (audience === 'expert' ? t.kind === 'service' : t.is_default) : job ? job.required_docs.includes(t.id) : t.is_default}
+              />
+            </div>
+          )
+        })}
         <p className="hint">체크한 서류에 서명해야 근무 시작 버튼이 열립니다. 근로계약서는 근로기준법 제17조에 따라 꼭 서면(종이 또는 전자문서)으로 주어야 합니다.</p>
       </Fold>
 
