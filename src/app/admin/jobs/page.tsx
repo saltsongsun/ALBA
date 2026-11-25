@@ -6,12 +6,13 @@ import Link from 'next/link'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import { ShareButton } from '@/components/ui'
-import { countApps, JOB_WITH_APP_STATUS, unpaidByJob, wageTotals, type JobWithAppStatus } from '@/lib/data'
+import { countApps, unpaidByJob, wageTotals, type JobWithAppStatus } from '@/lib/data'
 import { won } from '@/lib/format'
 import { db, must } from '@/lib/db'
 import { scheduleText } from '@/lib/docs'
 import { requireAdmin } from '@/lib/session'
-import { fmtDateRange, kstDate } from '@/lib/time'
+import { dateList, fmtDateRange, kstDate } from '@/lib/time'
+import { staffByDay } from '@/lib/staffing'
 import { workOver } from '@/lib/pay'
 import type { Job } from '@/lib/types'
 import { viewStats } from '@/lib/views'
@@ -73,10 +74,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           .map((j) => j.id)
           .slice(0, PAST_MAX))
       : null
+  // 지원의 가능한 날도 함께 (여러 날 행사도 남은 날이 모두 다 찼는지 지원자 탭과 같은 기준으로 · 정기 개선 2026-11-25 15:35)
+  const SEL = '*, applications(status, available_dates), company:companies(company_name, verified)'
   const all =
     pastIds?.length === 0
       ? []
-      : (must(await (pastIds ? scoped(JOB_WITH_APP_STATUS).in('id', pastIds) : tab === 'past' ? scoped(JOB_WITH_APP_STATUS).limit(PAST_MAX + 1) : scoped(JOB_WITH_APP_STATUS))) as unknown as JobWithAppStatus[])
+      : (must(await (pastIds ? scoped(SEL).in('id', pastIds) : tab === 'past' ? scoped(SEL).limit(PAST_MAX + 1) : scoped(SEL))) as unknown as JobWithAppStatus[])
   // 지난 공고가 PAST_MAX개보다 많음 (목록 끝에 '더 오래된 공고는 찾기로' 한 줄)
   const pastMore = tab === 'past' && !term && all.length > PAST_MAX
   const jobs = (term ? all.filter(hit) : all).slice(0, tab === 'past' ? PAST_MAX : undefined)
@@ -112,6 +115,17 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
           : null
   const grossOf = (id: string) => wages[id]?.gross ?? 0
   const waitingBy = countApps(jobs, 'applied')
+  // 남은 날이 모두 확정으로 다 참 (끝난 날·인원 미정·취소 빼고 · 지원자 탭 '✓ 인원 다 참'과 같은 기준) — 막대를 초록으로
+  const fullAhead = (j: JobWithAppStatus) => {
+    if (headcountTbd(j) || j.status === 'cancelled' || j.status === 'draft' || j.headcount <= 0) return false
+    const ahead = dateList(j.start_date, j.end_date).filter((d) => d > today || (d === today && !workOver(j, d)))
+    if (!ahead.length) return false
+    const ok = (j.applications ?? []).filter((a) => a.status === 'approved') as { available_dates?: string[] | null }[]
+    const byDay = staffByDay(ahead, ok.map((a) => ({ available_dates: a.available_dates?.length ? a.available_dates : null })))
+    return ahead.every((d) => byDay[d] >= j.headcount)
+  }
+  // 다 찼는데 모집 중이고 대기자가 남음 → '✓ 다 참' (들어가면 지원자 탭에서 '미선발 알림'이 먼저)
+  const fullWait = (j: JobWithAppStatus) => j.status === 'open' && (waitingBy[j.id] ?? 0) > 0 && fullAhead(j)
   const unpaidOf = (id: string) => (unpaid as Record<string, { n: number }>)[id]?.n ?? 0
 
   return (
@@ -255,6 +269,12 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                         {dayTag(j)![0]}
                       </span>
                     )}
+                    {/* 인원 다 참 + 대기자 남음: 결과(미선발 알림)를 보낼 차례 — 처음 보일 때 톡 (움직임 줄이기면 끔) */}
+                    {fullWait(j) && (
+                      <span className="badge animate-pop bg-emerald-50 text-emerald-700" title="인원이 다 찼어요 · 대기자에게 결과를 알려 주세요" data-job-full>
+                        ✓ 다 참
+                      </span>
+                    )}
                     {waitingBy[j.id] > 0 && <span className="badge bg-amber-50 text-amber-700">대기 {waitingBy[j.id]}명</span>}
                     {unpaidOf(j.id) > 0 && <span className="badge bg-rose-50 text-rose-600">💰 미지급 {unpaidOf(j.id)}명</span>}
                     {j.event_name && (
@@ -290,7 +310,7 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                       </span>
                     ) : (
                       <>
-                        <SlotBar value={approved} max={j.headcount} height="h-1.5" className="min-w-0 flex-1" />
+                        <SlotBar value={approved} max={j.headcount} height="h-1.5" className="min-w-0 flex-1" color={fullAhead(j) ? 'bg-emerald-500' : undefined} />
                         <span className="shrink-0 tabular-nums">
                           확정 <b className="text-ink">{approved}</b>/{j.headcount}명
                         </span>
@@ -347,7 +367,14 @@ export default async function AdminJobs(props: PageProps<'/admin/jobs'>) {
                       <b>{counts[j.id] ?? 0}</b>
                       {headcountTbd(j) ? ' · 미정' : `/${j.headcount}`}
                     </td>
-                    <td>{waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}</td>
+                    <td className="whitespace-nowrap">
+                      {waitingBy[j.id] ? <span className="badge bg-amber-50 text-amber-700">{waitingBy[j.id]}명</span> : '-'}
+                      {fullWait(j) && (
+                        <span className="badge ml-1 animate-pop bg-emerald-50 text-emerald-700" title="인원이 다 찼어요 · 대기자에게 결과를 알려 주세요" data-job-full>
+                          ✓ 다 참
+                        </span>
+                      )}
+                    </td>
                     <td className="whitespace-nowrap tabular-nums" data-views-cell>
                       {views[j.id]?.total ?? 0}명
                       {(views[j.id]?.live ?? 0) > 0 && (
