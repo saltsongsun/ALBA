@@ -11,7 +11,7 @@ import Flash from '@/components/Flash'
 import ReportDownloads from '@/components/ReportDownloads'
 import { isLedgerCompany } from '@/lib/ledger'
 import { SwipeHint } from '@/components/SwipeHint'
-import RosterLock from '@/components/RosterLock'
+import RosterLock, { RosterOpenBar } from '@/components/RosterLock'
 import { ROSTER_MINUTES, rosterUnlockedFor } from '@/lib/rosterLock'
 
 export const metadata: Metadata = { title: '정산 · 신고자료' }
@@ -55,7 +55,8 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
   const thisMonth = kstDate().slice(0, 7)
   const month = typeof sp.month === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(sp.month) ? sp.month : thisMonth
   // 신고 파일에는 주민등록번호 전체 → 명단 잠금을 푼 10분 안에만 받음. 잠긴 채 파일을 누르면 여기 잠금 화면으로 (풀면 이 달 신고자료로 · 보안 점검 2026-11-25)
-  const filesOpen = (await rosterUnlockedFor(admin.id)) > 0
+  const filesLeft = await rosterUnlockedFor(admin.id)
+  const filesOpen = filesLeft > 0
   if (sp.unlock && !filesOpen)
     return <RosterLock next={`/admin/reports?month=${month}`} minutes={ROSTER_MINUTES} title="신고 파일 잠금" desc="파일에 주민등록번호가 있어 한 번 더 확인해요." button="잠금 풀기" />
   const [rows, logs, ledgerOn] = await Promise.all([
@@ -222,6 +223,8 @@ export default async function ReportsPage(props: PageProps<'/admin/reports'>) {
 
       <section className="card space-y-3" data-report-downloads>
         <h2 className="font-bold">신고자료 내려받기</h2>
+        {/* 잠금을 푼 동안: 남은 시간 한 줄 + 줄어드는 막대 (다 되면 자물쇠로 · 정기 개선 2026-11-26 01:35) */}
+        {filesOpen && <RosterOpenBar seconds={filesLeft} label="파일 열림" lockable={false} />}
         <ReportDownloads
           locked={!filesOpen}
           incomplete={open.length}

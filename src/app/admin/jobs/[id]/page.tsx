@@ -162,7 +162,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
     : dates.includes(today) ? today : dates[0]
   const tab = (['apps', 'att', 'pay', 'docs'] as const).find((t) => t === sp.tab) ?? (dates.includes(today) ? 'att' : 'apps')
   // 정산 탭 파일(정산표 엑셀·이체 목록)은 명단 잠금을 푼 10분 안에만 (보안 점검 2026-11-25)
-  const payFilesOpen = tab === 'pay' ? (await rosterUnlockedFor(admin.id)) > 0 : true
+  const payFilesLeft = tab === 'pay' ? await rosterUnlockedFor(admin.id) : 0
+  const payFilesOpen = payFilesLeft > 0
   const approved = apps.filter((a) => a.status === 'approved')
   // 모집을 마감하면 서명 서류가 갈 확정자 (앱 서명 서식이 있고 아직 서류가 없는 사람) — '모집 마감' 버튼에서 미리 알려 줌 (정기 개선 2026-11-24 20:36)
   const hasLiveDoc = new Set(docs.filter((d) => d.status !== 'void').map((d) => d.user_id))
@@ -613,7 +614,7 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
         (sp.unlock && !payFilesOpen ? (
           <RosterLock next={`/admin/jobs/${job.id}?tab=pay`} minutes={ROSTER_MINUTES} title="정산 파일 잠금" desc="계좌번호가 있어 한 번 더 확인해요." button="잠금 풀기" />
         ) : (
-          <PayTab company={admin.companyName} job={job} atts={atts} users={users} origin={origin} filesOpen={payFilesOpen} />
+          <PayTab company={admin.companyName} job={job} atts={atts} users={users} origin={origin} filesOpen={payFilesOpen} filesLeft={payFilesLeft} />
         ))}
       {/* worked: 이 공고에 출근 기록이 있는 사람 (서명 안 하고 일한 사람을 서류 탭에서 빨갛게 — 정기 개선 2026-11-23 20:35) */}
       {tab === 'docs' && <DocsTab company={admin.companyName} job={job} approved={approved} docs={docs} templates={templates} users={users} origin={origin} lastNudge={lastSignNudge} missing={docsMissing} changes={docChanges} flashKey={typeof sp.m === 'string' ? sp.m : ''} worked={new Set(atts.map((a) => a.user_id))} />}

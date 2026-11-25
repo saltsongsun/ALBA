@@ -1,5 +1,6 @@
 import Icon from '@/components/Icon'
 import PayTools from '@/components/PayTools'
+import { RosterOpenBar } from '@/components/RosterLock'
 import Empty from '@/components/Empty'
 import Link from 'next/link'
 import { announcePayday, nudgeWorkers, setAllPaid, setPaid, setPaidSelected } from '@/app/actions/admin'
@@ -29,7 +30,7 @@ import LedgerPanel from '../../LedgerPanel'
 import { ledgerStatusIfOn } from '@/lib/ledger'
 import { SwipeHint } from '@/components/SwipeHint'
 
-export default async function PayTab({ job, atts, users, origin, company = '', filesOpen = true }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string; filesOpen?: boolean }) {
+export default async function PayTab({ job, atts, users, origin, company = '', filesOpen = true, filesLeft = 0 }: { job: Job; atts: Attendance[]; users: Map<string, WorkerLite>; origin: string; company?: string; filesOpen?: boolean; filesLeft?: number }) {
   const userIds = [...new Set(atts.map((a) => a.user_id))]
   // 아래 조회들은 서로 기다릴 필요가 없어서 한 번에 출발 (예전: 외주 비용 → 업체 이름 → 주휴 → 계좌 요청 → 정산일 안내를 차례로)
   const noAccountIds = userIds.filter((uid) => !users.get(uid)?.bank_account_enc)
@@ -251,7 +252,7 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
               </ConfirmSubmit>
             </form>
           )}
-          {unpaid.length > 0 && <TransferCopy jobId={job.id} />}
+          {unpaid.length > 0 && <TransferCopy jobId={job.id} locked={!filesOpen} />}
           {/* 급여 설정 · 정산표 엑셀 · 명세서 인쇄 (같은 크기 칸 한 줄 · 안 끝난 근무가 있으면 엑셀은 한 번 멈춤) */}
           <PayTools
             settingsHref={`/admin/jobs/${job.id}/edit`}
@@ -260,6 +261,8 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
             incomplete={incomplete}
             locked={!filesOpen}
           />
+          {/* 정산표·이체 목록 잠금을 푼 동안: 남은 시간 한 줄 (정기 개선 2026-11-26 01:35) */}
+          {filesOpen && filesLeft > 0 && <RosterOpenBar seconds={filesLeft} label="파일 열림" lockable={false} />}
         </div>
       </div>
       {/* 대금 시트(연결된 뒤에만): 행사가 끝났거나 이미 장부와 맞춘 사람이 있을 때 한 줄 (지금 연동 버튼) */}

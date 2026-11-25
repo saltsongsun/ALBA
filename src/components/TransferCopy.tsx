@@ -3,9 +3,10 @@
 import { useRouter } from 'next/navigation'
 import { useState, useTransition } from 'react'
 import { transferList } from '@/app/actions/admin'
+import Icon from './Icon'
 
 /** 정산: 미지급자 이체 목록(은행·계좌·예금주·금액)을 복사해 은행 앱·엑셀에 붙여 넣기 */
-export default function TransferCopy({ jobId }: { jobId: string }) {
+export default function TransferCopy({ jobId, locked = false }: { jobId: string; locked?: boolean }) {
   const [pending, start] = useTransition()
   const [msg, setMsg] = useState<string | null>(null)
   const router = useRouter()
@@ -27,6 +28,12 @@ export default function TransferCopy({ jobId }: { jobId: string }) {
     <span className="inline-flex items-center gap-2">
       <button type="button" onClick={run} disabled={pending} className="btn-gray btn-sm disabled:opacity-60">
         {pending ? '불러오는 중…' : '💸 이체 목록 복사'}
+        {/* 계좌번호가 있어 잠긴 동안 자물쇠 (누르면 비밀번호 화면 · 정기 개선 2026-11-26 01:35) */}
+        {locked && !pending && (
+          <span className="ml-1 text-sub" data-transfer-locked>
+            <Icon name="lock" />
+          </span>
+        )}
       </button>
       {msg && <span role="status" className="text-xs font-semibold text-sub">{msg}</span>}
     </span>
