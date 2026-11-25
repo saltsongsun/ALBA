@@ -367,9 +367,11 @@ export default async function AdminChatList(props: PageProps<'/admin/chat'>) {
                     const m = hit ?? last
                     // 바로 처리할 요청이면 종류를 짧게 (출근 확인 · 출근 기록 · 기록 정정 · 확정 문의 · 계산서) — 머리말 줄은 같은 말이라 빼고 내용만
                     // 급여 문의 뒤에 지급까지 했으면 빨간 '급여 문의' 대신 '✓ 지급함'
-                    const tag = !hit && !m.from_admin ? (paid ? { label: '✓ 지급함', urgent: false, done: true } : askTag(m.body)) : null
+                    // 요청했던 계좌를 등록했다는 알림은 초록 '✓ 계좌 등록' (답장할 일 아님 · 정기 개선 2026-11-26 05:35)
+                    const acct = !hit && !m.from_admin && m.body.startsWith(SIGNAL.accountDone)
+                    const tag = !hit && !m.from_admin ? (paid ? { label: '✓ 지급함', urgent: false, done: true } : acct ? { label: '✓ 계좌 등록', urgent: false, done: true } : askTag(m.body)) : null
                     // 머리말과 같은 말은 빼고 내용만 (계산서: '개막식 음향 · 1,500,000원')
-                    const rest = tag && /^(📍|✏️)/.test(m.body) ? m.body.split('\n').slice(1).join(' ').trim() : tag && m.body.startsWith(ASK_INVOICE) ? m.body.slice(ASK_INVOICE.length).trim() : ''
+                    const rest = tag && (acct || /^(📍|✏️)/.test(m.body)) ? m.body.split('\n').slice(1).join(' ').trim() : tag && m.body.startsWith(ASK_INVOICE) ? m.body.slice(ASK_INVOICE.length).trim() : ''
                     return (
                       <p className={`truncate text-sm ${unread ? 'font-semibold text-ink' : 'text-sub'}`} data-chat-snippet>
                         {m.from_admin && <span className="text-mute">답장: </span>}

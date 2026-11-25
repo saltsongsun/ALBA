@@ -1232,8 +1232,11 @@ export function ProfileForm({
   need = [],
   ownName,
   payWord = '급여',
+  waiting,
 }: {
   initial: { address: string; emergency_phone: string; bank_name: string; bank_account: string; account_holder: string }
+  /** 계좌 등록을 요청한 회사 ('○○' · '○○ 외 2곳') — 계좌가 없는 동안 한 줄로 (정기 개선 2026-11-26 05:35) */
+  waiting?: string
   /** 전문가·외주 업체는 '대금' (위 정보 채우기 칸 '대금 계좌'와 같은 말) */
   payWord?: '급여' | '대금'
   need?: ProfileField[]
@@ -1243,6 +1246,8 @@ export function ProfileForm({
   const [state, action] = useActionState(updateProfile, null)
   const ref = useRef<HTMLFormElement>(null)
   const [acct, setAcct] = useState(initial.bank_account)
+  const acctDigits = acct.replace(/\D/g, '').length
+  const acctReady = acctDigits >= 10 && acctDigits <= 16
   useEffect(() => {
     const go = () => {
       const id = decodeURIComponent(location.hash.slice(1)) as ProfileField
@@ -1276,6 +1281,27 @@ export function ProfileForm({
       <h2 className="font-bold" data-account-title>
         {payWord} 계좌 · 연락 정보
       </h2>
+      {/* 계좌를 요청한 회사가 있으면: 누가 기다리는지 한 줄 → 계좌번호를 다 쓰면 '저장하면 알려요'로 바뀌며 톡 (움직임 줄이기면 안 움직임) */}
+      {waiting && !initial.bank_account && (
+        <p
+          key={acctReady ? 'ready' : 'wait'}
+          className={`flex animate-pop items-center gap-1.5 rounded-xl px-3 py-2 text-sm ${acctReady ? 'bg-emerald-50 text-emerald-800' : 'bg-amber-50 text-amber-900'}`}
+          data-account-waiting={acctReady ? 'ready' : 'wait'}
+        >
+          <Icon name={acctReady ? 'check' : 'card'} className="shrink-0" />
+          <span className="min-w-0 truncate">
+            {acctReady ? (
+              <>
+                저장하면 <b>{waiting}</b>에 바로 알려요
+              </>
+            ) : (
+              <>
+                <b>{waiting}</b>에서 계좌를 기다려요
+              </>
+            )}
+          </span>
+        </p>
+      )}
       <div className="grid grid-cols-[1fr_1.2fr] gap-3">
         <div className="min-w-0">
           <label className="label" htmlFor="bank_name">

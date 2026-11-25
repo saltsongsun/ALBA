@@ -58,6 +58,8 @@ export const SIGNAL = {
   paid: '💸 급여 지급', // 담당자 → 근무자
   payday: '💰 정산 예정일', // 담당자·자동(행사 종료) → 근무자: 언제 들어오는지
   account: '💳 계좌 등록 요청', // 담당자 → 근무자
+  // 근무자 → 요청한 회사: 계좌를 등록했어요 (알리기만 · 답장 필요 없음 — 정기 개선 2026-11-26 05:35)
+  accountDone: '💳 계좌 등록함',
   fix: '✏️ 기록 정정 요청', // 근무자 → 담당자: 출근·종료 시각이 잘못 찍힘
   fixDone: '✅ 기록 정정', // 담당자 → 근무자: 요청대로 고침
   fixNo: '↩️ 기록 정정 안 함', // 담당자 → 근무자: 그대로 둠
@@ -150,11 +152,17 @@ export function parseChanges(body: string): { label: string; from: string; to: s
 
 /**
  * 관리자 문의 목록: 근무자가 마지막으로 보낸 글이 답장을 기다리는 글인지.
- * 알리기만 하는 글(지각 알림 · 근무일/확정 취소 알림 · 늦은 종료 입력)은 답장이 없어도 되므로 뺌
+ * 알리기만 하는 글(지각 알림 · 근무일/확정 취소 알림 · 늦은 종료 입력 · 계좌 등록함)은 답장이 없어도 되므로 뺌
  */
 export function needsReply(body: string): boolean {
   const head = body.split('\n', 1)[0]
-  return !(head.startsWith(SIGNAL.late) || head.startsWith(SIGNAL.coming) || head.startsWith('⚠️') || head.startsWith('🕒 근무 종료 늦게 입력'))
+  return !(
+    head.startsWith(SIGNAL.late) ||
+    head.startsWith(SIGNAL.coming) ||
+    head.startsWith(SIGNAL.accountDone) ||
+    head.startsWith('⚠️') ||
+    head.startsWith('🕒 근무 종료 늦게 입력')
+  )
 }
 
 /** 관리자 문의 목록의 짧은 표시: 바로 처리할 요청 종류 (일반 문의면 null) · urgent = 현장에서 지금 기다리는 것 */

@@ -26,6 +26,7 @@ import { bizNoFmt, MEMBER_TYPES } from '@/lib/members'
 import { companiesSeeingWorker } from '@/lib/company'
 import CompanyMark from '@/components/CompanyMark'
 import type { MemberType } from '@/lib/types'
+import { accountAskers, askersText } from '@/lib/accountAsk'
 
 export const metadata: Metadata = { title: '내 정보' }
 
@@ -83,7 +84,7 @@ export default async function ProfilePage() {
   if (!me) return null
   // 커뮤니티 별명 (따로 읽음: 못 읽어도 내 정보 화면은 그대로)
   const type: MemberType = me.member_type === 'expert' || me.member_type === 'vendor' ? me.member_type : 'worker'
-  const [nickname, activity, seenBy] = await Promise.all([
+  const [nickname, activity, seenBy, askers] = await Promise.all([
     db()
       .from('users')
       .select('nickname')
@@ -93,6 +94,8 @@ export default async function ProfilePage() {
     me.member_type === 'vendor' ? { posts: 0, comments: 0, likes: 0 } : myActivity(user.id),
     // 내 정보를 볼 수 있는 회사 (알바만 · 못 읽으면 칸을 숨김 — '아무도 못 봐요'로 잘못 보이지 않게)
     type === 'worker' ? companiesSeeingWorker(user.id).catch(() => null) : null,
+    // 계좌 등록을 요청한 회사 (계좌가 없는 알바만 · 못 읽으면 줄을 숨김 — 정기 개선 2026-11-26 05:35)
+    type === 'worker' && !me.bank_account_enc ? accountAskers(user.id).catch(() => []) : [],
   ])
   const vendor = type === 'vendor'
   // 정보 채우기: 비어 있는 항목을 눌러 바로 그 칸으로 (급여·현장 연락이 빨라지게). 유형마다 다름
@@ -265,6 +268,7 @@ export default async function ProfilePage() {
         // 알바는 본인 명의 계좌로 지급 (예금주가 다른 이름이면 바로 한 줄)
         ownName={type === 'worker' ? me.name : undefined}
         payWord={type === 'worker' ? '급여' : '대금'}
+        waiting={askers.length ? askersText(askers) : undefined}
       />
       </div>
       {!vendor && (

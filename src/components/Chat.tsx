@@ -53,6 +53,8 @@ export function adminActionFor(m: Pick<ChatMessage, 'from_admin' | 'body' | 'cre
     return { href: `${base}?tab=apps${d ? `&day=${d}` : ''}`, label: '빈자리 채우기 →' }
   }
   if (head.startsWith('⚠️ 확정 취소')) return { href: `${base}?tab=apps`, label: '빈자리 채우기 →' }
+  // 요청했던 계좌를 등록했어요 → 그 공고 정산 탭 (지급할 차례 · 정기 개선 2026-11-26 05:35)
+  if (head.startsWith(SIGNAL.accountDone)) return { href: `${base}?tab=pay`, label: '정산 탭 보기 →' }
   return null
 }
 

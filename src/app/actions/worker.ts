@@ -25,6 +25,7 @@ import { canOpenJobDocs } from '@/lib/doc-access'
 import { validMessageId } from '@/lib/deleted'
 import { canApplyTo, myWorkTab, parseSpecialty } from '@/lib/members'
 import { linkVendorAccount } from '@/lib/partners'
+import { accountAskers, askersText } from '@/lib/accountAsk'
 import type { FormState } from './auth'
 
 function back(path: string, msg: string): never {
@@ -983,11 +984,39 @@ export async function updateProfile(_: FormState, form: FormData): Promise<FormS
       .eq('id', user.id),
   )
   revalidatePath('/me/profile')
+  // 계좌를 처음 등록했으면: '계좌 등록 요청'을 보낸 회사에만 '등록했어요'를 알림 (그 회사 문의함 + 담당자 휴대폰 · 계좌번호는 담지 않음)
+  // 요청하지 않은 회사에는 아무것도 안 감 · 답장이 필요 없는 알림 (정기 개선 2026-11-26 05:35)
+  let told = ''
+  if (account && !prevAccount) {
+    const found = await accountAskers(user.id).catch(() => [])
+    const body = `${SIGNAL.accountDone}\n급여 받을 계좌를 등록했어요.`
+    // 문의함에 실제로 남은 회사만 '알렸어요'에 넣음
+    const sent = await Promise.all(
+      found.map((a) =>
+        db()
+          .from('messages')
+          .insert({ thread_user_id: user.id, sender_id: user.id, from_admin: false, company_id: a.companyId, job_id: a.jobId, body })
+          .then((r) => !r.error),
+      ),
+    )
+    const askers = found.filter((_, i) => sent[i])
+    if (askers.length) {
+      const name = user.name
+      after(() =>
+        Promise.all(
+          askers.map((a) =>
+            sendAdminPush(a.companyId, { title: '💳 계좌 등록', body: `${name} · 급여 계좌를 등록했어요`, url: `/admin/chat/${user.id}`, tag: `account-done-${user.id}` }),
+          ),
+        ),
+      )
+      told = ` ${askersText(askers)}에 알렸어요.`
+    }
+  }
   // 다른 사람 명의 계좌면 지급이 늦어질 수 있어 알려 줌 (저장은 그대로)
   if (holder && holder.replace(/\s/g, '') !== user.name.replace(/\s/g, '')) {
-    return { ok: `저장했어요. 예금주(${holder})가 본인 이름과 달라요. 본인 명의 계좌가 아니면 지급이 늦어질 수 있어요.` }
+    return { ok: `저장했어요.${told} 예금주(${holder})가 본인 이름과 달라요. 본인 명의 계좌가 아니면 지급이 늦어질 수 있어요.` }
   }
-  return { ok: '저장했어요.' }
+  return { ok: `저장했어요.${told}` }
 }
 
 /**
