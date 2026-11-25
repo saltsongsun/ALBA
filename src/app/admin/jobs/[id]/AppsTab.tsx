@@ -357,6 +357,9 @@ export default async function AppsTab({
   // 아직 모집 중인데 필요한 만큼 뽑았으면 (예: 10명 계획 · 5명만): 마감하고 남은 대기자에게 미선발 알림을 한 번에
   // (안 뽑힌 사람이 결과를 몰라 '확정됐나요?' 연락하지 않게 · 사용자 요청 2026-11-12)
   const canCloseNotify = !canRejectWaiting && waiting > 0 && job.status === 'open' && approved.length > 0 && job.end_date >= today
+  // 남은 날 모두 확정이 꽉 참 (끝난 행사·인원 미정 빼고) — 요약 줄 '✓ 인원 다 참' (정리 2026-11-25)
+  const ahead = dates.filter((d) => d >= today)
+  const fullNow = !jobEnded && !tbd && ahead.length > 0 && ahead.every((d) => byDay[d] >= job.headcount)
   const shownDay = day && dates.includes(day) ? day : null
   const order = { approved: 0, applied: 1, rejected: 2, cancelled: 3 }
   // 정렬: 지원순(기본) · 레벨 높은 순(이 회사 기록으로 센 병아리 레벨 · 전문가는 뒤) · 평점 높은 순 · 경험 많은 순 · 성실한 순(노쇼·귀가 조치·지각 적은 순)
@@ -474,6 +477,26 @@ export default async function AppsTab({
       </div>
     )
   }
+  // 사람 더 모으기 (이전 근무자에게 알리기 · 번호로 추가): 모집 중이면 목록 위, 모집이 끝났으면(마감·끝난 행사·인원 다 참) 목록 아래 — 정리 2026-11-25
+  const addTools =
+    past.length > 0 || canAddDirect ? (
+      <div className="space-y-2" data-apps-add>
+        {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} company={company} link={`${origin}/jobs/${job.id}`} workers={past} />}
+        <div className="flex flex-wrap gap-2 empty:hidden">
+          {canAddDirect && (
+            // 가끔 쓰는 '번호로 직접 추가'는 접어 둠 (누르면 칸이 한 줄로 열림 · 화면을 덜 차지하게)
+            <details className="group open:basis-full" data-direct-add>
+              <summary className="btn-white btn-sm cursor-pointer list-none before:hidden group-open:bg-line [&::-webkit-details-marker]:hidden">＋ 번호로 추가</summary>
+              {/* 접혀 있을 때는 아예 숨김 (좁은 버튼 폭에 맞춰 칸이 꺾여 그려지지 않게) */}
+              <form action={addWorkerToJob.bind(null, job.id)} className="mt-2 hidden animate-pop gap-1.5 group-open:flex">
+                <PhoneInput name="phone" className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" aria-label="가입자 휴대폰 번호" />
+                <SubmitButton className="btn-primary btn-sm shrink-0">직접 추가</SubmitButton>
+              </form>
+            </details>
+          )}
+        </div>
+      </div>
+    ) : null
   const groups: [string, AppRow[], boolean][] = [
     ['대기', sorted.filter((a) => a.status === 'applied' && !a.held_at), true],
     ['보류', sorted.filter(isHeld), waiting === 0],
@@ -489,23 +512,21 @@ export default async function AppsTab({
           <option key={p} value={p!} />
         ))}
       </datalist>
-      {/* 추가 근로 → 주휴수당 (관리자에게만): 확정하면 한 주 15시간을 넘는 대기 지원자 — 한 줄로 */}
-      {(() => {
-        const n = apps.filter(becomes)
-        if (!n.length) return null
-        return (
-          <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-900" data-weekly-impact-summary>
-            <b className="min-w-0 flex-1 truncate">확정하면 주휴 대상 {n.length}명 · 약 {won(n.reduce((t, a) => t + (impact.get(a.user_id)?.amount ?? 0), 0))}</b>
-            <span aria-hidden className="shrink-0">›</span>
-          </Link>
-        )
-      })()}
       {/* 한 사람씩 확정·되돌리면 머리글 아래 '확정 n명 · 전체 약 ○원 · +○원' (확정한 카드는 접힌 칸으로 들어가므로) */}
       <PlanToast total={planTotal} count={approved.length} />
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* 위쪽 정리 (사용자 요청 2026-11-25 'uiux 정리'): 요약 → 할 일(확정·미선발) → 주휴 한 줄 → 확정자 연락 순서로 · 내용은 그대로
+          · 인원이 다 찼거나 모집이 끝났으면 '미선발 알림'이 먼저(파란 버튼) · '모두 확정'은 흰 버튼 (끝난 행사와 같은 규칙 · 넘치게 확정하는 실수 막기)
+          · '번호로 추가'는 '이전 근무자에게 모집 알리기'와 같은 곳(사람 더 모으기)으로 옮김 */}
+      <div className="space-y-2.5" data-apps-head>
         <p className="text-sm text-sub">
           확정 <b className="text-ink">{approved.length}</b>
           {tbd ? '명 · 인원 미정' : ` / 모집 ${job.headcount}명`} · 대기 {waiting}명{heldN > 0 && ` · 보류 ${heldN}명`}
+          {/* 남은 날 모두 확정이 꽉 참: 더 뽑을 필요 없음을 한눈에 */}
+          {fullNow && (
+            <span className="badge ml-1.5 animate-pop bg-emerald-50 text-emerald-700" data-apps-full>
+              ✓ 인원 다 참
+            </span>
+          )}
           {/* 확정한 전체 일정 금액 (확정·되돌리기 하면 숫자가 통 튐) */}
           {approved.length > 0 && (
             <span className="block whitespace-nowrap" data-apps-plan-total>
@@ -519,68 +540,64 @@ export default async function AppsTab({
             </span>
           )}
         </p>
-        <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`${smsHead(company, job.title)} `} copyClassName="btn-white btn-sm" />
-        <div className="flex flex-wrap gap-2">
-          {/* 끝난 행사: '미선발 알림'이 먼저(파란 버튼) · '모두 확정'은 흰 버튼으로 뒤에 (밤에 끝난 행사를 통째로 확정하는 실수 막기) */}
-          {canRejectWaiting && jobEnded && (
-            <form action={rejectWaiting.bind(null, job.id)} data-ended-notify>
-              <ConfirmSubmit className="btn-primary btn-sm" confirmText={`끝난 행사 · 대기 ${waiting}명에게 미선발 알림?`}>
-                🙏 대기 {waiting}명 미선발 알림
-              </ConfirmSubmit>
-            </form>
-          )}
-          {waiting > 0 && (
-            <form action={approveAllApplied.bind(null, job.id)} data-approve-all>
-              {/* 모집 인원을 넘기게 되면 한 번 더 확인 */}
-              {allOver ? (
-                <ConfirmSubmit
-                  className={jobEnded ? 'btn-white btn-sm' : 'btn-primary btn-sm'}
-                  confirmText={
-                    jobEnded
-                      ? `끝난 행사 · ${waiting}명 모두 확정?`
-                      : minorsWaiting
-                      ? `연소자 ${minorsWaiting}명(${minorLimits.join('·')}) 포함 · 확정?`
-                      : weeklyWaiting && !dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
-                        ? `주휴 대상 ${weeklyWaiting}명 생겨요 · 모두 확정?`
-                        : multi
-                        ? `${tbd ? '최대' : '모집'} ${job.headcount}명을 넘는 날이 있어요 · 확정?`
-                        : `${tbd ? '최대' : '모집'} ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`
-                  }
-                >
-                  대기 {waiting}명 모두 확정
+        {(waiting > 0 || canCloseNotify) && (
+          <div className="flex flex-wrap gap-2" data-apps-decide>
+            {/* 모집이 끝났거나(마감·끝난 행사·남은 날 인원 다 참) 대기자가 남음: '미선발 알림'이 먼저(파란 버튼) */}
+            {canRejectWaiting && (
+              <form action={rejectWaiting.bind(null, job.id)} data-ended-notify={jobEnded ? '' : undefined} data-settle-first>
+                <ConfirmSubmit className="btn-primary btn-sm" confirmText={jobEnded ? `끝난 행사 · 대기 ${waiting}명에게 미선발 알림?` : `대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
+                  🙏 대기 {waiting}명 미선발 알림
                 </ConfirmSubmit>
-              ) : (
-                <SubmitButton className="btn-primary btn-sm">대기 {waiting}명 모두 확정</SubmitButton>
-              )}
-            </form>
-          )}
-          {canRejectWaiting && !jobEnded && (
-            <form action={rejectWaiting.bind(null, job.id)}>
-              <ConfirmSubmit className="btn-white btn-sm" confirmText={`대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
-                🙏 대기 {waiting}명 미선발 알림
-              </ConfirmSubmit>
-            </form>
-          )}
-          {canCloseNotify && (
-            <form action={rejectWaiting.bind(null, job.id, true)} data-close-notify>
-              {/* 회색 바탕 위라 흰 버튼 (회색 버튼은 바탕과 같은 색이라 글자처럼만 보임 — batch187) */}
-              <ConfirmSubmit className="btn-white btn-sm" confirmText={`모집 마감 · 대기 ${waiting}명에게 알릴까요?`}>
-                🙏 마감하고 대기 {waiting}명 미선발 알림
-              </ConfirmSubmit>
-            </form>
-          )}
-          {canAddDirect && (
-            // 가끔 쓰는 '번호로 직접 추가'는 접어 둠 (누르면 칸이 한 줄로 열림 · 화면을 덜 차지하게)
-            <details className="group open:basis-full" data-direct-add>
-              <summary className="btn-white btn-sm cursor-pointer list-none before:hidden group-open:bg-line [&::-webkit-details-marker]:hidden">＋ 번호로 추가</summary>
-              {/* 접혀 있을 때는 아예 숨김 (좁은 버튼 폭에 맞춰 칸이 꺾여 그려지지 않게) */}
-              <form action={addWorkerToJob.bind(null, job.id)} className="mt-2 hidden animate-pop gap-1.5 group-open:flex">
-                <PhoneInput name="phone" className="input min-w-0 flex-1 py-1.5 text-sm" placeholder="가입자 휴대폰 번호" aria-label="가입자 휴대폰 번호" />
-                <SubmitButton className="btn-primary btn-sm shrink-0">직접 추가</SubmitButton>
               </form>
-            </details>
-          )}
-        </div>
+            )}
+            {waiting > 0 && (
+              <form action={approveAllApplied.bind(null, job.id)} data-approve-all>
+                {/* 모집 인원을 넘기게 되면 한 번 더 확인 */}
+                {allOver ? (
+                  <ConfirmSubmit
+                    className={canRejectWaiting ? 'btn-white btn-sm' : 'btn-primary btn-sm'}
+                    confirmText={
+                      jobEnded
+                        ? `끝난 행사 · ${waiting}명 모두 확정?`
+                        : minorsWaiting
+                        ? `연소자 ${minorsWaiting}명(${minorLimits.join('·')}) 포함 · 확정?`
+                        : weeklyWaiting && !dates.some((d) => byDay[d] + waitByDay[d] > job.headcount)
+                          ? `주휴 대상 ${weeklyWaiting}명 생겨요 · 모두 확정?`
+                          : multi
+                          ? `${tbd ? '최대' : '모집'} ${job.headcount}명을 넘는 날이 있어요 · 확정?`
+                          : `${tbd ? '최대' : '모집'} ${job.headcount}명 → ${approved.length + waiting}명 돼요 · 확정?`
+                    }
+                  >
+                    대기 {waiting}명 모두 확정
+                  </ConfirmSubmit>
+                ) : (
+                  <SubmitButton className={canRejectWaiting ? 'btn-white btn-sm' : 'btn-primary btn-sm'}>대기 {waiting}명 모두 확정</SubmitButton>
+                )}
+              </form>
+            )}
+            {canCloseNotify && (
+              <form action={rejectWaiting.bind(null, job.id, true)} data-close-notify>
+                {/* 회색 바탕 위라 흰 버튼 (회색 버튼은 바탕과 같은 색이라 글자처럼만 보임 — batch187) */}
+                <ConfirmSubmit className="btn-white btn-sm" confirmText={`모집 마감 · 대기 ${waiting}명에게 알릴까요?`}>
+                  🙏 마감하고 대기 {waiting}명 미선발 알림
+                </ConfirmSubmit>
+              </form>
+            )}
+          </div>
+        )}
+        {/* 추가 근로 → 주휴수당 (관리자에게만): 확정하면 한 주 15시간을 넘는 대기 지원자 — 한 줄로 */}
+        {(() => {
+          const n = apps.filter(becomes)
+          if (!n.length) return null
+          return (
+            <Link href={`/admin/weekly?w=${job.start_date}`} className="flex items-center gap-2 rounded-xl bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-900" data-weekly-impact-summary>
+              <b className="min-w-0 flex-1 truncate">확정하면 주휴 대상 {n.length}명 · 약 {won(n.reduce((t, a) => t + (impact.get(a.user_id)?.amount ?? 0), 0))}</b>
+              <span aria-hidden className="shrink-0">›</span>
+            </Link>
+          )
+        })()}
+        {/* 확정자 연락 (문자 · 번호 복사) — 할 일 아래 한 줄 */}
+        <GroupContact phones={approved.map((a) => a.user.phone)} label={`확정 ${approved.length}명에게 문자`} body={`${smsHead(company, job.title)} `} copyClassName="btn-white btn-sm" />
       </div>
       {/* 여러 날 행사: 날짜별 확정 인원 (모자란 날은 빨갛게) · 누르면 그날 가능한 사람만 */}
       {multi && (
@@ -654,7 +671,7 @@ export default async function AppsTab({
           }))}
         />
       )}
-      {past.length > 0 && <InvitePast jobId={job.id} jobTitle={job.title} company={company} link={`${origin}/jobs/${job.id}`} workers={past} />}
+      {!recruitDone && addTools}
       {apps.length === 0 ? (
         // 빈 화면: 다음에 할 일을 알려 줌 (모집 중일 때만 — 끝난 공고엔 권하지 않음)
         <Empty icon="📣" title="아직 지원자가 없어요">
@@ -803,6 +820,7 @@ export default async function AppsTab({
           </MediaOnly>
         </>
       )}
+      {recruitDone && addTools}
       {apps.some((a) => a.status === 'approved' && a.user.birth_date && ageOn(a.user.birth_date, job.start_date) < 18) && (
         <p className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
           만 18세 미만 근무자는 친권자(후견인) 동의서와 가족관계증명서를 받아 두어야 하며(근로기준법 제66조), 하루 7시간·야간(22~06시) 근로 제한이
