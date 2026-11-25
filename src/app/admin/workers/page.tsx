@@ -332,7 +332,18 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                   <SortHit on={sort === 'recent'}>최근 {fmtDate(stat[u.id].last)}</SortHit>
                 </>
               )}{' '}
-              · 계좌 {u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>} ·{' '}
+              · 계좌{' '}
+              {u.bank_account_enc ? (
+                '등록'
+              ) : u.active && applied.has(u.id) ? (
+                // 우리 회사 지원자면: 누르면 근무자 화면의 '계좌 등록 요청' 버튼으로 바로 (가운데로 오고 번쩍임 · 정기 개선 2026-11-26 03:35)
+                <Link href={`/admin/workers/${u.id}#account-ask`} className="tap font-semibold whitespace-nowrap text-rose-500 underline-offset-2 hover:underline" data-roster-noaccount>
+                  미등록 ›
+                </Link>
+              ) : (
+                <span className="text-rose-500">미등록</span>
+              )}{' '}
+              ·{' '}
               <SortHit on={sort === 'new'}>가입 {fmtDate(kstDate(u.created_at))}</SortHit>
             </p>
           </div>
@@ -395,7 +406,18 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                 </td>
                 <td className="whitespace-nowrap">{stat[u.id]?.days ?? 0}일</td>
                 <td className="whitespace-nowrap">{stat[u.id]?.last ? fmtDate(stat[u.id].last) : '-'}</td>
-                <td className="whitespace-nowrap">{u.bank_account_enc ? '등록' : <span className="text-rose-500">미등록</span>}</td>
+                <td className="whitespace-nowrap">
+                  {u.bank_account_enc ? (
+                    '등록'
+                  ) : u.active && applied.has(u.id) ? (
+                    // 넓은 화면 표도 같게: 누르면 '계좌 등록 요청' 버튼으로 (정기 개선 2026-11-26 03:35)
+                    <Link href={`/admin/workers/${u.id}#account-ask`} className="tap font-semibold text-rose-500 underline-offset-2 hover:underline" data-roster-noaccount>
+                      미등록 ›
+                    </Link>
+                  ) : (
+                    <span className="text-rose-500">미등록</span>
+                  )}
+                </td>
                 <td className="whitespace-nowrap text-mute">{fmtDate(kstDate(u.created_at))}</td>
               </tr>
             ))}

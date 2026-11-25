@@ -149,7 +149,7 @@ export function RosterOpenBar({ seconds, total = 600, label = '명단 열림', l
   // 신고 파일·정산 파일 화면: 남은 시간만 (잠그기 버튼 없이 · 시간이 다 되면 자물쇠로 돌아감 — 정기 개선 2026-11-26 01:35)
   if (!lockable)
     return (
-      <p className="relative flex items-center overflow-hidden rounded-xl bg-emerald-50 px-3.5 py-2 text-sm" data-files-open data-roster-left={Math.max(0, left)}>
+      <p className="relative flex w-full items-center overflow-hidden rounded-xl bg-emerald-50 px-3.5 py-2 text-sm" data-files-open data-roster-left={Math.max(0, left)}>
         {text}
         {bar}
       </p>

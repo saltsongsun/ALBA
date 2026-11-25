@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Presence from '@/components/Presence'
 import { notFound } from 'next/navigation'
 import { assignWorkerToJob, deleteRating, requestAccount } from '@/app/actions/admin'
+import HashFlash from '@/components/HashFlash'
 import { RatingForm, ResetPin, RevealInfo, RevealRrn, WorkerEditForm } from '@/components/admin'
 import Fold, { ShowMore } from '@/components/Fold'
 import PhotoUpload from '@/components/PhotoUpload'
@@ -283,7 +284,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                 <RevealInfo userId={u.id} field="account" masked={`${u.bank_name ?? ''} ${maskAccount(account)} (예금주 ${maskName(u.account_holder ?? u.name)})`.trim()} />
               ) : (
                 // 계좌가 없으면 이 화면에서 바로 요청 (앱 문의함 + 휴대폰 알림 → 계좌번호 칸으로)
-                <span className="flex flex-wrap items-center gap-x-2 gap-y-1" data-account-ask>
+                <span id="account-ask" className="flex scroll-mt-24 flex-wrap items-center gap-x-2 gap-y-1" data-account-ask>
+                  <HashFlash id="account-ask" />
                   <span className="text-rose-500">미등록</span>
                   {askedAt && (
                     <span className="text-xs text-mute" data-account-asked>
