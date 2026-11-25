@@ -283,6 +283,14 @@ export async function setJobStatus(jobId: string, status: Job['status']) {
   // 이미 서류가 있는 사람은 건너뛰므로, 근무 전날 저녁 작업이 놓친 사람도 마감할 때 채워짐
   if (before && before.status !== 'cancelled' && before.status !== status && (status === 'closed' || status === 'done')) {
     const n = await issueDocsAndTell({ ...before, status }, admin.id, 'closed')
+    // 모집을 마감했는데 결과를 못 들은 대기 지원자가 남음 → 지원자 탭 '미선발 알림'으로 바로 (테두리 한 번 · 마감만 하고 대기자를 잊지 않게)
+    // 우리 회사 공고의 대기(보류 빼고)만 셈 · 정기 개선 2026-11-25 19:35
+    if (status === 'closed') {
+      const w = await db().from('applications').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('company_id', admin.companyId).eq('status', 'applied').is('held_at', null)
+      const left = w.error ? 0 : (w.count ?? 0)
+      if (left > 0)
+        redirect(`/admin/jobs/${jobId}?tab=apps&m=${encodeURIComponent(`모집을 마감했어요${n ? ` · 확정 ${n}명에게 서명할 서류를 보냈어요` : ''} · 대기 ${left}명에게 결과를 알려 주세요`)}#settle`)
+    }
     if (n) back(`/admin/jobs/${jobId}`, `${status === 'done' ? '행사를 종료했어요' : '모집을 마감했어요'} · 확정 ${n}명에게 서명할 서류를 보냈어요`)
   }
 }

@@ -16,6 +16,7 @@ import MediaOnly from '@/components/MediaOnly'
 import { GroupContact } from '@/components/GroupContact'
 import HashFocus from '@/components/HashFocus'
 import InvitePast, { type PastWorker } from '@/components/InvitePast'
+import HashFlash from '@/components/HashFlash'
 import { APP_STATUS } from '@/components/JobCard'
 import LiveNumber from '@/components/LiveNumber'
 import PlanToast from '@/components/PlanToast'
@@ -540,11 +541,14 @@ export default async function AppsTab({
             </span>
           )}
         </p>
+        {/* 마감 직후(#settle)면 '미선발 알림' 버튼으로 — 공고 상태가 바뀌면(모집 중 → 마감) 다시 살펴봄 */}
+        {canRejectWaiting && <HashFlash key={job.status} id="settle" />}
         {(waiting > 0 || canCloseNotify) && (
           <div className="flex flex-wrap gap-2" data-apps-decide>
             {/* 모집이 끝났거나(마감·끝난 행사·남은 날 인원 다 참) 대기자가 남음: '미선발 알림'이 먼저(파란 버튼) */}
             {canRejectWaiting && (
-              <form action={rejectWaiting.bind(null, job.id)} data-ended-notify={jobEnded ? '' : undefined} data-settle-first>
+              // id="settle": '모집 마감'을 눌렀는데 대기자가 남으면 여기(#settle)로 와서 이 버튼이 가운데로 오고 둘레가 번쩍임 (HashFlash · 움직임 줄이기면 테두리만 · 정기 개선 2026-11-25 19:35)
+              <form action={rejectWaiting.bind(null, job.id)} id="settle" data-ended-notify={jobEnded ? '' : undefined} data-settle-first>
                 <ConfirmSubmit className="btn-primary btn-sm" confirmText={jobEnded ? `끝난 행사 · 대기 ${waiting}명에게 미선발 알림?` : `대기 ${waiting}명 미선발 · 알림 보낼까요?`}>
                   🙏 대기 {waiting}명 미선발 알림
                 </ConfirmSubmit>
