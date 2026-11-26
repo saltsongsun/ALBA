@@ -79,10 +79,12 @@ export default function Badges({ items }: { items: Badge[] }) {
               </span>
               <b className={`mt-1.5 w-full truncate text-xs ${ok ? 'text-ink' : 'text-sub'}`}>{b.name}</b>
               <span className="mt-0.5 text-[11px] leading-tight break-keep text-balance text-mute">{b.goal}</span>
+              {/* ✏️ 정기 개선 2026-11-27 01:36: 막대를 칸 맨 아래에 붙임 (설명이 한 줄·두 줄이어도 같은 줄의 막대 높이가 맞게)
+                  + 채운 부분은 열 때 왼쪽부터 짧게 차오름 (0.3초 · 움직임 줄이기면 바로 — globals.css 전체 규칙) */}
               {!ok && (
-                <span className="mt-1.5 flex w-full items-center gap-1" aria-label={`${b.have}/${b.need}`}>
+                <span className="mt-auto flex w-full items-center gap-1 pt-1.5" aria-label={`${b.have}/${b.need}`} data-badge-bar>
                   <span className="h-1 flex-1 overflow-hidden rounded-full bg-line/70">
-                    <span className="block h-full rounded-full bg-amber-400" style={{ width: `${Math.round((Math.min(b.have, b.need) / b.need) * 100)}%` }} />
+                    <span className="block h-full origin-left animate-[grow_0.3s_ease-out_0.1s_both] rounded-full bg-amber-400" style={{ width: `${Math.round((Math.min(b.have, b.need) / b.need) * 100)}%` }} />
                   </span>
                   <span className="shrink-0 text-[10px] font-semibold text-mute tabular-nums">
                     {Math.min(b.have, b.need)}/{b.need}
