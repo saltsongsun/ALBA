@@ -70,8 +70,11 @@ const DAY = '[일월화수목금토]'
   await rest(`attendance?user_id=eq.${W}`, 'PATCH', { clock_out: new Date(outAt).toISOString() })
   await open()
   const doneText = one(await line.innerText().catch(() => ''))
-  ok("마친 뒤: '✓ M/D(요일) 근무 HH:MM~HH:MM'", (await line.getAttribute('data-my-work')) === 'done' && new RegExp(`^✓ \\d{1,2}/\\d{1,2}\\(${DAY}\\) 근무 ${kstHm(inAt)}~${kstHm(outAt)}$`).test(doneText), doneText)
-  ok("버튼은 '오늘 출퇴근하러 가기'로 · 취소 칸은 여전히 알리기만", (await w.getByRole('link', { name: '오늘 출퇴근하러 가기' }).count()) === 1 && (await worked.count()) === 1 && (await cancelBtn.count()) === 0)
+  // 23:35 (2026-11-26): 오늘 마친 근무는 '✓ 오늘 근무 끝 HH:MM~HH:MM' · 오늘 할 출퇴근이 없으니 버튼은 '내 근무 보기'
+  //   (자정 직후에 돌면 출근 날이 어제라 예전처럼 '✓ M/D(요일) 근무')
+  const sameDay = kstDay(inAt) === kstDay(now)
+  ok(sameDay ? "마친 뒤: '✓ 오늘 근무 끝 HH:MM~HH:MM'" : "마친 뒤(어제 근무): '✓ M/D(요일) 근무 HH:MM~HH:MM'", (await line.getAttribute('data-my-work')) === 'done' && (sameDay ? doneText === `✓ 오늘 근무 끝 ${kstHm(inAt)}~${kstHm(outAt)}` : new RegExp(`^✓ \\d{1,2}/\\d{1,2}\\(${DAY}\\) 근무 ${kstHm(inAt)}~${kstHm(outAt)}$`).test(doneText)), doneText)
+  ok("버튼은 '내 근무 보기'로 (오늘 출퇴근 끝) · 취소 칸은 여전히 알리기만", (!sameDay || ((await w.getByRole('link', { name: '내 근무 보기' }).count()) === 1 && (await w.getByRole('link', { name: '오늘 출퇴근하러 가기' }).count()) === 0)) && (await worked.count()) === 1 && (await cancelBtn.count()) === 0)
   ok('360px 옆으로 안 밀림 (공고 화면)', await noSide(w))
   if (SHOTS) { await w.locator('#apply').evaluate((el) => el.scrollIntoView({ block: 'start', behavior: 'instant' })); await w.waitForTimeout(600); await w.screenshot({ path: `${SHOTS}/job-done.png` }).catch(() => {}) }
 

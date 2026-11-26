@@ -305,6 +305,12 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
   const liveAtt = myWork.find((a) => !a.clock_out && Date.now() - new Date(a.clock_in).getTime() < 18 * 3600_000) ?? null
   const lastAtt = myWork.filter((a) => a !== liveAtt).at(-1) ?? null
   const worked = myWork.length > 0
+  // ✏️ 오늘 할 출퇴근이 없음: 오늘 근무를 이미 마침 · 오늘이 내 근무일이 아님 · 기록 없이 오늘 근무 시간이 지남
+  //   → 아래 버튼을 '오늘 출퇴근하러 가기' 대신 '내 근무 보기'로 (정기 개선 2026-11-26 23:35)
+  const noClockToday =
+    myWork.some((a) => a.work_date === kstDate() && !!a.clock_out) ||
+    (!!app?.available_dates?.length && !app.available_dates.includes(kstDate())) ||
+    (!liveAtt && workOver(job, kstDate()))
   // 근무 중인데 그날 종료 시각(근무시간 변경에 동의했으면 그 시간)이 지남: '지금 근무 중'이 아니라 '종료 HH:MM · n 지났어요' (내 근무 카드와 같은 말) — 정기 개선 2026-11-23 22:35
   const overEnd = liveAtt ? scheduledEnd(shiftOf(job, liveAtt), liveAtt.work_date) : null
   const overMin = overEnd ? Math.floor((Date.now() - overEnd.getTime()) / 60_000) : -1
@@ -763,9 +769,16 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             ) : lastAtt ? (
               <p className="text-sm text-sub" data-my-work={lastOut ? 'done' : 'open'}>
                 {lastOut ? (
-                  <>
-                    <span className="font-semibold text-ink">✓ {fmtDate(lastAtt.work_date)} 근무</span> {kstTime(lastAtt.adj_in ?? lastAtt.clock_in)}~{kstTime(lastOut)}
-                  </>
+                  // ✏️ 오늘 마친 근무는 '✓ 오늘 근무 끝'(초록 · 톡) — 지난 날은 날짜 그대로 (정기 개선 2026-11-26 23:35)
+                  lastAtt.work_date === kstDate() ? (
+                    <span className="inline-block animate-pop [animation-duration:250ms]" data-my-work-today>
+                      <span className="font-semibold text-emerald-700">✓ 오늘 근무 끝</span> {kstTime(lastAtt.adj_in ?? lastAtt.clock_in)}~{kstTime(lastOut)}
+                    </span>
+                  ) : (
+                    <>
+                      <span className="font-semibold text-ink">✓ {fmtDate(lastAtt.work_date)} 근무</span> {kstTime(lastAtt.adj_in ?? lastAtt.clock_in)}~{kstTime(lastOut)}
+                    </>
+                  )
                 ) : (
                   <>
                     {fmtDate(lastAtt.work_date)} {kstTime(lastAtt.adj_in ?? lastAtt.clock_in)} 시작 · <span className="font-semibold text-amber-700">종료 기록 없음</span>
@@ -856,7 +869,8 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
                   className={`${liveAtt && overMin >= 0 ? 'btn-danger' : app.status === 'approved' && unsignedHere && !ended ? 'btn-gray' : 'btn-primary'} flex-1`}
                   data-end-go={liveAtt && overMin >= 0 ? 'over' : undefined}
                 >
-                  {liveAtt ? '근무 종료하러 가기' : app.status === 'approved' && job.start_date <= kstDate() && !ended ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
+                  {/* ✏️ 오늘 할 출퇴근이 없으면 '내 근무 보기' (정기 개선 2026-11-26 23:35) */}
+                  {liveAtt ? '근무 종료하러 가기' : app.status === 'approved' && job.start_date <= kstDate() && !ended && !noClockToday ? '오늘 출퇴근하러 가기' : '내 근무 보기'}
                 </Link>
               )}
               {/* 확정되면 같은 근무 단체방 */}
