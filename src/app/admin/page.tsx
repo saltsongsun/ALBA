@@ -1,5 +1,5 @@
 import { headcountTbd } from '@/lib/jobFields'
-import { lastNudge } from '@/lib/nudge'
+import { lastNudge, lastNudgeAt } from '@/lib/nudge'
 import PushLevel from '@/components/PushLevel'
 import { myPushLevel } from '@/app/actions/push'
 import SlotBar from '@/components/SlotBar'
@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { startedTodayOnly, workOver } from '@/lib/pay'
 import JobActions from '@/components/JobActions'
 import { InstallBanner } from '@/components/InstallGuide'
-import { decideApplication, decideSelected, holdApplication, holdSelected, issueDocsNow, rejectWaiting, setJobStatus } from '@/app/actions/admin'
+import { decideApplication, decideSelected, holdApplication, holdSelected, issueDocsNow, nudgeWorkers, rejectWaiting, setJobStatus } from '@/app/actions/admin'
 import { BULK_FORM, BulkApproveBar, PickAll } from '@/components/BulkApprove'
 import { contractNameOf } from '@/lib/members'
 import AutoRefresh from '@/components/AutoRefresh'
@@ -43,7 +43,7 @@ import { won } from '@/lib/format'
 import { hoursText, weeklyImpact, type WeekImpact } from '@/lib/weekly'
 import { reliabilityFor, type Reliability } from '@/lib/reliability'
 import { StarAvg, scoresByUser } from '@/components/Stars'
-import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime } from '@/lib/time'
+import { ageOn, fmtDate, fmtDateRange, hhmm, kstAt, kstDate, kstDateTime, kstTime } from '@/lib/time'
 
 /** 관리자로 승인된 뒤 며칠 동안 '새로 합류' 안내를 보일지 — 정기 개선 2026-11-22 20:35 */
 const JOINED_DAYS = 3
@@ -575,11 +575,20 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   // 시작했는데(근무 시간 안) 아직 출근 기록이 없는 사람: 이름·번호 (대시보드에서 바로 전화 · 공고당 3명까지)
   const callJobs = todayJobs.filter((j) => started(j) && !workOver(j, today) && (absentIds[j.id]?.length ?? 0) > 0)
   const callIds = [...new Set(callJobs.flatMap((j) => absentIds[j.id].slice(0, 3)))]
-  const callUsers = new Map(
+  // 이름·번호 + 오늘 '근무 시작 버튼'을 마지막으로 보낸 때 (이 회사 · 그 공고 문의함에서만 · 정기 개선 2026-11-26 09:35)
+  const [callRows, nudgedRows] = await Promise.all([
     callIds.length
-      ? ((((await db().from('users').select('id, name, phone').in('id', callIds)).data ?? []) as { id: string; name: string; phone: string | null }[]).map((u) => [u.id, u]))
-      : [],
-  )
+      ? db()
+          .from('users')
+          .select('id, name, phone')
+          .in('id', callIds)
+          .then((r) => (r.data ?? []) as { id: string; name: string; phone: string | null }[])
+      : Promise.resolve([] as { id: string; name: string; phone: string | null }[]),
+    Promise.all(callJobs.map((j) => lastNudgeAt(admin.companyId, j.id, '⏰ 출근 확인').then((at) => [j.id, at] as const).catch(() => [j.id, null] as const))),
+  ])
+  const callUsers = new Map(callRows.map((u) => [u.id, u]))
+  // 오늘 보낸 것만 (어제 보낸 알림은 '보냄'으로 치지 않음)
+  const nudgedAt = new Map(nudgedRows.filter(([, at]) => !!at && kstDate(at) === today).map(([id, at]) => [id, at as string]))
   // 공고 · 사람 · 근무 날마다 아직 답하지 않은 요청
   const fixWait = group0(fixMsgs, (m) => `${m.job_id}|${m.thread_user_id}|${fixDateOf(m.body, m.created_at)}`)
     .map((g) => pendingFix(g, fixDateOf(g[0].body, g[0].created_at)))
@@ -1399,7 +1408,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         ) : (
           <div className="stagger grid gap-3 md:grid-cols-2">
             {todayJobs.map((j) => (
-              <div key={j.id} className="card space-y-3" data-today-job>
+              <div key={j.id} id={`today-${j.id}`} className="card scroll-mt-24 space-y-3" data-today-job>
                 <Link href={`/admin/jobs/${j.id}?tab=att&date=${today}`} className="block transition active:scale-[0.99]">
                 <p className="font-bold">{j.title}</p>
                 <p className="text-sm text-sub">
@@ -1453,6 +1462,26 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                         외 {absentIds[j.id].length - 3}명 →
                       </Link>
                     )}
+                  </div>
+                )}
+                {/* 안 온 사람에게 앱 '근무 시작' 버튼을 한 번에 (두 번 눌러 보냄 · 대시보드에 그대로 · 늦는다고 알린 사람은 서버에서 뺌)
+                    오늘 이미 보냈으면 보낸 시각을 함께 — 정기 개선 2026-11-26 09:35 */}
+                {callJobs.includes(j) && (
+                  <div className="flex items-center justify-between gap-2 border-t border-line pt-2.5" data-absent-nudge>
+                    <span className="min-w-0 truncate text-xs text-sub">
+                      {nudgedAt.has(j.id) ? (
+                        <span className="inline-block animate-pop font-semibold text-emerald-700" data-absent-nudged>
+                          ✓ {kstTime(nudgedAt.get(j.id)!)} 근무 시작 버튼 보냄
+                        </span>
+                      ) : (
+                        <>앱으로 근무 시작 버튼 보내기</>
+                      )}
+                    </span>
+                    <form action={nudgeWorkers.bind(null, j.id, 'clockin', today, 'dashboard')} className="shrink-0">
+                      <ConfirmSubmit className="btn-gray btn-sm" confirmText={`${absentIds[j.id].length}명에게 보낼까요?`} track="근무 시작 버튼(대시보드)">
+                        {nudgedAt.has(j.id) ? '다시 보내기' : '보내기'}
+                      </ConfirmSubmit>
+                    </form>
                   </div>
                 )}
                 {/* 지금 할 일 큰 버튼 (출석 체크 · 오늘 근무 마무리 · 행사 종료하기) */}

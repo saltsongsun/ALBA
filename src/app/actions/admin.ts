@@ -1828,7 +1828,14 @@ export async function decideOvertime(attendanceId: string, decision: 'approve' |
  * 근무자에게 할 일 알림 (각자 문의함 + 휴대폰 알림). 받을 사람은 서버에서 다시 셈
  * sign: 서명 안 한 서류가 있는 사람 / clockin: 그날 근무인데 출근 기록 없음 / clockout: 근무 종료를 안 누름
  */
-export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'clockout' | 'account' | 'contract', date: string | null) {
+export async function nudgeWorkers(
+  jobId: string,
+  kind: 'sign' | 'clockin' | 'clockout' | 'account' | 'contract',
+  date: string | null,
+  // 대시보드 '오늘 진행 행사' 미출근 줄에서 보냈으면 대시보드에 그대로 (출근 확인만 · 정기 개선 2026-11-26 09:35)
+  // (다른 곳은 인자 3개로 묶어 폼 데이터가 이 자리에 들어오므로 'dashboard' 글자일 때만)
+  from?: 'dashboard' | FormData,
+) {
   const admin = await requireAdmin()
   const job = await companyJob(admin, jobId)
   if (!job || !['sign', 'clockin', 'clockout', 'account', 'contract'].includes(kind)) return
@@ -1886,12 +1893,16 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
   }
   to = [...new Set(to)]
   const backTo =
-    kind === 'sign' || kind === 'contract'
-      ? `/admin/jobs/${jobId}?tab=docs`
-      : kind === 'account'
-        ? `/admin/jobs/${jobId}?tab=pay`
-        : `/admin/jobs/${jobId}?tab=att&date=${date}`
-  if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}`)
+    from === 'dashboard' && kind === 'clockin'
+      ? '/admin?from=today'
+      : kind === 'sign' || kind === 'contract'
+        ? `/admin/jobs/${jobId}?tab=docs`
+        : kind === 'account'
+          ? `/admin/jobs/${jobId}?tab=pay`
+          : `/admin/jobs/${jobId}?tab=att&date=${date}`
+  // 대시보드에서 보냈으면 그 행사 카드로 돌아옴 (위로 튀지 않게)
+  const hash = from === 'dashboard' && kind === 'clockin' ? `#today-${jobId}` : ''
+  if (!to.length) redirect(`${backTo}&m=${encodeURIComponent('알릴 사람이 없어요.')}${hash}`)
   const [title, text] = {
     // 근무가 이미 시작됐거나 끝난 공고면 '근무 전에'가 아니라 '아직 서명 안 함'으로 (대시보드 '일했는데 서명 안 함'에서 보내는 알림 — 정기 개선 2026-11-23 14:35)
     sign: [
@@ -1923,7 +1934,7 @@ export async function nudgeWorkers(jobId: string, kind: 'sign' | 'clockin' | 'cl
   await audit(admin.id, `nudge.${kind}`, null, `${jobId} ${date ?? ''} ${to.length}명`, admin.companyId)
   after(() => sendPush(to, { title, body: text, url: URL_OF, tag: `${kind}-${jobId}` }))
   revalidatePath('/admin/chat')
-  redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}`)
+  redirect(`${backTo}&m=${encodeURIComponent(`${to.length}명에게 앱 알림을 보냈어요.`)}${hash}`)
 }
 
 /**
