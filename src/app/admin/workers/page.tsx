@@ -21,6 +21,7 @@ import SearchInput from '@/components/SearchInput'
 import SortSelect from '@/components/SortSelect'
 import LevelBadge from '@/components/LevelBadge'
 import { companyLevels } from '@/lib/xpCompany'
+import { SIGNAL } from '@/lib/signals'
 
 export const metadata: Metadata = { title: '근무자' }
 
@@ -195,8 +196,26 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                 : b.created_at.localeCompare(a.created_at),
     )
     .slice(0, 300)
+  // 계좌가 없는 우리 회사 지원자 가운데 우리 회사가 이미 '계좌 등록 요청'을 보낸 사람 (최근 60일 · 이 회사 문의함만)
+  // → '미등록 ›' 대신 '요청함 ›' (같은 요청을 또 보내지 않게 · 정기 개선 2026-11-26 07:35)
+  const askSince = new Date(Date.now() - 60 * 864e5).toISOString()
+  const askIds = users.filter((u) => !u.bank_account_enc && u.active && applied.has(u.id)).map((u) => u.id)
+  const askedP = askIds.length
+    ? byIds<{ thread_user_id: string; body: string; created_at: string }>(askIds, (part) =>
+        db()
+          .from('messages')
+          .select('thread_user_id, body, created_at')
+          .eq('company_id', admin.companyId)
+          .eq('from_admin', true)
+          .like('body', `${SIGNAL.account}%`)
+          .gte('created_at', askSince)
+          .in('thread_user_id', part),
+      )
+        .then((r) => new Set(r.data.filter((m) => m.body.startsWith(SIGNAL.account) && m.created_at >= askSince).map((m) => m.thread_user_id)))
+        .catch(() => new Set<string>())
+    : Promise.resolve(new Set<string>())
   // 화면에 보일 사람의 레벨 · 휴대폰 알림 여부를 함께 기다림
-  const [pushOn, levels] = await Promise.all([pushP, levelsAll ?? companyLevels(admin.companyId, users.filter(hasLevel))])
+  const [pushOn, levels, asked] = await Promise.all([pushP, levelsAll ?? companyLevels(admin.companyId, users.filter(hasLevel)), askedP])
   const levelBadge = (u: Row) => (hasLevel(u) ? <LevelBadge x={levels.get(u.id)} /> : null)
   // 할 일로 거른 목록(계좌·사진·알림)이면: 우리 회사 지원자에게 한 번에 문자로 요청 (해피워크 전체 회원에게 마구 보내지 않게 우리 회사 지원자만)
   const co = admin.companyName
@@ -337,8 +356,12 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                 '등록'
               ) : u.active && applied.has(u.id) ? (
                 // 우리 회사 지원자면: 누르면 근무자 화면의 '계좌 등록 요청' 버튼으로 바로 (가운데로 오고 번쩍임 · 정기 개선 2026-11-26 03:35)
-                <Link href={`/admin/workers/${u.id}#account-ask`} className="tap font-semibold whitespace-nowrap text-rose-500 underline-offset-2 hover:underline" data-roster-noaccount>
-                  미등록 ›
+                <Link
+                  href={`/admin/workers/${u.id}#account-ask`}
+                  className={`tap font-semibold whitespace-nowrap underline-offset-2 hover:underline ${asked.has(u.id) ? 'text-amber-700' : 'text-rose-500'}`}
+                  data-roster-noaccount={asked.has(u.id) ? 'asked' : ''}
+                >
+                  {asked.has(u.id) ? '요청함 ›' : '미등록 ›'}
                 </Link>
               ) : (
                 <span className="text-rose-500">미등록</span>
@@ -411,8 +434,12 @@ export default async function WorkersPage(props: PageProps<'/admin/workers'>) {
                     '등록'
                   ) : u.active && applied.has(u.id) ? (
                     // 넓은 화면 표도 같게: 누르면 '계좌 등록 요청' 버튼으로 (정기 개선 2026-11-26 03:35)
-                    <Link href={`/admin/workers/${u.id}#account-ask`} className="tap font-semibold text-rose-500 underline-offset-2 hover:underline" data-roster-noaccount>
-                      미등록 ›
+                    <Link
+                      href={`/admin/workers/${u.id}#account-ask`}
+                      className={`tap font-semibold underline-offset-2 hover:underline ${asked.has(u.id) ? 'text-amber-700' : 'text-rose-500'}`}
+                      data-roster-noaccount={asked.has(u.id) ? 'asked' : ''}
+                    >
+                      {asked.has(u.id) ? '요청함 ›' : '미등록 ›'}
                     </Link>
                   ) : (
                     <span className="text-rose-500">미등록</span>

@@ -43,6 +43,7 @@ import type { Application, Attendance, Job, ShiftChange, SignedDoc } from '@/lib
 import { canOpenJobDocs, docInquiryHref } from '@/lib/doc-access'
 import { contractNameOf } from '@/lib/members'
 import { docsAutoAt, docsDue } from '@/lib/data'
+import { accountAskers, askersText } from '@/lib/accountAsk'
 import { VIEW_COOKIE } from '@/lib/view'
 
 export const metadata: Metadata = { title: '내 근무' }
@@ -101,6 +102,8 @@ export default async function MePage(props: PageProps<'/me'>) {
   const nudgeP = canWrite(user) && !pro ? reviewNudge(user.id) : Promise.resolve(null)
   // 근무 내역 카드의 정산일 (담당자가 알린 날 · 없으면 공고 지급일 · '지난 근무'와 같은 계산) — 다른 것과 함께 읽음
   const paydaysP = workerPaydays(user.id).catch(() => null)
+  // 계좌 등록을 요청한 회사 (계좌 안내 줄에 '○○에서 기다려요' · 못 읽으면 기본 문구 — 정기 개선 2026-11-26 07:35)
+  const askersP = accountAskers(user.id).catch(() => [])
   // 커뮤니티를 마지막으로 본 뒤 내 글에 달린 새 댓글
   const seenRaw = (await cookies()).get('cm_seen')?.value
   const newCommentsP = canWrite(user) ? newCommentsOnMine(user.id, seenRaw ? decodeURIComponent(seenRaw) : null) : Promise.resolve(null)
@@ -459,23 +462,43 @@ export default async function MePage(props: PageProps<'/me'>) {
     .filter((x) => x !== null)
 
   // 계좌·사진 등록 안내 (근무 날에는 오늘의 근무 아래에) — 둘 다면 한 카드에 두 줄로 (위아래로 덜 길게)
+  // 계좌를 요청한 회사가 있으면 누가 기다리는지 (확정 전이어도 보임 · 작은 깜빡임 점)
+  const askers = hasAccount ? [] : await askersP
   const nags = [
     // 근무가 잡혔거나 일한 적이 있는데 계좌가 없으면 (급여를 못 받음)
-    !hasAccount && (approved.length > 0 || atts.length > 0)
-      ? { key: 'account', href: '/me/profile#bank_account', icon: 'card' as const, tone: 'bg-rose-50 text-rose-600', title: '급여 계좌를 등록해 주세요', sub: '급여를 받으려면 꼭 필요해요', go: '등록' }
+    !hasAccount && (approved.length > 0 || atts.length > 0 || askers.length > 0)
+      ? {
+          key: 'account',
+          href: '/me/profile#bank_account',
+          icon: 'card' as const,
+          tone: 'bg-rose-50 text-rose-600',
+          title: '급여 계좌를 등록해 주세요',
+          sub: askers.length ? `${askersText(askers)}에서 기다려요` : '급여를 받으려면 꼭 필요해요',
+          go: '등록',
+          ping: askers.length > 0,
+        }
       : null,
-    !photoAt ? { key: 'photo', href: '/me/profile#photo', icon: 'camera' as const, tone: 'bg-brand-50 text-brand-600', title: '얼굴 사진을 올려 주세요', sub: '현장 담당자가 알아보기 쉬워요', go: '올리기' } : null,
+    !photoAt ? { key: 'photo', href: '/me/profile#photo', icon: 'camera' as const, tone: 'bg-brand-50 text-brand-600', title: '얼굴 사진을 올려 주세요', sub: '현장 담당자가 알아보기 쉬워요', go: '올리기', ping: false } : null,
   ].filter((n) => n !== null)
   const profileNags = nags.length ? (
     <div className="card divide-y divide-line overflow-hidden p-0" data-profile-nags>
       {nags.map((n) => (
-        <Link key={n.key} href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors active:bg-bg">
-          <span aria-hidden className={`grid size-9 shrink-0 place-items-center rounded-xl text-lg ${n.tone}`}>
+        <Link key={n.key} href={n.href} className="flex items-center gap-3 px-4 py-3 transition-colors active:bg-bg" data-nag={n.key}>
+          <span aria-hidden className={`relative grid size-9 shrink-0 place-items-center rounded-xl text-lg ${n.tone}`}>
             <Icon name={n.icon} />
+            {/* 회사가 계좌를 기다리는 중: 모서리에 작은 점 (움직임 줄이기면 깜빡이지 않음) */}
+            {n.ping && (
+              <span className="absolute -top-0.5 -right-0.5 flex size-2.5" data-nag-ping>
+                <span className="absolute inline-flex size-full animate-ping rounded-full bg-amber-400 opacity-60 motion-reduce:hidden" />
+                <span className="relative inline-flex size-2.5 rounded-full bg-amber-500" />
+              </span>
+            )}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate font-bold">{n.title}</span>
-            <span className="block truncate text-[13px] text-sub">{n.sub}</span>
+            <span className={`block truncate text-[13px] ${n.ping ? 'font-semibold text-amber-700' : 'text-sub'}`} data-nag-sub>
+              {n.sub}
+            </span>
           </span>
           <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-brand-600">{n.go} →</span>
         </Link>
