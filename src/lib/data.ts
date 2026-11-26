@@ -5,8 +5,8 @@ import { withWeeklyPay } from './weekly'
 import { workerRoomUnreadTotal } from './room'
 import { APP_NAME } from './brand'
 import { clientInfo } from './session'
-import { calcDay, scheduledEnd, settle, shiftOf } from './pay'
-import { fmtDate, kstDate } from './time'
+import { calcDay, scheduledEnd, settle, shiftOf, workOver } from './pay'
+import { fmtDate, kstAt, kstDate } from './time'
 import { isQuietNotice, needsReply, paidAfterAsk, parsePayday, SIGNAL } from './signals'
 import { paydayDate, paydayGuess } from './payday'
 import type { Application, Attendance, CompanySettings, Job, Settings } from './types'
@@ -322,6 +322,62 @@ async function companyNow(
 }
 
 /**
+ * 미출근: 오늘 근무가 시작했는데(끝나기 전) 아직 출근 기록이 없는 확정자 수 — 이 회사 자료만 (company_id).
+ * 관리자 홈 '오늘 진행 행사' 카드의 미출근과 같은 기준 (오늘 일하는 날로 고른 사람만 · 시작 전·끝난 행사는 안 셈).
+ * 여러 회사를 맡은 관리자 홈의 다른 회사 칩에 씀 — 회사를 바꿔 보지 않아도 현장에 안 온 사람이 보이게 (정기 개선 2026-11-26 11:35)
+ */
+export async function absentNow(companyId: string, today: string, now = Date.now()): Promise<number> {
+  const jobs = (
+    must(
+      await db()
+        .from('jobs')
+        .select('id, status, start_date, end_date, start_time, end_time, company_id')
+        .eq('company_id', companyId)
+        .in('status', ['open', 'closed'])
+        .gte('end_date', today)
+        .lte('start_date', today),
+    ) as (Pick<Job, 'id' | 'status' | 'start_date' | 'end_date' | 'start_time' | 'end_time'> & { company_id: string })[]
+  ).filter(
+    (j) =>
+      j.company_id === companyId &&
+      (j.status === 'open' || j.status === 'closed') &&
+      j.start_date <= today &&
+      j.end_date >= today &&
+      kstAt(today, j.start_time).getTime() <= now &&
+      !workOver(j, today, now),
+  )
+  if (!jobs.length) return 0
+  const ids = jobs.map((j) => j.id)
+  const [apps, atts] = await Promise.all([
+    db()
+      .from('applications')
+      .select('job_id, user_id, status, available_dates, company_id')
+      .eq('company_id', companyId)
+      .eq('status', 'approved')
+      .in('job_id', ids)
+      .limit(2000)
+      .then((r) => must(r) as { job_id: string; user_id: string; status: string; available_dates: string[] | null; company_id: string }[]),
+    db()
+      .from('attendance')
+      .select('job_id, user_id, work_date, company_id')
+      .eq('company_id', companyId)
+      .eq('work_date', today)
+      .in('job_id', ids)
+      .limit(2000)
+      .then((r) => must(r) as { job_id: string; user_id: string; work_date: string; company_id: string }[]),
+  ])
+  const arrived = new Set(atts.filter((a) => a.company_id === companyId && a.work_date === today).map((a) => `${a.job_id}|${a.user_id}`))
+  return apps.filter(
+    (a) =>
+      a.company_id === companyId &&
+      a.status === 'approved' &&
+      ids.includes(a.job_id) &&
+      (!a.available_dates?.length || a.available_dates.includes(today)) &&
+      !arrived.has(`${a.job_id}|${a.user_id}`),
+  ).length
+}
+
+/**
  * 서류 안 보냄: 오늘·내일 근무하는 확정자 가운데 서명 서류(앱 서명)가 아직 하나도 없는 사람 수 — 이 회사 자료만 (company_id).
  * 근로계약서는 모집 마감 후에 가서(사용자 요청 2026-11-24) 마감을 잊으면 근무 직전까지 비어 있을 수 있음.
  * 대시보드 '서류 안 보냄 · 공고' 할 일과 같은 기준 — 여러 회사를 맡은 관리자 홈의 다른 회사 칩에 씀 (정기 개선 2026-11-25 02:35)
@@ -458,14 +514,14 @@ export async function otherCompaniesTodo(
   currentId: string,
   /** 관리자 홈에서만: 약속한 정산일이 오늘이거나 지났는데 지급 전인 근무자 수 · 서명 없이 근무한 사람 수 (메뉴의 회사 바꾸기에서는 묻지 않음 — 화면마다 느려지지 않게) */
   withPay = false,
-): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number; worked: number; nodoc: number }[]> {
+): Promise<{ id: string; name: string; n: number; waiting: number; today: number; tomorrow: number; unsigned: number; lapsed: number; payLate: number; join: number; worked: number; nodoc: number; absent: number }[]> {
   const others = companies.filter((c) => c.id !== currentId).slice(0, 12)
   if (!others.length) return []
   const today = kstDate()
   const tomorrow = kstDate(new Date(Date.now() + 86_400_000))
   const rows = await Promise.all(
     others.map(async (c) => {
-      const [n, now, lapsed, payLate, join, worked, nodoc] = await Promise.all([
+      const [n, now, lapsed, payLate, join, worked, nodoc, absent] = await Promise.all([
         unreadForAdmins(c.id).catch(() => 0),
         companyNow(c.id, today, tomorrow).catch(() => ({ waiting: 0, today: 0, tomorrow: 0, unsigned: 0, pendingKeys: new Set<string>() })),
         lapsedWaiting(c.id, today).then(
@@ -493,13 +549,15 @@ export async function otherCompaniesTodo(
         withPay ? workedUnsigned(c.id, today).catch(() => []) : [],
         // 관리자 홈에서만: 오늘·내일 근무 확정자 중 서명 서류가 아직 안 간 사람 (그 회사로 바꾸면 '서류 안 보냄 · 공고' 할 일)
         withPay ? noDocsSoon(c.id, today, tomorrow).catch(() => 0) : 0,
+        // 관리자 홈에서만: 그 회사 오늘 행사가 시작했는데 아직 안 온 확정자 (회사를 바꾸면 '오늘 진행 행사' 카드에서 전화·근무 시작 버튼) — 정기 개선 2026-11-26 11:35
+        withPay ? absentNow(c.id, today).catch(() => 0) : 0,
       ])
       const { pendingKeys, ...counts } = now
       const workedN = worked.filter((w) => !pendingKeys.has(`${w.job_id}|${w.user_id}`)).length
-      return { id: c.id, name: c.name, n, ...counts, lapsed, payLate, join, worked: workedN, nodoc }
+      return { id: c.id, name: c.name, n, ...counts, lapsed, payLate, join, worked: workedN, nodoc, absent }
     }),
   )
-  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0 || c.nodoc > 0)
+  return rows.filter((c) => c.n > 0 || c.waiting > 0 || c.today > 0 || c.tomorrow > 0 || c.lapsed > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0 || c.nodoc > 0 || c.absent > 0)
 }
 
 /**

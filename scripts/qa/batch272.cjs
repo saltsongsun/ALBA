@@ -57,7 +57,9 @@ const noSide = (p) => p.evaluate(() => document.scrollingElement.scrollWidth <= 
   const card = p.locator('[data-other-companies]')
   await card.waitFor({ timeout: 15000 }).catch(() => {})
   const ct = one(await card.innerText().catch(() => ''))
-  ok("'다른 회사에 확인할 일 · 두번째기획 서명 안 함 1 오늘 행사 2' (서명한 사람·종이 계약 공고는 안 셈)", ct === '다른 회사에 확인할 일 두번째기획 서명 안 함 1 오늘 행사 2', ct)
+  // 행사가 이미 시작했으면 안 온 확정자가 '미출근 n'으로 앞에 오고 '오늘 행사 n'은 줄임 (묶음 400 · 정기 개선 2026-11-26 11:35) — 시작 전이면 예전 그대로
+  const absentN = one(await card.locator('[data-other-absent]').innerText().catch(() => ''))
+  ok("'다른 회사에 확인할 일 · 두번째기획 서명 안 함 1 오늘 행사 2' (서명한 사람·종이 계약 공고는 안 셈 · 시작 뒤면 '미출근 3 서명 안 함 1')", absentN ? ct === '다른 회사에 확인할 일 두번째기획 미출근 3 서명 안 함 1' : ct === '다른 회사에 확인할 일 두번째기획 서명 안 함 1 오늘 행사 2', ct)
   ok("'서명 안 함' 숫자는 빨강", (await card.locator('[data-other-unsigned] b.text-rose-600').count()) === 1)
   ok('칩 한 줄 · 360px 옆으로 안 밀림', (await card.locator('button').first().evaluate((el) => el.getBoundingClientRect().height < 40).catch(() => false)) && (await noSide(p)))
   if (SHOTS) await card.screenshot({ path: `${SHOTS}/other-unsigned.png` }).catch(() => {})

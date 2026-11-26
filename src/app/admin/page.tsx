@@ -604,7 +604,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...otherTodo.map((c) => ({ ...c, joined: joined.includes(c.id) })),
     ...admin.companies
       .filter((c) => c.id !== admin.companyId && joined.includes(c.id) && !otherTodo.some((o) => o.id === c.id))
-      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, worked: 0, nodoc: 0, joined: true })),
+      .map((c) => ({ id: c.id, name: c.name, n: 0, waiting: 0, today: 0, tomorrow: 0, unsigned: 0, lapsed: 0, payLate: 0, join: 0, worked: 0, nodoc: 0, absent: 0, joined: true })),
   ]
   // 지금 회사에 새로 합류했으면: 대표 관리자 이름 (관리자 목록에서 연락처를 보도록 · 못 읽으면 이름 없이)
   const joinedHere = joined.includes(admin.companyId)
@@ -649,6 +649,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     ...(unreadChats > 0 ? [{ key: 'chat', icon: 'chat' as const, text: '새 문의 · 답장해 주세요', n: unreadChats, unit: '건', href: soleUnread ? `/admin/chat/${soleUnread}` : '/admin/chat', tone: 'text-rose-600' }] : []),
     // 읽기만 하고 답하지 않은 문의 (문의 목록의 '답장 전'만 모아 보기로)
     ...(noReplyChats > 0 ? [{ key: 'noreply', icon: 'chat' as const, text: '읽고 아직 답하지 않은 문의', n: noReplyChats, unit: '건', href: noReply.only ? `/admin/chat/${noReply.only}` : '/admin/chat?noreply=1', tone: 'text-amber-700' }] : []),
+    // 시작했는데 아직 안 온 확정자: 공고마다 한 줄 · 누르면 같은 화면 '오늘 진행 행사' 카드로 내려가 테두리가 한 번 (전화·근무 시작 버튼이 거기 있음)
+    // 다른 회사 칩 '미출근 n'을 눌러 회사를 바꿨을 때도 맨 위에서 바로 보이게 — 정기 개선 2026-11-26 11:35
+    ...callJobs.map((j) => ({
+      key: `absent-${j.id}`,
+      icon: 'phone' as const,
+      text: `미출근 · ${j.title}`,
+      n: absentIds[j.id].length,
+      href: `#today-${j.id}`,
+      tone: 'text-rose-600',
+    })),
     ...group(arriveMsgs.filter((m) => !arrived.has(`${m.job_id}|${m.thread_user_id}`)), (m) => m.job_id).map((g) => ({
       key: `arrive-${g[0].job_id}`,
       icon: 'pin' as const,
@@ -1120,7 +1130,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-brand-50 px-4 py-3 text-sm" data-other-companies>
           <span className="font-semibold text-brand-700">
             <Icon name="building" />{' '}
-            {otherUnread.some((c) => c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0 || c.nodoc > 0)
+            {otherUnread.some((c) => c.absent > 0 || c.waiting > 0 || c.lapsed > 0 || c.unsigned > 0 || c.payLate > 0 || c.join > 0 || c.worked > 0 || c.nodoc > 0)
               ? '다른 회사에 확인할 일'
               : otherUnread.some((c) => c.n > 0)
                 ? '다른 회사에 새 문의'
@@ -1138,6 +1148,17 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 {c.joined && (
                   <span className="absolute -top-2 left-2.5 animate-pop rounded-full bg-brand-600 px-1.5 text-[10px] leading-4 font-bold whitespace-nowrap text-white" data-other-joined>
                     새로 합류
+                  </span>
+                )}
+                {/* 그 회사 오늘 행사가 시작했는데 아직 안 온 확정자 (지금 현장 일이라 맨 앞 · 회사를 바꾸면 '오늘 진행 행사' 카드에서 전화·근무 시작 버튼)
+                    살아 있는 숫자라 작은 점이 깜빡임 (움직임 줄이기면 점만) — 정기 개선 2026-11-26 11:35 */}
+                {c.absent > 0 && (
+                  <span className="flex shrink-0 animate-pop items-center gap-1 whitespace-nowrap" data-other-absent>
+                    <span className="relative flex size-1.5" aria-hidden>
+                      <span className="absolute inline-flex size-full animate-ping rounded-full bg-rose-400 opacity-75 motion-reduce:hidden" />
+                      <span className="relative inline-flex size-1.5 rounded-full bg-rose-500" />
+                    </span>
+                    미출근 <b className="text-rose-600">{c.absent}</b>
                   </span>
                 )}
                 {/* 내가 대표인 그 회사에 승인을 기다리는 관리자 가입 신청 (회사를 바꾸면 '관리자 가입 신청 · 승인해 주세요' 할 일 → 관리자 목록) — 정기 개선 2026-11-23 03:35 */}
@@ -1183,8 +1204,9 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     결과 안 알림 <b className="text-sub">{c.lapsed}</b>
                   </span>
                 )}
-                {/* 그 회사에서 오늘 진행하는 행사 · (오늘 것이 없으면) 내일 시작하는 행사 — 회사를 바꿔 보지 않아도 놓치지 않게 */}
-                {c.today > 0 ? (
+                {/* 그 회사에서 오늘 진행하는 행사 · (오늘 것이 없으면) 내일 시작하는 행사 — 회사를 바꿔 보지 않아도 놓치지 않게
+                    '미출근'이 보이면 오늘 행사가 있다는 뜻이라 줄임 (칩이 길어져 회사 이름이 잘리지 않게 · 정기 개선 2026-11-26 11:35) */}
+                {c.absent > 0 ? null : c.today > 0 ? (
                   <span className="shrink-0 whitespace-nowrap" data-other-today>
                     오늘 행사 <b className="text-emerald-600">{c.today}</b>
                   </span>
@@ -1219,7 +1241,11 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }}
                 data-todo={t.key}
               >
-                <Link href={t.href} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
+                {/* 같은 화면 아래 칸으로 가는 줄(#이름)은 보통 링크로 — 도착한 칸의 테두리가 한 번 (:target) */}
+                {(() => {
+                  const Row = t.href.startsWith('#') ? 'a' : Link
+                  return (
+                <Row href={t.href} className="flex min-w-0 flex-1 items-center gap-3 py-2.5 text-sm transition active:scale-[0.99]">
                   <span aria-hidden className="grid size-8 shrink-0 place-items-center rounded-full bg-bg text-[17px] text-sub">
                     <Icon name={t.icon} />
                   </span>
@@ -1237,10 +1263,12 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                   </b>
                   {!t.notify && !t.send && (
                     <span aria-hidden className="shrink-0 text-mute">
-                      ›
+                      {t.href.startsWith('#') ? '↓' : '›'}
                     </span>
                   )}
-                </Link>
+                </Row>
+                  )
+                })()}
                 {/* 끝난 행사의 대기 지원자: 공고에 들어가지 않고 여기서 바로 결과 알림 (두 번 눌러 확인 · 누르면 버튼이 넓어지며 확인 문구) */}
                 {t.notify && (
                   <form action={rejectWaiting.bind(null, t.notify, false, 'dashboard')} className="shrink-0" data-lapsed-notify>
@@ -1408,7 +1436,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         ) : (
           <div className="stagger grid gap-3 md:grid-cols-2">
             {todayJobs.map((j) => (
-              <div key={j.id} id={`today-${j.id}`} className="card scroll-mt-24 space-y-3" data-today-job>
+              <div key={j.id} id={`today-${j.id}`} className="card scroll-mt-24 space-y-3" data-today-job data-target-ring>
                 <Link href={`/admin/jobs/${j.id}?tab=att&date=${today}`} className="block transition active:scale-[0.99]">
                 <p className="font-bold">{j.title}</p>
                 <p className="text-sm text-sub">
