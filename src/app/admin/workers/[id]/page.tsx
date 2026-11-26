@@ -31,6 +31,8 @@ import { careerText } from '@/lib/careers'
 import { signalOf } from '@/lib/signals'
 import { companyLevels } from '@/lib/xpCompany'
 import { workerPaydays } from '@/lib/worker-payday'
+import { todayWorkLine, type WorkMsg } from '@/lib/todayWork' // ✏️
+import TodayWorkLine from '@/components/TodayWorkLine' // ✏️
 
 export const metadata: Metadata = { title: '근무자 정보' }
 
@@ -71,6 +73,18 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
         .order('created_at', { ascending: false })
         .limit(50)
         .then((r) => (must(r) as { body: string; created_at: string }[]).find((m) => signalOf(m.body) === 'account')?.created_at ?? null),
+  )
+  // ✏️ 오늘 이 회사 공고로 보낸 늦어요·현장 확인 요청 (머리 아래 '오늘 근무' 한 줄 · 이 회사 문의함만) — 정기 개선 2026-11-26 17:35
+  const todayMsgsP = Promise.resolve(
+    db()
+      .from('messages')
+      .select('job_id, body, created_at, from_admin')
+      .eq('company_id', admin.companyId)
+      .eq('thread_user_id', id)
+      .eq('from_admin', false)
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then((r) => (must(r) as WorkMsg[]).filter((m) => kstDate(m.created_at) === today)),
   )
   const batchP = Promise.all([
     db().from('users').select('*').eq('id', id).maybeSingle(),
@@ -119,6 +133,7 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   relatedP.catch(() => {})
   batchP.catch(() => {})
   askedP.catch(() => {})
+  todayMsgsP.catch(() => {})
   // 보안: 명단은 관리자 본인 비밀번호를 한 번 더 넣어야 열림 (10분)
   const rosterLeft = await rosterUnlockedFor(admin.id)
   if (!rosterLeft) return <RosterLock next={`/admin/workers/${id}`} minutes={ROSTER_MINUTES} />
@@ -176,6 +191,16 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
   const assignable = openJobs.filter((j) => !apps.some((a) => a.job_id === j.id && a.status === 'approved'))
   // 우리 회사 서류 중 서명 대기 (위 칩 · 아래 서류 칸 요약이 같은 수)
   const pendingDocs = docs.filter((d) => d.status === 'pending').length
+  // ✏️ 이 회사 오늘 근무 한 줄 (문의 대화 머리와 같은 기준: 근무 중 · 퇴근 · 출근 전 · 미출근(+늦어요 HH:MM 도착/현장 확인 요청) · 다음 근무)
+  //   이 회사에 확정된 공고 · 이 회사 출퇴근 기록 · 이 회사 문의함만 — 정기 개선 2026-11-26 17:35
+  const workLine = related
+    ? todayWorkLine(
+        apps.filter((a) => a.status === 'approved').map((a) => ({ job: a.job, available_dates: a.available_dates })),
+        atts.filter((a) => a.work_date === today),
+        await todayMsgsP.catch(() => [] as WorkMsg[]),
+        today,
+      )
+    : null
   return (
     <div className="space-y-5">
       <Flash m={sp.m} />
@@ -255,6 +280,8 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               </div>
             )}
           </Head>
+          {/* ✏️ 오늘 근무 한 줄: 전화 받고 '지금 어디예요?' 할 때 바로 · 누르면 그 공고 출퇴근 탭 — 정기 개선 2026-11-26 17:35 */}
+          {workLine && <TodayWorkLine line={workLine} className="animate-rise rounded-xl bg-bg px-3 py-2 [animation-duration:250ms]" data-worker-today />}
           {/* 경력 (본인이 적은 행사 경험) */}
           {!!u.careers?.length && (
             <div className="rounded-xl bg-bg px-3.5 py-2.5" data-worker-careers>

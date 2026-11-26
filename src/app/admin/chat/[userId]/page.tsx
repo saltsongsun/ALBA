@@ -25,7 +25,9 @@ import { agreedShiftFor } from '@/lib/shift'
 import { won } from '@/lib/format'
 import { paydayLabel } from '@/lib/payday'
 import { isUuid } from '@/lib/validate'
-import { fmtDate, hhmm, kstAt, kstDate, kstTime } from '@/lib/time'
+import { fmtDate, hhmm, kstAt, kstDate } from '@/lib/time'
+import { todayWorkLine, type WorkApp } from '@/lib/todayWork' // ✏️
+import TodayWorkLine from '@/components/TodayWorkLine' // ✏️
 
 export const metadata: Metadata = { title: '문의 대화' }
 
@@ -58,7 +60,6 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
   const [{ userId }, sp] = await Promise.all([props.params, props.searchParams])
   if (!isUuid(userId)) notFound()
   const today = kstDate()
-  type WorkJob = { id: string; title: string; start_date: string; end_date: string; start_time: string; end_time: string; status: string }
   const [{ data: worker }, messages, , myApps, todayAtts] = await Promise.all([
     db().from('users').select('id, name, phone, photo_at, member_type, role').eq('id', userId).maybeSingle(),
     db()
@@ -73,11 +74,12 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     // 이름 아래 한 줄: 이 회사에서 오늘 근무 상태(근무 중·퇴근·출근 전) 또는 다음 근무 (답장할 때 상황을 바로 알게)
     db()
       .from('applications')
-      .select('job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
+      // ✏️ 근무일(available_dates)도 함께 — 오늘이 그 사람 근무 날일 때만 '오늘' (정기 개선 2026-11-26 17:35)
+      .select('available_dates, job:jobs(id, title, start_date, end_date, start_time, end_time, status)')
       .eq('company_id', admin.companyId)
       .eq('user_id', userId)
       .eq('status', 'approved')
-      .then((r) => ((r.data ?? []) as unknown as { job: WorkJob | null }[]).map((a) => a.job).filter((j): j is WorkJob => !!j && j.status !== 'cancelled' && j.end_date >= today)),
+      .then((r) => ((r.data ?? []) as unknown as WorkApp[]).filter((a) => !!a.job && a.job.status !== 'cancelled' && a.job.end_date >= today)),
     db()
       .from('attendance')
       .select('job_id, clock_in, clock_out')
@@ -170,29 +172,14 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
     }
   }
 
-  const upcoming = [...myApps].sort((a, b) => a.start_date.localeCompare(b.start_date) || a.start_time.localeCompare(b.start_time))
-  const todayJob = upcoming.find((j) => j.start_date <= today)
-  const nextJob = upcoming.find((j) => j.start_date > today)
-  let workLine: { dot: string; text: string; title: string; href: string } | null = null
-  if (todayJob) {
-    const att = todayAtts.find((a) => a.job_id === todayJob.id)
-    let endAt = kstAt(today, todayJob.end_time).getTime()
-    if (todayJob.end_time <= todayJob.start_time) endAt += 86_400_000
-    workLine = {
-      dot: att ? (att.clock_out ? 'bg-gray-400' : 'bg-emerald-500') : 'bg-amber-400',
-      text: att
-        ? att.clock_out
-          ? `오늘 퇴근 ${kstTime(att.clock_out)}`
-          : `오늘 근무 중 · ${kstTime(att.clock_in)} 시작`
-        : Date.now() >= endAt
-          ? '오늘 근무 · 출근 기록 없음'
-          : `오늘 ${hhmm(todayJob.start_time)}~${hhmm(todayJob.end_time)} · 출근 전`,
-      title: todayJob.title,
-      href: `/admin/jobs/${todayJob.id}?tab=att`,
-    }
-  } else if (nextJob) {
-    workLine = { dot: 'bg-sky-400', text: `다음 근무 ${fmtDate(nextJob.start_date)} ${hhmm(nextJob.start_time)}`, title: nextJob.title, href: `/admin/jobs/${nextJob.id}` }
-  }
+  // ✏️ 이름 아래 '오늘 근무' 한 줄: 근무자 상세와 같은 기준 (lib/todayWork) — 시작 시각이 지나도 출근 기록이 없으면 '미출근'
+  //   · 근무일을 고른 사람은 그 날만 '오늘' · 오늘 보낸 늦어요/현장 확인 요청을 짧게 함께 (정기 개선 2026-11-26 17:35)
+  const workLine = todayWorkLine(
+    myApps,
+    todayAtts,
+    messages.map((m) => ({ job_id: m.job?.id ?? null, body: m.body, created_at: m.created_at, from_admin: m.from_admin })),
+    today,
+  )
 
   // 근무자 요청 말풍선 바로 아래의 처리 버튼 (사용자 요청 2026-11-17 "문의 내용 중 자동 내용이 들어오면 그걸 해결하는 버튼을 문의 내용에 넣어줘")
   // 종류마다 가장 최근 요청 하나에만 · 처리하고 나면 버튼 대신 결과 한 줄(또는 없음)
@@ -484,14 +471,8 @@ export default async function AdminChatThread(props: PageProps<'/admin/chat/[use
               )}
             </p>
             {/* 이 회사 오늘 근무 상태(또는 다음 근무) 한 줄 · 누르면 그 공고 */}
-            {workLine && (
-              <Link href={workLine.href} className="flex min-w-0 items-center gap-1.5 text-xs text-sub" data-chat-work>
-                <span aria-hidden className={`size-2 shrink-0 rounded-full ${workLine.dot}`} />
-                <span className="truncate">
-                  <b className="font-semibold text-ink">{workLine.text}</b> · {workLine.title}
-                </span>
-              </Link>
-            )}
+            {/* ✏️ 공용 한 줄 (근무자 상세와 같음) — 정기 개선 2026-11-26 17:35 */}
+            {workLine && <TodayWorkLine line={workLine} data-chat-work />}
           </div>
         </div>
         <ContactButtons phone={worker.phone} name={worker.name} />

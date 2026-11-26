@@ -40,7 +40,8 @@ const kstDay = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
   await open()
   const t1 = await lineText()
   ok(`'오늘 근무 중 · ${kstHm(att.clock_in)} 시작 · 공고'`, t1 === `오늘 근무 중 · ${kstHm(att.clock_in)} 시작 · ${TITLE}`, t1)
-  ok('누르면 그 공고의 출퇴근 탭', (await line.getAttribute('href')) === `/admin/jobs/${J}?tab=att`)
+  // 17:35 (2026-11-26): 오늘 날짜까지 붙여 그날 출퇴근 탭으로 (근무자 상세 '오늘 근무' 줄과 같은 링크)
+  ok('누르면 그 공고의 출퇴근 탭 (오늘)', (await line.getAttribute('href')) === `/admin/jobs/${J}?tab=att&date=${kstDay(Date.now())}`)
   ok('초록 점 · 한 줄 · 360px 옆으로 안 밀림', (await line.evaluate((el) => el.querySelector('span[aria-hidden]').className.includes('bg-emerald-500') && el.getBoundingClientRect().height < 22)) && (await a.evaluate(() => document.scrollingElement.scrollWidth <= innerWidth + 1)))
   if (SHOTS) await line.locator('xpath=ancestor::div[contains(@class,"card")][1]').screenshot({ path: `${SHOTS}/chat-work.png` }).catch(() => {})
 
@@ -50,12 +51,14 @@ const kstDay = (ms) => new Date(ms + 9 * 3600e3).toISOString().slice(0, 10)
   await open()
   ok(`'오늘 퇴근 ${kstHm(out)}'`, (await lineText()) === `오늘 퇴근 ${kstHm(out)} · ${TITLE}`, await lineText())
 
-  // ── 3. 출근 전 (기록 지움 · 끝나기 전)
+  // ── 3. 출근 기록 없음 (기록 지움 · 끝나기 전)
+  // 17:35 (2026-11-26): 시작 시각(09:00) 전이면 '출근 전', 지났으면 '미출근 · 09:00 시작' (예전엔 시작 뒤에도 '출근 전'으로 남았음)
   await rest(`attendance?user_id=eq.${W}`, 'DELETE')
   await open()
   const t3 = await lineText()
-  const before = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16) < '23:59'
-  ok(before ? "'오늘 09:00~23:59 · 출근 전'" : "'오늘 근무 · 출근 기록 없음'", t3 === (before ? `오늘 09:00~23:59 · 출근 전 · ${TITLE}` : `오늘 근무 · 출근 기록 없음 · ${TITLE}`), t3)
+  const hm = new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16)
+  const want3 = hm >= '23:59' ? `오늘 근무 · 출근 기록 없음 · ${TITLE}` : hm < '09:00' ? `오늘 09:00~23:59 · 출근 전 · ${TITLE}` : `미출근 · 09:00 시작 · ${TITLE}`
+  ok(`기록 없음: '${want3.split(' · ').slice(0, -1).join(' · ')}'`, t3 === want3, t3)
 
   // ── 4. 다음 근무 (내일)
   const tmr = kstDay(Date.now() + 864e5)
