@@ -63,9 +63,22 @@ export default async function ChatClock({ userId, companyId }: { userId: string;
           paidFrom={job.early_clamp && !open.adj_in && Date.parse(open.clock_in) < kstAt(open.work_date, shift!.start_time).getTime() ? hhmm(shift!.start_time) : undefined}
         />
       ) : todayAtt?.clock_out ? (
-        <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center text-sm font-bold text-emerald-700" data-chat-clock-done>
-          오늘 근무를 마쳤어요 · 수고했어요
-        </p>
+        <div className="space-y-2">
+          <p className="rounded-xl bg-emerald-50 px-3 py-2.5 text-center text-sm font-bold text-emerald-700" data-chat-clock-done>
+            오늘 근무를 마쳤어요 · 수고했어요
+          </p>
+          {/* ✏️ 근무는 끝났는데 서명 안 한 서류가 남음 (내 근무 화면과 같은 한 줄 · 정기 개선 2026-11-26 21:35) */}
+          {pending.length > 0 && (
+            <Link
+              href={`/docs/${pending[0].id}`}
+              className="flex items-center gap-2 rounded-xl bg-rose-50 px-3.5 py-2.5 text-sm text-rose-700 transition active:scale-[0.98]"
+              data-chat-sign-left
+            >
+              <span className="min-w-0 flex-1 truncate font-semibold">근무 끝 · 서명할 서류 {pending.length}건</span>
+              <span className="shrink-0 font-bold whitespace-nowrap">서명 ›</span>
+            </Link>
+          )}
+        </div>
       ) : pending.length > 0 ? (
         // 서명이 먼저 (근무 시작이 잠겨 있음)
         <div className="space-y-2">

@@ -1218,8 +1218,9 @@ export default async function MePage(props: PageProps<'/me'>) {
                         </Link>
                       )}
                     </div>
-                  ) : docsLeft > 0 && !over ? (
+                  ) : docsLeft > 0 && !over && !todayAtt?.clock_out ? (
                     // 누르면 바로 그 서류 서명 화면 (위로 올라가 찾지 않게) · 여러 건이면 서명 뒤 다음 서류로 이어짐
+                    // ✏️ 오늘 근무를 이미 마쳤으면 '근무를 시작할 수 있어요'가 아니라 아래 '오늘 근무 완료'에 서명 줄 (정기 개선 2026-11-26 21:35)
                     <Link
                       id={signAnchorJob === job.id ? 'sign-docs' : undefined}
                       href={`/docs/${jobDocs[0].id}`}
@@ -1251,6 +1252,18 @@ export default async function MePage(props: PageProps<'/me'>) {
                           </p>
                         )}
                       </div>
+                      {/* ✏️ 근무는 끝났는데 서명 안 한 서류가 남음: 완료 요약은 그대로 두고 바로 아래 한 줄 (근무 전 안내가 완료 화면을 가리지 않게 · 정기 개선 2026-11-26 21:35) */}
+                      {docsLeft > 0 && (
+                        <Link
+                          id={signAnchorJob === job.id ? 'sign-docs' : undefined}
+                          href={`/docs/${jobDocs[0].id}`}
+                          className="flex scroll-mt-24 animate-pop items-center gap-2 rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700 transition [animation-duration:250ms] active:scale-[0.98]"
+                          data-sign-left="done"
+                        >
+                          <span className="min-w-0 flex-1 truncate font-semibold">근무 끝 · 서명할 서류 {docsLeft}건</span>
+                          <span className="shrink-0 font-bold whitespace-nowrap">서명 ›</span>
+                        </Link>
+                      )}
                       {/* 예정보다 일찍 끝났으면: 근로조건대로 시간 인정 요청 (담당자 승인 → 정산에 그대로) */}
                       {!todayAtt.paid &&
                         (() => {
