@@ -17,7 +17,8 @@ import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { APP_STATUS } from '@/components/JobCard'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
-import { ClockPanel, FixRequest, ForgotClockOut, FullTimeRequest, LateNotice, StartCountdown } from '@/components/worker'
+import { ClockPanel, FixRequest, ForgotClockOut, FullTimeRequest, LateNotice, StartCountdown, type Seen } from '@/components/worker'
+import { isDeleted } from '@/lib/deleted' // ✏️
 import AutoRefresh from '@/components/AutoRefresh'
 import { db, must } from '@/lib/db'
 import { withWeeklyPay } from '@/lib/weekly'
@@ -107,7 +108,7 @@ export default async function MePage(props: PageProps<'/me'>) {
   // 커뮤니티를 마지막으로 본 뒤 내 글에 달린 새 댓글
   const seenRaw = (await cookies()).get('cm_seen')?.value
   const newCommentsP = canWrite(user) ? newCommentsOnMine(user.id, seenRaw ? decodeURIComponent(seenRaw) : null) : Promise.resolve(null)
-  const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts] = await Promise.all([
+  const [apps, atts, docs, me, adminJobMsgs, mySignals, shifts, adminReplies] = await Promise.all([
     db()
       .from('applications')
       .select('*, job:jobs(*, company:companies(company_name))')
@@ -145,14 +146,15 @@ export default async function MePage(props: PageProps<'/me'>) {
     // 오늘 내가 담당자에게 보낸 현장 알림 (늦어요 등)
     db()
       .from('messages')
-      .select('job_id, body, created_at')
+      // ✏️ read_at: 담당자가 읽었는지 (늦어요·출근 확인 요청 아래 '✓ 담당자가 읽었어요' · 정기 개선 2026-11-26 19:35)
+      .select('job_id, body, created_at, read_at')
       .eq('thread_user_id', user.id)
       .eq('from_admin', false)
       .not('job_id', 'is', null)
       .gte('created_at', kstAt(today, '00:00').toISOString())
       .order('created_at', { ascending: false })
       .limit(20)
-      .then((r) => (must(r) as { job_id: string; body: string; created_at: string }[]).filter((m) => kstDate(m.created_at) === today)),
+      .then((r) => (must(r) as { job_id: string; body: string; created_at: string; read_at: string | null }[]).filter((m) => kstDate(m.created_at) === today)),
     // 담당자가 바꾼 근무시간: 답을 기다리는 것 + 오늘 동의한 것
     db()
       .from('shift_changes')
@@ -162,6 +164,20 @@ export default async function MePage(props: PageProps<'/me'>) {
       .order('created_at', { ascending: false })
       .limit(30)
       .then((r) => (must(r) as ShiftChange[]).sort((a, b) => b.created_at.localeCompare(a.created_at))),
+    // ✏️ 오늘 담당자가 직접 쓴 답장 (회사별 문의함 · 앱이 보낸 자동 알림은 빼고) — 늦어요·출근 확인 요청 아래 '담당자: …' (정기 개선 2026-11-26 19:35)
+    db()
+      .from('messages')
+      .select('company_id, body, created_at')
+      .eq('thread_user_id', user.id)
+      .eq('from_admin', true)
+      .gte('created_at', kstAt(today, '00:00').toISOString())
+      .order('created_at', { ascending: false })
+      .limit(50)
+      .then((r) =>
+        ((r.data ?? []) as { company_id: string; body: string; created_at: string }[]).filter(
+          (m) => kstDate(m.created_at) === today && !signalOf(m.body) && !/^\p{Extended_Pictographic}/u.test(m.body.trim()) && !isDeleted(m.body),
+        ),
+      ),
   ])
   // 근무 내역 정산(주휴 포함)은 출퇴근 기록만 있으면 되니 지금 바로 출발 (아래 다른 조회를 기다린 뒤 따로 기다리지 않게 · 속도 개선 2026-11-22)
   const attsPayP = withWeeklyPay(atts)
@@ -201,13 +217,29 @@ export default async function MePage(props: PageProps<'/me'>) {
     return Date.parse(att.clock_in) < kstAt(att.work_date, start).getTime() ? hhmm(start) : undefined
   }
   const lateSent = new Map<string, { minutes: number; eta: string; at: string }>()
+  // ✏️ 그 알림이 언제 갔고 담당자가 읽었는지 (정기 개선 2026-11-26 19:35)
+  const lateMeta = new Map<string, { iso: string; readAt: string | null }>()
   for (const m of mySignals) {
     const l = signalOf(m.body) === 'late' ? parseLate(m.body) : null
-    if (l && !lateSent.has(m.job_id)) lateSent.set(m.job_id, { ...l, at: kstTime(m.created_at) })
+    if (l && !lateSent.has(m.job_id)) {
+      lateSent.set(m.job_id, { ...l, at: kstTime(m.created_at) })
+      lateMeta.set(m.job_id, { iso: m.created_at, readAt: m.read_at })
+    }
   }
   // 오늘 보낸 출근 확인 요청 (위치 확인이 안 될 때): 공고별 마지막 요청 시각 — 출근 기록이 생기면 화면에서 사라짐
   const arriveSent = new Map<string, string>()
-  for (const m of mySignals) if (signalOf(m.body) === 'arrive' && !arriveSent.has(m.job_id)) arriveSent.set(m.job_id, kstTime(m.created_at))
+  const arriveMeta = new Map<string, { iso: string; readAt: string | null }>() // ✏️
+  for (const m of mySignals)
+    if (signalOf(m.body) === 'arrive' && !arriveSent.has(m.job_id)) {
+      arriveSent.set(m.job_id, kstTime(m.created_at))
+      arriveMeta.set(m.job_id, { iso: m.created_at, readAt: m.read_at })
+    }
+  // ✏️ 보낸 알림을 담당자가 봤는지: 그 뒤 그 회사 담당자가 쓴 마지막 답장 → 읽은 시각 → 아직 (그 회사 문의함 것만 · 정기 개선 2026-11-26 19:35)
+  const seenOf = (companyId: string, meta: { iso: string; readAt: string | null } | undefined): Seen | null => {
+    if (!meta) return null
+    const reply = adminReplies.find((r) => r.company_id === companyId && r.created_at > meta.iso)
+    return { reply: reply ? reply.body.replace(/\s+/g, ' ').trim().slice(0, 60) : null, readAt: meta.readAt ? kstTime(meta.readAt) : null, href: `/me/chat?co=${companyId}` }
+  }
   // 내일 근무에 '내일 갈게요'를 이미 눌렀는지 (공고별 누른 시각) — 오늘 보낸 것만 보면 됨 (전날에만 누를 수 있음)
   const tomorrow = kstDate(new Date(Date.parse(`${today}T12:00:00+09:00`) + 86_400_000))
   const comingSent = new Map<string, string>()
@@ -1150,7 +1182,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       <details className="text-sm">
                         <summary className="cursor-pointer py-1 font-semibold text-sub">담당자가 오늘 나와 달라고 했나요?</summary>
                         <div className="mt-2">
-                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} />
+                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} askSeen={seenOf(job.company_id, arriveMeta.get(job.id))} />
                         </div>
                       </details>
                     </div>
@@ -1284,7 +1316,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                       <details className="text-sm">
                         <summary className="cursor-pointer py-1 font-semibold text-sub">지금 근무를 시작해야 하나요?</summary>
                         <div className="mt-2">
-                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} />
+                          <ClockPanel jobId={job.id} open={null} useLocation={job.lat != null} gpsRequired={job.gps_required} askedAt={arriveSent.get(job.id)} askSeen={seenOf(job.company_id, arriveMeta.get(job.id))} />
                         </div>
                       </details>
                     </div>
@@ -1303,7 +1335,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                         open={null}
                         useLocation={job.lat != null}
                         gpsRequired={job.gps_required}
-                        askedAt={arriveSent.get(job.id)}
+                        askedAt={arriveSent.get(job.id)} askSeen={seenOf(job.company_id, arriveMeta.get(job.id))}
                         startAt={kstAt(today, todayShift(job).start_time).toISOString()}
                         paidFrom={job.early_clamp ? hhmm(todayShift(job).start_time) : undefined}
                       />
@@ -1314,6 +1346,7 @@ export default async function MePage(props: PageProps<'/me'>) {
                     <LateNotice
                       jobId={job.id}
                       sent={lateSent.get(job.id) ?? null}
+                      seen={seenOf(job.company_id, lateMeta.get(job.id))}
                       startAt={kstAt(today, job.start_time).toISOString()}
                       started={Date.now() > kstAt(today, job.start_time).getTime()}
                       // 시작 뒤에 확정된 사람: 확정 알림이 '도착 시간 알리기'를 가리키므로 눈에 띄게

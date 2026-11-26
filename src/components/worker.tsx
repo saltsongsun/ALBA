@@ -23,6 +23,7 @@ import { fixTime } from '@/lib/signals'
 import { kstDate, kstTime, minutesText } from '@/lib/time'
 import AccountDigits from './AccountDigits'
 import Icon from './Icon'
+import Link from 'next/link' // ✏️ SeenLine (정기 개선 2026-11-26 19:35)
 import { onAccountPaste } from './accountPaste'
 import { onPhoneInput, phoneShown } from './phoneTyping'
 import Fold from './Fold'
@@ -177,6 +178,7 @@ export function ClockPanel({
   endText,
   serverNow,
   askedAt = null,
+  askSeen = null,
   startAt,
   paidFrom,
 }: {
@@ -199,6 +201,8 @@ export function ClockPanel({
   serverNow?: number
   /** 오늘 담당자에게 보낸 출근 확인 요청 시각 (HH:MM, 아직 처리 전) */
   askedAt?: string | null
+  /** ✏️ 그 요청을 담당자가 읽었는지·답장 (정기 개선 2026-11-26 19:35) */
+  askSeen?: Seen | null
 }) {
   const [pending, start] = useTransition()
   const [result, setResult] = useState<ClockResult | null>(null)
@@ -467,6 +471,8 @@ export function ClockPanel({
             {askedAt ? `${askedAt} 출근 확인 요청함` : '출근 확인 요청함'}
           </p>
           <p className="mt-0.5">담당자가 확인하면 요청한 시각으로 출근 처리되고, 이 화면도 저절로 바뀌어요.</p>
+          {/* ✏️ 담당자가 요청을 봤는지·답장 (화면을 다시 그릴 때 · 정기 개선 2026-11-26 19:35) */}
+          {askedAt && askSeen && <SeenLine seen={askSeen} className="mt-1.5 text-xs" />}
         </div>
       )}
       {stuck ? (
@@ -805,12 +811,44 @@ const LATE_CHOICES = [10, 20, 30, 60]
  * 시작 전: '얼마나 늦을 것 같나요?' (시작에서 n분) · 시작 시각이 지났으면: '언제쯤 도착해요?' (지금부터 n분 뒤)
  * 고르는 칸마다 도착 예정 시각을 함께 보여 줌
  */
+/**
+ * ✏️ 늦어요·출근 확인 요청을 담당자가 봤는지 한 줄 (정기 개선 2026-11-26 19:35)
+ * 답장이 왔으면 답장 글 (누르면 그 회사 문의함) → 읽었으면 '✓ 담당자가 읽었어요 · HH:MM' → 아직이면 '담당자가 아직 안 읽었어요'
+ * (보내 놓고 '봤나?' 하며 전화하거나 같은 알림을 또 보내지 않게 · 바뀐 줄만 톡 나타남)
+ */
+export type Seen = { readAt: string | null; reply: string | null; href: string }
+export function SeenLine({ seen, className = '' }: { seen: Seen; className?: string }) {
+  if (seen.reply) {
+    return (
+      <Link
+        href={seen.href}
+        className={`flex min-w-0 animate-pop items-center gap-1.5 font-semibold transition-opacity [animation-duration:250ms] active:opacity-60 ${className}`}
+        data-told-seen="reply"
+      >
+        <Icon name="chat" className="shrink-0" />
+        <span className="truncate">담당자: {seen.reply}</span>
+        <span aria-hidden className="shrink-0">›</span>
+      </Link>
+    )
+  }
+  return seen.readAt ? (
+    <p className={`flex animate-pop items-center gap-1 font-semibold text-emerald-700 [animation-duration:250ms] ${className}`} data-told-seen="read">
+      ✓ 담당자가 읽었어요 · {seen.readAt}
+    </p>
+  ) : (
+    <p className={`opacity-75 ${className}`} data-told-seen="unread">
+      담당자가 아직 안 읽었어요
+    </p>
+  )
+}
+
 export function LateNotice({
   jobId,
   sent,
   startAt,
   started,
   stress = false,
+  seen = null,
 }: {
   jobId: string
   sent: { minutes: number; eta: string; at: string } | null
@@ -820,6 +858,8 @@ export function LateNotice({
   started: boolean
   /** 시작 뒤에 확정돼 지금 오는 중일 사람: 아직 안 알렸으면 '도착 시간 알리기'를 눈에 띄게 (확정 알림이 여기를 가리킴) */
   stress?: boolean
+  /** ✏️ 보낸 알림을 담당자가 읽었는지·답장 (정기 개선 2026-11-26 19:35) */
+  seen?: Seen | null
 }) {
   const [state, action, pending] = useActionState(notifyLate.bind(null, jobId), null)
   const [openForm, setOpenForm] = useState(false)
@@ -838,9 +878,13 @@ export function LateNotice({
   return (
     <div className="space-y-2">
       {sent && !state && (
-        <p className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900">
-          🕒 {sent.at}에 담당자에게 <b>약 {minutesText(sent.minutes)} 늦음</b>(도착 예정 {sent.eta})을 알렸어요.
-        </p>
+        <div className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-sm text-amber-900" data-late-sent>
+          <p>
+            🕒 {sent.at}에 담당자에게 <b>약 {minutesText(sent.minutes)} 늦음</b>(도착 예정 {sent.eta})을 알렸어요.
+          </p>
+          {/* ✏️ 담당자가 봤는지·답장 (정기 개선 2026-11-26 19:35) */}
+          {seen && <SeenLine seen={seen} className="mt-1 text-xs" />}
+        </div>
       )}
       {!openForm ? (
         <button
