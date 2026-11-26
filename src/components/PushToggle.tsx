@@ -46,11 +46,12 @@ export default function PushToggle({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2">
-      <span className="min-w-0 text-sm">
-        <span className="font-semibold">
+      {/* 제목 한 줄 + 상태 한 줄 (한 문장에 이어 붙여 어색하게 꺾이지 않게 · UI 정리 2026-11-26) */}
+      <span className="min-w-0 flex-1 text-sm">
+        <span className="block font-semibold">
           <Icon name="bell" className="text-mute" /> 휴대폰 알림
         </span>{' '}
-        <span className="text-sub">
+        <span className="block text-xs text-sub">
           {state === 'on'
             ? `켜짐 · ${what}`
             : state === 'denied'

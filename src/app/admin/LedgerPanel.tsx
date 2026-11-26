@@ -144,7 +144,7 @@ export function LedgerLink({ status }: { status: LedgerStatus }) {
       <span aria-hidden>📒</span>
       <b className="shrink-0">대금 시트 연동</b>
       <span className={`min-w-0 flex-1 truncate text-xs ${status.configured ? (last && !last.ok ? 'font-semibold text-rose-600' : 'text-sub') : 'text-sub'}`}>
-        {!status.configured ? '연결 전 · 연결 방법' : last ? `${kstDateTime(last.at)} ${last.ok ? '맞춤' : '실패'}` : '연결됨'}
+        {!status.configured ? '연결 방법 보기' : last ? `${kstDateTime(last.at)} ${last.ok ? '맞춤' : '실패'}` : '연결됨'}
       </span>
       <span className={`badge shrink-0 ${status.configured ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-sub'}`}>{status.configured ? '연결됨' : '연결 전'}</span>
       <span aria-hidden className="shrink-0 text-mute">›</span>

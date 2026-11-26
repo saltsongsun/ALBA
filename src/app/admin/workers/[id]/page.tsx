@@ -10,6 +10,7 @@ import { RatingForm, ResetPin, RevealInfo, RevealRrn, WorkerEditForm } from '@/c
 import Fold, { ShowMore } from '@/components/Fold'
 import PhotoUpload from '@/components/PhotoUpload'
 import Avatar from '@/components/Avatar'
+import Icon from '@/components/Icon'
 import { StarAvg, StarRow } from '@/components/Stars'
 import { ConfirmSubmit } from '@/components/ui'
 import Flash from '@/components/Flash'
@@ -325,6 +326,12 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
               <span className="block text-xs text-mute">개인정보 동의 {u.privacy_agreed_at ? kstDateTime(u.privacy_agreed_at) : '-'}</span>
             </dd>
           </dl>
+          {/* 가린 정보의 '전체 보기'는 버튼마다 '(기록됨)'을 붙이는 대신 여기 한 줄로 (UI 정리 2026-11-26) */}
+          {related && (
+            <p className="-mt-1 text-xs text-mute" data-reveal-note>
+              <Icon name="lock" className="text-mute" /> 가린 정보는 &lsquo;전체 보기&rsquo;를 누르면 보여요 · 누가 봤는지 기록돼요
+            </p>
+          )}
           {!related && (
             <p className="rounded-xl bg-bg px-3.5 py-2.5 text-sm text-sub">
               아직 우리 회사에 지원한 적 없는 회원이에요. 공고에 확정하거나 이 사람이 지원하면 {canChat ? '주민번호·계좌·주소를 볼 수 있어요.' : '주민번호·계좌·주소를 보고 앱 메시지도 보낼 수 있어요.'}

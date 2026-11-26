@@ -29,7 +29,8 @@ export function RevealRrn({ userId, masked }: { userId: string; masked: string |
       ) : (
         <span className="font-mono">{state?.ok ?? masked ?? '미등록'}</span>
       )}
-      {!state?.ok && masked && <SubmitButton className="btn-gray btn-sm">전체 보기 (기록됨)</SubmitButton>}
+      {/* 버튼 글자는 짧게 '전체 보기' · 열람이 기록된다는 안내는 근무자 화면 정보 표 아래 한 줄로 (UI 정리 2026-11-26) */}
+      {!state?.ok && masked && <SubmitButton className="btn-gray btn-sm">전체 보기</SubmitButton>}
       {state?.error && <span className="text-xs text-rose-600">{state.error}</span>}
     </form>
   )
@@ -87,8 +88,8 @@ export function RevealInfo({
         </button>
       )}
       {!value && (
-        <button type="button" className="contact-btn bg-bg text-sub hover:bg-line" onClick={get} disabled={pending} data-reveal-btn>
-          {pending ? '…' : '전체 보기 (기록됨)'}
+        <button type="button" className="contact-btn bg-bg text-sub hover:bg-line" onClick={get} disabled={pending} aria-label="전체 보기 (기록됨)" data-reveal-btn>
+          {pending ? '…' : '전체 보기'}
         </button>
       )}
       {error && <span className="text-xs text-rose-600">{error}</span>}

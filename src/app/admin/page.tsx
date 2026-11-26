@@ -922,7 +922,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
               {p.user.name}
             </Link>
             {p.user.birth_date && <span className="text-sm text-mute">만 {ageOn(p.user.birth_date)}세</span>}
-            <span className="ml-auto text-xs text-mute">{kstDateTime(p.created_at)}</span>
+            {/* 지원한 때 (글자를 늘리면 360px에서 이름 줄이 두 줄로 꺾여서 설명은 title로만 · UI 정리 2026-11-26) */}
+            <span className="ml-auto text-xs text-mute" title="지원한 때">
+              {kstDateTime(p.created_at)}
+            </span>
           </div>
           <RelLine uid={p.user.id} />
         </div>

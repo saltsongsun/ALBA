@@ -1034,14 +1034,15 @@ export default async function JobPage(props: PageProps<'/jobs/[id]'>) {
             </form>
           )
         )}
-        <div className="flex flex-wrap justify-center gap-2">
+        {/* 문의하기 · 공유하기: 같은 모양 · 같은 너비 두 칸 (모양·크기가 달라 어수선해 보이지 않게 · UI 정리 2026-11-26) */}
+        <div className="grid grid-cols-2 gap-2" data-job-foot>
           <Link
             href={user ? `/me/chat?job=${job.id}` : `/login?next=${encodeURIComponent(`/me/chat?job=${job.id}`)}`}
-            className="btn-white btn-sm"
+            className="btn-white btn-sm w-full"
           >
             <Icon name="chat" /> {expert ? '이 의뢰 문의하기' : '이 공고 문의하기'}
           </Link>
-          <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} />
+          <ShareButton title={job.title} text={`${job.title} · ${scheduleSummary(job)}`} path={path} className="btn-white btn-sm w-full" />
         </div>
       </div>
       {/* 지원·확정한 공고: 사진이 없으면 등록 창, 알림을 안 켰으면 켜기 권유 (공고마다 한 번)
