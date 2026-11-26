@@ -31,7 +31,7 @@ import { switchCompany } from '@/app/actions/company'
 import { db, must } from '@/lib/db'
 import { recruitText, scheduleText } from '@/lib/docs'
 import { fullAhead, JOB_WITH_APP_DATES } from '@/lib/fullness'
-import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
+import { FIX_DAYS, fixDateOf, isComing, isFullTimeAsk, parseLate, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
 import { pushPublicKey } from '@/lib/push'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { missingSetup } from '@/lib/setup'
@@ -461,7 +461,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   noticeUnreadP.catch(() => {})
   // 오늘 출근 현황과 확인할 일 조회를 한꺼번에
   todayP.catch(() => {})
-  const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, arriveMsgs, outsideApps, unsignedBy, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
+  const [[todayApps, todayAtts], [otAsk, shiftWait, openOld, fieldMsgs, outsideApps, unsignedBy, fixMsgs, unpaid]] = await Promise.all([todayP, Promise.all([
     // 근무자가 계약 시간 이후 근무를 확인해 달라고 한 것
     db()
       .from('attendance')
@@ -501,7 +501,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
           .limit(300)
           .then((r) =>
             (must(r) as { thread_user_id: string; job_id: string; body: string; created_at: string }[]).filter(
-              (m) => kstDate(m.created_at) === today && signalOf(m.body) === 'arrive',
+              // 늦어요(late)도 함께 — 오늘 행사 카드 미출근 전화 칩에 'HH:MM 도착' 표시 (정기 개선 2026-11-26 15:35)
+              (m) => kstDate(m.created_at) === today && ['arrive', 'late'].includes(signalOf(m.body) ?? ''),
             ),
           )
       : [],
@@ -563,6 +564,16 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
   const comingBy = await comingP
   const [lapsedJobs, noticeUnread] = await Promise.all([lapsedP, noticeUnreadP])
   const arrived = new Set(todayAtts.map((a) => `${a.job_id}|${a.user_id}`))
+  const arriveMsgs = fieldMsgs.filter((m) => signalOf(m.body) === 'arrive')
+  // 오늘 '늦어요'(도착 예정 시각) · '현장인데 위치 확인이 안 돼요'를 보낸 사람: 가장 최근 것 하나 (이 회사 · 오늘 행사 문의함에서만)
+  // 미출근 전화 칩에 짧게 표시하고, '근무 시작 버튼'은 이 사람들을 빼고 보냄 (서버 nudgeWorkers와 같은 기준) — 정기 개선 2026-11-26 15:35
+  const toldOf = new Map<string, { kind: 'late' | 'arrive'; eta: string | null }>()
+  for (const m of [...fieldMsgs].sort((x, y) => y.created_at.localeCompare(x.created_at))) {
+    const key = `${m.job_id}|${m.thread_user_id}`
+    if (toldOf.has(key)) continue
+    const kind = signalOf(m.body) === 'late' ? 'late' : 'arrive'
+    toldOf.set(key, { kind, eta: kind === 'late' ? (parseLate(m.body)?.eta ?? null) : null })
+  }
   const absentBy: Record<string, number> = {}
   const absentIds: Record<string, string[]> = {}
   for (const a of todayApps) {
@@ -572,6 +583,10 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
       ;(absentIds[a.job_id] ??= []).push(a.user_id)
     }
   }
+  // 아직 아무 말 없는 사람을 앞에 (전화할 사람 먼저) · 늦는다고 알렸거나 현장 도착 확인을 요청한 사람은 뒤로
+  for (const id of Object.keys(absentIds)) absentIds[id].sort((x, y) => Number(toldOf.has(`${id}|${x}`)) - Number(toldOf.has(`${id}|${y}`)))
+  // '근무 시작 버튼'을 받을 사람 수 (늦어요·출근 확인 요청을 보낸 사람은 서버에서 빼므로 확인 문구도 같은 수로)
+  const nudgeN = (jobId: string) => (absentIds[jobId] ?? []).filter((u) => !toldOf.has(`${jobId}|${u}`)).length
   // 시작했는데(근무 시간 안) 아직 출근 기록이 없는 사람: 이름·번호 (대시보드에서 바로 전화 · 공고당 3명까지)
   const callJobs = todayJobs.filter((j) => started(j) && !workOver(j, today) && (absentIds[j.id]?.length ?? 0) > 0)
   const callIds = [...new Set(callJobs.flatMap((j) => absentIds[j.id].slice(0, 3)))]
@@ -1476,15 +1491,23 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     <span className="text-xs font-semibold text-rose-600">미출근</span>
                     {absentIds[j.id].slice(0, 3).map((id, i) => {
                       const u = callUsers.get(id)
+                      // 늦는다고 알렸으면 도착 예정 시각 · 현장 위치 확인을 요청했으면 '현장' (이미 연락 온 사람 — 전화할 사람과 구분 · 정기 개선 2026-11-26 15:35)
+                      const told = toldOf.get(`${j.id}|${id}`)
                       return u?.phone ? (
                         <a
                           key={id}
                           href={`tel:${u.phone}`}
                           className="chip animate-pop gap-1 py-1 text-xs"
                           style={{ animationDelay: `${i * 40}ms` }}
-                          aria-label={`${u.name}에게 전화`}
+                          aria-label={`${u.name}에게 전화${told ? (told.kind === 'late' ? ` · ${told.eta ?? ''} 도착 예정` : ' · 현장 도착 확인 요청') : ''}`}
+                          data-absent-told={told?.kind}
                         >
                           <Icon name="phone" className="text-emerald-600" /> {u.name}
+                          {told && (
+                            <span className={`font-semibold whitespace-nowrap ${told.kind === 'late' ? 'text-amber-700' : 'text-brand-700'}`}>
+                              · {told.kind === 'late' ? (told.eta ? `${told.eta} 도착` : '늦어요') : '현장'}
+                            </span>
+                          )}
                         </a>
                       ) : null
                     })}
@@ -1497,7 +1520,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                 )}
                 {/* 안 온 사람에게 앱 '근무 시작' 버튼을 한 번에 (두 번 눌러 보냄 · 대시보드에 그대로 · 늦는다고 알린 사람은 서버에서 뺌)
                     오늘 이미 보냈으면 보낸 시각을 함께 — 정기 개선 2026-11-26 09:35 */}
-                {callJobs.includes(j) && (
+                {/* 늦어요·현장 확인 요청을 보낸 사람만 남았으면 보낼 사람이 없어 줄을 숨김 (확인 문구 숫자도 실제로 받는 사람 수) */}
+                {callJobs.includes(j) && nudgeN(j.id) > 0 && (
                   <div className="flex items-center justify-between gap-2 border-t border-line pt-2.5" data-absent-nudge>
                     <span className="min-w-0 truncate text-xs text-sub">
                       {nudgedAt.has(j.id) ? (
@@ -1509,7 +1533,7 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                       )}
                     </span>
                     <form action={nudgeWorkers.bind(null, j.id, 'clockin', today, 'dashboard')} className="shrink-0">
-                      <ConfirmSubmit className="btn-gray btn-sm" confirmText={`${absentIds[j.id].length}명에게 보낼까요?`} track="근무 시작 버튼(대시보드)">
+                      <ConfirmSubmit className="btn-gray btn-sm" confirmText={`${nudgeN(j.id)}명에게 보낼까요?`} track="근무 시작 버튼(대시보드)">
                         {nudgedAt.has(j.id) ? '다시 보내기' : '보내기'}
                       </ConfirmSubmit>
                     </form>

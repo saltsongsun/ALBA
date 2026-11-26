@@ -214,7 +214,21 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                   Lv.{level.level} {level.stage.name}
                 </span>
               )}
-              <span className="rounded-lg bg-emerald-50 px-2 py-0.5 text-emerald-700">근무 {rel.days}일</span>
+              {/* 근무 일수 · 지각 · 노쇼 (· 귀가 조치)를 칩 하나로 (칩 여섯 개가 세 줄로 쌓이지 않게 · 있는 것만 색으로) — 정기 개선 2026-11-26 15:35 */}
+              <span className="rounded-lg bg-bg px-2 py-0.5 text-sub" data-worker-record>
+                <span className="text-emerald-700">근무 {rel.days}일</span>
+                <span>
+                  {' · '}지각 <b className={rel.late ? 'text-amber-700' : 'font-semibold'}>{rel.late}</b>
+                </span>
+                <span>
+                  {' · '}노쇼 <b className={rel.noShow ? 'text-rose-600' : 'font-semibold'}>{rel.noShow}</b>
+                </span>
+                {rel.dismissed > 0 && (
+                  <span>
+                    {' · '}귀가 조치 <b className="text-rose-600">{rel.dismissed}</b>
+                  </span>
+                )}
+              </span>
               {/* 지급 전 금액: 전화로 '돈 언제 들어와요?' 물을 때 바로 · 누르면 아래 근무 이력이 펼쳐짐 */}
               {unpaidNet > 0 && (
                 <a href="#work-history" className="tap rounded-lg bg-amber-50 px-2 py-0.5 text-amber-700 tabular-nums" data-unpaid-chip>
@@ -227,9 +241,6 @@ export default async function WorkerPage(props: PageProps<'/admin/workers/[id]'>
                   서명 대기 {pendingDocs}건
                 </a>
               )}
-              <span className={`rounded-lg px-2 py-0.5 ${rel.late ? 'bg-amber-50 text-amber-700' : 'bg-bg text-sub'}`}>지각 {rel.late}회</span>
-              <span className={`rounded-lg px-2 py-0.5 ${rel.noShow ? 'bg-rose-50 text-rose-600' : 'bg-bg text-sub'}`}>노쇼 {rel.noShow}회</span>
-              {rel.dismissed > 0 && <span className="rounded-lg bg-rose-50 px-2 py-0.5 text-rose-600">귀가 조치 {rel.dismissed}회</span>}
             </p>
             {/* 전문가: 분야·소개·포트폴리오 */}
             {(u.specialty || u.intro || u.portfolio_url) && (
