@@ -948,3 +948,37 @@ export function VendorsSkeleton() {
     </div>
   )
 }
+
+/**
+ * ✏️ 정기 개선 2026-11-27 03:36: 커뮤니티 글쓰기·글 고치기를 불러오는 동안 (예전: 글 목록 카드·글 보기 모양이 잠깐 떴다가 쓰기 칸으로 바뀜)
+ * 실제 화면과 같은 순서: ← 돌아가기 · 제목 · (글쓰기만) 별명 안내 · 말머리 5칸(3+2) · 제목 칸 · 내용 칸 · 이모티콘 줄 · 올리기 버튼
+ */
+export function PostWriteSkeleton({ note = true }: { note?: boolean }) {
+  return (
+    <div aria-busy="true" aria-label="글쓰기 불러오는 중" className="skeleton space-y-4" data-skeleton="post-write">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className={`h-7 w-24 ${bar}`} />
+      {note && <div className="h-11 rounded-2xl bg-line/60" />}
+      <div className="card space-y-4">
+        <div className="space-y-2">
+          <div className={`h-4 w-12 ${bar}`} />
+          <div className="grid grid-cols-3 gap-2">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-10 rounded-xl bg-line/70" />
+            ))}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <div className={`h-4 w-10 ${bar}`} />
+          <div className="h-11 rounded-xl bg-line/60" />
+        </div>
+        <div className="space-y-2">
+          <div className={`h-4 w-10 ${bar}`} />
+          <div className="h-40 rounded-xl bg-line/60" />
+        </div>
+        <div className="h-14 rounded-2xl bg-line/50" />
+        <div className="h-12 rounded-xl bg-line/70" />
+      </div>
+    </div>
+  )
+}

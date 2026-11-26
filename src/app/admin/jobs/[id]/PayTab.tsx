@@ -9,8 +9,8 @@ import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, SubmitButton } from '@/components/ui'
 import { decrypt } from '@/lib/crypto'
 import { maskAccount, smsHead, won } from '@/lib/format'
-import { calcDay, settle, TAX_LABEL, workingToday, roundCut } from '@/lib/pay'
-import { fmtDate, kstDate, kstDateTime, minutesText } from '@/lib/time'
+import { calcDay, settle, TAX_LABEL, workingToday, roundCut, shiftOf } from '@/lib/pay'
+import { fmtDate, kstAt, kstDate, kstDateTime, minutesText } from '@/lib/time'
 import { paydayDate, paydayGuess } from '@/lib/payday'
 import { ASK_PAYLATE, isPayLateAsk, parsePayday, SIGNAL } from '@/lib/signals'
 import type { Attendance, Job, VendorPayment } from '@/lib/types'
@@ -124,6 +124,19 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
   // 지난날 퇴근 기록이 없는 근무 → 출퇴근 탭의 그 날짜·그 사람으로 바로 가서 고치기
   const missing = atts.filter((a) => a.clock_in && !a.clock_out && a.work_date !== todayKst).sort((a, b) => a.work_date.localeCompare(b.work_date))
   const fixHref = missing[0] ? `/admin/jobs/${job.id}?tab=att&date=${missing[0].work_date}&fix=${missing[0].user_id}#att-${missing[0].user_id}` : null
+  // ✏️ 정기 개선 2026-11-27 03:36: 시작보다 1시간 넘게 일찍 찍힌 출근 (밤에 잘못 눌렀거나 미리 누른 경우)
+  //   '시작 전 근무는 급여에 안 넣기'를 켜지 않은 공고라 그 시간이 급여에 그대로 들어감 → 지급 전에 한 번 보게 (계산 규칙은 그대로 · 알리기만)
+  //   출퇴근 탭의 '조기' 배지와 같은 기준(그 기록의 시작 시각) · 이미 고친 기록(보정)·지급 끝난 기록은 뺌
+  const early = job.early_clamp
+    ? []
+    : atts
+        .filter((a) => a.clock_in && !a.adj_in && !a.paid && a.work_date)
+        .map((a) => {
+          const start = shiftOf(job, a).start_time
+          return { a, start: start.slice(0, 5), min: Math.round((kstAt(a.work_date, start).getTime() - Date.parse(a.clock_in)) / 60_000) }
+        })
+        .filter((x) => x.min > 60)
+        .sort((x, y) => y.min - x.min)
 
   // 한눈에: 지급할 사람 중 몇 명에게 보냈는지 · 남은 금액 (계산은 위 정산과 같은 값 — 규칙은 그대로)
   const payable = rows.filter((r) => r.done > 0)
@@ -243,7 +256,8 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
                 className="btn-soft btn-sm"
                 confirmText={
                   // 연장 확인·퇴근 기록·계좌가 덜 정리됐으면 한 번 더 알려 줌 (금액이 빠졌거나 입금을 못 했을 수 있어서)
-                  otWaiting || incomplete || unpaid.some((r) => !r.user?.bank_account_enc)
+                  // ✏️ 2026-11-27 03:36: 시작보다 한참 일찍 찍힌 출근(그대로 급여에 들어감)도 함께
+                  otWaiting || incomplete || early.length > 0 || unpaid.some((r) => !r.user?.bank_account_enc)
                     ? `정리 안 된 근무·계좌가 있어요 · ${unpaid.length}명 지급 완료?`
                     : `${unpaid.length}명 지급 완료로 바꾸고 알릴까요?`
                 }
@@ -319,6 +333,25 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
           )}
           {unconfirmed > 0 && `아직 확정하지 않은 근무 ${unconfirmed}건이 있어요. 출퇴근 탭에서 확인해 주세요.`}
         </p>
+      )}
+      {/* ✏️ 정기 개선 2026-11-27 03:36: 시작보다 한참 일찍 찍힌 출근 → 그 기록 고치는 칸으로 바로 (고친 뒤 정산 탭으로 돌아옴)
+          두 줄로 짧게: 몇 건 · 무슨 일인지 / 가장 이른 사람 · 얼마나 일찍 (나머지는 출퇴근 탭 '조기' 배지) */}
+      {early.length > 0 && (
+        <Link
+          href={`/admin/jobs/${job.id}?tab=att&date=${early[0].a.work_date}&fix=${early[0].a.user_id}&from=pay#att-${early[0].a.user_id}`}
+          className="block animate-rise rounded-xl bg-sky-50 px-4 py-2.5 text-sm text-sky-900 transition [animation-duration:250ms] active:scale-[0.99]"
+          data-pay-early={early.length}
+        >
+          {/* 윗줄: 몇 건 + 고치기 (짧게) · 아랫줄: 누가·언제·얼마나 + 급여에 들어감 (잘리지 않게 두 줄까지 넘어감) */}
+          <span className="flex items-center gap-2">
+            <Icon name="clock" className="shrink-0 text-sky-600" />
+            <b className="min-w-0 flex-1 truncate">일찍 찍힌 출근 {early.length}건</b>
+            <span className="shrink-0 font-bold whitespace-nowrap">고치기 ›</span>
+          </span>
+          <span className="mt-0.5 block text-xs break-keep text-pretty text-sky-800/90" data-pay-early-top>
+            {users.get(early[0].a.user_id)?.name ?? '근무자'} · {fmtDate(early[0].a.work_date)} 시작 {early[0].start}보다 {minutesText(early[0].min)} 일찍 · <span className="whitespace-nowrap">급여에 그대로 들어가요</span>
+          </span>
+        </Link>
       )}
       {rows.length === 0 ? (
         <Empty icon="💰" title="아직 근무 기록이 없어요">

@@ -23,6 +23,7 @@ import { EMERGENCY_MEMO } from '@/lib/emergency'
 import { staffByDay } from '@/lib/staffing'
 import { headcountTbd } from '@/lib/jobFields'
 import KeepChipInView from '@/components/KeepChipInView'
+import EarlyFix from '@/components/EarlyFix'
 
 export default async function AttTab({
   job,
@@ -910,6 +911,11 @@ export default async function AttTab({
                           <span className="label">퇴근</span>
                           <input type="datetime-local" name="adj_out" className="input py-2 text-sm" defaultValue={toKstInput(a.adj_out ?? a.clock_out)} />
                         </label>
+                        {/* ✏️ 정기 개선 2026-11-27 03:36: 시작보다 1시간 넘게 일찍 찍힌 출근 (시작 전 근무를 급여에 넣는 공고 · 아직 고치지 않은 기록)
+                            → 눌러서 출근칸을 그날 시작 시각으로 (저장은 아래 '저장'으로 · 정산 탭 '일찍 찍힌 출근'에서 바로 이 칸이 열림) */}
+                        {!job.early_clamp && !a.adj_in && kstAt(a.work_date, shiftOf(job, a).start_time).getTime() - Date.parse(a.clock_in) > 60 * 60_000 && (
+                          <EarlyFix name="adj_in" value={`${a.work_date}T${shiftOf(job, a).start_time.slice(0, 5)}`} label={shiftOf(job, a).start_time.slice(0, 5)} />
+                        )}
                         <label>
                           <span className="label">휴게(분)</span>
                           <input type="number" name="break_override" className="input py-2 text-sm" defaultValue={a.break_override ?? ''} placeholder="규칙대로" />
