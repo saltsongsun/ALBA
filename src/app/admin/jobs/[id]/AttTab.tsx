@@ -24,6 +24,7 @@ import { staffByDay } from '@/lib/staffing'
 import { headcountTbd } from '@/lib/jobFields'
 import KeepChipInView from '@/components/KeepChipInView'
 import EarlyFix from '@/components/EarlyFix'
+import TellPreview from '@/components/TellPreview' // ✏️ 정기 개선 2026-11-27 07:35
 
 export default async function AttTab({
   job,
@@ -936,6 +937,13 @@ export default async function AttTab({
                           <input type="checkbox" name="confirmed" defaultChecked={a.confirmed} className="size-5 accent-brand-600" />
                           확정
                         </label>
+                        {/* ✏️ 정기 개선 2026-11-27 07:35: 출근·퇴근 칸을 바꾸면 '근무자에게 알리기 · 출근 06:00 → 09:00' (기본 켬 · 끄면 안 보냄) */}
+                        <TellPreview
+                          nowIn={kstTime(a.adj_in ?? a.clock_in)}
+                          nowOut={a.adj_out ?? a.clock_out ? kstTime((a.adj_out ?? a.clock_out)!) : null}
+                          appIn={kstTime(a.clock_in)}
+                          appOut={a.clock_out ? kstTime(a.clock_out) : null}
+                        />
                         <div className="col-span-2 flex items-end gap-2 sm:col-span-6">
                           <SubmitButton className="btn-primary btn-sm">저장</SubmitButton>
                         </div>

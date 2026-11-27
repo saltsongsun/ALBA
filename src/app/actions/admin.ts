@@ -25,7 +25,8 @@ import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
 import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGN_NUDGE, SIGNAL, signalOf } from '@/lib/signals'
+import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGN_NUDGE, SIGNAL, signalOf, TIME_FIX_HEAD } from '@/lib/signals'
+import { timeFixText } from '@/lib/timefix' // ✏️ 정기 개선 2026-11-27 07:35
 import { COMPANY_COOKIE, requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
 import { bizNoOwners } from '@/lib/bizNo'
@@ -1068,11 +1069,12 @@ export async function addWorkerToJob(jobId: string, form: FormData) {
 
 export async function saveAttendance(attId: string, form: FormData) {
   const admin = await requireAdmin()
-  const att = await companyRow<Pick<Attendance, 'id' | 'job_id' | 'user_id' | 'work_date' | 'clock_in' | 'clock_out' | 'company_id'>>(
+  // ✏️ 정기 개선 2026-11-27 07:35: 고치기 전 시각(adj_in·adj_out)도 읽음 — 바뀐 시각을 근무자에게 알릴 때 '전 → 후'
+  const att = await companyRow<Pick<Attendance, 'id' | 'job_id' | 'user_id' | 'work_date' | 'clock_in' | 'clock_out' | 'adj_in' | 'adj_out' | 'company_id'>>(
     admin,
     'attendance',
     attId,
-    'id, job_id, user_id, work_date, clock_in, clock_out',
+    'id, job_id, user_id, work_date, clock_in, clock_out, adj_in, adj_out',
   )
   if (!att) return
   const path = `/admin/jobs/${att.job_id}?tab=att&date=${att.work_date}`
@@ -1106,11 +1108,45 @@ export async function saveAttendance(attId: string, form: FormData) {
       .eq('id', attId),
   )
   await audit(admin.id, 'attendance.edit', att.user_id, `${att.work_date} ${inV || '-'}~${outV || '-'}`, admin.companyId)
+  // ✏️ 정기 개선 2026-11-27 07:35: 출근·종료 시각이 (분 단위로) 바뀌었고 '근무자에게 알리기'가 켜져 있으면
+  // 그 근무자의 이 회사 문의함에 '🕒 근무 시각 고침 / 11/26(목) 근무 · 출근 06:00 → 09:00' + 휴대폰 알림 (메모·추가지급만 고치면 안 감)
+  const outAfter = closeNow ? outIso : (adjOut ?? att.clock_out)
+  const fixText = timeFixText(
+    { in: kstTime(att.adj_in ?? att.clock_in), out: att.adj_out ?? att.clock_out ? kstTime((att.adj_out ?? att.clock_out)!) : null },
+    { in: kstTime(adjIn ?? att.clock_in), out: outAfter ? kstTime(outAfter) : null },
+  )
+  const told = !!fixText && bool(form, 'tell') && (await tellTimeFix(admin, att.job_id, att.work_date, new Map([[att.user_id, fixText]])))
+  const toldNote = told ? ' 근무자에게도 알렸어요.' : ''
   const finished = closeNow && (await finishIfAllOut(att.job_id, att.work_date))
   revalidatePath(`/admin/jobs/${att.job_id}`)
   // 정산 탭의 '시간 수정'으로 왔으면 정산 탭으로 (바뀐 금액을 바로 확인)
-  if (str(form, 'back') === 'pay') back(`/admin/jobs/${att.job_id}?tab=pay`, `근무 기록을 고쳤어요. 정산 금액에 바로 반영했어요.${finished ? FINISHED_NOTE : ''}`)
-  back(path, `근무 기록을 저장했습니다.${finished ? FINISHED_NOTE : ''}`)
+  if (str(form, 'back') === 'pay') back(`/admin/jobs/${att.job_id}?tab=pay`, `근무 기록을 고쳤어요. 정산 금액에 바로 반영했어요.${toldNote}${finished ? FINISHED_NOTE : ''}`)
+  back(path, `근무 기록을 저장했습니다.${toldNote}${finished ? FINISHED_NOTE : ''}`)
+}
+
+/**
+ * ✏️ 정기 개선 2026-11-27 07:35: 담당자가 고친 출퇴근 시각을 근무자에게 알림 (한 명 고치기 · 여러 명 한 번에 고치기 공통)
+ * 공고는 지금 회사 것만 다시 확인하고, 그 회사 문의함에만 남김 · 실패해도 저장은 그대로 (알림만 빠짐)
+ */
+async function tellTimeFix(admin: { id: string; companyId: string }, jobId: string, date: string, texts: Map<string, string>): Promise<boolean> {
+  if (!texts.size) return false
+  try {
+    const job = await companyJob(admin, jobId)
+    if (!job) return false
+    await tellWorkers([...texts.keys()], {
+      senderId: admin.id,
+      companyId: admin.companyId,
+      jobId,
+      title: TIME_FIX_HEAD,
+      // 공고 이름은 문의함 말풍선 위 '📌 공고 보기' 줄에 이미 나와서 날짜만 (같은 말 두 번 안 하게)
+      text: (uid) => `${fmtDate(date)} 근무 · ${texts.get(uid) ?? ''}`,
+      url: '/me/history',
+      tag: `timefix-${jobId}-${date}`,
+    })
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -1142,6 +1178,8 @@ export async function bulkAdjustTimes(jobId: string, date: string, _: FormState,
   let paidSkip = 0
   let badSkip = 0
   let closed = false
+  // ✏️ 정기 개선 2026-11-27 07:35: 사람마다 바뀐 시각 ('출근 06:00 → 09:00') — '근무자에게 알리기'가 켜져 있으면 저장 뒤 알림
+  const fixTexts = new Map<string, string>()
   for (const a of rows.filter((r) => r.company_id === admin.companyId && r.job_id === jobId && r.work_date === date && uids.includes(r.user_id))) {
     if (a.paid) {
       paidSkip++
@@ -1169,13 +1207,20 @@ export async function bulkAdjustTimes(jobId: string, date: string, _: FormState,
     )
     if (closeNow) closed = true
     done++
+    // ✏️ 정기 개선 2026-11-27 07:35: 저장한 값 그대로 (1분 안쪽 차이는 원래 기록을 씀) 전 → 후
+    const outBefore = a.adj_out ?? a.clock_out
+    const inAfter = inT ? (differs(inAt, a.clock_in) ? inAt : new Date(a.clock_in)) : new Date(a.adj_in ?? a.clock_in)
+    const outAfter = outT && outAt ? (closeNow || differs(outAt, a.clock_out) ? outAt : new Date(a.clock_out!)) : outBefore ? new Date(outBefore) : null
+    const t = timeFixText({ in: kstTime(a.adj_in ?? a.clock_in), out: outBefore ? kstTime(outBefore) : null }, { in: kstTime(inAfter), out: outAfter ? kstTime(outAfter) : null })
+    if (t) fixTexts.set(a.user_id, t)
   }
   if (!done) return { error: paidSkip ? '고른 기록이 모두 지급 완료라 고치지 않았어요.' : '고칠 수 있는 기록이 없어요. 시각을 확인해 주세요.' }
   await audit(admin.id, 'attendance.bulk_adjust', null, `${date} ${done}명 ${inT || '-'}~${outT || '-'}`, admin.companyId)
+  const told = bool(form, 'tell') && fixTexts.size > 0 && (await tellTimeFix(admin, jobId, date, fixTexts))
   const finished = closed && (await finishIfAllOut(jobId, date))
   revalidatePath(`/admin/jobs/${jobId}`)
   const skip = [paidSkip && `지급 완료 ${paidSkip}명`, badSkip && `시각이 맞지 않는 ${badSkip}명`].filter(Boolean).join(' · ')
-  return { ok: `${done}명 시간을 고쳤어요. 정산 금액에 바로 반영돼요.${skip ? ` (${skip}은 그대로)` : ''}${finished ? FINISHED_NOTE : ''}` }
+  return { ok: `${done}명 시간을 고쳤어요. 정산 금액에 바로 반영돼요.${told ? ` 바뀐 ${fixTexts.size}명에게 알렸어요.` : ''}${skip ? ` (${skip}은 그대로)` : ''}${finished ? FINISHED_NOTE : ''}` }
 }
 
 export async function addAttendance(jobId: string, form: FormData) {

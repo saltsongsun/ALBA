@@ -96,8 +96,14 @@ export default function BulkAdjust({
         </button>
         <span className="text-xs text-mute">빈 칸은 그대로 둬요</span>
       </div>
+      {/* ✏️ 정기 개선 2026-11-27 07:35: 시각이 실제로 바뀐 사람에게만 '🕒 근무 시각 고침 · 출근 06:00 → 09:00' (기본 켬 · 끄면 안 보냄) */}
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-sub transition-opacity duration-150 has-[input:not(:checked)]:opacity-60" data-bulk-tell>
+        <input type="checkbox" name="tell" defaultChecked className="size-4 shrink-0 accent-emerald-600" />
+        <span className="min-w-0">바뀐 시각을 근무자에게 알려요</span>
+      </label>
       <FormMessage state={state} />
-      <ConfirmSubmit className="btn-primary w-full" confirmText={`한 번 더 누르면 ${n}명 시간을 고쳐요`} disabled={n === 0 || (!inT && !outT)}>
+      {/* ✏️ 정기 개선 2026-11-27 07:35: 저장되어 고른 사람이 0명이 되면 버튼을 처음 상태로 ('한 번 더 누르면 0명…'이 남지 않게) */}
+      <ConfirmSubmit key={n === 0 ? 'none' : 'some'} className="btn-primary w-full" confirmText={`한 번 더 누르면 ${n}명 시간을 고쳐요`} disabled={n === 0 || (!inT && !outT)}>
         {n ? `고른 ${n}명 시간 고치기` : '고칠 사람을 골라 주세요'}
       </ConfirmSubmit>
     </form>
