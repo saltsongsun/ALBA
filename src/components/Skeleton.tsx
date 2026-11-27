@@ -950,6 +950,70 @@ export function VendorsSkeleton() {
 }
 
 /**
+ * ✏️ 정기 개선 2026-11-28 03:36: 외주 업체 한 곳을 여는 동안 (예전: 일반 카드 네 개가 떴다가 업체 화면으로 바뀜)
+ * 실제 화면과 같은 순서: ← 업체 목록 · 업체 카드(이름·배지 · 담당 줄 · 번호·전화·문자 · 계좌 줄 · 받은 견적/지급 완료/미지급 세 줄) · 정보 수정(접힘) · 대금 지급 · 견적 이력
+ */
+export function VendorDetailSkeleton() {
+  const rows = (n: number) => (
+    <div className="card divide-y divide-line py-1">
+      {Array.from({ length: n }, (_, i) => (
+        <div key={i} className="flex items-center justify-between gap-2 py-2.5">
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <div className={`h-4 ${i ? 'w-1/3' : 'w-2/5'} ${bar}`} />
+            <div className="h-3 w-1/2 rounded bg-line/50" />
+          </div>
+          <div className="flex shrink-0 flex-col items-end gap-1.5">
+            <div className={`h-4 w-20 ${bar}`} />
+            <div className="h-4 w-12 rounded-full bg-line/50" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+  return (
+    <div aria-busy="true" aria-label="업체 불러오는 중" className="skeleton space-y-4" data-skeleton="vendor">
+      <div className={`h-4 w-20 ${bar}`} />
+      <div className="card space-y-2.5">
+        <div className="flex items-center gap-2">
+          <div className={`h-7 w-32 ${bar}`} />
+          <div className="h-5 w-12 rounded-full bg-line/50" />
+        </div>
+        <div className={`h-4 w-3/5 ${bar}`} />
+        <div className="flex items-center gap-1.5">
+          <div className={`h-4 w-28 ${bar}`} />
+          <div className="h-8 w-14 rounded-lg bg-line/50" />
+          <div className="h-8 w-14 rounded-lg bg-line/50" />
+        </div>
+        <div className={`h-4 w-1/2 ${bar}`} />
+        <div className="divide-y divide-line rounded-xl bg-bg px-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="flex items-center justify-between gap-3 py-2.5">
+              <div className={`h-4 w-16 ${bar}`} />
+              <div className={`h-4 w-24 ${bar}`} />
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card flex items-center justify-between">
+        <div className="space-y-2">
+          <div className={`h-5 w-20 ${bar}`} />
+          <div className={`h-3.5 w-40 ${bar}`} />
+        </div>
+        <div className="size-5 rounded bg-line/50" />
+      </div>
+      <div className="space-y-2">
+        <div className={`h-5 w-16 ${bar}`} />
+        {rows(2)}
+      </div>
+      <div className="space-y-2">
+        <div className={`h-5 w-16 ${bar}`} />
+        {rows(2)}
+      </div>
+    </div>
+  )
+}
+
+/**
  * ✏️ 정기 개선 2026-11-27 03:36: 커뮤니티 글쓰기·글 고치기를 불러오는 동안 (예전: 글 목록 카드·글 보기 모양이 잠깐 떴다가 쓰기 칸으로 바뀜)
  * 실제 화면과 같은 순서: ← 돌아가기 · 제목 · (글쓰기만) 별명 안내 · 말머리 5칸(3+2) · 제목 칸 · 내용 칸 · 이모티콘 줄 · 올리기 버튼
  */
