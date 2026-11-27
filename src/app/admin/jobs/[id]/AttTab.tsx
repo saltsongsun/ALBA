@@ -737,6 +737,18 @@ export default async function AttTab({
                       {(() => {
                         const diff = (new Date(a.clock_in).getTime() - kstAt(a.work_date, shiftOf(job, a).start_time).getTime()) / 60_000
                         if (diff > 5) return <span className="badge bg-rose-50 text-rose-600">지각 {minutesText(Math.round(diff))}</span>
+                        // ✏️ 정기 개선 2026-11-27 09:36: 시작 전 근무를 급여에 넣는 공고에서 1시간 넘게 일찍 찍힌 출근(아직 안 고침 · 지급 전)은
+                        // 배지를 누르면 이 사람 기록 고치기 칸이 열림 ('출근을 HH:MM로 맞추기' 버튼이 있는 곳 · 정산 탭 '일찍 찍힌 출근'과 같은 기준)
+                        if (diff < -60 && !job.early_clamp && !a.adj_in && !a.paid)
+                          return (
+                            <Link
+                              href={`/admin/jobs/${job.id}?tab=att&date=${date}&fix=${uid}#att-${uid}`}
+                              className="badge bg-sky-50 text-sky-700 transition active:scale-95"
+                              data-att-early-fix
+                            >
+                              조기 {minutesText(Math.round(-diff))} · 고치기 ›
+                            </Link>
+                          )
                         if (diff < -10) return <span className="badge bg-sky-50 text-sky-700">조기 {minutesText(Math.round(-diff))}{job.early_clamp ? '(미인정)' : ''}</span>
                         return null
                       })()}

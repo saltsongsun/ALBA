@@ -1142,6 +1142,8 @@ async function tellTimeFix(admin: { id: string; companyId: string }, jobId: stri
       text: (uid) => `${fmtDate(date)} 근무 · ${texts.get(uid) ?? ''}`,
       url: '/me/history',
       tag: `timefix-${jobId}-${date}`,
+      // ✏️ 정기 개선 2026-11-27 09:36: 알림 아래 '근무 내역·급여 보기' 버튼 (고친 날이 '담당자가 고침'으로 보이는 곳)
+      button: 'history',
     })
     return true
   } catch {

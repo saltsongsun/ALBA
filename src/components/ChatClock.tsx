@@ -54,7 +54,8 @@ export default async function ChatClock({ userId, companyId }: { userId: string;
       ) : open ? (
         <ClockPanel
           jobId={job.id}
-          open={{ id: open.id, clock_in: open.clock_in, startText: kstTime(open.clock_in) }}
+          // ✏️ 정기 개선 2026-11-27 09:36: 담당자가 고친 출근 시각이 있으면 그 시각으로 (경과 시간·진행 막대도) + 원래 시각은 '담당자가 고침' 줄로
+          open={{ id: open.id, clock_in: open.adj_in ?? open.clock_in, startText: kstTime(open.adj_in ?? open.clock_in), fixedFrom: open.adj_in && kstTime(open.adj_in) !== kstTime(open.clock_in) ? kstTime(open.clock_in) : null }}
           endAt={scheduledEnd(shift!, open.work_date).toISOString()}
           endText={hhmm(shift!.end_time)}
           useLocation={job.lat != null}

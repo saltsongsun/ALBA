@@ -190,7 +190,11 @@ export function ClockPanel({
   /** 오늘 근무 시작 시각(ISO): 한 시간도 더 전에 '근무 시작'을 누르면 한 번 더 묻기 (집에서 실수로 누르지 않게) */
   startAt?: string
   jobId: string
-  open: { id: string; clock_in: string; startText: string } | null
+  /**
+   * clock_in·startText는 급여에 쓰는 출근 시각 (담당자가 고쳤으면 고친 시각) · fixedFrom: 고쳤을 때 원래 찍힌 시각 'HH:MM'
+   * ✏️ 정기 개선 2026-11-27 09:36: 담당자가 출근을 고쳐도 카드가 원래 시각을 보여 주던 것 (알림·지난 근무와 말이 달랐음)
+   */
+  open: { id: string; clock_in: string; startText: string; fixedFrom?: string | null } | null
   useLocation: boolean
   /** 현장 반경 안에서만 근무 시작 가능 */
   gpsRequired?: boolean
@@ -425,6 +429,12 @@ export function ClockPanel({
             {elapsedText(open.clock_in, now)}
           </span>
         </div>
+      )}
+      {/* ✏️ 정기 개선 2026-11-27 09:36: 담당자가 출근 시각을 고쳤으면 그 말 그대로 한 줄 (문의함 알림·지난 근무와 같은 모양 · 0.25초 톡) */}
+      {open?.fixedFrom && (
+        <p className="-mt-1 animate-pop px-1 text-xs text-sub [animation-duration:250ms]" data-start-fixed>
+          <span className="rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-semibold text-amber-700">담당자가 고침</span> 출근 {open.fixedFrom} → {open.startText}
+        </p>
       )}
       {open && paidFrom && (
         <p className="-mt-1 px-1 text-xs font-semibold text-emerald-700" data-paid-from>

@@ -77,7 +77,7 @@ const fixMsgs = async () => ((await rest(`messages?thread_user_id=eq.${W}`)) ?? 
   const msgs1 = await fixMsgs()
   const m1 = msgs1[msgs1.length - 1]
   ok('근무자 문의함에 1건', msgs1.length === before1 + 1, `${before1} → ${msgs1.length}`)
-  ok(`글: '${HEAD}' / '${md(y)} 근무 · 출근 06:00 → 09:00'`, m1?.body === `${HEAD}\n${md(y)} 근무 · 출근 06:00 → 09:00`, JSON.stringify(m1?.body))
+  ok(`글: '${HEAD}' / '${md(y)} 근무 · 출근 06:00 → 09:00' + '근무 내역·급여 보기' 버튼`, m1?.body === `${HEAD}\n${md(y)} 근무 · 출근 06:00 → 09:00\n::b:history::`, JSON.stringify(m1?.body))
   ok('이 회사 문의함 · 이 공고 · 담당자가 보낸 글', m1?.company_id === C1 && m1?.job_id === J && m1?.from_admin === true, JSON.stringify({ c: m1?.company_id, j: m1?.job_id, f: m1?.from_admin }))
   const [att1] = await rest(`attendance?id=eq.${ATT}`)
   ok('기록은 그대로 저장됨 (출근 09:00 보정)', att1?.adj_in && Date.parse(att1.adj_in) === Date.parse(at(y, '09:00')), String(att1?.adj_in))
@@ -124,7 +124,7 @@ const fixMsgs = async () => ((await rest(`messages?thread_user_id=eq.${W}`)) ?? 
   const before5 = (await fixMsgs()).length
   await save(form)
   const msgs5 = await fixMsgs()
-  ok("퇴근만 고침: '종료 18:00 → 17:30' 알림", msgs5.length === before5 + 1 && msgs5[msgs5.length - 1].body === `${HEAD}\n${md(y)} 근무 · 종료 18:00 → 17:30`, JSON.stringify(msgs5[msgs5.length - 1]?.body))
+  ok("퇴근만 고침: '종료 18:00 → 17:30' 알림", msgs5.length === before5 + 1 && msgs5[msgs5.length - 1].body === `${HEAD}\n${md(y)} 근무 · 종료 18:00 → 17:30\n::b:history::`, JSON.stringify(msgs5[msgs5.length - 1]?.body))
 
   // ── 6. 여러 명 한 번에 고치기: 기본으로 알림 · 끄면 안 감
   const bulk = async (tell) => {
@@ -150,7 +150,7 @@ const fixMsgs = async () => ((await rest(`messages?thread_user_id=eq.${W}`)) ?? 
   ok("여러 명 고치기: '바뀐 시각을 근무자에게 알려요' 기본으로 켜짐", r6.checked === true)
   ok("결과에 '바뀐 1명에게 알렸어요'", r6.text.includes('1명 시간을 고쳤어요') && r6.text.includes('바뀐 1명에게 알렸어요'), r6.text.slice(0, 160))
   const msgs6 = await fixMsgs()
-  ok('여러 명 고치기: 근무자에게 같은 모양 알림', msgs6.length === before6 + 1 && msgs6[msgs6.length - 1].body === `${HEAD}\n${md(y)} 근무 · 출근 06:00 → 09:00`, JSON.stringify(msgs6[msgs6.length - 1]?.body))
+  ok('여러 명 고치기: 근무자에게 같은 모양 알림', msgs6.length === before6 + 1 && msgs6[msgs6.length - 1].body === `${HEAD}\n${md(y)} 근무 · 출근 06:00 → 09:00\n::b:history::`, JSON.stringify(msgs6[msgs6.length - 1]?.body))
   ok("저장 뒤 버튼은 처음 상태 ('고칠 사람을 골라 주세요' · '한 번 더 누르면 0명…'이 남지 않음)", r6.btn === '고칠 사람을 골라 주세요', r6.btn)
   ok('360px 옆으로 안 밀림 (여러 명 고치기)', await noSide(a))
   if (SHOTS) { const bx = await r6.panel.boundingBox(); if (bx) await a.screenshot({ path: `${SHOTS}/bulk-tell.png`, clip: { x: 0, y: Math.max(0, bx.y + bx.height - 300), width: 360, height: 310 } }).catch(() => {}) }
