@@ -840,6 +840,16 @@
   & .text-brand-800 {
     color: var(--dk-brand-text);
   }
+  /* ✏️ 정기 개선 2026-11-27 21:36: 체크하면 바뀌는 칩(근무시간 변경의 '바꿀 근무자', 공고에 보일 내용 등)도 어두운 화면에 맞게
+     — 예전엔 고른 칩이 밝은 칸 그대로이거나, 어두운 칸에 진한 파랑 글씨로 거의 안 보였음 */
+  & .has-checked\:bg-brand-50:has(:checked),
+  & .peer:checked ~ .peer-checked\:bg-brand-50 {
+    background-color: var(--dk-brand-bg);
+  }
+  & .has-checked\:text-brand-700:has(:checked),
+  & .peer:checked ~ .peer-checked\:text-brand-700 {
+    color: var(--dk-brand-text);
+  }
   & .text-amber-600,
   & .text-amber-700,
   & .text-amber-800,
