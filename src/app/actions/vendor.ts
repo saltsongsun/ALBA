@@ -130,6 +130,51 @@ export async function saveVendor(id: string | null, _: FormState, form: FormData
   back('/admin/vendors?tab=list', row.user_id ? `${name}을(를) 외주사로 등록했어요 · 📱 해피워크 가입 업체라 견적 요청이 앱으로도 가요.` : `${name}을(를) 외주사로 등록했어요.`)
 }
 
+/**
+ * ✏️ 정기 개선 2026-11-28 05:36: 업체 탭 '내 다른 회사 업체 가져오기' — 내가 대표·관리자로 있는 다른 회사에 등록된 외주사를 지금 회사로 복사.
+ * 업체 번호만 받으므로 서버가 그 업체의 회사를 다시 읽어 내 회사(최고 관리자 권한으로만 보이는 회사 제외)인지 확인.
+ * 상호·분야·담당자·연락처·이메일·사업자번호만 · 계좌·메모·견적·대금은 가져오지 않음 (계좌는 이 회사에서 다시 넣음) · 원래 업체는 그대로
+ */
+export async function importVendorFromCompany(vendorId: string) {
+  const admin = await requireAdmin()
+  const listPath = '/admin/vendors?tab=list'
+  if (!isUuid(vendorId)) back(listPath, '가져올 업체를 찾을 수 없어요.')
+  const { data } = await db().from('vendors').select('*').eq('id', vendorId).maybeSingle()
+  const v = data as Vendor | null
+  const from = v ? admin.companies.find((c) => c.id === v.company_id && c.id !== admin.companyId && c.role !== 'super') : undefined
+  if (!v || !from) back(listPath, '가져올 업체를 찾을 수 없어요.')
+  // 이미 있는 업체면 새로 만들지 않음 (같은 연락처·사업자등록번호·상호) — 견적·대금이 두 곳으로 나뉘지 않게
+  const digits = (x: string | null | undefined) => (x ?? '').replace(/\D/g, '')
+  const mine = must(await db().from('vendors').select('id, name, phone, business_no').eq('company_id', admin.companyId)) as Pick<Vendor, 'id' | 'name' | 'phone' | 'business_no'>[]
+  const dup = mine.find(
+    (m) =>
+      m.name.trim() === v.name.trim() ||
+      (digits(v.phone).length >= 9 && digits(m.phone) === digits(v.phone)) ||
+      (digits(v.business_no).length === 10 && digits(m.business_no) === digits(v.business_no)),
+  )
+  if (dup) back(listPath, `이미 등록된 외주사예요 · ${dup.name}`)
+  const row: Partial<Vendor> = {
+    name: v.name,
+    category: v.category,
+    contact_name: v.contact_name,
+    phone: v.phone,
+    email: v.email,
+    business_no: v.business_no,
+    memo: null,
+    bank_name: null,
+    bank_account_enc: null,
+    account_holder: null,
+    active: true,
+  }
+  // 가입한 업체 계정과 잇는 것도 새로 등록할 때와 같게 (같은 휴대폰) — 다른 회사의 연결을 그대로 옮기지 않음
+  row.user_id = await findPartnerAccount(row.phone ?? null, row.business_no ?? null)
+  const { data: made, error } = await db().from('vendors').insert({ ...row, company_id: admin.companyId }).select('id').single()
+  if (error || !made) back(listPath, '가져오지 못했어요. 다시 시도해 주세요.')
+  await audit(admin.id, 'vendor.import_company', null, `${vendorId} → ${made.id} ${from.name} → ${admin.companyName} · ${v.name}`.slice(0, 500), admin.companyId)
+  refresh()
+  back(`/admin/vendors/${made.id}`, `${from.name}에서 가져왔어요 · 계좌는 이 회사에서 다시 넣어 주세요`)
+}
+
 // ───────────── 견적 요청 ─────────────
 
 /** 견적 요청 만들기: 고른 업체마다 입력 링크(token)를 만들어 둠 */

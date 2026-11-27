@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { deletePayment, markInvoice, markVendorPaid, setPaymentDue } from '@/app/actions/vendor'
+import { deletePayment, importVendorFromCompany, markInvoice, markVendorPaid, setPaymentDue } from '@/app/actions/vendor' // ✏️ 정기 개선 2026-11-28 05:36: importVendorFromCompany
 import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
@@ -67,6 +67,34 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
   const jobOf = new Map(jobs.map((j) => [j.id, j]))
   const jobOpts = jobs.map((j) => ({ id: j.id, label: `${fmtDate(j.start_date)} · ${j.title}` }))
   const activeVendors = vendors.filter((v) => v.active)
+  // ✏️ 정기 개선 2026-11-28 05:36: 내가 대표·관리자로 있는 다른 회사의 외주사 중 이 회사에 아직 없는 곳 (업체 탭 '내 다른 회사 업체 가져오기')
+  // 최고 관리자 권한으로만 보이는 회사는 빼고 · 같은 상호·연락처·사업자번호가 이미 있으면 뺌 · 계좌는 읽지 않음
+  const otherCos = tab === 'list' ? admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super') : []
+  const dg = (x: string | null | undefined) => (x ?? '').replace(/\D/g, '')
+  const importable = otherCos.length
+    ? (
+        must(
+          await db()
+            .from('vendors')
+            .select('id, company_id, name, category, contact_name, phone, business_no, active')
+            .in('company_id', otherCos.map((c) => c.id))
+            .eq('active', true)
+            .limit(300),
+        ) as Pick<Vendor, 'id' | 'company_id' | 'name' | 'category' | 'contact_name' | 'phone' | 'business_no' | 'active'>[]
+      )
+        .filter((o) => o.active && otherCos.some((c) => c.id === o.company_id))
+        .filter(
+          (o) =>
+            !vendors.some(
+              (m) =>
+                m.name.trim() === o.name.trim() ||
+                (dg(o.phone).length >= 9 && dg(m.phone) === dg(o.phone)) ||
+                (dg(o.business_no).length === 10 && dg(m.business_no) === dg(o.business_no)),
+            ),
+        )
+        .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+    : []
+  const coName = new Map(otherCos.map((c) => [c.id, c.name]))
 
   // 지급 목록: 지급일 지난 것 → 곧 → 예정(날짜순, 날짜 없는 건 뒤) → 지급 완료(최근 순)
   const rank = { overdue: 0, soon: 1, planned: 2, paid: 3 }
@@ -349,6 +377,38 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
           >
             <VendorForm existing={vendors.map((v) => ({ id: v.id, name: v.name, phone: v.phone, business_no: v.business_no }))} />
           </Fold>
+          {/* ✏️ 정기 개선 2026-11-28 05:36: 내 다른 회사에 등록한 업체를 한 번에 (상호·분야·담당자·연락처만 · 계좌는 이 회사에서 다시) — 접어 둠 */}
+          {importable.length > 0 && (
+            <Fold
+              title="내 다른 회사 업체 가져오기"
+              summary={`${importable[0].name}${importable.length > 1 ? ` 등 ${importable.length}곳` : ''} · 계좌는 빼고 가져와요`}
+              className="space-y-2"
+            >
+              <ul className="divide-y divide-line" data-vendor-import>
+                {importable.map((o, i) => (
+                  <li
+                    key={o.id}
+                    className="flex animate-[rise_0.25s_ease-out_both] items-center justify-between gap-2 py-2.5 motion-reduce:animate-none"
+                    style={{ animationDelay: `${Math.min(i, 8) * 40}ms` }}
+                    data-vendor-import-row={o.id}
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {o.name}
+                        {o.category && <span className="ml-1.5 text-xs font-medium text-mute">{o.category}</span>}
+                      </p>
+                      <p className="truncate text-xs text-mute">🏢 {coName.get(o.company_id) ?? '내 다른 회사'}</p>
+                    </div>
+                    <form action={importVendorFromCompany.bind(null, o.id)} className="shrink-0">
+                      <SubmitButton className="chip h-8 px-3 text-xs" pendingText="가져오는 중…" track="다른 회사 업체 가져오기">
+                        가져오기
+                      </SubmitButton>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Fold>
+          )}
           {vendors.length > 0 &&
             vendors.map((v) => {
               const vq = quotes.filter((q) => q.vendor_id === v.id)

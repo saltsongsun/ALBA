@@ -135,6 +135,15 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
           </span>
         )}
       </div>
+      {/* ✏️ 정기 개선 2026-11-28 05:36: 받은 견적 n/m곳을 얇은 막대로 (0.25초 채워짐 · 다 받으면 초록 · 움직임 줄이기면 없음) */}
+      {quotes.length > 0 && (
+        <div className="-mt-2 h-1.5 overflow-hidden rounded-full bg-line" aria-hidden data-quote-progress={`${got.length}/${quotes.length}`}>
+          <span
+            className={`block h-full origin-left animate-[grow_0.25s_ease-out_both] rounded-full motion-reduce:animate-none ${got.length === quotes.length ? 'bg-emerald-500' : 'bg-brand-500'}`}
+            style={{ width: `${Math.round((got.length / quotes.length) * 100)}%` }}
+          />
+        </div>
+      )}
       {mixed && (
         <p className="-mt-2 text-xs text-mute" data-quote-vat-mixed>
           부가세 포함·별도가 섞여 있어 <b className="font-semibold text-sub">부가세 포함 금액</b>으로 견줬어요.
