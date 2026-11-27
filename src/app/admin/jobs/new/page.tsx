@@ -35,7 +35,8 @@ export default async function NewJobPage(props: PageProps<'/admin/jobs/new'>) {
     // 이 회사가 지난 공고에 쓴 장소·지급일 안내·현장 담당자·추가 조건 (다시 치지 않고 눌러서 넣게 · 못 읽어도 등록은 그대로)
     db()
       .from('jobs')
-      .select('location_name, address, lat, lng, gps_radius_m, pay_day, manager_name, manager_phone, conditions, created_at').eq('company_id', admin.companyId)
+      // ✏️ 정기 개선 2026-11-27 13:36: early_clamp 함께 읽음 (지난 공고처럼 켜기 칩)
+      .select('location_name, address, lat, lng, gps_radius_m, pay_day, manager_name, manager_phone, conditions, early_clamp, created_at').eq('company_id', admin.companyId)
       .order('created_at', { ascending: false })
       .limit(20)
       .then(

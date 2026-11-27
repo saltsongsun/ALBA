@@ -7,11 +7,15 @@ export type RecentJobValues = {
   managers: { name: string; phone: string }[]
   /** 가장 최근 공고의 추가 조건 (휴게 시간·식사·교통 등 — 회사마다 거의 같아 한 번에 불러옴) */
   conditions: JobCondition[]
+  /** ✏️ 정기 개선 2026-11-27 13:36: 가장 최근 공고의 '일찍 누른 출근은 시작 시각부터 인정' (켰으면 true · 지난 공고가 없으면 null) — 새 공고에서 '똑같이 켜기' 칩만 띄움, 기본값은 그대로 */
+  earlyClamp?: boolean | null
 }
 
 type Row = Pick<Job, 'location_name' | 'address' | 'lat' | 'lng' | 'gps_radius_m' | 'pay_day' | 'manager_name' | 'manager_phone'> & {
   created_at?: string | null
   conditions?: JobCondition[] | null
+  /** ✏️ 정기 개선 2026-11-27 13:36 */
+  early_clamp?: boolean | null
 }
 
 function uniq<T>(list: T[], key: (t: T) => string, max: number): T[] {
@@ -48,5 +52,7 @@ export function recentJobValues(rows: Row[]): RecentJobValues {
         .map((j) => (Array.isArray(j.conditions) ? j.conditions : []).filter((c) => t(c?.label) && t(c?.value)).map((c) => ({ label: t(c.label), value: t(c.value) })))
         .find((list) => list.length > 0)
         ?.slice(0, 10) ?? [],
+    // ✏️ 정기 개선 2026-11-27 13:36: 가장 최근 공고 하나만 봄 (회사마다 보통 같게 씀)
+    earlyClamp: jobs.length ? jobs[0].early_clamp === true : null,
   }
 }

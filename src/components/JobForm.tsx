@@ -226,6 +226,46 @@ function Check({ name, value, label, defaultChecked, hint }: { name: string; val
   )
 }
 
+/**
+ * ✏️ 정기 개선 2026-11-27 13:36: 새 공고 · 이 회사의 지난 공고는 켜 둔 체크를 지금 안 켰을 때 '지난 공고는 켜 뒀어요 · 똑같이 켜기'
+ * 누르면 체크가 켜지고 '✓ 지난 공고처럼 켰어요'로 바뀜 (0.25초 톡 · 움직임 줄이기면 그냥 바뀜) · 직접 켜면 사라지고, 다시 끄면 다시 보임 · 기본값은 그대로
+ */
+function SameAsLast({ name, formRef, onPick }: { name: string; formRef: React.RefObject<HTMLFormElement | null>; onPick: (el: HTMLInputElement) => void }) {
+  const [st, setSt] = useState<'ask' | 'done' | 'hide'>('ask')
+  useEffect(() => {
+    const el = formRef.current?.elements.namedItem(name)
+    if (!(el instanceof HTMLInputElement)) return
+    const sync = () => setSt((s) => (!el.checked ? 'ask' : s === 'done' ? 'done' : 'hide'))
+    sync()
+    el.addEventListener('change', sync)
+    return () => el.removeEventListener('change', sync)
+  }, [name, formRef])
+  if (st === 'hide') return null
+  if (st === 'done')
+    return (
+      <p className="-mt-1.5 ml-[30px] animate-pop text-xs font-semibold text-emerald-700 [animation-duration:250ms] motion-reduce:animate-none" data-same-as-last-done={name}>
+        ✓ 지난 공고처럼 켰어요
+      </p>
+    )
+  return (
+    <button
+      type="button"
+      className="-mt-1.5 ml-[30px] flex max-w-[calc(100%-30px)] flex-wrap items-center gap-x-1 rounded-full bg-brand-50 px-3 py-1.5 text-left text-xs text-brand-700 transition duration-150 active:scale-95 motion-reduce:transition-none"
+      onClick={() => {
+        const el = formRef.current?.elements.namedItem(name)
+        if (!(el instanceof HTMLInputElement) || el.checked) return
+        setSt('done')
+        el.click() // 진짜 클릭처럼 (폼 미리보기·고친 것 표시가 함께 따라옴)
+        onPick(el)
+      }}
+      data-same-as-last={name}
+    >
+      <span>지난 공고는 켜 뒀어요</span>
+      <b className="whitespace-nowrap">· 똑같이 켜기</b>
+    </button>
+  )
+}
+
 /** '최근 값' 칩: 이 회사가 지난 공고에 쓴 값을 눌러서 넣음 (고른 칩은 ✓ · 값이 없으면 줄 자체가 없음) */
 function RecentChips({ name, label, items, onPick, className = '' }: { name: string; label: string; items: { key: string; text: string }[]; onPick: (i: number) => void; className?: string }) {
   const [picked, setPicked] = useState<string | null>(null)
@@ -311,6 +351,11 @@ export default function JobForm({
   const [mgrPhone, setMgrPhone] = useState(() => !!job?.manager_phone)
   const formRef = useRef<HTMLFormElement>(null)
   const [est, setEst] = useState(() => (job ? estimateDay(job) : null))
+  // ✏️ 정기 개선 2026-11-27 13:36: 새 공고도 처음부터 '공고 시간대로 일하면 하루 …원' (기본 시간·시급으로 · 예전엔 한 칸을 고쳐야 나타났음 · 계산은 그대로)
+  useEffect(() => {
+    if (!job) setEst(preview(formRef.current))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [payType, setPayType] = useState(job?.pay_type ?? 'hourly')
   const [breakMode, setBreakMode] = useState(job?.break_mode ?? 'auto')
   // 근무시간 절사: 고르는 대로 예시가 바뀜 (8시간 25분 일하면 몇 시간으로 인정되는지)
@@ -785,6 +830,8 @@ export default function JobForm({
           defaultChecked={job?.early_clamp}
           hint="일찍 도착해 버튼을 누른 시간을 근무로 치지 않습니다. 사전 교육·준비를 지시했다면 끄거나 해당 근무를 보정하세요."
         />
+        {/* ✏️ 정기 개선 2026-11-27 13:36: 새 공고에서만 · 이 회사의 지난 공고가 켜 뒀으면 한 번에 똑같이 */}
+        {!job && recent?.earlyClamp && <SameAsLast name="early_clamp" formRef={formRef} onPick={flash} />}
         <Check
           name="premium_enabled"
           label="연장·야간 가산수당 50% 적용 (상시 5인 이상 사업장)"
@@ -793,7 +840,11 @@ export default function JobForm({
         />
         {est && (
           <div className="rounded-xl bg-brand-50 px-4 py-3 text-sm text-brand-700">
-            공고 시간대로 일하면 하루 <b className="text-base">{won(est.gross)}</b> (휴게 {est.breakMin}분 제외 {minutesText(est.paidMin)}
+            공고 시간대로 일하면 하루{' '}
+            {/* ✏️ 정기 개선 2026-11-27 13:36: 시급·시간을 바꾸면 금액이 0.25초 톡 (바뀐 걸 바로 알게 · 움직임 줄이기면 없음) */}
+            <b key={est.gross} className="inline-block animate-pop text-base [animation-duration:250ms]" data-est-gross>
+              {won(est.gross)}
+            </b> (휴게 {est.breakMin}분 제외 {minutesText(est.paidMin)}
             {est.overtimePay ? `, 연장 ${won(est.overtimePay)}` : ''}
             {est.nightPay ? `, 야간 ${won(est.nightPay)}` : ''}) <span className="whitespace-nowrap">· 세전</span>
           </div>
