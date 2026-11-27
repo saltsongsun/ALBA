@@ -1635,15 +1635,16 @@ export async function remindShiftAnswer(jobId: string, date: string, _: FormStat
       must(
         await db()
           .from('messages')
-          .select('thread_user_id, body')
+          .select('thread_user_id, body, created_at')
           .eq('company_id', job.company_id)
           .eq('job_id', jobId)
           .eq('from_admin', true)
           .gte('created_at', since)
           .limit(1000),
-      ) as { thread_user_id: string; body: string }[]
+      ) as { thread_user_id: string; body: string; created_at: string }[]
     )
-      .filter((m) => m.body.startsWith(SHIFT_ASK_HEAD))
+      // ✏️ 정기 개선 2026-11-28 01:35: 시각도 한 번 더 확인 (10분보다 오래된 알림은 셈하지 않음)
+      .filter((m) => m.created_at >= since && m.body.startsWith(SHIFT_ASK_HEAD))
       .map((m) => m.thread_user_id),
   )
   const to = [...latest.keys()].filter((u) => !recent.has(u))
@@ -1659,6 +1660,9 @@ export async function remindShiftAnswer(jobId: string, date: string, _: FormStat
       return `${job.title} · ${when}근무시간 ${span(c.prev_start, c.prev_end)} → ${span(c.start_time, c.end_time)} 변경에 아직 답이 없어요.\n계속 근무하실 수 있는지 앱 '내 근무'에서 알려 주세요.`
     },
     tag: `shift-${jobId}`,
+    // ✏️ 정기 개선 2026-11-28 01:35: 문의 채팅에 '근무시간 변경에 답하기' 버튼 · 휴대폰 알림을 누르면 '내 근무'의 답하기 칸으로 바로
+    button: 'shift',
+    url: '/me#shift-ask',
   })
   await audit(admin.id, 'shift.remind', null, `${jobId} ${date} ${to.length}명`, admin.companyId)
   revalidatePath('/admin/chat')

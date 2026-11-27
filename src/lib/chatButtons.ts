@@ -27,10 +27,12 @@ export const CHAT_BUTTONS: ChatButton[] = [
   { key: 'jobs', label: '모집 중인 알바 보기', href: '/', icon: 'search', lead: '지금 모집 중인 공고는 아래에서 볼 수 있어요.' },
   // 전날 안내(자동)에만 붙음 — 관리자 입력칸의 버튼 목록에는 안 나옴 (ADMIN_CHAT_BUTTONS)
   { key: 'coming', label: '내일 갈게요 · 출근 확인하기', href: '/me#coming', icon: 'check', lead: '내일 근무예요. 아래 버튼을 눌러 올 수 있는지 알려 주세요.' },
+  // ✏️ 정기 개선 2026-11-28 01:35: 근무시간 변경 '다시 알리기'(자동)에만 붙음 — 누르면 '내 근무'의 답하기 칸으로 (관리자 버튼 목록에는 안 나옴)
+  { key: 'shift', label: '근무시간 변경에 답하기', href: '/me#shift-ask', icon: 'clock', lead: '근무시간이 바뀌었어요. 아래 버튼을 눌러 계속할 수 있는지 알려 주세요.' },
 ]
 
 /** 관리자가 문의 답장에 넣을 수 있는 버튼 (자동 안내 전용 버튼은 뺌) */
-export const ADMIN_CHAT_BUTTONS = CHAT_BUTTONS.filter((b) => b.key !== 'coming')
+export const ADMIN_CHAT_BUTTONS = CHAT_BUTTONS.filter((b) => b.key !== 'coming' && b.key !== 'shift') // ✏️ 정기 개선 2026-11-28 01:35: 'shift'도 자동 안내 전용
 
 const BY_KEY = new Map(CHAT_BUTTONS.map((b) => [b.key, b]))
 const KEY = '[a-z][a-z-]{0,19}'

@@ -34,7 +34,7 @@ import { AckButton, AckMark, ChangeRows, type Notice } from '@/components/Notice
 import { calcDay, workingToday, OT_ASK_MIN, scheduledEnd, settle, shiftOf, roundCut } from '@/lib/pay'
 import { pushPublicKey } from '@/lib/push'
 import { requireUser } from '@/lib/session'
-import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals'
+import { isComing, isFullTimeAsk, parseFix, parseLate, pendingFix, SHIFT_ASK_HEAD, SIGNAL, signalOf, WAIT_HEAD } from '@/lib/signals' // ✏️ 정기 개선 2026-11-28 01:35: SHIFT_ASK_HEAD
 import WaitNoteLine from '@/components/WaitNoteLine'
 import PaydayLine from '@/components/PaydayLine'
 import { workerPaydays } from '@/lib/worker-payday'
@@ -779,7 +779,8 @@ export default async function MePage(props: PageProps<'/me'>) {
       </div>
       {/* 담당자가 근무시간을 바꿨을 때: 계속하시겠습니까? */}
       {pendingShifts.length > 0 && (
-        <section className="card animate-pop space-y-3 bg-brand-50/40 ring-brand-100">
+        // ✏️ 정기 개선 2026-11-28 01:35: id · 바로 가기(채팅 버튼 · 알림)로 오면 테두리 한 번 (0.3초 · 움직임 줄이기면 없음)
+        <section id="shift-ask" data-target-ring className="card animate-pop scroll-mt-24 space-y-3 bg-brand-50/40 ring-brand-100">
           <div>
             <h2 className="font-bold">🕒 근무시간이 바뀌었어요</h2>
             <p className="text-sm text-sub">바뀐 시간으로 계속 근무하실 수 있는지 알려 주세요. 동의하면 바뀐 시간까지 급여가 계산돼요.</p>
@@ -787,11 +788,20 @@ export default async function MePage(props: PageProps<'/me'>) {
           {pendingShifts.map((c) => {
             const job = jobsById.get(c.job_id)
             const ext = hhmm(c.start_time) === hhmm(c.prev_start) && hhmm(c.end_time) > hhmm(c.prev_end)
+            // ✏️ 정기 개선 2026-11-28 01:35: 이 요청 뒤에 담당자가 '다시 알리기'를 보냈으면 그 시각 (그 공고 회사가 보낸 글만 · 최근 30개 안)
+            const asked = adminJobMsgs.find((m) => m.job_id === c.job_id && m.body.startsWith(SHIFT_ASK_HEAD) && m.created_at > c.created_at)
             return (
               <div key={c.id} className="space-y-2.5 rounded-xl bg-white p-3.5 text-sm">
                 <p className="font-semibold">
                   {c.work_date ? fmtDate(c.work_date) : '전체 일정'} · {job?.title ?? '근무'}
                 </p>
+                {/* ✏️ 정기 개선 2026-11-28 01:35: 어느 회사 요청인지 (여러 회사 일을 하는 근무자) + 담당자가 답을 기다리는지 */}
+                {job && <CompanyName job={job} className="-mt-1.5" />}
+                {asked && (
+                  <p className="-mt-1 animate-pop text-xs font-semibold text-amber-700 [animation-duration:250ms]" data-shift-asked>
+                    담당자가 답을 기다려요 · {kstTime(asked.created_at)}
+                  </p>
+                )}
                 <p className="flex flex-wrap items-center gap-1.5 text-base">
                   <span className="text-mute line-through">
                     {hhmm(c.prev_start)}~{hhmm(c.prev_end)}
@@ -804,15 +814,16 @@ export default async function MePage(props: PageProps<'/me'>) {
                 </p>
                 {c.reason && <p className="text-sub">사유: {c.reason}</p>}
                 <p className="font-bold">계속하시겠습니까?</p>
-                <div className="grid grid-cols-2 gap-2">
+                {/* ✏️ 정기 개선 2026-11-28 01:35: 360px에서 '아니요, 어려워요'가 두 줄로 꺾이지 않게 두 버튼 옆 여백·글자를 조금 줄임 (글은 그대로) */}
+                <div className="grid grid-cols-2 gap-2" data-shift-answer-btns>
                   <form action={answerShift.bind(null, c.id, 'agree')}>
-                    <SubmitButton className="btn-primary w-full" pendingText="처리 중…">
+                    <SubmitButton className="btn-primary w-full px-2 text-[15px]" pendingText="처리 중…">
                       네, 계속할게요
                     </SubmitButton>
                   </form>
                   <form action={answerShift.bind(null, c.id, 'decline')}>
                     <ConfirmSubmit
-                      className="btn-gray w-full"
+                      className="btn-gray w-full px-2 text-[15px]"
                       confirmText={c.work_date ? `원래 ${hhmm(c.prev_end)}에 마칠까요?` : '근무 확정이 취소돼요. 괜찮나요?'}
                     >
                       아니요, 어려워요
