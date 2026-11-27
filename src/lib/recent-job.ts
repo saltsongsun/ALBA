@@ -9,6 +9,9 @@ export type RecentJobValues = {
   conditions: JobCondition[]
   /** ✏️ 정기 개선 2026-11-27 13:36: 가장 최근 공고의 '일찍 누른 출근은 시작 시각부터 인정' (켰으면 true · 지난 공고가 없으면 null) — 새 공고에서 '똑같이 켜기' 칩만 띄움, 기본값은 그대로 */
   earlyClamp?: boolean | null
+  /** ✏️ 정기 개선 2026-11-27 15:36: 가장 최근 공고의 '현장에서만 근무 시작' · '지원하면 바로 확정' (켰으면 true) — 같은 '똑같이 켜기' 칩만, 기본값은 그대로 */
+  gpsRequired?: boolean | null
+  autoApprove?: boolean | null
 }
 
 type Row = Pick<Job, 'location_name' | 'address' | 'lat' | 'lng' | 'gps_radius_m' | 'pay_day' | 'manager_name' | 'manager_phone'> & {
@@ -16,6 +19,9 @@ type Row = Pick<Job, 'location_name' | 'address' | 'lat' | 'lng' | 'gps_radius_m
   conditions?: JobCondition[] | null
   /** ✏️ 정기 개선 2026-11-27 13:36 */
   early_clamp?: boolean | null
+  /** ✏️ 정기 개선 2026-11-27 15:36 */
+  gps_required?: boolean | null
+  auto_approve?: boolean | null
 }
 
 function uniq<T>(list: T[], key: (t: T) => string, max: number): T[] {
@@ -54,5 +60,8 @@ export function recentJobValues(rows: Row[]): RecentJobValues {
         ?.slice(0, 10) ?? [],
     // ✏️ 정기 개선 2026-11-27 13:36: 가장 최근 공고 하나만 봄 (회사마다 보통 같게 씀)
     earlyClamp: jobs.length ? jobs[0].early_clamp === true : null,
+    // ✏️ 정기 개선 2026-11-27 15:36: 같은 가장 최근 공고 하나에서
+    gpsRequired: jobs.length ? jobs[0].gps_required === true : null,
+    autoApprove: jobs.length ? jobs[0].auto_approve === true : null,
   }
 }

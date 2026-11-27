@@ -736,6 +736,8 @@ export default function JobForm({
           defaultChecked={job?.gps_required}
           hint="근무 시작 버튼을 누를 때 휴대폰 위치가 허용 반경 안이어야 합니다. 꺼 두면 위치만 기록합니다."
         />
+        {/* ✏️ 정기 개선 2026-11-27 15:36: 새 공고 · 이 회사의 지난 공고가 '현장에서만 근무 시작'을 켜 뒀으면 한 번에 똑같이 (켜면 위치 안내가 바로 따라옴) */}
+        {!job && recent?.gpsRequired && <SameAsLast name="gps_required" formRef={formRef} onPick={flash} />}
         {gpsNoPoint && (
           <div className="flex animate-pop items-center justify-between gap-3 rounded-xl bg-amber-50 px-3 py-2 text-amber-800" role="status" data-gps-need>
             <p className="min-w-0 text-xs">
@@ -1071,7 +1073,18 @@ export default function JobForm({
         <p className="hint">체크한 서류에 서명해야 근무 시작 버튼이 열립니다. 근로계약서는 근로기준법 제17조에 따라 꼭 서면(종이 또는 전자문서)으로 주어야 합니다.</p>
       </Fold>
 
-      <Fold title="공개 설정" summary={brief(`${STATUS_TEXT[v('status')] ?? ''}${fd?.get('auto_approve') ? ' · 지원하면 바로 확정' : ' · 관리자가 확정'}`)}>
+      {/* ✏️ 정기 개선 2026-11-27 15:36: 접힌 채로도 '지난 공고는 바로 확정'이 보이게 (켜면 사라짐 · 0.25초 톡) */}
+      <Fold
+        title="공개 설정"
+        summary={brief(`${STATUS_TEXT[v('status')] ?? ''}${fd?.get('auto_approve') ? ' · 지원하면 바로 확정' : ' · 관리자가 확정'}`)}
+        badge={
+          !job && recent?.autoApprove && !fd?.get('auto_approve') ? (
+            <span className="badge animate-pop whitespace-nowrap bg-brand-50 text-brand-700 [animation-duration:250ms]" data-fold-last="auto_approve">
+              지난 공고는 바로 확정
+            </span>
+          ) : undefined
+        }
+      >
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="상태">
             <select name="status" className="input" defaultValue={job?.status ?? 'open'}>
@@ -1084,6 +1097,8 @@ export default function JobForm({
           </Field>
         </div>
         <Check name="auto_approve" label="지원하면 바로 확정 (모집 인원까지)" defaultChecked={job?.auto_approve} hint="끄면 관리자가 지원자를 보고 확정합니다." />
+        {/* ✏️ 정기 개선 2026-11-27 15:36: 새 공고 · 이 회사의 지난 공고가 '지원하면 바로 확정'을 켜 뒀으면 한 번에 똑같이 */}
+        {!job && recent?.autoApprove && <SameAsLast name="auto_approve" formRef={formRef} onPick={flash} />}
       </Fold>
 
       {/* 고칠 때: 일정·장소·급여가 바뀌면 확정자·지원자에게 바로 알림 (오타만 고칠 때는 끌 수 있게) */}
