@@ -1061,12 +1061,22 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
     </tr>
   )
   // 계약서에 들어가는 회사 정보 (회사 설정 맨 위 체크 목록과 같은 4가지)
-  const firstEmpty = missingSetup(settings, sealSet)[0]
+  // ✏️ 정기 개선 2026-11-27 17:36: 빈 칸 전체도 (시작하기 1단계에 '무엇이 남았는지' · 몇 칸 채웠는지)
+  const missingInfo = missingSetup(settings, sealSet)
+  const firstEmpty = missingInfo[0]
   // 회사 설정의 첫 빈 칸으로 바로 (커서까지). 빈 칸이 있으면 '시작하기'의 '회사 정보 채우기'가 남아 있음
   const setupHref = `/admin/settings${firstEmpty ? `#${firstEmpty.key}` : ''}`
   // 새 회사가 처음 할 일 (필수 3가지를 마치면 사라짐, 관리자 초대는 대표 관리자에게만 · 선택)
   const startSteps = [
-    { key: 'info', done: !firstEmpty, title: '회사 정보 채우기', desc: '직인·주소 등 계약서에 들어가요', href: setupHref, optional: false },
+    // ✏️ 정기 개선 2026-11-27 17:36: 1~2칸만 남았으면 '회사 주소·직인만 남았어요' (3칸 이상이면 예전 안내 그대로)
+    {
+      key: 'info',
+      done: !firstEmpty,
+      title: '회사 정보 채우기',
+      desc: missingInfo.length > 0 && missingInfo.length <= 2 ? `${missingInfo.map((m) => m.label).join('·')}만 남았어요` : '직인·주소 등 계약서에 들어가요',
+      href: setupHref,
+      optional: false,
+    },
     { key: 'job', done: jobsEver > 0, title: '첫 공고 올리기', desc: '시간·시급·장소만 넣으면 돼요', href: '/admin/jobs/new', optional: false },
     { key: 'share', done: appsEver > 0, title: '근무자 모으기', desc: '공고 모음 링크를 단톡방에', href: '/admin/jobs', optional: false },
     ...(isOwner ? [{ key: 'team', done: memberCount > 1, title: '함께 일할 관리자 초대', desc: '초대 코드로 직원 초대 (선택)', href: '/admin/settings#admins', optional: true }] : []),
@@ -1398,7 +1408,23 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
                     {st.done ? '✓' : i + 1}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className={`block truncate text-sm font-bold ${st.done ? 'text-mute line-through' : ''}`}>{st.title}</span>
+                    {st.key === 'info' && !st.done ? (
+                      // ✏️ 정기 개선 2026-11-27 17:36: 제목 옆 4칸 막대 (계약서에 들어가는 4가지 중 채운 만큼 · 칸마다 0.25초씩 차오름 · 움직임 줄이기면 바로)
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-sm font-bold">{st.title}</span>
+                        <span className="flex shrink-0 gap-0.5" role="img" aria-label={`4가지 중 ${4 - missingInfo.length}가지 채움`} data-info-bar={4 - missingInfo.length}>
+                          {[0, 1, 2, 3].map((k) => (
+                            <span key={k} className="h-1.5 w-2.5 overflow-hidden rounded-full bg-brand-100">
+                              {k < 4 - missingInfo.length && (
+                                <span className="block h-full origin-left animate-[grow_0.25s_ease-out_both] rounded-full bg-brand-500" style={{ animationDelay: `${k * 60}ms` }} />
+                              )}
+                            </span>
+                          ))}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className={`block truncate text-sm font-bold ${st.done ? 'text-mute line-through' : ''}`}>{st.title}</span>
+                    )}
                     <span className="block truncate text-xs text-sub">{st.done ? '완료' : st.desc}</span>
                   </span>
                   {next ? (
