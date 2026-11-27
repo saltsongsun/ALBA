@@ -774,7 +774,8 @@ export default async function AdminHome(props: PageProps<'/admin'>) {
         icon: 'clock' as const,
         text: `근무시간 변경 답 기다림 · ${titleOf.get(g[0].job_id) ?? '공고'}`,
         n: g.length,
-        href: `/admin/jobs/${g[0].job_id}?tab=att${date ? `&date=${date}` : ''}`,
+        // ✏️ 정기 개선 2026-11-27 23:35: '근무시간 변경' 칸을 열어 둔 채로 (답 대기 이름 · 다시 알리기가 바로 보이게)
+        href: `/admin/jobs/${g[0].job_id}?tab=att${date ? `&date=${date}` : ''}&shift=1#shift`,
         tone: 'text-brand-700',
       }
     }),

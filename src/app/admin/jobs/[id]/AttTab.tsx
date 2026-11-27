@@ -256,6 +256,16 @@ export default async function AttTab({
             .filter((a) => !a.available_dates || a.available_dates.includes(date))
             .map((a) => ({ id: a.user_id, name: a.user.name }))}
           open={openShift}
+          // ✏️ 정기 개선 2026-11-27 23:35: 보낸 요청의 답 (위 '시간 변경 동의 · 대기 · 어려움'과 같은 기준) + 근무가 아직 안 끝난 날만 다시 알리기
+          answers={(() => {
+            const sc = roster.map((u) => changeOf.get(u)).filter((c): c is Change => !!c)
+            return {
+              agreed: sc.filter((c) => c.status === 'agreed').length,
+              declined: sc.filter((c) => c.status === 'declined').length,
+              waiting: sc.filter((c) => c.status === 'pending').map((c) => ({ id: c.user_id, name: users.get(c.user_id)?.name ?? '근무자' })),
+            }
+          })()}
+          canRemind={!dayOver}
         />
       )}
 

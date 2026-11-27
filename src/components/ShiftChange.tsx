@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useRef, useState } from 'react'
-import { changeShift } from '@/app/actions/admin'
+import { changeShift, remindShiftAnswer } from '@/app/actions/admin' // ✏️ 정기 개선 2026-11-27 23:35: remindShiftAnswer
 import { FormMessage, keepInputs, SubmitButton } from './ui'
 import Icon from './Icon'
 
@@ -27,6 +27,8 @@ export default function ShiftChange({
   end,
   workers,
   open = false,
+  answers,
+  canRemind = false,
 }: {
   jobId: string
   date: string
@@ -37,8 +39,16 @@ export default function ShiftChange({
   end: string
   workers: { id: string; name: string }[]
   open?: boolean
+  /** ✏️ 정기 개선 2026-11-27 23:35: 이날(또는 전체 일정)로 보낸 변경 요청의 답 — 확정자마다 가장 최근 것 (출퇴근 탭 숫자와 같음) */
+  answers?: { agreed: number; declined: number; waiting: { id: string; name: string }[] }
+  /** 답 안 한 사람에게 다시 알리기 (오늘·앞으로의 날만) */
+  canRemind?: boolean
 }) {
   const [state, action] = useActionState(changeShift.bind(null, jobId), null)
+  // ✏️ 정기 개선 2026-11-27 23:35: 답 안 한 사람에게 다시 알리기 (화면은 그대로 · 결과 한 줄)
+  const [reminded, remind] = useActionState(remindShiftAnswer.bind(null, jobId, date), null)
+  const sent = answers ? answers.agreed + answers.declined + answers.waiting.length : 0
+  const waitN = answers?.waiting.length ?? 0
   const [scope, setScope] = useState(canDay ? date : 'all')
   const endRef = useRef<HTMLInputElement>(null)
   const [endV, setEndV] = useState(end.slice(0, 5))
@@ -58,7 +68,53 @@ export default function ShiftChange({
     <details id="shift" open={open} className="card scroll-mt-24 p-4">
       <summary className="tap cursor-pointer font-bold">
         <Icon name="clock" className="text-brand-600" /> 근무시간 변경 · 퇴근 연장
+        {/* ✏️ 정기 개선 2026-11-27 23:35: 접어 둬도 답을 기다리는 사람이 있으면 보이게 */}
+        {waitN > 0 && (
+          <span key={waitN} className="badge ml-1.5 animate-pop bg-amber-50 align-middle text-xs text-amber-800 [animation-duration:250ms]" data-shift-wait-badge={waitN}>
+            답 대기 {waitN}
+          </span>
+        )}
       </summary>
+      {/* ✏️ 정기 개선 2026-11-27 23:35: 보낸 요청의 답 — 동의·어려움·대기 한 줄 + 막대 (0.25초 채워짐) · 대기 이름 + 다시 알리기 */}
+      {sent > 0 && answers && (
+        <div className="mt-3 rounded-xl bg-bg px-3 py-2.5" data-shift-answers>
+          <div className="flex items-center justify-between gap-2 text-sm">
+            <span className="shrink-0 font-semibold">보낸 요청 답</span>
+            <span className="truncate text-xs text-sub tabular-nums">
+              동의 <b className="text-emerald-700">{answers.agreed}</b> · 어려움 <b className="text-rose-600">{answers.declined}</b> · 대기{' '}
+              <b className="text-amber-700">{waitN}</b>
+            </span>
+          </div>
+          <div className="mt-2 flex h-1.5 origin-left animate-[grow_0.25s_ease-out_both] gap-0.5 overflow-hidden rounded-full motion-reduce:animate-none" aria-hidden>
+            {answers.agreed > 0 && <span className="h-full rounded-full bg-emerald-500" style={{ flexGrow: answers.agreed }} />}
+            {answers.declined > 0 && <span className="h-full rounded-full bg-rose-400" style={{ flexGrow: answers.declined }} />}
+            {waitN > 0 && <span className="h-full rounded-full bg-amber-300" style={{ flexGrow: waitN }} />}
+          </div>
+          {waitN > 0 && (
+            <div className="mt-2 flex items-center gap-2">
+              <p className="min-w-0 flex-1 truncate text-xs text-sub" data-shift-waiting>
+                아직: {answers.waiting.map((w) => w.name).join(', ')}
+              </p>
+              {canRemind && (
+                <form action={remind} className="shrink-0" data-shift-remind>
+                  <SubmitButton className="chip h-8 px-3 text-xs" pendingText="보내는 중…" track="근무시간 변경 다시 알리기">
+                    다시 알리기
+                  </SubmitButton>
+                </form>
+              )}
+            </div>
+          )}
+          {reminded && (
+            <p
+              key={reminded.ok ?? reminded.error}
+              className={`mt-1.5 animate-pop text-xs font-semibold [animation-duration:250ms] ${reminded.ok ? 'text-emerald-700' : 'text-amber-700'}`}
+              data-shift-reminded={reminded.ok ? 'ok' : 'error'}
+            >
+              {reminded.ok ? `✓ ${reminded.ok}` : reminded.error}
+            </p>
+          )}
+        </div>
+      )}
       <form action={action} onReset={keepInputs} className="mt-3 space-y-4">
         <div className="grid grid-cols-2 gap-2">
           {(

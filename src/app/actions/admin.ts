@@ -24,8 +24,8 @@ import { tellWorkers } from '@/lib/notify'
 import { contractNameOf, myWorkTab } from '@/lib/members'
 import { overLimit } from '@/lib/ratelimit'
 import { sendPush } from '@/lib/push'
-import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange } from '@/lib/shift'
-import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SIGN_NUDGE, SIGNAL, signalOf, TIME_FIX_HEAD } from '@/lib/signals'
+import { agreedShiftFor, applyAgreedShift, freezeAttendance, requestShiftChange, span } from '@/lib/shift' // ✏️ 정기 개선 2026-11-27 23:35: span
+import { DISMISS_NOTE, DISMISS_REASONS, fixTime, isComing, isFullTimeAsk, parseFix, pendingFix, SHIFT_ASK_HEAD, SIGN_NUDGE, SIGNAL, signalOf, TIME_FIX_HEAD } from '@/lib/signals' // ✏️ 정기 개선 2026-11-27 23:35: SHIFT_ASK_HEAD
 import { timeFixText } from '@/lib/timefix' // ✏️ 정기 개선 2026-11-27 07:35
 import { COMPANY_COOKIE, requireAdmin } from '@/lib/session'
 import { companyJob, companyRow, workerInCompany } from '@/lib/company'
@@ -1589,6 +1589,80 @@ export async function answerShiftByAdmin(changeId: string) {
   await applyAgreedShift(c)
   await audit(admin.id, 'shift.agree_onsite', c.user_id, `${c.job_id} ${c.work_date ?? 'all'} ${c.start_time}~${c.end_time}`, admin.companyId)
   revalidatePath(`/admin/jobs/${c.job_id}`)
+}
+
+/**
+ * ✏️ 정기 개선 2026-11-27 23:35: 근무시간 변경에 아직 답하지 않은 근무자에게 다시 알리기 (출퇴근 탭 '근무시간 변경' 칸).
+ * 우리 회사 공고 · 지금 보는 날(또는 전체 일정) 요청 · 아직 확정자인 사람만. 같은 사람에게는 10분에 한 번만 (여러 번 눌러도 알림이 쌓이지 않게).
+ * 첫 줄은 '🔔 일정 변경'이 아닌 SHIFT_ASK_HEAD (서명한 서류가 '일정 바뀜'으로 보이지 않게) · 답·급여 규칙은 그대로
+ */
+export async function remindShiftAnswer(jobId: string, date: string, _: FormState, _form?: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const job = await companyJob(admin, jobId)
+  if (!job) return { error: '공고를 찾을 수 없습니다.' }
+  if (['done', 'cancelled', 'draft'].includes(job.status)) return { error: '진행 중인 공고만 알릴 수 있어요.' }
+  if (!isDate(date) || date < kstDate()) return { error: '지난 날짜는 알리지 않아요.' }
+  const [pendingRows, approvedRows] = await Promise.all([
+    db()
+      .from('shift_changes')
+      .select('*')
+      .eq('company_id', job.company_id)
+      .eq('job_id', jobId)
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(500)
+      .then((r) => must(r) as ShiftChange[]),
+    db()
+      .from('applications')
+      .select('user_id')
+      .eq('job_id', jobId)
+      .eq('status', 'approved')
+      .then((r) => must(r) as { user_id: string }[]),
+  ])
+  const approved = new Set(approvedRows.map((a) => a.user_id))
+  // 사람마다 가장 최근 요청 (화면의 '대기'와 같은 기준: 이날 것 + 전체 일정)
+  const latest = new Map<string, ShiftChange>()
+  for (const c of pendingRows.sort((a, b) => b.created_at.localeCompare(a.created_at))) {
+    if (c.status !== 'pending' || c.job_id !== jobId || !approved.has(c.user_id)) continue
+    if (c.work_date !== date && c.work_date !== null) continue
+    if (!latest.has(c.user_id)) latest.set(c.user_id, c)
+  }
+  if (!latest.size) return { error: '답을 기다리는 사람이 없어요.' }
+  // 10분 안에 이미 다시 알린 사람은 빼기
+  const since = new Date(Date.now() - 10 * 60_000).toISOString()
+  const recent = new Set(
+    (
+      must(
+        await db()
+          .from('messages')
+          .select('thread_user_id, body')
+          .eq('company_id', job.company_id)
+          .eq('job_id', jobId)
+          .eq('from_admin', true)
+          .gte('created_at', since)
+          .limit(1000),
+      ) as { thread_user_id: string; body: string }[]
+    )
+      .filter((m) => m.body.startsWith(SHIFT_ASK_HEAD))
+      .map((m) => m.thread_user_id),
+  )
+  const to = [...latest.keys()].filter((u) => !recent.has(u))
+  if (!to.length) return { error: '방금 알렸어요. 10분 뒤에 다시 보낼 수 있어요.' }
+  await tellWorkers(to, {
+    senderId: admin.id,
+    companyId: job.company_id,
+    jobId,
+    title: SHIFT_ASK_HEAD,
+    text: (uid) => {
+      const c = latest.get(uid)!
+      const when = c.work_date ? `${fmtDate(c.work_date)} ` : '전체 일정 '
+      return `${job.title} · ${when}근무시간 ${span(c.prev_start, c.prev_end)} → ${span(c.start_time, c.end_time)} 변경에 아직 답이 없어요.\n계속 근무하실 수 있는지 앱 '내 근무'에서 알려 주세요.`
+    },
+    tag: `shift-${jobId}`,
+  })
+  await audit(admin.id, 'shift.remind', null, `${jobId} ${date} ${to.length}명`, admin.companyId)
+  revalidatePath('/admin/chat')
+  return { ok: `${to.length}명에게 다시 알렸어요.` }
 }
 
 /**
