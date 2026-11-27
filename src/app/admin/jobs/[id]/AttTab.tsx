@@ -42,6 +42,8 @@ export default async function AttTab({
   check = false,
   fix = null,
   fromPay = false,
+  bulk = null,
+  bulkIn = null,
   company = '',
 }: {
   job: Job
@@ -67,6 +69,9 @@ export default async function AttTab({
   fix?: string | null
   /** 정산 탭의 '시간 수정'으로 왔으면 저장한 뒤 정산 탭으로 돌아감 */
   fromPay?: boolean
+  /** ✏️ 정기 개선 2026-11-27 11:36: 정산 탭 '일찍 찍힌 출근 · 한 번에 고치기' — 미리 고를 사람 · 채울 출근 시각 */
+  bulk?: string[] | null
+  bulkIn?: string | null
   /** 문자 머리에 회사 이름 */
   company?: string
 }) {
@@ -456,7 +461,13 @@ export default async function AttTab({
 
       {/* 근로시간 일괄 조정 (사용자 요청 2026-11-07): 이날 기록이 있는 사람을 골라 출근·종료 시각을 한 번에 */}
       {dayAtts.length > 0 && (
-        <details className="card p-0" data-bulk-adjust>
+        // ✏️ 정기 개선 2026-11-27 11:36: 정산 탭에서 '한 번에 고치기'로 오면 펼친 채 · 테두리 한 번 (0.3초 · 움직임 줄이기면 globals.css 전체 규칙으로 바로)
+        <details
+          id="bulk-adjust"
+          open={bulk?.length ? true : undefined}
+          className={`card scroll-mt-24 p-0 ${bulk?.length ? 'animate-[flash-ring_0.3s_ease-out_1]' : ''}`}
+          data-bulk-adjust
+        >
           <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 font-bold">
             {/* 위 '근무시간 변경'(시계)과 구분: 기록 고치기는 연필 — 정기 개선 2026-11-22 20:35 */}
             <Icon name="pen" className="text-brand-600" /> 여러 명 시간 한 번에 고치기
@@ -473,6 +484,9 @@ export default async function AttTab({
               }))}
               startText={hhmm(dayShift.start)}
               endText={hhmm(dayShift.end)}
+              initialPicked={bulk ?? undefined}
+              initialIn={bulk?.length ? (bulkIn ?? undefined) : undefined}
+              backHref={bulk?.length && fromPay ? `/admin/jobs/${job.id}?tab=pay` : undefined}
             />
           </div>
         </details>

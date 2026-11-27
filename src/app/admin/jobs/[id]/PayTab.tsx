@@ -137,6 +137,14 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
         })
         .filter((x) => x.min > 60)
         .sort((x, y) => y.min - x.min)
+  // ✏️ 정기 개선 2026-11-27 11:36: 같은 날 · 같은 시작 시각에 2건 이상이면 '한 번에 고치기' → 출퇴근 탭 '여러 명 시간 한 번에 고치기'가
+  //   그 사람들을 고르고 출근 칸을 시작 시각으로 채운 채 열림 (저장은 원래처럼 두 번 눌러서 · 날짜·시작이 섞이면 한 사람씩)
+  const earlyBulk = early.length >= 2 && early.every((x) => x.a.work_date === early[0].a.work_date && x.start === early[0].start)
+  const earlyHref = !early.length
+    ? null
+    : earlyBulk
+      ? `/admin/jobs/${job.id}?tab=att&date=${early[0].a.work_date}&bulk=${early.slice(0, 100).map((x) => x.a.user_id).join(',')}&in=${early[0].start}&from=pay#bulk-adjust`
+      : `/admin/jobs/${job.id}?tab=att&date=${early[0].a.work_date}&fix=${early[0].a.user_id}&from=pay#att-${early[0].a.user_id}`
 
   // 한눈에: 지급할 사람 중 몇 명에게 보냈는지 · 남은 금액 (계산은 위 정산과 같은 값 — 규칙은 그대로)
   const payable = rows.filter((r) => r.done > 0)
@@ -336,9 +344,9 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
       )}
       {/* ✏️ 정기 개선 2026-11-27 03:36: 시작보다 한참 일찍 찍힌 출근 → 그 기록 고치는 칸으로 바로 (고친 뒤 정산 탭으로 돌아옴)
           두 줄로 짧게: 몇 건 · 무슨 일인지 / 가장 이른 사람 · 얼마나 일찍 (나머지는 출퇴근 탭 '조기' 배지) */}
-      {early.length > 0 && (
+      {early.length > 0 && earlyHref && (
         <Link
-          href={`/admin/jobs/${job.id}?tab=att&date=${early[0].a.work_date}&fix=${early[0].a.user_id}&from=pay#att-${early[0].a.user_id}`}
+          href={earlyHref}
           className="block animate-rise rounded-xl bg-sky-50 px-4 py-2.5 text-sm text-sky-900 transition [animation-duration:250ms] active:scale-[0.99]"
           data-pay-early={early.length}
         >
@@ -346,10 +354,15 @@ export default async function PayTab({ job, atts, users, origin, company = '', f
           <span className="flex items-center gap-2">
             <Icon name="clock" className="shrink-0 text-sky-600" />
             <b className="min-w-0 flex-1 truncate">일찍 찍힌 출근 {early.length}건</b>
-            <span className="shrink-0 font-bold whitespace-nowrap">고치기 ›</span>
+            <span className="shrink-0 font-bold whitespace-nowrap" data-pay-early-go={earlyBulk ? 'bulk' : 'one'}>
+              {earlyBulk ? '한 번에 고치기 ›' : '고치기 ›'}
+            </span>
           </span>
           <span className="mt-0.5 block text-xs break-keep text-pretty text-sky-800/90" data-pay-early-top>
-            {users.get(early[0].a.user_id)?.name ?? '근무자'} · {fmtDate(early[0].a.work_date)} 시작 {early[0].start}보다 {minutesText(early[0].min)} 일찍 · <span className="whitespace-nowrap">급여에 그대로 들어가요</span>
+            {users.get(early[0].a.user_id)?.name ?? '근무자'}
+            {/* ✏️ 정기 개선 2026-11-27 11:36: 한 번에 고칠 때는 '○○ 외 n명 · … 최대 3시간 일찍' */}
+            {earlyBulk && ` 외 ${early.length - 1}명`} · {fmtDate(early[0].a.work_date)} 시작 {early[0].start}보다 {earlyBulk ? '최대 ' : ''}
+            {minutesText(early[0].min)} 일찍 · <span className="whitespace-nowrap">급여에 그대로 들어가요</span>
           </span>
         </Link>
       )}

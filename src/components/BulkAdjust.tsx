@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useActionState, useEffect, useState } from 'react'
 import type { FormState } from '@/app/actions/auth'
 import { ConfirmSubmit, FormMessage } from './ui'
@@ -15,16 +16,24 @@ export default function BulkAdjust({
   people,
   startText,
   endText,
+  initialPicked,
+  initialIn,
+  backHref,
 }: {
   action: (state: FormState, form: FormData) => Promise<FormState>
   people: Person[]
   startText: string
   endText: string
+  /** ✏️ 정기 개선 2026-11-27 11:36: 정산 탭 '일찍 찍힌 출근 · 한 번에 고치기'로 왔을 때 미리 고른 사람 · 출근 칸 (지급 끝난 사람은 빼고) */
+  initialPicked?: string[]
+  initialIn?: string
+  /** 고친 뒤 '정산 탭에서 보기 ›' (정산 탭에서 왔을 때만) */
+  backHref?: string
 }) {
   const [state, formAction] = useActionState(action, null)
   const can = people.filter((p) => !p.paid)
-  const [picked, setPicked] = useState<Set<string>>(new Set())
-  const [inT, setIn] = useState('')
+  const [picked, setPicked] = useState<Set<string>>(() => new Set((initialPicked ?? []).filter((u) => can.some((p) => p.uid === u))))
+  const [inT, setIn] = useState(initialIn ?? '')
   const [outT, setOut] = useState('')
   // 저장되면 고른 것·시각을 비움 (화면은 새 기록으로 다시 그려짐)
   useEffect(() => {
@@ -102,6 +111,12 @@ export default function BulkAdjust({
         <span className="min-w-0">바뀐 시각을 근무자에게 알려요</span>
       </label>
       <FormMessage state={state} />
+      {/* ✏️ 정기 개선 2026-11-27 11:36: 정산 탭에서 왔으면 고친 뒤 바로 돌아가 금액 확인 (0.25초 톡) */}
+      {state?.ok && backHref && (
+        <Link href={backHref} className="block animate-pop text-center text-sm font-bold text-brand-700 [animation-duration:250ms] active:scale-95" data-bulk-back>
+          정산 탭에서 금액 보기 ›
+        </Link>
+      )}
       {/* ✏️ 정기 개선 2026-11-27 07:35: 저장되어 고른 사람이 0명이 되면 버튼을 처음 상태로 ('한 번 더 누르면 0명…'이 남지 않게) */}
       <ConfirmSubmit key={n === 0 ? 'none' : 'some'} className="btn-primary w-full" confirmText={`한 번 더 누르면 ${n}명 시간을 고쳐요`} disabled={n === 0 || (!inT && !outT)}>
         {n ? `고른 ${n}명 시간 고치기` : '고칠 사람을 골라 주세요'}

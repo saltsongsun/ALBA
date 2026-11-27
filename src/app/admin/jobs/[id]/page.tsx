@@ -608,7 +608,8 @@ export default async function AdminJobPage(props: PageProps<'/admin/jobs/[id]'>)
           canAddDirect={admin.companyVerified}
         />
       )}
-      {tab === 'att' && <AttTab company={admin.companyName} job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} />}
+      {/* ✏️ 정기 개선 2026-11-27 11:36: bulk·in — 정산 탭 '일찍 찍힌 출근 · 한 번에 고치기'로 왔을 때 '여러 명 시간 한 번에 고치기'를 그 사람들·시작 시각으로 엶 */}
+      {tab === 'att' && <AttTab company={admin.companyName} job={job} apps={approved} waiting={waiting} atts={atts} users={users} date={date} dates={dates} myScores={Object.fromEntries(myRatings.map((r) => [r.user_id, r.score]))} pos={typeof sp.pos === 'string' ? sp.pos : null} st={sp.st === 'working' || sp.st === 'done' || sp.st === 'absent' || sp.st === 'late' ? sp.st : null} openShift={sp.shift === '1'} faces={sp.view === 'faces'} check={sp.view === 'check'} fix={typeof sp.fix === 'string' ? sp.fix : null} fromPay={sp.from === 'pay'} bulk={typeof sp.bulk === 'string' ? sp.bulk.split(',').filter(isUuid).slice(0, 100) : null} bulkIn={typeof sp.in === 'string' && /^\d\d:\d\d$/.test(sp.in) ? sp.in : null} />}
       {/* 정산표 엑셀·이체 목록(계좌번호)은 명단 잠금을 푼 10분 안에만 · 잠긴 채 누르면 ?unlock → 이 탭 자리에 잠금 화면 (풀면 다시 정산 탭 · 보안 점검 2026-11-25) */}
       {tab === 'pay' &&
         (sp.unlock && !payFilesOpen ? (
