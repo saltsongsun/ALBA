@@ -81,6 +81,46 @@ export default async function ProHome(props: PageProps<'/pro'>) {
   const counts = countApps(jobs, 'approved')
   const mine = new Map(myApps.map((a) => [a.job_id, a.status]))
   const toAnswer = quotes.filter((q) => q.request?.status === 'open' && (q.status === 'requested' || q.status === 'submitted'))
+  // ✏️ 정기 개선 2026-11-28 15:36: 답할 견적 순서 — 아직 안 낸 요청 먼저, 그다음 마감이 가까운 순 (마감일 없음은 뒤 · 같으면 원래대로 최근 순)
+  //   5개가 넘으면 나머지는 'n개 더 보기'로 접어 둠 (전에는 6번째부터 말없이 안 보였음)
+  const dayOf = (ymd: string) => Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10)))
+  const answerOrder = [...toAnswer].sort(
+    (a, b) => Number(a.status === 'submitted') - Number(b.status === 'submitted') || (a.request?.due_date ?? '9999').localeCompare(b.request?.due_date ?? '9999'),
+  )
+  /** 아직 안 낸 요청만: 마감 지남 · 오늘까지 · 내일까지 (견적 화면과 같은 말) — 그 밖에는 배지 없음 */
+  const dueBadge = (q: (typeof toAnswer)[number]) => {
+    const due = q.request?.due_date
+    if (q.status !== 'requested' || !due) return null
+    const left = Math.round((dayOf(due) - dayOf(today)) / 86_400_000)
+    if (left < 0) return { text: '지남', tone: 'bg-rose-50 text-rose-600', key: 'late' }
+    if (left === 0) return { text: '오늘까지', tone: 'bg-amber-100 text-amber-800', key: 'today' }
+    if (left === 1) return { text: '내일까지', tone: 'bg-amber-50 text-amber-700', key: 'tomorrow' }
+    return null
+  }
+  const answerRow = (q: (typeof toAnswer)[number]) => {
+    const badge = dueBadge(q)
+    return (
+      <Link key={q.id} href={`/quote/${q.token}`} className="card-link flex items-center justify-between gap-3 p-4" data-pro-quote={q.status}>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-semibold text-mute">{q.company}</span>
+          <span className="block font-bold">{q.request?.title}</span>
+          <span className="block text-sm text-sub">
+            {q.request?.due_date ? `마감 ${fmtDate(q.request.due_date)}` : '마감일 없음'}
+            {q.status === 'submitted' && q.amount != null && ` · 보낸 견적 ${won(q.amount)}`}
+            {badge && (
+              <span
+                className={`ml-1.5 inline-block animate-[pop_0.25s_ease-out_both] rounded-full px-2 py-0.5 text-xs font-semibold whitespace-nowrap motion-reduce:animate-none ${badge.tone}`}
+                data-pro-quote-due={badge.key}
+              >
+                {badge.text}
+              </span>
+            )}
+          </span>
+        </span>
+        <span className="shrink-0 text-sm font-bold whitespace-nowrap text-brand-600">{q.status === 'submitted' ? '고치기 →' : '견적 내기 →'}</span>
+      </Link>
+    )
+  }
   const unpaid = pays.filter((p) => !p.paid_at)
   const unpaidSum = unpaid.reduce((n, p) => n + p.amount, 0)
 
@@ -199,21 +239,17 @@ export default async function ProHome(props: PageProps<'/pro'>) {
           <h2 className="section-title">
             <Icon name="file" className="text-brand-600" /> 답할 견적 요청
           </h2>
-          <div className="stagger space-y-2">
-            {toAnswer.slice(0, 5).map((q) => (
-              <Link key={q.id} href={`/quote/${q.token}`} className="card-link flex items-center justify-between gap-3 p-4">
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold text-mute">{q.company}</span>
-                  <span className="block font-bold">{q.request?.title}</span>
-                  <span className="block text-sm text-sub">
-                    {q.request?.due_date ? `마감 ${fmtDate(q.request.due_date)}` : '마감일 없음'}
-                    {q.status === 'submitted' && q.amount != null && ` · 보낸 견적 ${won(q.amount)}`}
-                  </span>
-                </span>
-                <span className="shrink-0 text-sm font-bold whitespace-nowrap text-brand-600">{q.status === 'submitted' ? '고치기 →' : '견적 내기 →'}</span>
-              </Link>
-            ))}
-          </div>
+          {/* ✏️ 정기 개선 2026-11-28 15:36: 줄 모양은 그대로 (answerRow) · 안 낸 것·마감 가까운 것 먼저 + 마감 배지 · 6번째부터는 접어서 */}
+          <div className="stagger space-y-2">{answerOrder.slice(0, 5).map(answerRow)}</div>
+          {answerOrder.length > 5 && (
+            <details className="group mt-2" data-pro-quote-more>
+              <summary className="tap flex cursor-pointer items-center justify-center rounded-2xl py-2.5 text-sm font-semibold text-brand-600 active:opacity-60">
+                <span className="group-open:hidden">견적 요청 {answerOrder.length - 5}개 더 보기</span>
+                <span className="hidden group-open:inline">접기</span>
+              </summary>
+              <div className="space-y-2 group-open:animate-slide-down group-open:[animation-duration:250ms] motion-reduce:group-open:animate-none">{answerOrder.slice(5).map(answerRow)}</div>
+            </details>
+          )}
         </section>
       )}
 
