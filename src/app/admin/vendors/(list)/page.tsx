@@ -5,6 +5,7 @@ import { ContactButtons } from '@/components/Contact'
 import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import Fold from '@/components/Fold'
+import HashFocus from '@/components/HashFocus' // ✏️ 정기 개선 2026-11-28 11:36
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
 import { PaymentForm, QuoteRequestForm, VendorForm, type QuoteReuse } from '@/components/vendor' // ✏️ 정기 개선 2026-11-28 07:36: QuoteReuse
 import { decrypt } from '@/lib/crypto'
@@ -279,6 +280,7 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
         </div>
       )}
 
+      {tab === 'pay' && <HashFocus prefix="pay-" /> /* ✏️ 정기 개선 2026-11-28 11:36 */}
       {tab === 'pay' && (
         <div className="space-y-3">
           {invoiceVendors.length > 0 && (
@@ -335,7 +337,12 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
               const account = v ? decrypt(v.bank_account_enc) : null
               const job = p.job_id ? jobOf.get(p.job_id) : null
               return (
-                <div key={p.id} className={`card space-y-2.5 p-4 ${st.key === 'overdue' ? 'ring-2 ring-rose-200' : ''}`}>
+                // ✏️ 정기 개선 2026-11-28 11:36: id·scroll-mt·data-[hash-focus] 테두리 — 견적 화면 '대금 지급에서 보기 →'로 오면 그 지급 건이 가운데로 + 테두리
+                <div
+                  key={p.id}
+                  id={`pay-${p.id}`}
+                  className={`card scroll-mt-32 space-y-2.5 p-4 transition-shadow duration-200 data-[hash-focus]:ring-2 data-[hash-focus]:ring-brand-400 ${st.key === 'overdue' ? 'ring-2 ring-rose-200' : ''}`}
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <Link href={`/admin/vendors/${p.vendor_id}`} className="font-bold">

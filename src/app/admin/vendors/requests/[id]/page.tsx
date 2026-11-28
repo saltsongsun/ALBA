@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { addVendorsToRequest, selectQuote, setRequestStatus, unselectQuote } from '@/app/actions/vendor'
+import { addVendorsToRequest, selectQuote, setPaymentDue, setRequestStatus, unselectQuote } from '@/app/actions/vendor' // ✏️ 정기 개선 2026-11-28 11:36: setPaymentDue
 import Flash from '@/components/Flash'
 import Fold from '@/components/Fold'
 import { GroupContact } from '@/components/GroupContact'
@@ -14,9 +14,9 @@ import { db, must } from '@/lib/db'
 import { won } from '@/lib/format'
 import { requireAdmin, siteOrigin } from '@/lib/session'
 import { fmtDate, kstDate, kstDateTime } from '@/lib/time'
-import type { Quote, QuoteRequest, Vendor } from '@/lib/types'
+import type { Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types' // ✏️ 정기 개선 2026-11-28 11:36: VendorPayment
 import { isUuid } from '@/lib/validate'
-import { lowestQuote, QUOTE_STATUS, quoteLink, quoteMessage, vatTotal } from '@/lib/vendors'
+import { lowestQuote, payState, QUOTE_STATUS, quoteLink, quoteMessage, vatTotal } from '@/lib/vendors' // ✏️ 정기 개선 2026-11-28 11:36: payState
 
 export const metadata: Metadata = { title: '견적 비교' }
 
@@ -58,6 +58,15 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
   const vendorOf = new Map(vendors.map((v) => [v.id, v]))
   const today = kstDate()
   const open = req.status === 'open'
+  // ✏️ 정기 개선 2026-11-28 11:36: 선정한 견적으로 만든 대금 지급 건 (이 회사 것만) — 선정 카드에서 지급 상태·지급 예정일을 바로 보고 정함
+  const pickedQ = quotes.find((q) => q.status === 'selected')
+  const pickedPay = pickedQ
+    ? (
+        (must(
+          await db().from('vendor_payments').select('id, company_id, quote_id, due_date, paid_at').eq('company_id', admin.companyId).eq('quote_id', pickedQ.id),
+        ) as Pick<VendorPayment, 'id' | 'company_id' | 'quote_id' | 'due_date' | 'paid_at'>[]).filter((p) => p.company_id === admin.companyId && p.quote_id === pickedQ.id)
+      )[0] ?? null
+    : null
   const got = quotes.filter((q) => q.amount != null)
   // 비교는 부가세 포함 금액으로 (포함·별도가 섞여 있으면 적힌 숫자만으로는 어느 쪽이 싼지 뒤바뀔 수 있음)
   const { low, mixed } = lowestQuote(quotes)
@@ -210,7 +219,8 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
               )}
               {q.status === 'selected' && (
                 <>
-                  <Link href="/admin/vendors?tab=pay" className="chip-primary h-8 px-3 text-xs">
+                  {/* ✏️ 정기 개선 2026-11-28 11:36: 대금 지급 탭의 바로 그 지급 건으로 (테두리 표시) — 지급 건이 없으면 전처럼 탭으로 */}
+                  <Link href={pickedPay ? `/admin/vendors?tab=pay${pickedPay.paid_at ? '&show=all' : ''}#pay-${pickedPay.id}` : '/admin/vendors?tab=pay'} className="chip-primary h-8 px-3 text-xs" data-quote-pay-link>
                     대금 지급에서 보기 →
                   </Link>
                   <form action={unselectQuote.bind(null, q.id)}>
@@ -221,6 +231,30 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
                 </>
               )}
             </div>
+            {/* ✏️ 정기 개선 2026-11-28 11:36: 선정한 견적의 대금 — 상태 한 줄 + 지급 예정일 바로 정하기 (대금 지급 탭과 같은 저장) · 저장하면 날짜 줄이 짧게 톡 */}
+            {q.status === 'selected' && pickedPay && (
+              <div data-quote-pay className="space-y-2 rounded-xl px-3 py-2.5 text-sm ring-1 ring-line">
+                <p key={`${pickedPay.due_date ?? ''}-${pickedPay.paid_at ?? ''}`} className="flex flex-wrap items-center gap-1.5 animate-[pop_0.25s_ease-out_both] motion-reduce:animate-none" data-quote-pay-state>
+                  <span className={`badge ${payState(pickedPay, today).cls}`}>{payState(pickedPay, today).label}</span>
+                  {/* 배지가 상태를 말하니 옆에는 날짜만 (같은 말 반복 안 함) */}
+                  {pickedPay.paid_at ? (
+                    <span className="text-mute">{fmtDate(pickedPay.paid_at)}</span>
+                  ) : pickedPay.due_date ? (
+                    <span className="font-semibold text-sub">{fmtDate(pickedPay.due_date)}</span>
+                  ) : (
+                    <span className="text-amber-700">날짜 없음</span>
+                  )}
+                </p>
+                {!pickedPay.paid_at && (
+                  <form action={setPaymentDue.bind(null, pickedPay.id)} className="flex items-center gap-1.5">
+                    <input type="date" name="due_date" defaultValue={pickedPay.due_date ?? ''} className="input h-8 w-36 py-0 text-xs" aria-label="지급 예정일" />
+                    <SubmitButton className="chip h-8 px-2.5 text-xs" pendingText="…">
+                      {pickedPay.due_date ? '날짜 바꾸기' : '날짜 저장'}
+                    </SubmitButton>
+                  </form>
+                )}
+              </div>
+            )}
             {open && q.status !== 'selected' && (
               <Fold title="전화·메일로 받은 견적 기록" summary="업체가 링크를 쓰지 않을 때" className="space-y-3">
                 <RecordQuoteForm quoteId={q.id} amount={q.amount} vat={q.vat_included} note={q.note} />
