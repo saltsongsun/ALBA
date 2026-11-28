@@ -18,6 +18,7 @@ import { fmtDate, kstDate } from '@/lib/time'
 import type { Job, Quote, QuoteRequest, Vendor, VendorPayment } from '@/lib/types'
 import { isUuid } from '@/lib/validate'
 import { lowestQuote, payState } from '@/lib/vendors'
+import { quoteDue } from '@/lib/due' // ✏️ 정기 개선 2026-11-28 17:36
 
 export const metadata: Metadata = { title: '외주 관리' }
 
@@ -237,7 +238,8 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
               위에서 업체를 골라 견적을 요청해 보세요.
             </Empty>
           ) : (
-            [...openRequests, ...requests.filter((r) => r.status !== 'open')].map((r) => {
+            // ✏️ 정기 개선 2026-11-28 17:36: 받는 중인 요청은 마감이 가까운 순 (마감일 없음은 뒤 · 같으면 원래 순서)
+            [...[...openRequests].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')), ...requests.filter((r) => r.status !== 'open')].map((r) => {
               const qs = quotes.filter((q) => q.request_id === r.id)
               const got = qs.filter((q) => q.amount != null)
               // 최저는 부가세 포함 기준 (견적 비교 화면과 같게)
@@ -271,6 +273,18 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
                   </p>
                   <p className="text-xs text-mute">
                     {r.due_date ? `마감 ${fmtDate(r.due_date)}` : '마감일 없음'}
+                    {/* ✏️ 정기 개선 2026-11-28 17:36: 받는 중이고 마감이 오늘·내일이면 짧은 배지 (지난 것은 위 '마감일 지남'이 이미 알려 줌 · 0.25초 톡) */}
+                    {(() => {
+                      const due = r.status === 'open' ? quoteDue(r.due_date, today) : null
+                      return due && due.key !== 'late' ? (
+                        <span
+                          className={`ml-1.5 inline-block animate-[pop_0.25s_ease-out_both] rounded-full px-1.5 text-[11px] leading-5 font-semibold whitespace-nowrap motion-reduce:animate-none ${due.tone}`}
+                          data-request-due={due.key}
+                        >
+                          {due.text}
+                        </span>
+                      ) : null
+                    })()}
                     {r.job_id && jobOf.get(r.job_id) && ` · ${jobOf.get(r.job_id)!.title}`}
                   </p>
                 </Link>

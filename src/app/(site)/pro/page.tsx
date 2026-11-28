@@ -18,7 +18,7 @@ import PushNudge from '@/components/PushNudge'
 import PushToggle from '@/components/PushToggle'
 import { pushPublicKey } from '@/lib/push'
 import { fmtDate, kstDate } from '@/lib/time'
-import { DUE_TONE, payDue } from '@/lib/due'
+import { DUE_TONE, payDue, quoteDue } from '@/lib/due'
 
 export const metadata: Metadata = { title: '전문가·외주 파트너' }
 
@@ -83,20 +83,11 @@ export default async function ProHome(props: PageProps<'/pro'>) {
   const toAnswer = quotes.filter((q) => q.request?.status === 'open' && (q.status === 'requested' || q.status === 'submitted'))
   // ✏️ 정기 개선 2026-11-28 15:36: 답할 견적 순서 — 아직 안 낸 요청 먼저, 그다음 마감이 가까운 순 (마감일 없음은 뒤 · 같으면 원래대로 최근 순)
   //   5개가 넘으면 나머지는 'n개 더 보기'로 접어 둠 (전에는 6번째부터 말없이 안 보였음)
-  const dayOf = (ymd: string) => Date.UTC(Number(ymd.slice(0, 4)), Number(ymd.slice(5, 7)) - 1, Number(ymd.slice(8, 10)))
   const answerOrder = [...toAnswer].sort(
     (a, b) => Number(a.status === 'submitted') - Number(b.status === 'submitted') || (a.request?.due_date ?? '9999').localeCompare(b.request?.due_date ?? '9999'),
   )
-  /** 아직 안 낸 요청만: 마감 지남 · 오늘까지 · 내일까지 (견적 화면과 같은 말) — 그 밖에는 배지 없음 */
-  const dueBadge = (q: (typeof toAnswer)[number]) => {
-    const due = q.request?.due_date
-    if (q.status !== 'requested' || !due) return null
-    const left = Math.round((dayOf(due) - dayOf(today)) / 86_400_000)
-    if (left < 0) return { text: '지남', tone: 'bg-rose-50 text-rose-600', key: 'late' }
-    if (left === 0) return { text: '오늘까지', tone: 'bg-amber-100 text-amber-800', key: 'today' }
-    if (left === 1) return { text: '내일까지', tone: 'bg-amber-50 text-amber-700', key: 'tomorrow' }
-    return null
-  }
+  /** 아직 안 낸 요청만: 마감 지남 · 오늘까지 · 내일까지 (견적 화면과 같은 말) — 그 밖에는 배지 없음 (✏️ 17:36: 같은 규칙을 lib/due quoteDue로 함께 씀) */
+  const dueBadge = (q: (typeof toAnswer)[number]) => (q.status === 'requested' ? quoteDue(q.request?.due_date, today) : null)
   const answerRow = (q: (typeof toAnswer)[number]) => {
     const badge = dueBadge(q)
     return (

@@ -26,3 +26,16 @@ export const DUE_TONE: Record<DueTone, string> = {
   soon: 'bg-amber-50 text-amber-700',
   none: 'bg-bg text-mute',
 }
+
+/**
+ * ✏️ 정기 개선 2026-11-28 17:36: 견적 마감 배지 (외주 업체 홈 · 견적·대금 · 관리자 견적 목록이 같은 말을 쓰게)
+ * 마감일이 지났으면 '지남'(빨강) · 오늘이면 '오늘까지' · 내일이면 '내일까지' — 그 밖에는 배지 없음
+ */
+export function quoteDue(due: string | null | undefined, today: string): { text: string; tone: string; key: 'late' | 'today' | 'tomorrow' } | null {
+  if (!due) return null
+  const d = Math.round((day(due) - day(today)) / 86_400_000)
+  if (d < 0) return { text: '지남', tone: 'bg-rose-50 text-rose-600', key: 'late' }
+  if (d === 0) return { text: '오늘까지', tone: 'bg-amber-100 text-amber-800', key: 'today' }
+  if (d === 1) return { text: '내일까지', tone: 'bg-amber-50 text-amber-700', key: 'tomorrow' }
+  return null
+}

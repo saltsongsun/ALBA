@@ -8,7 +8,7 @@ import { partnerCompanies, partnerPayments, partnerQuotes, type PartnerQuote } f
 import { PartnerShareCard } from '@/components/pro'
 import { requireUser } from '@/lib/session'
 import { fmtDate, kstDate } from '@/lib/time'
-import { DUE_TONE, payDue } from '@/lib/due'
+import { DUE_TONE, payDue, quoteDue } from '@/lib/due'
 import { db } from '@/lib/db'
 import { ASK_INVOICE, ASK_PAYDUE, invoiceTag } from '@/lib/signals'
 
@@ -147,16 +147,36 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
             <span className="shrink-0 text-xs whitespace-nowrap text-mute">새 요청은 알림으로</span>
           </p>
         ) : (
-          <div className="card divide-y divide-line py-1">
-            {quotes.map((q) => {
+          (() => {
+            // ✏️ 정기 개선 2026-11-28 17:36: 답할 견적(받는 중)을 위에 — 아직 안 낸 것 먼저, 그다음 마감이 가까운 순 (마감일 없음은 뒤)
+            //   끝난 견적(선정·미선정·마감·취소)은 받는 중인 게 있으면 '지난 견적 n개'로 접어 둠 (없으면 그대로 펼쳐서) · 줄 모양·글자는 그대로
+            const isOpen = (q: (typeof quotes)[number]) => q.request?.status === 'open' && (q.status === 'requested' || q.status === 'submitted')
+            const openQ = quotes
+              .filter(isOpen)
+              .sort((a, b) => Number(a.status === 'submitted') - Number(b.status === 'submitted') || (a.request?.due_date ?? '9999').localeCompare(b.request?.due_date ?? '9999'))
+            const doneQ = quotes.filter((q) => !isOpen(q))
+            const row = (q: (typeof quotes)[number]) => {
               const st = QUOTE_STATE[q.status]
-              const open = q.request?.status === 'open' && (q.status === 'requested' || q.status === 'submitted')
+              const open = isOpen(q)
               const late = open && q.request?.due_date && q.request.due_date < today
+              // 아직 안 낸 요청만 마감 배지 (홈과 같은 말: 지남 · 오늘까지 · 내일까지)
+              const due = open && q.status === 'requested' ? quoteDue(q.request?.due_date, today) : null
               return (
-                <Link key={q.id} href={`/quote/${q.token}`} className="flex items-center justify-between gap-3 py-3">
+                <Link key={q.id} href={`/quote/${q.token}`} className="flex items-center justify-between gap-3 py-3" data-money-quote={open ? q.status : 'done'}>
                   <span className="min-w-0">
                     <span className="block truncate text-xs font-semibold text-mute">{q.company}</span>
-                    <span className="block font-semibold">{q.request?.title}</span>
+                    <span className="block font-semibold">
+                      {q.request?.title}
+                      {/* 마감 배지는 제목 옆에 (아래 줄은 길어서 배지만 혼자 줄바꿈되지 않게) */}
+                      {due && (
+                        <span
+                          className={`ml-1.5 inline-block animate-[pop_0.25s_ease-out_both] rounded-full px-1.5 align-[1px] text-[11px] leading-5 font-semibold whitespace-nowrap motion-reduce:animate-none ${due.tone}`}
+                          data-money-quote-due={due.key}
+                        >
+                          {due.text}
+                        </span>
+                      )}
+                    </span>
                     <span className="block text-xs text-sub">
                       {q.amount != null ? `${won(q.amount)} (${q.vat_included ? '부가세 포함' : '부가세 별도'})` : '아직 금액을 안 보냈어요'}
                       {q.request?.due_date && <span className={late ? 'text-rose-600' : ''}> · 마감 {fmtDate(q.request.due_date)}</span>}
@@ -168,8 +188,24 @@ export default async function ProMoney(props: PageProps<'/pro/money'>) {
                   </span>
                 </Link>
               )
-            })}
-          </div>
+            }
+            return (
+              <>
+                <div className="card divide-y divide-line py-1">{(openQ.length ? openQ : doneQ).map(row)}</div>
+                {openQ.length > 0 && doneQ.length > 0 && (
+                  <details className="group mt-2" data-money-quote-done>
+                    <summary className="tap flex cursor-pointer items-center justify-center rounded-2xl py-2.5 text-sm font-semibold text-sub active:opacity-60">
+                      <span className="group-open:hidden">지난 견적 {doneQ.length}개</span>
+                      <span className="hidden group-open:inline">접기</span>
+                    </summary>
+                    <div className="card divide-y divide-line py-1 group-open:animate-slide-down group-open:[animation-duration:250ms] motion-reduce:group-open:animate-none">
+                      {doneQ.map(row)}
+                    </div>
+                  </details>
+                )}
+              </>
+            )
+          })()
         )}
       </section>
 
