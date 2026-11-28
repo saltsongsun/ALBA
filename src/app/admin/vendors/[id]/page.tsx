@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation'
 import { ContactButtons } from '@/components/Contact'
 import Flash from '@/components/Flash'
 import Fold from '@/components/Fold'
+import LiveNumber from '@/components/LiveNumber' // ✏️ 정기 개선 2026-11-28 09:36
 import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { VendorForm } from '@/components/vendor'
 import { rowInMyOtherCompany } from '@/lib/company'
@@ -80,24 +81,35 @@ export default async function VendorPage(props: PageProps<'/admin/vendors/[id]'>
         {v.phone && <ContactButtons phone={v.phone} name={v.name} />}
         <p className="text-sm">
           계좌: {account ? `${v.bank_name ?? ''} ${maskAccount(account)} (예금주 ${v.account_holder ?? v.name})` : <span className="text-rose-600">미등록</span>}
+          {/* ✏️ 정기 개선 2026-11-28 09:36: 계좌가 없으면 바로 넣으러 가기 (아래 '정보 수정'을 펼치고 테두리 한 번 · 다른 회사에서 가져온 업체는 계좌가 비어 있음) */}
+          {!account && (
+            <Link href={`/admin/vendors/${v.id}?edit=bank#vendor-edit`} scroll data-vendor-bank-link className="tap ml-1.5 font-semibold whitespace-nowrap text-brand-700">
+              계좌 넣기 ›
+            </Link>
+          )}
         </p>
         <dl className="divide-y divide-line rounded-xl bg-bg px-4 text-sm">
+          {/* ✏️ 정기 개선 2026-11-28 09:36: 숫자가 처음 열 때 0에서 올라감 (LiveNumber countUp · 움직임 줄이기면 바로) — 글자와 숫자는 그대로 */}
           {(
             [
-              ['받은 견적', `${quotes.filter((q) => q.amount != null).length}건`],
-              ['지급 완료', won(paid)],
-              ['미지급', won(unpaid)],
+              ['받은 견적', quotes.filter((q) => q.amount != null).length, '건'],
+              ['지급 완료', paid, '원'],
+              ['미지급', unpaid, '원'],
             ] as const
-          ).map(([k, val]) => (
+          ).map(([k, n, unit]) => (
             <div key={k} className="flex items-center justify-between gap-3 py-2.5">
               <dt className="text-sub">{k}</dt>
-              <dd className="font-bold whitespace-nowrap tabular-nums">{val}</dd>
+              <dd className="font-bold whitespace-nowrap tabular-nums" data-vendor-sum={k}>
+                <LiveNumber value={Math.round(n)} countUp />
+                {unit}
+              </dd>
             </div>
           ))}
         </dl>
       </section>
 
-      <Fold title="정보 수정" summary="연락처·계좌·메모·거래 여부" className="space-y-4">
+      {/* ✏️ 정기 개선 2026-11-28 09:36: '계좌 넣기 ›'로 오면 펼친 채로 테두리 한 번 (id·open·flash만 더함) */}
+      <Fold id="vendor-edit" title="정보 수정" summary="연락처·계좌·메모·거래 여부" open={sp.edit === 'bank'} flash={sp.edit === 'bank'} className="space-y-4">
         <VendorForm
           id={v.id}
           initial={{

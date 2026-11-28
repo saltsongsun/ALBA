@@ -69,7 +69,9 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
   const activeVendors = vendors.filter((v) => v.active)
   // ✏️ 정기 개선 2026-11-28 05:36: 내가 대표·관리자로 있는 다른 회사의 외주사 중 이 회사에 아직 없는 곳 (업체 탭 '내 다른 회사 업체 가져오기')
   // 최고 관리자 권한으로만 보이는 회사는 빼고 · 같은 상호·연락처·사업자번호가 이미 있으면 뺌 · 계좌는 읽지 않음
-  const otherCos = tab === 'list' ? admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super') : []
+  // ✏️ 정기 개선 2026-11-28 09:36: 견적 탭이 비어 있는 새 회사에도 같은 목록으로 '내 다른 회사 업체 가져오기 · n곳' 버튼 (같은 조건 · 계좌는 읽지 않음)
+  const emptyQuotes = tab === 'quotes' && activeVendors.length === 0 && requests.length === 0
+  const otherCos = tab === 'list' || emptyQuotes ? admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super') : []
   const dg = (x: string | null | undefined) => (x ?? '').replace(/\D/g, '')
   const importable = otherCos.length
     ? (
@@ -204,6 +206,18 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
             <Link href="/admin/vendors?tab=list" className="btn-primary mt-4 inline-flex px-5 py-2.5 text-sm">
               업체 등록하러 가기
             </Link>
+            {/* ✏️ 정기 개선 2026-11-28 09:36: 내 다른 회사에 업체가 있으면 한 번에 가져오러 (업체 탭 '가져오기' 칸이 펼쳐지고 테두리 한 번) */}
+            {importable.length > 0 && (
+              <div className="mt-2">
+                <Link
+                  href="/admin/vendors?tab=list&import=1#vendor-import"
+                  data-vendor-import-cta
+                  className="btn-gray inline-flex animate-[pop_0.25s_ease-out_both] px-5 py-2.5 text-sm whitespace-nowrap motion-reduce:animate-none"
+                >
+                  내 다른 회사 업체 가져오기 · {importable.length}곳
+                </Link>
+              </div>
+            )}
           </Empty>
         </div>
       )}
@@ -418,6 +432,9 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
           {/* ✏️ 정기 개선 2026-11-28 05:36: 내 다른 회사에 등록한 업체를 한 번에 (상호·분야·담당자·연락처만 · 계좌는 이 회사에서 다시) — 접어 둠 */}
           {importable.length > 0 && (
             <Fold
+              id="vendor-import" // ✏️ 정기 개선 2026-11-28 09:36: 견적 탭 '가져오기' 버튼으로 오면 펼친 채로 테두리 한 번
+              open={sp.import === '1'}
+              flash={sp.import === '1'}
               title="내 다른 회사 업체 가져오기"
               summary={`${importable[0].name}${importable.length > 1 ? ` 등 ${importable.length}곳` : ''} · 계좌는 빼고 가져와요`}
               className="space-y-2"
