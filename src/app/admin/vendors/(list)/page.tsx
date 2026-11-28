@@ -6,7 +6,7 @@ import Empty from '@/components/Empty'
 import Flash from '@/components/Flash'
 import Fold from '@/components/Fold'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { PaymentForm, QuoteRequestForm, VendorForm } from '@/components/vendor'
+import { PaymentForm, QuoteRequestForm, VendorForm, type QuoteReuse } from '@/components/vendor' // ✏️ 정기 개선 2026-11-28 07:36: QuoteReuse
 import { decrypt } from '@/lib/crypto'
 import { db, must } from '@/lib/db'
 import { maskAccount, won } from '@/lib/format'
@@ -95,6 +95,43 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
         .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
     : []
   const coName = new Map(otherCos.map((c) => [c.id, c.name]))
+  // ✏️ 정기 개선 2026-11-28 07:36: 새 견적 요청 '지난 요청으로 채우기' — 이 회사 최근 요청(제목이 같으면 최근 것 하나) 4개 + 그때 업체(지금 거래 중인 곳만)
+  // 내가 대표·관리자로 있는 다른 회사의 최근 요청은 제목·내용만 3개 (최고 관리자 권한으로만 보이는 회사는 빼고 · 업체·금액은 읽지 않음)
+  const activeIds = new Set(activeVendors.map((v) => v.id))
+  const seenTitle = new Set<string>()
+  const reuse: QuoteReuse[] = []
+  if (tab === 'quotes') {
+    for (const r of requests) {
+      const k = r.title.trim()
+      if (seenTitle.has(k)) continue
+      seenTitle.add(k)
+      reuse.push({ id: r.id, title: r.title, details: r.details, vendorIds: [...new Set(quotes.filter((q) => q.request_id === r.id).map((q) => q.vendor_id))].filter((v) => activeIds.has(v)) })
+      if (reuse.length >= 4) break
+    }
+    const reqCos = admin.companies.filter((c) => c.id !== admin.companyId && c.role !== 'super')
+    if (reqCos.length) {
+      const others = (
+        must(
+          await db()
+            .from('quote_requests')
+            .select('id, company_id, title, details, created_at')
+            .in('company_id', reqCos.map((c) => c.id))
+            .order('created_at', { ascending: false })
+            .limit(30),
+        ) as Pick<QuoteRequest, 'id' | 'company_id' | 'title' | 'details' | 'created_at'>[]
+      )
+        .filter((o) => reqCos.some((c) => c.id === o.company_id))
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+      let n = 0
+      for (const o of others) {
+        const k = o.title.trim()
+        if (seenTitle.has(k)) continue
+        seenTitle.add(k)
+        reuse.push({ id: o.id, title: o.title, details: o.details, vendorIds: [], from: reqCos.find((c) => c.id === o.company_id)?.name ?? '다른 회사' })
+        if (++n >= 3) break
+      }
+    }
+  }
 
   // 지급 목록: 지급일 지난 것 → 곧 → 예정(날짜순, 날짜 없는 건 뒤) → 지급 완료(최근 순)
   const rank = { overdue: 0, soon: 1, planned: 2, paid: 3 }
@@ -177,6 +214,7 @@ export default async function VendorsPage(props: PageProps<'/admin/vendors'>) {
               vendors={activeVendors.map((v) => ({ id: v.id, label: v.name, category: v.category }))}
               jobs={jobOpts}
               jobId={presetJob}
+              recent={reuse} // ✏️ 정기 개선 2026-11-28 07:36
             />
           </Fold>
           {requests.length === 0 ? (

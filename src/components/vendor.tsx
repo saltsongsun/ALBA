@@ -1,6 +1,6 @@
 'use client'
 
-import { useActionState, useState } from 'react'
+import { useActionState, useRef, useState } from 'react' // ✏️ 정기 개선 2026-11-28 07:36: useRef
 import { createQuoteRequest, recordQuote, savePayment, saveVendor, submitQuote } from '@/app/actions/vendor'
 import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
@@ -223,20 +223,99 @@ export function VendorForm({
   )
 }
 
+/** ✏️ 정기 개선 2026-11-28 07:36: '지난 요청으로 채우기' 한 칸 — from이 있으면 내 다른 회사 요청 (제목·내용만 · 업체는 이 회사에서 고름) */
+export type QuoteReuse = { id: string; title: string; details: string | null; vendorIds: string[]; from?: string }
+
 /** 견적 요청 만들기: 내용·마감일·공고 연결·받을 업체 */
-export function QuoteRequestForm({ vendors, jobs, jobId = '' }: { vendors: (Opt & { category: string | null })[]; jobs: Opt[]; jobId?: string }) {
+export function QuoteRequestForm({
+  vendors,
+  jobs,
+  jobId = '',
+  recent = [], // ✏️ 정기 개선 2026-11-28 07:36
+}: {
+  vendors: (Opt & { category: string | null })[]
+  jobs: Opt[]
+  jobId?: string
+  recent?: QuoteReuse[]
+}) {
   const [state, action] = useActionState(createQuoteRequest, null)
   const [cat, setCat] = useState('')
   const cats = [...new Set(vendors.map((v) => v.category).filter((c): c is string => !!c))]
+  // ✏️ 정기 개선 2026-11-28 07:36: 고른 업체 수(누를 때마다 바로) · 지난 요청으로 채운 결과 한 줄
+  const formRef = useRef<HTMLFormElement>(null)
+  const [picked, setPicked] = useState(0)
+  const [reused, setReused] = useState<{ key: number; text: string } | null>(null)
+  const countPicked = () => setPicked(formRef.current?.querySelectorAll('input[name="vendor"]:checked').length ?? 0)
+  const fill = (r: QuoteReuse) => {
+    const f = formRef.current
+    if (!f) return
+    const ring = (el: HTMLElement | null) => {
+      if (!el) return
+      el.removeAttribute('data-filled')
+      void el.offsetWidth
+      el.setAttribute('data-filled', '')
+    }
+    const t = f.querySelector<HTMLInputElement>('input[name="title"]')
+    const d = f.querySelector<HTMLTextAreaElement>('textarea[name="details"]')
+    if (t) t.value = r.title
+    if (d) d.value = r.details ?? ''
+    ring(t)
+    ring(d)
+    // 이 회사 요청이면 그때 받은 업체(지금 거래 중인 곳)를 더해서 골라 둠 · 이미 고른 업체는 그대로
+    let n = 0
+    if (!r.from) {
+      setCat('')
+      f.querySelectorAll<HTMLInputElement>('input[name="vendor"]').forEach((c) => {
+        if (r.vendorIds.includes(c.value)) {
+          c.checked = true
+          n++
+        }
+      })
+    }
+    countPicked()
+    setReused({ key: Date.now(), text: r.from ? '✓ 채웠어요 · 업체는 이 회사에서 골라 주세요' : n ? `✓ 채웠어요 · 그때 업체 ${n}곳을 골라 뒀어요` : '✓ 채웠어요 · 업체를 골라 주세요' })
+  }
   return (
-    <form action={action} onReset={keepInputs} className="space-y-3">
+    <form ref={formRef} action={action} onReset={keepInputs} className="space-y-3">
+      {/* ✏️ 정기 개선 2026-11-28 07:36: 지난 요청으로 채우기 (이 회사 최근 요청 · 내 다른 회사 요청은 🏢 회사 이름) — 제목·내용만 채우고 날짜·공고는 그대로 */}
+      {recent.length > 0 && (
+        <div data-quote-reuse className="space-y-1.5">
+          <p className="text-xs font-semibold text-mute">지난 요청으로 채우기</p>
+          <div className="fade-x flex gap-1.5 overflow-x-auto pb-0.5">
+            {recent.map((r) => (
+              <button
+                key={r.id}
+                type="button"
+                data-quote-reuse-chip={r.from ? 'other' : 'mine'}
+                onClick={() => fill(r)}
+                className="inline-flex max-w-[15rem] shrink-0 items-center gap-1 rounded-full bg-bg px-3 py-1.5 text-[13px] font-semibold text-sub transition active:scale-95"
+              >
+                <span aria-hidden>{r.from ? '🏢' : '↺'}</span>
+                {r.from && <span className="shrink-0 text-mute">{r.from} ·</span>}
+                <span className="truncate">{r.title}</span>
+              </button>
+            ))}
+          </div>
+          {reused && (
+            <p key={reused.key} data-quote-reused className="animate-[pop_0.25s_ease-out_both] text-xs font-semibold text-brand-700 motion-reduce:animate-none">
+              {reused.text}
+            </p>
+          )}
+        </div>
+      )}
       <label className="block">
         <span className="label">요청 제목 *</span>
-        <input name="title" className="input" required maxLength={80} placeholder="예: 무대 음향 장비 2일 (11/8~9)" />
+        <input name="title" className="input" required maxLength={80} placeholder="예: 무대 음향 장비 2일 (11/8~9)" onAnimationEnd={(e) => e.currentTarget.removeAttribute('data-filled')} />
       </label>
       <label className="block">
         <span className="label">요청 내용</span>
-        <textarea name="details" className="input min-h-28" maxLength={2000} placeholder={'품목·수량·일정·장소·설치/철수 시간 등\n예) 메인 스피커 4조, 무선마이크 6개, 콘솔 1대 / 11/8 07:00 설치, 11/9 19:00 철수'} />
+        <textarea
+          name="details"
+          className="input min-h-28"
+          maxLength={2000}
+          placeholder={'품목·수량·일정·장소·설치/철수 시간 등\n예) 메인 스피커 4조, 무선마이크 6개, 콘솔 1대 / 11/8 07:00 설치, 11/9 19:00 철수'}
+          onAnimationEnd={(e) => e.currentTarget.removeAttribute('data-filled')}
+        />
       </label>
       <div className="grid gap-3 sm:grid-cols-2">
         <label>
@@ -255,8 +334,16 @@ export function QuoteRequestForm({ vendors, jobs, jobId = '' }: { vendors: (Opt 
           </select>
         </label>
       </div>
-      <fieldset>
-        <legend className="label">견적 받을 업체 * (여러 곳 고르면 나란히 비교)</legend>
+      {/* ✏️ 정기 개선 2026-11-28 07:36: 고를 때마다 'n곳 고름'이 바로 바뀜 (짧게 톡) */}
+      <fieldset onChange={countPicked}>
+        <legend className="label">
+          견적 받을 업체 * (여러 곳 고르면 나란히 비교)
+          {picked > 0 && (
+            <span key={picked} data-quote-picked className="ml-1.5 inline-block animate-[pop_0.25s_ease-out_both] whitespace-nowrap text-brand-700 motion-reduce:animate-none">
+              · {picked}곳 고름
+            </span>
+          )}
+        </legend>
         {vendors.length === 0 ? (
           <p className="text-sm text-mute">먼저 ‘업체’ 탭에서 외주사를 등록해 주세요.</p>
         ) : (
@@ -279,7 +366,8 @@ export function QuoteRequestForm({ vendors, jobs, jobId = '' }: { vendors: (Opt 
               {vendors.map((v) => (
                 <label key={v.id} className={cat && v.category !== cat ? 'hidden' : ''}>
                   <input type="checkbox" name="vendor" value={v.id} className="peer sr-only" />
-                  <span className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-sub ring-1 ring-line peer-checked:bg-brand-50 peer-checked:text-brand-700 peer-checked:ring-brand-500">
+                  {/* ✏️ 정기 개선 2026-11-28 07:36: 누름 반응 + 고르면 ✓ 표시와 짧은 톡 */}
+                  <span className="inline-flex cursor-pointer items-center gap-1 rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-sub ring-1 ring-line transition peer-checked:animate-[pop_0.25s_ease-out_both] peer-checked:bg-brand-50 peer-checked:text-brand-700 peer-checked:ring-brand-500 peer-checked:before:content-['✓'] peer-focus-visible:ring-2 active:scale-95 motion-reduce:peer-checked:animate-none">
                     {v.label}
                     {v.category && <span className="text-xs font-medium text-mute">{v.category}</span>}
                   </span>
