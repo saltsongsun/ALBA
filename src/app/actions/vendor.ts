@@ -236,6 +236,59 @@ export async function addVendorsToRequest(requestId: string, form: FormData) {
   back(path, add.length ? `${add.length}곳을 더했어요. 링크를 보내 주세요.` : '이미 들어 있는 업체예요.')
 }
 
+/** ✏️ 정기 개선 2026-11-28 13:36: 견적 '다시 알림' 첫 줄 (업체가 앱 문의함에서 보는 줄 · 10분 안에 또 보내지 않게 이 줄로 찾음) */
+const QUOTE_REMIND_HEAD = '📄 견적 다시 알림'
+
+/**
+ * ✏️ 정기 개선 2026-11-28 13:36: 견적 받는 중인 요청에서 아직 금액을 안 낸 업체 중 앱에 연결된 곳에만 다시 알림 (이 회사 요청·이 회사 업체만)
+ * 앱이 없는 업체는 링크가 업체마다 달라 한꺼번에 보낼 수 없어 각 카드의 '문자로 요청'을 그대로 씀 · 10분 안에 다시 못 보냄
+ */
+export async function remindQuoteVendors(requestId: string, _: FormState, _form?: FormData): Promise<FormState> {
+  const admin = await requireAdmin()
+  const req = await companyRow<QuoteRequest>(admin, 'quote_requests', requestId)
+  if (!req) return { error: '견적 요청을 찾을 수 없어요.' }
+  if (req.status !== 'open') return { error: '견적을 받는 중일 때만 다시 알릴 수 있어요.' }
+  const waiting = (must(await db().from('quotes').select('id, request_id, vendor_id, token, amount, status').eq('request_id', req.id)) as Pick<
+    Quote,
+    'id' | 'request_id' | 'vendor_id' | 'token' | 'amount' | 'status'
+  >[]).filter((q) => q.request_id === req.id && q.amount == null && q.status === 'requested')
+  if (!waiting.length) return { error: '아직 안 낸 업체가 없어요.' }
+  const linked = (must(
+    await db().from('vendors').select('id, company_id, user_id, active').eq('company_id', admin.companyId).in('id', waiting.map((q) => q.vendor_id)),
+  ) as Pick<Vendor, 'id' | 'company_id' | 'user_id' | 'active'>[]).filter((v) => v.company_id === admin.companyId && v.active && v.user_id)
+  if (!linked.length) return { error: '앱에 연결된 업체가 없어요. 카드의 ‘문자로 요청’으로 보내 주세요.' }
+  // 같은 요청으로 10분 안에 보낸 다시 알림이 있으면 막음 (가짜 DB는 gte를 무시해서 시간도 직접 거름)
+  const since = new Date(Date.now() - 10 * 60_000).toISOString()
+  const recent = (
+    (must(
+      await db()
+        .from('messages')
+        .select('thread_user_id, body, created_at')
+        .eq('company_id', admin.companyId)
+        .in('thread_user_id', linked.map((v) => v.user_id as string))
+        .gte('created_at', since),
+    ) as { thread_user_id: string; body: string; created_at: string }[]) ?? []
+  ).filter((m) => m.created_at >= since && m.body.startsWith(QUOTE_REMIND_HEAD) && m.body.includes(req.title))
+  if (recent.length) return { error: '방금 알렸어요. 10분 뒤에 다시 보낼 수 있어요.' }
+  const origin = await siteOrigin()
+  let n = 0
+  for (const v of linked) {
+    const q = waiting.find((x) => x.vendor_id === v.id)
+    if (!q) continue
+    const ok = await tellPartner(v.id, {
+      companyId: admin.companyId,
+      jobId: req.job_id,
+      title: QUOTE_REMIND_HEAD,
+      text: `${admin.companyName} · ${req.title}${req.due_date ? ` · 마감 ${req.due_date.slice(5).replace('-', '/')}` : ''}\n아직 견적이 오지 않았어요. 앱에서 금액을 적어 보내 주세요.`,
+      url: `${origin}/quote/${q.token}`.replace(/^https?:\/\/[^/]+/, ''),
+      tag: `quote-${q.token.slice(0, 8)}`,
+    })
+    if (ok) n++
+  }
+  await audit(admin.id, 'quote.remind', null, `${req.title} · ${n}곳`, admin.companyId)
+  return { ok: `${n}곳에 앱으로 다시 알렸어요.` }
+}
+
 /** 관리자가 전화·메일로 받은 견적을 기록 */
 export async function recordQuote(quoteId: string, _: FormState, form: FormData): Promise<FormState> {
   const admin = await requireAdmin()

@@ -1,7 +1,7 @@
 'use client'
 
 import { useActionState, useRef, useState } from 'react' // ✏️ 정기 개선 2026-11-28 07:36: useRef
-import { createQuoteRequest, recordQuote, savePayment, saveVendor, submitQuote } from '@/app/actions/vendor'
+import { createQuoteRequest, recordQuote, remindQuoteVendors, savePayment, saveVendor, submitQuote } from '@/app/actions/vendor' // ✏️ 정기 개선 2026-11-28 13:36: remindQuoteVendors
 import { wonReadable } from '@/lib/format'
 import { BANKS } from '@/lib/privacy'
 import { VENDOR_CATEGORIES, vatTotal } from '@/lib/vendors'
@@ -383,6 +383,29 @@ export function QuoteRequestForm({
       </SubmitButton>
       <p className="hint">만들면 업체마다 견적 입력 링크가 생겨요. 문자·카톡으로 보내면 업체가 로그인 없이 금액을 적어 보내요.</p>
     </form>
+  )
+}
+
+/**
+ * ✏️ 정기 개선 2026-11-28 13:36: 견적 받는 중 · 아직 안 낸 업체 중 앱에 연결된 곳에 한 번에 다시 알림 (10분 안에 다시 못 보냄)
+ * 결과 한 줄이 짧게 톡 (움직임 줄이기면 없음)
+ */
+export function QuoteRemind({ requestId, linked }: { requestId: string; linked: number }) {
+  const [state, action] = useActionState(remindQuoteVendors.bind(null, requestId), null)
+  const said = state?.ok ? `✓ ${state.ok}` : (state?.error ?? null)
+  return (
+    <div data-quote-remind className="space-y-1">
+      <form action={action}>
+        <SubmitButton className="chip h-8 px-3 text-xs" pendingText="보내는 중…">
+          앱 연결 {linked}곳에 다시 알리기
+        </SubmitButton>
+      </form>
+      {said && (
+        <p key={said} data-quote-reminded className={`animate-[pop_0.25s_ease-out_both] text-xs font-semibold motion-reduce:animate-none ${said.startsWith('✓') ? 'text-emerald-700' : 'text-amber-700'}`}>
+          {said}
+        </p>
+      )}
+    </div>
   )
 }
 

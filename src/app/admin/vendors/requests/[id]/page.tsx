@@ -6,7 +6,7 @@ import Flash from '@/components/Flash'
 import Fold from '@/components/Fold'
 import { GroupContact } from '@/components/GroupContact'
 import { ConfirmSubmit, CopyButton, SubmitButton } from '@/components/ui'
-import { RecordQuoteForm } from '@/components/vendor'
+import { QuoteRemind, RecordQuoteForm } from '@/components/vendor' // ✏️ 정기 개선 2026-11-28 13:36: QuoteRemind
 import OtherCompanyJob from '@/components/OtherCompanyJob'
 import { rowInMyOtherCompany } from '@/lib/company'
 import { getJob, getSettings } from '@/lib/data'
@@ -74,6 +74,8 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
   const sorted = [...quotes].sort((a, b) => (vatTotal(a) ?? Infinity) - (vatTotal(b) ?? Infinity))
   const notIn = vendors.filter((v) => v.active && !quotes.some((q) => q.vendor_id === v.id)).sort((a, b) => a.name.localeCompare(b.name, 'ko'))
   const company = settings.company_name || '해피워크'
+  // ✏️ 정기 개선 2026-11-28 13:36: 아직 금액을 안 낸 업체 중 앱에 연결된(거래 중) 곳 수 — '앱 연결 n곳에 다시 알리기'
+  const remindable = open ? quotes.filter((q) => q.amount == null && q.status === 'requested' && !!vendorOf.get(q.vendor_id)?.user_id && vendorOf.get(q.vendor_id)?.active).length : 0
 
   return (
     <div className="space-y-4">
@@ -153,6 +155,8 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
           />
         </div>
       )}
+      {/* ✏️ 정기 개선 2026-11-28 13:36: 아직 안 낸 업체 중 앱에 연결된 곳이 있으면 한 번에 다시 알리기 (앱이 없는 곳은 각 카드의 '문자로 요청') */}
+      {remindable > 0 && <QuoteRemind requestId={req.id} linked={remindable} />}
       {mixed && (
         <p className="-mt-2 text-xs text-mute" data-quote-vat-mixed>
           부가세 포함·별도가 섞여 있어 <b className="font-semibold text-sub">부가세 포함 금액</b>으로 견줬어요.
@@ -171,7 +175,15 @@ export default async function QuoteRequestPage(props: PageProps<'/admin/vendors/
                 <Link href={`/admin/vendors/${q.vendor_id}`} className="font-bold">
                   {v?.name ?? '알 수 없는 업체'}
                 </Link>
-                <p className="text-xs text-mute">{[v?.category, v?.contact_name].filter(Boolean).join(' · ')}</p>
+                <p className="text-xs text-mute">
+                  {[v?.category, v?.contact_name].filter(Boolean).join(' · ')}
+                  {/* ✏️ 정기 개선 2026-11-28 13:36: 앱에 연결된 업체 (견적 요청·다시 알림이 앱으로 감) */}
+                  {v?.user_id && (
+                    <span className="font-semibold text-violet-700" data-quote-app>
+                      {v.category || v.contact_name ? ' · ' : ''}앱 연결
+                    </span>
+                  )}
+                </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <span className={`badge ${st.cls}`}>{st.label}</span>
